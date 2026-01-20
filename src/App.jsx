@@ -26,25 +26,25 @@ function PasswordGate({ onSuccess }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-8">
+    <div className="min-h-screen bg-[#E8E6E1] flex items-center justify-center p-8">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-[#E85D3B]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8 text-[#E85D3B]" />
+          <div className="w-16 h-16 bg-[#E53935]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-8 h-8 text-[#E53935]" />
           </div>
-          <h1 className="text-2xl font-bold text-[#1A1F2E] mb-2">Conscious Compass</h1>
-          <p className="text-[#6B7280]">Enter password to access the assessment tool</p>
+          <h1 className="text-2xl font-bold text-[#1A1A1A] mb-2">Conscious Compass</h1>
+          <p className="text-[#666666]">Enter password to access the assessment tool</p>
         </div>
         
         <form onSubmit={handleSubmit} className="card p-6">
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Password</label>
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Password</label>
             <input 
               type="password" 
               value={password} 
               onChange={(e) => { setPassword(e.target.value); setError(false); }}
               placeholder="Enter password"
-              className={`w-full px-4 py-3 border rounded-lg bg-white ${error ? 'border-red-500' : 'border-[#E8E4DE]'}`}
+              className={`w-full px-4 py-3 border rounded-lg bg-white ${error ? 'border-red-500' : 'border-[#D9D6D0]'}`}
               autoFocus
             />
             {error && <p className="text-red-500 text-sm mt-2">Incorrect password</p>}
@@ -223,7 +223,7 @@ function SpiderChart({ scores, size = 400 }) {
       {gridLevels.map(level => {
         const r = (level / 100) * radius;
         return (
-          <circle key={level} cx={center} cy={center} r={r} fill="none" stroke="#E8E4DE" strokeWidth="1" />
+          <circle key={level} cx={center} cy={center} r={r} fill="none" stroke="#D9D6D0" strokeWidth="1" />
         );
       })}
       
@@ -232,15 +232,15 @@ function SpiderChart({ scores, size = 400 }) {
         const angle = angleStep * i - Math.PI / 2;
         const x2 = center + radius * Math.cos(angle);
         const y2 = center + radius * Math.sin(angle);
-        return <line key={i} x1={center} y1={center} x2={x2} y2={y2} stroke="#E8E4DE" strokeWidth="1" />;
+        return <line key={i} x1={center} y1={center} x2={x2} y2={y2} stroke="#D9D6D0" strokeWidth="1" />;
       })}
       
       {/* Data polygon */}
-      <path d={pathD} fill="rgba(232, 93, 59, 0.2)" stroke="#E85D3B" strokeWidth="2.5" />
+      <path d={pathD} fill="rgba(229, 57, 53, 0.2)" stroke="#E53935" strokeWidth="2.5" />
       
       {/* Data points */}
       {dataPoints.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="6" fill="#E85D3B" stroke="white" strokeWidth="2" />
+        <circle key={i} cx={p.x} cy={p.y} r="6" fill="#E53935" stroke="white" strokeWidth="2" />
       ))}
       
       {/* Labels */}
@@ -251,7 +251,7 @@ function SpiderChart({ scores, size = 400 }) {
         const y = center + labelRadius * Math.sin(angle);
         return (
           <text key={attr.id} x={x} y={y} textAnchor="middle" dominantBaseline="middle" 
-                className="text-xs font-medium fill-[#1A1F2E]">
+                className="text-xs font-medium fill-[#1A1A1A]">
             {attr.name}
           </text>
         );
@@ -262,7 +262,7 @@ function SpiderChart({ scores, size = 400 }) {
         const point = dataPoints[i];
         return (
           <text key={`score-${attr.id}`} x={point.x} y={point.y - 14} textAnchor="middle" 
-                className="text-xs font-bold fill-[#E85D3B]">
+                className="text-xs font-bold fill-[#E53935]">
             {scores[attr.id]?.score || 0}
           </text>
         );
@@ -278,7 +278,7 @@ function MaturityContinuum({ score }) {
   
   return (
     <div className="card p-6">
-      <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">Brand Consciousness Maturity</h3>
+      <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Brand Consciousness Maturity</h3>
       
       {/* Scale */}
       <div className="relative mb-8">
@@ -289,27 +289,27 @@ function MaturityContinuum({ score }) {
           className="absolute top-0 transform -translate-x-1/2 transition-all duration-1000"
           style={{ left: `${percentage}%` }}
         >
-          <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-[#1A1F2E] -mt-2" />
-          <div className="absolute top-6 left-1/2 transform -translate-x-1/2 bg-[#1A1F2E] text-white px-3 py-1 rounded-lg text-sm font-bold whitespace-nowrap">
+          <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-[#1A1A1A] -mt-2" />
+          <div className="absolute top-6 left-1/2 transform -translate-x-1/2 bg-[#1A1A1A] text-white px-3 py-1 rounded-lg text-sm font-bold whitespace-nowrap">
             {score}/100
           </div>
         </div>
       </div>
       
       {/* Stage Labels */}
-      <div className="flex justify-between text-xs text-[#6B7280] mb-4">
+      <div className="flex justify-between text-xs text-[#666666] mb-4">
         {MATURITY_STAGES.map(s => (
           <div key={s.id} className="text-center" style={{ width: `${(s.max - s.min + 1)}%` }}>
             <div className="w-2 h-2 rounded-full mx-auto mb-1" style={{ backgroundColor: s.color }} />
-            <span className={stage.id === s.id ? 'font-bold text-[#1A1F2E]' : ''}>{s.name}</span>
+            <span className={stage.id === s.id ? 'font-bold text-[#1A1A1A]' : ''}>{s.name}</span>
           </div>
         ))}
       </div>
       
       {/* Current Stage Description */}
-      <div className="bg-[#F5F3F0] rounded-lg p-4 text-center">
+      <div className="bg-[#F0EEEA] rounded-lg p-4 text-center">
         <div className="text-2xl font-bold mb-1" style={{ color: stage.color }}>{stage.name}</div>
-        <p className="text-sm text-[#4A4E5A]">{stage.description}</p>
+        <p className="text-sm text-[#333333]">{stage.description}</p>
       </div>
     </div>
   );
@@ -318,18 +318,18 @@ function MaturityContinuum({ score }) {
 // Header
 function Header({ onNewAssessment, onSavedAssessments }) {
   return (
-    <header className="bg-[#FAF8F5] border-b border-[#E8E4DE] py-5 px-6">
+    <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-5 px-6">
       <div className="max-w-6xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-4">
           <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
-          <div className="h-6 w-px bg-[#1A1F2E]" />
-          <span className="text-lg font-semibold text-[#1A1F2E]">Conscious Compass</span>
+          <div className="h-6 w-px bg-[#1A1A1A]" />
+          <span className="text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={onSavedAssessments} className="flex items-center gap-2 text-sm text-[#4A4E5A] hover:text-[#1A1F2E] transition-colors">
+          <button onClick={onSavedAssessments} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
             <FileText className="w-4 h-4" /> Saved Assessments
           </button>
-          <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#1A1F2E] text-white hover:bg-[#2D3142] px-4 py-2 rounded-lg transition-colors">
+          <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#1A1A1A] text-white hover:bg-[#333333] px-4 py-2 rounded-lg transition-colors">
             <Plus className="w-4 h-4" /> New Assessment
           </button>
         </div>
@@ -341,16 +341,16 @@ function Header({ onNewAssessment, onSavedAssessments }) {
 // Progress Steps
 function ProgressSteps({ currentStep, steps }) {
   return (
-    <div className="bg-white border-b border-[#E8E4DE] py-4 px-6">
+    <div className="bg-white border-b border-[#D9D6D0] py-4 px-6">
       <div className="max-w-6xl mx-auto flex items-center justify-center gap-2">
         {steps.map((step, i) => (
           <div key={step.id} className="flex items-center">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
-              i < currentStep ? 'bg-[#E85D3B] text-white' : i === currentStep ? 'bg-[#E85D3B]/10 text-[#E85D3B] ring-2 ring-[#E85D3B]' : 'bg-[#F5F3F0] text-gray-400'
+              i < currentStep ? 'bg-[#E53935] text-white' : i === currentStep ? 'bg-[#E53935]/10 text-[#E53935] ring-2 ring-[#E53935]' : 'bg-[#F0EEEA] text-gray-400'
             }`}>
               {i < currentStep ? <Check className="w-4 h-4" /> : i + 1}
             </div>
-            {i < steps.length - 1 && <div className={`w-8 h-0.5 mx-1 ${i < currentStep ? 'bg-[#E85D3B]' : 'bg-[#E8E4DE]'}`} />}
+            {i < steps.length - 1 && <div className={`w-8 h-0.5 mx-1 ${i < currentStep ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`} />}
           </div>
         ))}
       </div>
@@ -363,10 +363,10 @@ function WelcomePage({ onStart }) {
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-8 relative">
       <div className="max-w-3xl text-center animate-fade-in">
-        <h1 className="text-5xl md:text-6xl font-bold text-[#1A1F2E] mb-6 leading-tight">
+        <h1 className="text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight">
           Consequential brands are conscious brands.
         </h1>
-        <p className="text-xl text-[#4A4E5A] mb-8 leading-relaxed max-w-2xl mx-auto">
+        <p className="text-xl text-[#333333] mb-8 leading-relaxed max-w-2xl mx-auto">
           They don't just show up, they stand out. They don't follow trends; they shape narratives. 
           The Conscious Compass explores your brand's impact across 8 essential attributes.
         </p>
@@ -387,44 +387,44 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext }) {
 
   return (
     <div className="max-w-2xl mx-auto p-8 animate-fade-in">
-      <h2 className="text-3xl font-bold text-[#1A1F2E] mb-2">Brand Details</h2>
-      <p className="text-[#4A4E5A] mb-8">Tell us about the brand you're assessing.</p>
+      <h2 className="text-3xl font-bold text-[#1A1A1A] mb-2">Brand Details</h2>
+      <p className="text-[#333333] mb-8">Tell us about the brand you're assessing.</p>
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Brand Name *</label>
+          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Brand Name *</label>
           <input type="text" value={project.brandName} onChange={(e) => setProject({ ...project, brandName: e.target.value })}
-            placeholder="e.g., Antenna Group" className="w-full px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white" />
+            placeholder="e.g., Antenna Group" className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white" />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Website URL *</label>
+          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Website URL *</label>
           <input type="url" value={project.websiteUrl} onChange={(e) => setProject({ ...project, websiteUrl: e.target.value })}
-            placeholder="https://www.example.com" className="w-full px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white" />
+            placeholder="https://www.example.com" className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white" />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Business Model</label>
+          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Business Model</label>
           <select value={project.businessModel} onChange={(e) => setProject({ ...project, businessModel: e.target.value })}
-            className="w-full px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white">
+            className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white">
             {BUSINESS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Industry</label>
+          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Industry</label>
           <select value={project.industry || 'other'} onChange={(e) => setProject({ ...project, industry: e.target.value })}
-            className="w-full px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white">
+            className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white">
             {INDUSTRIES.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-          <p className="text-xs text-[#6B7280] mt-1">Used for industry context in the assessment</p>
+          <p className="text-xs text-[#666666] mt-1">Used for industry context in the assessment</p>
         </div>
 
-        <div className="pt-4 border-t border-[#E8E4DE]">
-          <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Claude API Key *</label>
+        <div className="pt-4 border-t border-[#D9D6D0]">
+          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Claude API Key *</label>
           <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white font-mono text-sm" />
-          <p className="text-xs text-[#6B7280] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#E85D3B] hover:underline">console.anthropic.com</a></p>
+            placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white font-mono text-sm" />
+          <p className="text-xs text-[#666666] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">console.anthropic.com</a></p>
         </div>
       </div>
 
@@ -551,13 +551,17 @@ Based on the screenshots and content provided, deliver a comprehensive website a
    - How well does the site guide users toward conversion?
    - Are there any friction points or confusing elements?
 
-7. ACCESSIBILITY
-   - Is there sufficient color contrast between text and backgrounds?
-   - Are fonts legible and appropriately sized?
+7. ACCESSIBILITY (WCAG 2.1 Level AA Compliance)
+   - Estimate the percentage of WCAG 2.1 Level AA compliance based on visible elements (0-100%)
+   - Is there sufficient color contrast between text and backgrounds (4.5:1 for normal text, 3:1 for large text)?
+   - Are fonts legible and appropriately sized (minimum 16px for body text)?
    - Do images appear to have alt text considerations?
-   - Are interactive elements large enough for easy clicking/tapping?
-   - Is the content structure logical for screen readers (proper heading hierarchy)?
-   - Are there any obvious accessibility barriers (text over busy images, low contrast buttons)?
+   - Are interactive elements large enough for easy clicking/tapping (minimum 44x44px touch targets)?
+   - Is the content structure logical for screen readers (proper heading hierarchy H1→H2→H3)?
+   - Are form labels properly associated with inputs?
+   - Are there any obvious accessibility barriers (text over busy images, low contrast buttons, missing skip links)?
+   - Would keyboard-only navigation likely work (focus states, tab order)?
+   - Provide a specific accessibility compliance percentage estimate and explain your reasoning
 
 8. AI AND SEARCH READABILITY
    - Based on visible structure, how well could AI systems understand this brand?
@@ -591,46 +595,46 @@ End with:
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
       <div className="flex items-start gap-4 mb-8">
-        <div className="w-14 h-14 bg-[#E85D3B]/10 rounded-xl flex items-center justify-center">
-          <Globe className="w-7 h-7 text-[#E85D3B]" />
+        <div className="w-14 h-14 bg-[#E53935]/10 rounded-xl flex items-center justify-center">
+          <Globe className="w-7 h-7 text-[#E53935]" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1F2E]">Website Assessment</h2>
-          <p className="text-[#4A4E5A]">Analyzing {project.brandName}'s website: {project.websiteUrl}</p>
+          <h2 className="text-2xl font-bold text-[#1A1A1A]">Website Assessment</h2>
+          <p className="text-[#333333]">Analyzing {project.brandName}'s website: {project.websiteUrl}</p>
         </div>
       </div>
 
       {/* Pages Reviewed */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-3">Pages Reviewed</h3>
-        <p className="text-sm text-[#6B7280] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
+        <h3 className="font-semibold text-[#1A1A1A] mb-3">Pages Reviewed</h3>
+        <p className="text-sm text-[#666666] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
         <input 
           type="text" 
           value={pagesReviewed} 
           onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ ...assessmentData, pagesReviewed: e.target.value }); }}
           placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact"
-          className="w-full px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white"
+          className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
         />
       </div>
 
       {/* Screenshots */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-3 flex items-center gap-2">
+        <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
           <Image className="w-5 h-5" /> Website Screenshots (up to 4)
         </h3>
-        <p className="text-sm text-[#6B7280] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
+        <p className="text-sm text-[#666666] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
         
         <div className="grid grid-cols-2 gap-4 mb-4">
           {images.map((img, index) => (
             <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#E8E4DE]" />
+              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#D9D6D0]" />
               <button onClick={() => removeImage(index)}
                 className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100">
                 <X className="w-4 h-4" />
               </button>
-              <div className="absolute bottom-2 left-2 bg-[#1A1F2E] text-white text-xs px-2 py-1 rounded">
+              <div className="absolute bottom-2 left-2 bg-[#1A1A1A] text-white text-xs px-2 py-1 rounded">
                 {index + 1}
               </div>
             </div>
@@ -638,11 +642,11 @@ End with:
           
           {images.length < 4 && (
             <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#E85D3B] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#E85D3B]/5 transition-colors">
+              className="h-40 border-2 border-dashed border-[#E53935] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#E53935]/5 transition-colors">
               {isCompressing ? (
-                <><Loader2 className="w-6 h-6 text-[#E85D3B] animate-spin" /><span className="text-sm text-[#E85D3B]">Compressing...</span></>
+                <><Loader2 className="w-6 h-6 text-[#E53935] animate-spin" /><span className="text-sm text-[#E53935]">Compressing...</span></>
               ) : (
-                <><Upload className="w-6 h-6 text-[#E85D3B]" /><span className="text-sm text-[#E85D3B] font-medium">Add Screenshot</span><span className="text-xs text-[#6B7280]">{4 - images.length} remaining</span></>
+                <><Upload className="w-6 h-6 text-[#E53935]" /><span className="text-sm text-[#E53935] font-medium">Add Screenshot</span><span className="text-xs text-[#666666]">{4 - images.length} remaining</span></>
               )}
             </button>
           )}
@@ -657,8 +661,8 @@ End with:
 
       {/* Website Content */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-3">Website Content (Optional)</h3>
-        <p className="text-sm text-[#6B7280] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
+        <h3 className="font-semibold text-[#1A1A1A] mb-3">Website Content (Optional)</h3>
+        <p className="text-sm text-[#666666] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
         <textarea 
           value={websiteContent} 
           onChange={(e) => { setWebsiteContent(e.target.value); setAssessmentData({ ...assessmentData, websiteContent: e.target.value }); }}
@@ -670,14 +674,14 @@ TAGLINE: 'Enterprise solutions for the modern era'
 ABOUT: 'Founded in 2015, we help companies...'
 VALUE PROP: 'Reduce costs by 40% while improving...'
 ..."
-          className="w-full h-40 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm"
+          className="w-full h-40 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
         />
       </div>
 
       {/* Assessor Observations */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-3">Assessor Observations</h3>
-        <p className="text-sm text-[#6B7280] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
+        <h3 className="font-semibold text-[#1A1A1A] mb-3">Assessor Observations</h3>
+        <p className="text-sm text-[#666666] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Add your observations about:
 - Brand alignment issues
@@ -685,7 +689,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 - Consistency across pages
 - Navigation or UX concerns
 - Content gaps
-- Competitive positioning..." className="w-full h-32 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none" />
+- Competitive positioning..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -700,16 +704,16 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 
       {isComplete && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-[#1A1F2E] mb-3 flex items-center gap-2">
-            <Check className="w-5 h-5 text-[#E85D3B]" /> Analysis Complete
+          <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
+            <Check className="w-5 h-5 text-[#E53935]" /> Analysis Complete
           </h3>
-          <div className="bg-[#F5F3F0] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#4A4E5A] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#E8E4DE]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={onNext} disabled={!isComplete} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -735,21 +739,26 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     hasYouTube: assessmentData.hasYouTube ?? true,
     redditContent: assessmentData.redditContent || '',
     wikipediaContent: assessmentData.wikipediaContent || '',
+    glassdoorContent: assessmentData.glassdoorContent || '',
+    nextdoorContent: assessmentData.nextdoorContent || '',
+    wipoContent: assessmentData.wipoContent || '',
   });
   const [images, setImages] = useState(assessmentData.socialImages || []);
+  const [instagramImages, setInstagramImages] = useState(assessmentData.instagramImages || []);
   const fileInputRef = useRef(null);
+  const instagramFileInputRef = useRef(null);
 
   const updateInput = (key, value) => {
     setInputs(prev => ({ ...prev, [key]: value }));
     setAssessmentData({ ...assessmentData, [key]: value });
   };
 
-  // Auto-check YouTube, Wikipedia, and Reddit presence
+  // Auto-check YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor, and WIPO
   const runAutoCheck = async () => {
     setIsAutoChecking(true);
     setError(null);
     try {
-      const prompt = `You are researching ${project.brandName}'s presence on YouTube, Wikipedia, and Reddit.
+      const prompt = `You are researching ${project.brandName}'s presence across multiple platforms.
 
 Website: ${project.websiteUrl}
 Industry: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
@@ -776,16 +785,39 @@ Based on your knowledge, provide a brief assessment for each platform:
 - Notable threads or mentions
 - If minimal presence, note "Limited Reddit presence"
 
+4. GLASSDOOR PRESENCE (impacts brand self-awareness/Reflective score):
+- Does ${project.brandName} have a Glassdoor profile?
+- What is the overall rating (out of 5)?
+- What do reviews say about company culture, leadership, work-life balance?
+- Are there patterns in positive or negative feedback?
+- CEO approval rating if known
+- If no Glassdoor presence, note "No Glassdoor profile found"
+
+5. NEXTDOOR PRESENCE (impacts audience connection/Aware score):
+- Is ${project.brandName} active on Nextdoor or mentioned in neighborhood discussions?
+- For B2B brands, this may not be applicable
+- For B2C/local businesses, what is the community sentiment?
+- If not applicable or no presence, note "Not applicable/No Nextdoor presence"
+
+6. WIPO TRADEMARK STATUS (impacts brand professionalism/Intentional score):
+- Does ${project.brandName} have registered trademarks via WIPO (World Intellectual Property Organization)?
+- In which jurisdictions is the brand name protected?
+- Are there any trademark conflicts or similar names that could cause confusion?
+- If unknown, note "Trademark status requires manual verification at branddb.wipo.int"
+
 Format your response clearly with headers for each platform. Be concise but informative.`;
 
       const result = await callClaude(prompt, apiKey);
       
       // Parse the response and update the relevant fields
-      const sections = result.split(/(?=\d\.\s*(?:YOUTUBE|WIKIPEDIA|REDDIT))/i);
+      const sections = result.split(/(?=\d\.\s*(?:YOUTUBE|WIKIPEDIA|REDDIT|GLASSDOOR|NEXTDOOR|WIPO))/i);
       
       let youtubeInfo = '';
       let wikiInfo = '';
       let redditInfo = '';
+      let glassdoorInfo = '';
+      let nextdoorInfo = '';
+      let wipoInfo = '';
       
       sections.forEach(section => {
         if (section.toLowerCase().includes('youtube')) {
@@ -794,6 +826,12 @@ Format your response clearly with headers for each platform. Be concise but info
           wikiInfo = section.replace(/^\d\.\s*WIKIPEDIA[^:]*:/i, '').trim();
         } else if (section.toLowerCase().includes('reddit')) {
           redditInfo = section.replace(/^\d\.\s*REDDIT[^:]*:/i, '').trim();
+        } else if (section.toLowerCase().includes('glassdoor')) {
+          glassdoorInfo = section.replace(/^\d\.\s*GLASSDOOR[^:]*:/i, '').trim();
+        } else if (section.toLowerCase().includes('nextdoor')) {
+          nextdoorInfo = section.replace(/^\d\.\s*NEXTDOOR[^:]*:/i, '').trim();
+        } else if (section.toLowerCase().includes('wipo')) {
+          wipoInfo = section.replace(/^\d\.\s*WIPO[^:]*:/i, '').trim();
         }
       });
 
@@ -807,12 +845,64 @@ Format your response clearly with headers for each platform. Be concise but info
       if (redditInfo && !inputs.redditContent) {
         updateInput('redditContent', `[Auto-checked] ${redditInfo}`);
       }
+      if (glassdoorInfo && !inputs.glassdoorContent) {
+        updateInput('glassdoorContent', `[Auto-checked] ${glassdoorInfo}`);
+      }
+      if (nextdoorInfo && !inputs.nextdoorContent) {
+        updateInput('nextdoorContent', `[Auto-checked] ${nextdoorInfo}`);
+      }
+      if (wipoInfo && !inputs.wipoContent) {
+        updateInput('wipoContent', `[Auto-checked] ${wipoInfo}`);
+      }
 
     } catch (err) {
       setError('Auto-check failed: ' + err.message);
     } finally {
       setIsAutoChecking(false);
     }
+  };
+
+  // Instagram image upload handler
+  const handleInstagramImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    
+    const remainingSlots = 4 - instagramImages.length;
+    const filesToProcess = files.slice(0, remainingSlots);
+    
+    if (filesToProcess.length === 0) {
+      setError('Maximum 4 Instagram images allowed');
+      return;
+    }
+    
+    setIsCompressing(true);
+    
+    Promise.all(filesToProcess.map(file => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result;
+          const fileSizeMB = file.size / (1024 * 1024);
+          if (fileSizeMB > 4) {
+            compressImage(dataUrl, 4).then(resolve).catch(() => resolve(dataUrl));
+          } else {
+            resolve(dataUrl);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    })).then(newImages => {
+      const updatedImages = [...instagramImages, ...newImages];
+      setInstagramImages(updatedImages);
+      setAssessmentData({ ...assessmentData, instagramImages: updatedImages });
+      setIsCompressing(false);
+    });
+  };
+
+  const removeInstagramImage = (index) => {
+    const updatedImages = instagramImages.filter((_, i) => i !== index);
+    setInstagramImages(updatedImages);
+    setAssessmentData({ ...assessmentData, instagramImages: updatedImages });
   };
 
   const handleImageUpload = (e) => {
@@ -861,7 +951,7 @@ Format your response clearly with headers for each platform. Be concise but info
     setIsProcessing(true);
     setError(null);
     try {
-      const prompt = `Analyze ${project.brandName}'s social media presence based on the content provided below.
+      const prompt = `Analyze ${project.brandName}'s social media and reputation presence based on the content provided below.
 
 === LINKEDIN DATA ===
 About Section:
@@ -878,6 +968,7 @@ ${inputs.xContent || '[Not provided]'}
 
 === INSTAGRAM DATA ===
 ${inputs.instagramContent || '[Not provided]'}
+${instagramImages.length > 0 ? `\n${instagramImages.length} Instagram screenshot(s) provided for visual reference.` : ''}
 
 === YOUTUBE DATA ===
 ${inputs.hasYouTube ? (inputs.youtubeContent || '[User indicated they have YouTube but no content provided]') : '[Brand does not have a YouTube channel]'}
@@ -888,11 +979,20 @@ ${inputs.redditContent || '[Not provided - please note any Reddit mentions or di
 === WIKIPEDIA PRESENCE ===
 ${inputs.wikipediaContent || '[Not provided - please note if ' + project.brandName + ' has a Wikipedia page]'}
 
+=== GLASSDOOR (Employer Reputation) ===
+${inputs.glassdoorContent || '[Not reviewed - Glassdoor reviews impact brand self-awareness and Reflective score]'}
+
+=== NEXTDOOR (Community Reputation) ===
+${inputs.nextdoorContent || '[Not reviewed - Nextdoor presence impacts audience connection and Aware score]'}
+
+=== WIPO TRADEMARK STATUS ===
+${inputs.wipoContent || '[Not checked - Trademark registration impacts brand professionalism and Intentional score]'}
+
 ${images.length > 0 ? `\n${images.length} screenshot(s) of social media pages have been provided for visual reference.` : ''}
 
 ${assessmentData.observations ? `\nASSESSOR OBSERVATIONS TO CONSIDER:\n${assessmentData.observations}` : ''}
 
-Based on the content provided above, deliver a comprehensive social media assessment:
+Based on the content provided above, deliver a comprehensive social media and reputation assessment:
 
 1. LinkedIn Presence: Analyze the About section messaging, post content quality, engagement rates (benchmark: 2-4% is good), thought leadership positioning, and content mix
 
@@ -906,14 +1006,21 @@ Based on the content provided above, deliver a comprehensive social media assess
 
 6. Wikipedia Presence: Does the brand have a Wikipedia page? How does this impact their credibility and AI search visibility?
 
-7. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
+7. Glassdoor & Employer Reputation: Analyze employee reviews, ratings, and sentiment. How self-aware is the brand about its culture and reputation?
 
-8. AI/Search Visibility: How does their social presence impact discoverability in AI search engines?
+8. Community Presence (Nextdoor): For B2C brands, how does the local community perceive them? What do recommendations and discussions reveal?
+
+9. Trademark Protection (WIPO): Is the brand name properly protected? Are there any conflicts or risks?
+
+10. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
+
+11. AI/Search Visibility: How does their social presence impact discoverability in AI search engines?
 
 Write in flowing prose with specific observations from the content provided. End with key strengths and priority improvements.`;
 
-      const result = await callClaude(prompt, apiKey, images[0], images.slice(1));
-      setAssessmentData({ ...assessmentData, status: 'complete', content: result, ...inputs, socialImages: images });
+      const allImages = [...images, ...instagramImages];
+      const result = await callClaude(prompt, apiKey, allImages[0], allImages.slice(1));
+      setAssessmentData({ ...assessmentData, status: 'complete', content: result, ...inputs, socialImages: images, instagramImages });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -931,8 +1038,8 @@ Write in flowing prose with specific observations from the content provided. End
           <Users className="w-7 h-7 text-[#8B5CF6]" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1F2E]">Social Media Assessment</h2>
-          <p className="text-[#4A4E5A]">Evaluating {project.brandName}'s social presence</p>
+          <h2 className="text-2xl font-bold text-[#1A1A1A]">Social Media Assessment</h2>
+          <p className="text-[#333333]">Evaluating {project.brandName}'s social presence</p>
         </div>
       </div>
 
@@ -944,15 +1051,15 @@ Write in flowing prose with specific observations from the content provided. End
 
       {/* Screenshot Upload */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-3">Social Media Screenshots (up to 4)</h3>
-        <p className="text-sm text-[#6B7280] mb-4">Upload screenshots from social profiles for visual analysis.</p>
+        <h3 className="font-semibold text-[#1A1A1A] mb-3">Social Media Screenshots (up to 4)</h3>
+        <p className="text-sm text-[#666666] mb-4">Upload screenshots from social profiles for visual analysis.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
         
         <div className="grid grid-cols-4 gap-3 mb-4">
           {images.map((img, index) => (
             <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-24 object-cover rounded-lg border border-[#E8E4DE]" />
+              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-24 object-cover rounded-lg border border-[#D9D6D0]" />
               <button onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow hover:bg-gray-100">
                 <X className="w-3 h-3" />
               </button>
@@ -969,16 +1076,16 @@ Write in flowing prose with specific observations from the content provided. End
 
       {/* LinkedIn Inputs */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-4 flex items-center gap-2">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> LinkedIn Content
         </h3>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[#1A1F2E] mb-2">LinkedIn Company URL</label>
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">LinkedIn Company URL</label>
             <div className="flex gap-2">
               <input type="url" value={inputs.linkedinUrl} onChange={(e) => updateInput('linkedinUrl', e.target.value)}
-                placeholder="https://linkedin.com/company/..." className="flex-1 px-4 py-2 border border-[#E8E4DE] rounded-lg bg-white text-sm" />
+                placeholder="https://linkedin.com/company/..." className="flex-1 px-4 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
               {inputs.linkedinUrl && (
                 <a href={inputs.linkedinUrl} target="_blank" rel="noopener noreferrer" 
                    className="px-3 py-2 bg-[#0A66C2] text-white rounded-lg text-sm hover:bg-[#004182] transition-colors flex items-center gap-1">
@@ -989,40 +1096,40 @@ Write in flowing prose with specific observations from the content provided. End
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#1A1F2E] mb-2">About Section</label>
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">About Section</label>
             <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
-              placeholder="Go to their LinkedIn 'About' tab and paste the company description here..." className="w-full h-24 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Go to their LinkedIn 'About' tab and paste the company description here..." className="w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Recent Posts (include engagement metrics)</label>
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Recent Posts (include engagement metrics)</label>
             <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
-              placeholder="Copy 5-10 recent posts. Include the post text and engagement (e.g., '245 likes, 32 comments, 15 reposts')..." className="w-full h-32 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Copy 5-10 recent posts. Include the post text and engagement (e.g., '245 likes, 32 comments, 15 reposts')..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Articles (if any)</label>
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Articles (if any)</label>
             <textarea value={inputs.linkedinArticles} onChange={(e) => updateInput('linkedinArticles', e.target.value)}
-              placeholder="List any LinkedIn articles: titles, brief summary, engagement..." className="w-full h-20 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm" />
+              placeholder="List any LinkedIn articles: titles, brief summary, engagement..." className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         </div>
       </div>
 
       {/* X (Twitter) Input */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-4 flex items-center gap-2">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> X (Twitter) Content
         </h3>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[#1A1F2E] mb-2">X Profile URL</label>
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">X Profile URL</label>
             <div className="flex gap-2">
               <input type="url" value={inputs.xUrl} onChange={(e) => updateInput('xUrl', e.target.value)}
-                placeholder="https://x.com/..." className="flex-1 px-4 py-2 border border-[#E8E4DE] rounded-lg bg-white text-sm" />
+                placeholder="https://x.com/..." className="flex-1 px-4 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
               {inputs.xUrl && (
                 <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" 
-                   className="px-3 py-2 bg-[#1A1F2E] text-white rounded-lg text-sm hover:bg-[#2D3142] transition-colors flex items-center gap-1">
+                   className="px-3 py-2 bg-[#1A1A1A] text-white rounded-lg text-sm hover:bg-[#333333] transition-colors flex items-center gap-1">
                   <ExternalLink className="w-4 h-4" /> Open
                 </a>
               )}
@@ -1030,30 +1137,54 @@ Write in flowing prose with specific observations from the content provided. End
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Profile & Recent Tweets</label>
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Profile & Recent Tweets</label>
             <textarea value={inputs.xContent} onChange={(e) => updateInput('xContent', e.target.value)}
-              placeholder="Paste their X bio, follower count, and 5-10 recent tweets with engagement metrics..." className="w-full h-28 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Paste their X bio, follower count, and 5-10 recent tweets with engagement metrics..." className="w-full h-28 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         </div>
       </div>
 
-      {/* Instagram Input */}
+      {/* Instagram Input with Image Upload */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-4 flex items-center gap-2">
-          <ExternalLink className="w-5 h-5" /> Instagram Content
+        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+          <Image className="w-5 h-5" /> Instagram Content
         </h3>
         <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
-          placeholder="Paste their Instagram bio, follower count, describe recent posts (types of content, engagement levels, visual themes)..." className="w-full h-28 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm" />
+          placeholder="Paste their Instagram bio, follower count, describe recent posts (types of content, engagement levels, visual themes)..." className="w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm mb-4" />
+        
+        <p className="text-sm text-[#666666] mb-3">Upload Instagram screenshots for visual analysis (up to 4 images)</p>
+        <input type="file" ref={instagramFileInputRef} onChange={handleInstagramImageUpload} accept="image/*" multiple className="hidden" />
+        
+        {instagramImages.length > 0 && (
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            {instagramImages.map((img, idx) => (
+              <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-[#D9D6D0]">
+                <img src={img} alt={`Instagram ${idx + 1}`} className="w-full h-full object-cover" />
+                <button onClick={() => removeInstagramImage(idx)} className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {instagramImages.length < 4 && (
+          <button onClick={() => instagramFileInputRef.current?.click()} 
+            className="w-full h-20 border-2 border-dashed border-[#E53935] rounded-lg flex items-center justify-center gap-2 hover:bg-[#E53935]/5 transition-colors">
+            <Upload className="w-5 h-5 text-[#E53935]" />
+            <span className="text-sm text-[#E53935] font-medium">Add Instagram Screenshots ({4 - instagramImages.length} remaining)</span>
+          </button>
+        )}
       </div>
 
       {/* Auto-Check Button */}
-      <div className="card p-6 mb-6 bg-gradient-to-r from-[#E85D3B]/5 to-[#E85D3B]/10 border-[#E85D3B]/20">
+      <div className="card p-6 mb-6 bg-gradient-to-r from-[#E53935]/5 to-[#E53935]/10 border-[#E53935]/20">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-[#1A1F2E] mb-1 flex items-center gap-2">
-              <Bot className="w-5 h-5 text-[#E85D3B]" /> Auto-Check Presence
+            <h3 className="font-semibold text-[#1A1A1A] mb-1 flex items-center gap-2">
+              <Bot className="w-5 h-5 text-[#E53935]" /> Auto-Check Presence
             </h3>
-            <p className="text-sm text-[#6B7280]">Let Claude check {project.brandName}'s YouTube, Wikipedia, and Reddit presence</p>
+            <p className="text-sm text-[#666666]">Check {project.brandName}'s YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor, and WIPO status</p>
           </div>
           <button 
             onClick={runAutoCheck} 
@@ -1068,51 +1199,84 @@ Write in flowing prose with specific observations from the content provided. End
 
       {/* YouTube Input */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-4 flex items-center gap-2">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> YouTube Content
         </h3>
         
         <div className="mb-4">
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={inputs.hasYouTube} onChange={(e) => updateInput('hasYouTube', e.target.checked)}
-              className="w-5 h-5 rounded border-gray-300 text-[#E85D3B] focus:ring-[#E85D3B]" />
-            <span className="text-sm text-[#1A1F2E]">This brand has a YouTube channel</span>
+              className="w-5 h-5 rounded border-gray-300 text-[#E53935] focus:ring-[#E53935]" />
+            <span className="text-sm text-[#1A1A1A]">This brand has a YouTube channel</span>
           </label>
         </div>
 
         {inputs.hasYouTube && (
           <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
-            placeholder="Describe: subscriber count, number of videos, recent video titles and view counts, content themes, posting frequency..." className="w-full h-28 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm" />
+            placeholder="Describe: subscriber count, number of videos, recent video titles and view counts, content themes, posting frequency..." className="w-full h-28 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
         )}
       </div>
 
       {/* Reddit and Wikipedia */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-4 flex items-center gap-2">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> Reddit and Wikipedia Presence
         </h3>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Reddit Mentions</label>
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Reddit Mentions</label>
             <textarea value={inputs.redditContent} onChange={(e) => updateInput('redditContent', e.target.value)}
-              placeholder="Search Reddit for the brand name. Note any subreddits where they're discussed, sentiment of discussions, any notable threads..." className="w-full h-24 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Search Reddit for the brand name. Note any subreddits where they're discussed, sentiment of discussions, any notable threads..." className="w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-[#1A1F2E] mb-2">Wikipedia Page</label>
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Wikipedia Page</label>
             <textarea value={inputs.wikipediaContent} onChange={(e) => updateInput('wikipediaContent', e.target.value)}
-              placeholder="Does this brand have a Wikipedia page? If yes, paste key details or describe its completeness. If no, note that." className="w-full h-20 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Does this brand have a Wikipedia page? If yes, paste key details or describe its completeness. If no, note that." className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         </div>
       </div>
 
+      {/* Glassdoor - impacts Reflective score */}
+      <div className="card p-6 mb-6">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+          <ExternalLink className="w-5 h-5" /> Glassdoor Reviews
+          <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">Impacts Reflective Score</span>
+        </h3>
+        <p className="text-sm text-[#666666] mb-3">Visit <a href="https://glassdoor.com" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">glassdoor.com</a> and search for the company</p>
+        <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
+          placeholder="Glassdoor rating (out of 5), CEO approval, key themes from reviews (culture, leadership, work-life balance), number of reviews, pros/cons patterns..." className="w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+      </div>
+
+      {/* Nextdoor - impacts Aware score */}
+      <div className="card p-6 mb-6">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+          <ExternalLink className="w-5 h-5" /> Nextdoor Presence
+          <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Impacts Aware Score</span>
+        </h3>
+        <p className="text-sm text-[#666666] mb-3">Visit <a href="https://nextdoor.com" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">nextdoor.com</a> to check community presence (most relevant for B2C/local businesses)</p>
+        <textarea value={inputs.nextdoorContent} onChange={(e) => updateInput('nextdoorContent', e.target.value)}
+          placeholder="Is the brand active on Nextdoor? Community discussions, recommendations, local reputation, customer testimonials... (Note 'Not applicable' for pure B2B brands)" className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+      </div>
+
+      {/* WIPO Trademark - impacts Intentional score */}
+      <div className="card p-6 mb-6">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+          <ExternalLink className="w-5 h-5" /> WIPO Trademark Search
+          <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">Impacts Intentional Score</span>
+        </h3>
+        <p className="text-sm text-[#666666] mb-3">Visit <a href="https://branddb.wipo.int/en/similarname" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">branddb.wipo.int</a> to search for trademark registrations</p>
+        <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
+          placeholder="Search the brand name in WIPO's Brand Database. Note: registered trademarks, jurisdictions covered, any similar/conflicting marks, trademark status..." className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+      </div>
+
       {/* Assessor Observations */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-3">Assessor Observations</h3>
-        <p className="text-sm text-[#6B7280] mb-3">Your observations will be included in the analysis and final report.</p>
+        <h3 className="font-semibold text-[#1A1A1A] mb-3">Assessor Observations</h3>
+        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about their social media presence..." className="w-full h-32 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none" />
+          placeholder="Add your own observations about their social media presence..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -1125,16 +1289,16 @@ Write in flowing prose with specific observations from the content provided. End
 
       {isComplete && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-[#1A1F2E] mb-3 flex items-center gap-2">
+          <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
             <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
           </h3>
-          <div className="bg-[#F5F3F0] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#4A4E5A] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#E8E4DE]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={onNext} disabled={!isComplete} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -1203,14 +1367,14 @@ Write in flowing prose.`;
           <Bot className="w-7 h-7 text-[#3B82F6]" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1F2E]">AI Reputation Assessment</h2>
-          <p className="text-[#4A4E5A]">How does {project.brandName} appear across AI systems?</p>
+          <h2 className="text-2xl font-bold text-[#1A1A1A]">AI Reputation Assessment</h2>
+          <p className="text-[#333333]">How does {project.brandName} appear across AI systems?</p>
         </div>
       </div>
 
-      <div className="bg-[#F5F3F0] rounded-lg p-4 mb-6">
-        <p className="text-sm text-[#6B7280] mb-2">Query each AI system with:</p>
-        <p className="text-[#1A1F2E] italic text-sm">"{standardQuery}"</p>
+      <div className="bg-[#F0EEEA] rounded-lg p-4 mb-6">
+        <p className="text-sm text-[#666666] mb-2">Query each AI system with:</p>
+        <p className="text-[#1A1A1A] italic text-sm">"{standardQuery}"</p>
       </div>
 
       {!responses.claude && (
@@ -1223,56 +1387,56 @@ Write in flowing prose.`;
 
       <div className="space-y-4 mb-6">
         {/* Claude */}
-        <div className={`card p-4 ${responses.claude ? 'bg-[#F5F3F0]' : ''}`}>
+        <div className={`card p-4 ${responses.claude ? 'bg-[#F0EEEA]' : ''}`}>
           <div className="flex items-center gap-3 mb-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${responses.claude ? 'bg-[#E85D3B] text-white' : 'bg-[#F5F3F0]'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${responses.claude ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
               {isProcessing.claude ? <Loader2 className="w-5 h-5 animate-spin" /> : responses.claude ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
             </div>
             <div>
               <h4 className="font-medium">Claude (Anthropic)</h4>
-              <p className="text-sm text-[#6B7280]">{responses.claude ? 'Response received' : 'Click button above to query'}</p>
+              <p className="text-sm text-[#666666]">{responses.claude ? 'Response received' : 'Click button above to query'}</p>
             </div>
           </div>
-          {responses.claude && <div className="bg-white rounded-lg p-3 max-h-40 overflow-y-auto text-sm text-[#4A4E5A] border border-[#E8E4DE]">{responses.claude}</div>}
+          {responses.claude && <div className="bg-white rounded-lg p-3 max-h-40 overflow-y-auto text-sm text-[#333333] border border-[#D9D6D0]">{responses.claude}</div>}
         </div>
 
         {/* Gemini */}
-        <div className={`card p-4 ${manualInput.gemini ? 'bg-[#F5F3F0]' : ''}`}>
+        <div className={`card p-4 ${manualInput.gemini ? 'bg-[#F0EEEA]' : ''}`}>
           <div className="flex items-center gap-3 mb-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.gemini ? 'bg-[#E85D3B] text-white' : 'bg-[#F5F3F0]'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.gemini ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
               {manualInput.gemini ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
             </div>
             <div>
               <h4 className="font-medium">Gemini (Google)</h4>
-              <p className="text-sm text-[#6B7280]">Paste response from gemini.google.com</p>
+              <p className="text-sm text-[#666666]">Paste response from gemini.google.com</p>
             </div>
           </div>
           <textarea value={manualInput.gemini} onChange={(e) => setManualInput(m => ({ ...m, gemini: e.target.value }))}
-            placeholder="Paste Gemini's response here..." className="w-full h-24 px-3 py-2 border border-[#E8E4DE] rounded-lg text-sm bg-white" />
+            placeholder="Paste Gemini's response here..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm bg-white" />
         </div>
 
         {/* ChatGPT */}
-        <div className={`card p-4 ${manualInput.chatgpt ? 'bg-[#F5F3F0]' : ''}`}>
+        <div className={`card p-4 ${manualInput.chatgpt ? 'bg-[#F0EEEA]' : ''}`}>
           <div className="flex items-center gap-3 mb-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.chatgpt ? 'bg-[#E85D3B] text-white' : 'bg-[#F5F3F0]'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.chatgpt ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
               {manualInput.chatgpt ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
             </div>
             <div>
               <h4 className="font-medium">ChatGPT (OpenAI)</h4>
-              <p className="text-sm text-[#6B7280]">Paste response from chatgpt.com</p>
+              <p className="text-sm text-[#666666]">Paste response from chatgpt.com</p>
             </div>
           </div>
           <textarea value={manualInput.chatgpt} onChange={(e) => setManualInput(m => ({ ...m, chatgpt: e.target.value }))}
-            placeholder="Paste ChatGPT's response here..." className="w-full h-24 px-3 py-2 border border-[#E8E4DE] rounded-lg text-sm bg-white" />
+            placeholder="Paste ChatGPT's response here..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm bg-white" />
         </div>
       </div>
 
       {/* Assessor Observations - moved before synthesis */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-3">Assessor Observations</h3>
-        <p className="text-sm text-[#6B7280] mb-3">Your observations will be included in the synthesis and final report.</p>
+        <h3 className="font-semibold text-[#1A1A1A] mb-3">Assessor Observations</h3>
+        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the synthesis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about the AI responses, discrepancies noticed, concerns, etc..." className="w-full h-32 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none" />
+          placeholder="Add your own observations about the AI responses, discrepancies noticed, concerns, etc..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
       </div>
 
       {hasAllResponses && !isComplete && (
@@ -1283,14 +1447,14 @@ Write in flowing prose.`;
 
       {isComplete && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-[#1A1F2E] mb-3 flex items-center gap-2">
+          <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
             <Check className="w-5 h-5 text-[#3B82F6]" /> Synthesis Complete
           </h3>
-          <div className="bg-[#F5F3F0] rounded-lg p-4 max-h-64 overflow-y-auto text-sm text-[#4A4E5A]">{assessmentData.content}</div>
+          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-64 overflow-y-auto text-sm text-[#333333]">{assessmentData.content}</div>
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#E8E4DE]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={onNext} disabled={!isComplete} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -1352,15 +1516,15 @@ Write in flowing prose with specific examples. End with priority recommendations
           <Newspaper className="w-7 h-7 text-[#10B981]" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1F2E]">Earned Media Assessment</h2>
-          <p className="text-[#4A4E5A]">Analyzing {project.brandName}'s press coverage</p>
+          <h2 className="text-2xl font-bold text-[#1A1A1A]">Earned Media Assessment</h2>
+          <p className="text-[#333333]">Analyzing {project.brandName}'s press coverage</p>
         </div>
       </div>
 
       {/* Coverage Paste Field */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-3">Media Coverage (Last 3 Months)</h3>
-        <p className="text-sm text-[#6B7280] mb-4">
+        <h3 className="font-semibold text-[#1A1A1A] mb-3">Media Coverage (Last 3 Months)</h3>
+        <p className="text-sm text-[#666666] mb-4">
           Paste any press coverage, news articles, mentions, or media clips from the last 3 months. 
           Include headlines, publication names, dates, and key quotes if available.
         </p>
@@ -1374,16 +1538,16 @@ Example:
 - Forbes (Jan 8, 2026): CEO quoted on industry trends
 - Industry Podcast (Dec 20, 2025): 30-min interview with CTO
 ..."
-          className="w-full h-48 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none text-sm"
+          className="w-full h-48 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
         />
       </div>
 
       {/* Assessor Observations - before analysis button */}
       <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1F2E] mb-3">Assessor Observations</h3>
-        <p className="text-sm text-[#6B7280] mb-3">Your observations will be included in the analysis and final report.</p>
+        <h3 className="font-semibold text-[#1A1A1A] mb-3">Assessor Observations</h3>
+        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-32 px-4 py-3 border border-[#E8E4DE] rounded-lg bg-white resize-none" />
+          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -1396,16 +1560,16 @@ Example:
 
       {isComplete && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-[#1A1F2E] mb-3 flex items-center gap-2">
+          <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
             <Check className="w-5 h-5 text-[#10B981]" /> Analysis Complete
           </h3>
-          <div className="bg-[#F5F3F0] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#4A4E5A] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#E8E4DE]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={onNext} disabled={!isComplete} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -1422,26 +1586,56 @@ function ScoringPage({ scores, setScores, assessments, apiKey, project, onPrev, 
     setIsProcessing(true);
     setError(null);
     try {
-      const prompt = `Score ${project.brandName} against the Conscious Compass Framework.
+      const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v2.3.
 
-ASSESSMENT DATA:
-Website: ${assessments.website.content}
+ASSESSMENT DATA COLLECTED:
+
+WEBSITE ASSESSMENT:
+${assessments.website.content}
 ${assessments.website.observations ? `Assessor Notes: ${assessments.website.observations}` : ''}
+Pages Reviewed: ${assessments.website.pagesReviewed || 'Not specified'}
+Additional Content: ${assessments.website.websiteContent || 'None'}
 
-Social Media: ${assessments.social.content}
+SOCIAL MEDIA ASSESSMENT:
+${assessments.social.content}
 ${assessments.social.observations ? `Assessor Notes: ${assessments.social.observations}` : ''}
+Glassdoor: ${assessments.social.glassdoorContent || 'Not reviewed'}
+Nextdoor: ${assessments.social.nextdoorContent || 'Not reviewed'}
+WIPO Trademark: ${assessments.social.wipoContent || 'Not checked'}
 
-AI Reputation: ${assessments.aiReputation.content}
+AI REPUTATION ASSESSMENT:
+${assessments.aiReputation.content}
 ${assessments.aiReputation.observations ? `Assessor Notes: ${assessments.aiReputation.observations}` : ''}
 
-Earned Media: ${assessments.earnedMedia.content}
+EARNED MEDIA ASSESSMENT:
+${assessments.earnedMedia.content}
 ${assessments.earnedMedia.observations ? `Assessor Notes: ${assessments.earnedMedia.observations}` : ''}
 
-Score each attribute 0-100:
+SCORING RUBRIC v2.3 - Score each attribute 0-100 based on these criteria:
 ${ATTRIBUTES.map(a => `${a.id} (${a.fullName}): ${a.description}`).join('\n')}
 
-Return ONLY valid JSON:
-{"AWAKE":{"score":45,"summary":"2-3 sentence explanation"},"AWARE":{"score":52,"summary":"..."},"REFLECTIVE":{"score":38,"summary":"..."},"ATTENTIVE":{"score":55,"summary":"..."},"COGENT":{"score":42,"summary":"..."},"SENTIENT":{"score":35,"summary":"..."},"VISIONARY":{"score":48,"summary":"..."},"INTENTIONAL":{"score":50,"summary":"..."}}`;
+IMPORTANT SCORING CONSIDERATIONS:
+- Website accessibility compliance should be evaluated against WCAG 2.1 Level AA and factor into ATTENTIVE score
+- Glassdoor reviews impact REFLECTIVE score (brand self-awareness and reputation)
+- Nextdoor presence impacts AWARE score (audience connection and community trust)
+- WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
+
+For each attribute, provide:
+1. A score from 0-100
+2. A "findings" section: 2-3 specific observations about what was found (cite specific evidence)
+3. An "opportunity" section: 1-2 sentences describing what could be improved and the expected effort/impact
+
+Return ONLY valid JSON in this exact format:
+{
+  "AWAKE": {"score": 45, "findings": "Specific observations about thought leadership presence, media mentions, and industry authority.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
+  "AWARE": {"score": 52, "findings": "Specific observations about audience understanding, community engagement, and trust signals.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
+  "REFLECTIVE": {"score": 38, "findings": "Specific observations about brand narrative consistency, self-awareness, and reputation management.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
+  "ATTENTIVE": {"score": 55, "findings": "Specific observations about content quality, UX, accessibility compliance (estimate WCAG 2.1 AA percentage), and attention to detail.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
+  "COGENT": {"score": 42, "findings": "Specific observations about messaging clarity, information architecture, and data-driven approach.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
+  "SENTIENT": {"score": 35, "findings": "Specific observations about emotional resonance, creative execution, and brand personality.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
+  "VISIONARY": {"score": 48, "findings": "Specific observations about purpose, future orientation, and aspirational messaging.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
+  "INTENTIONAL": {"score": 50, "findings": "Specific observations about professionalism, credibility signals, and strategic positioning.", "opportunity": "The opportunity is [specific action] with [effort level] effort."}
+}`;
 
       const result = await callClaude(prompt, apiKey);
       const match = result.match(/\{[\s\S]*\}/);
@@ -1459,8 +1653,8 @@ Return ONLY valid JSON:
           <BarChart3 className="w-7 h-7 text-[#6366F1]" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1F2E]">Scoring & Analysis</h2>
-          <p className="text-[#4A4E5A]">AI-generated scores based on the four assessments.</p>
+          <h2 className="text-2xl font-bold text-[#1A1A1A]">Scoring & Analysis</h2>
+          <p className="text-[#333333]">AI-generated scores based on the four assessments.</p>
         </div>
       </div>
 
@@ -1476,7 +1670,7 @@ Return ONLY valid JSON:
         <>
           {/* Spider Chart */}
           <div className="card p-6 mb-8">
-            <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4 text-center">Attribute Scores</h3>
+            <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4 text-center">Attribute Scores</h3>
             <SpiderChart scores={scores} />
           </div>
 
@@ -1484,28 +1678,31 @@ Return ONLY valid JSON:
           <MaturityContinuum score={overall} />
 
           {/* Attribute Cards */}
-          <h3 className="text-lg font-semibold text-[#1A1F2E] mt-8 mb-4">Detailed Breakdown</h3>
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mt-8 mb-4">Detailed Breakdown</h3>
           <div className="grid md:grid-cols-2 gap-4 mb-8">
             {ATTRIBUTES.map(attr => (
               <div key={attr.id} className="card p-5">
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <div className="inline-block px-2 py-1 rounded text-xs font-semibold text-white mb-1" style={{ backgroundColor: attr.color }}>{attr.name}</div>
-                    <h4 className="font-semibold text-[#1A1F2E] text-sm">{attr.fullName}</h4>
+                    <h4 className="font-semibold text-[#1A1A1A] text-sm">{attr.fullName}</h4>
                   </div>
                   <span className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
                 </div>
-                <div className="h-2 bg-[#F5F3F0] rounded-full overflow-hidden mb-3">
+                <div className="h-2 bg-[#F0EEEA] rounded-full overflow-hidden mb-3">
                   <div className="h-full rounded-full" style={{ width: `${scores[attr.id]?.score || 0}%`, backgroundColor: attr.color }} />
                 </div>
-                <p className="text-xs text-[#4A4E5A]">{scores[attr.id]?.summary}</p>
+                <p className="text-xs text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+                {scores[attr.id]?.opportunity && (
+                  <p className="text-xs text-[#E53935] italic">{scores[attr.id].opportunity}</p>
+                )}
               </div>
             ))}
           </div>
         </>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#E8E4DE]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={onNext} disabled={!scores} className="btn-primary flex items-center gap-2">View Report <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -1617,7 +1814,7 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
 
       const addHeading = (text) => {
         y += 5;
-        addText(text, 14, true, [232, 93, 59]);
+        addText(text, 14, true, [229, 57, 53]);
         y += 2;
       };
 
@@ -1641,7 +1838,7 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
       y += 10;
 
       // Overall Score Box
-      pdf.setFillColor(232, 93, 59);
+      pdf.setFillColor(229, 57, 53);
       pdf.roundedRect(margin, y, 50, 20, 3, 3, 'F');
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(20);
@@ -1718,7 +1915,7 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
       }
       
       // Draw polygon outline
-      pdf.setDrawColor(232, 93, 59);
+      pdf.setDrawColor(229, 57, 53);
       pdf.setLineWidth(1.2);
       for (let i = 0; i < points.length; i++) {
         const p1 = points[i];
@@ -1727,7 +1924,7 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
       }
       
       // Draw data points
-      pdf.setFillColor(232, 93, 59);
+      pdf.setFillColor(229, 57, 53);
       points.forEach(p => {
         pdf.circle(p.x, p.y, 1.5, 'F');
       });
@@ -1752,7 +1949,11 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
       addHeading('ATTRIBUTE ANALYSIS');
       ATTRIBUTES.forEach(attr => {
         addText(`${attr.name}: ${scores[attr.id]?.score || 0}/100`, 11, true);
-        addText(scores[attr.id]?.summary || attr.description, 9);
+        const findings = scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description;
+        addText(findings, 9);
+        if (scores[attr.id]?.opportunity) {
+          addText(scores[attr.id].opportunity, 9, false, [229, 57, 53]); // Teal color for opportunity
+        }
         addSpace(3);
       });
 
@@ -1823,7 +2024,8 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
             new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('ATTRIBUTE ANALYSIS')] }),
             ...ATTRIBUTES.flatMap(attr => [
               new Paragraph({ children: [new TextRun({ text: `${attr.name}: ${scores[attr.id]?.score || 0}/100`, bold: true })] }),
-              new Paragraph({ children: [new TextRun(scores[attr.id]?.summary || attr.description)] }),
+              new Paragraph({ children: [new TextRun(scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description)] }),
+              ...(scores[attr.id]?.opportunity ? [new Paragraph({ children: [new TextRun({ text: scores[attr.id].opportunity, italics: true, color: '0D9488' })] })] : []),
               new Paragraph({ children: [new TextRun('')] }),
             ]),
             
@@ -1865,8 +2067,8 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
     <div className="max-w-5xl mx-auto p-8 animate-fade-in">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-bold text-[#1A1F2E]">{project.brandName}</h2>
-          <p className="text-[#6B7280]">Conscious Compass Assessment Report | {industryName}</p>
+          <h2 className="text-3xl font-bold text-[#1A1A1A]">{project.brandName}</h2>
+          <p className="text-[#666666]">Conscious Compass Assessment Report | {industryName}</p>
         </div>
         <div className="flex gap-3">
           <button onClick={onShare} className="btn-secondary flex items-center gap-2"><Share2 className="w-4 h-4" /> Share</button>
@@ -1882,26 +2084,26 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
 
       {/* Executive Summary */}
       <div className="card p-6 mb-6">
-        <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">EXECUTIVE SUMMARY</h3>
-        <p className="text-[#4A4E5A] leading-relaxed">
+        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">EXECUTIVE SUMMARY</h3>
+        <p className="text-[#333333] leading-relaxed">
           {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
         </p>
       </div>
 
       {/* Spider Chart */}
       <div className="card p-6 mb-6">
-        <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4 text-center">Brand Consciousness Profile</h3>
+        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4 text-center">Brand Consciousness Profile</h3>
         <SpiderChart scores={scores} size={450} />
       </div>
 
       {/* Score Summary */}
       <div className="card p-6 mb-6">
-        <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">SCORE SUMMARY</h3>
+        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">SCORE SUMMARY</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {ATTRIBUTES.map(attr => (
-            <div key={attr.id} className="text-center p-3 bg-[#F5F3F0] rounded-lg">
+            <div key={attr.id} className="text-center p-3 bg-[#F0EEEA] rounded-lg">
               <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-              <div className="text-sm text-[#4A4E5A]">{attr.name}</div>
+              <div className="text-sm text-[#333333]">{attr.name}</div>
             </div>
           ))}
         </div>
@@ -1912,14 +2114,14 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
 
       {/* Maturity Stage Context */}
       <div className="card p-6 mb-6">
-        <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">MATURITY STAGE CONTEXT</h3>
-        <p className="text-[#4A4E5A] leading-relaxed">
+        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">MATURITY STAGE CONTEXT</h3>
+        <p className="text-[#333333] leading-relaxed">
           With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
         </p>
       </div>
 
       {/* Attribute Analysis */}
-      <h3 className="text-xl font-semibold text-[#1A1F2E] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
+      <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
       <div className="space-y-4 mb-8">
         {ATTRIBUTES.map(attr => (
           <div key={attr.id} className="card p-5">
@@ -1929,32 +2131,35 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
                   {scores[attr.id]?.score || 0}
                 </div>
                 <div>
-                  <h4 className="font-bold text-[#1A1F2E]">{attr.name}</h4>
-                  <p className="text-sm text-[#6B7280]">{attr.fullName}</p>
+                  <h4 className="font-bold text-[#1A1A1A]">{attr.name}</h4>
+                  <p className="text-sm text-[#666666]">{attr.fullName}</p>
                 </div>
               </div>
             </div>
-            <p className="text-sm text-[#4A4E5A]">{scores[attr.id]?.summary || attr.description}</p>
+            <p className="text-sm text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+            {scores[attr.id]?.opportunity && (
+              <p className="text-sm text-[#E53935] italic">{scores[attr.id].opportunity}</p>
+            )}
           </div>
         ))}
       </div>
 
       {/* Recommendations */}
-      <h3 className="text-xl font-semibold text-[#1A1F2E] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
-      <p className="text-[#6B7280] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
+      <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
+      <p className="text-[#666666] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
       <div className="space-y-4 mb-6">
         {recommendations.map((r, i) => (
           <div key={i} className="card p-5">
             <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-[#E85D3B] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
+              <div className="w-8 h-8 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
               <div className="flex-1">
-                <h4 className="font-semibold text-[#1A1F2E] mb-2">{r.title}</h4>
-                <p className="text-sm text-[#4A4E5A] leading-relaxed mb-2">
+                <h4 className="font-semibold text-[#1A1A1A] mb-2">{r.title}</h4>
+                <p className="text-sm text-[#333333] leading-relaxed mb-2">
                   {r.description} {r.impact}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {r.attributes.map((attr, j) => (
-                    <span key={j} className="text-xs px-2 py-1 bg-[#E85D3B]/10 text-[#E85D3B] rounded-full font-medium">{attr}</span>
+                    <span key={j} className="text-xs px-2 py-1 bg-[#E53935]/10 text-[#E53935] rounded-full font-medium">{attr}</span>
                   ))}
                 </div>
               </div>
@@ -1965,21 +2170,21 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
 
       {/* Conclusions */}
       <div className="card p-6 mb-6">
-        <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">CONCLUSIONS</h3>
-        <p className="text-[#4A4E5A] leading-relaxed">
+        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">CONCLUSIONS</h3>
+        <p className="text-[#333333] leading-relaxed">
           {project.brandName} has demonstrated {overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening {sortedAttrs[0].name} and {sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, {project.brandName} is well positioned to become a more consequential presence in its industry.
         </p>
       </div>
 
       {/* What We Evaluated */}
       <div className="card p-6 mb-8">
-        <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">WHAT WE EVALUATED</h3>
-        <p className="text-[#4A4E5A] leading-relaxed">
+        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">WHAT WE EVALUATED</h3>
+        <p className="text-[#333333] leading-relaxed">
           This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.3, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
         </p>
       </div>
 
-      <div className="flex items-center justify-start pt-6 border-t border-[#E8E4DE]">
+      <div className="flex items-center justify-start pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
       </div>
     </div>
@@ -2016,8 +2221,8 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-bold text-[#1A1F2E]">Saved Assessments</h2>
-          <p className="text-[#6B7280]">Up to 15 assessments stored locally in your browser</p>
+          <h2 className="text-3xl font-bold text-[#1A1A1A]">Saved Assessments</h2>
+          <p className="text-[#666666]">Up to 15 assessments stored locally in your browser</p>
         </div>
         <div className="flex gap-2">
           <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
@@ -2039,9 +2244,9 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
       {assessments.length === 0 ? (
         <div className="card p-12 text-center">
-          <FileText className="w-12 h-12 text-[#E8E4DE] mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-[#1A1F2E] mb-2">No Saved Assessments</h3>
-          <p className="text-[#6B7280] mb-4">Complete an assessment and click Save to store it here.</p>
+          <FileText className="w-12 h-12 text-[#D9D6D0] mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">No Saved Assessments</h3>
+          <p className="text-[#666666] mb-4">Complete an assessment and click Save to store it here.</p>
           <p className="text-sm text-[#9CA3AF]">Or import a previously exported assessment using the Import button above.</p>
         </div>
       ) : (
@@ -2053,23 +2258,23 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     {overallScore !== null && (
-                      <div className="w-14 h-14 rounded-xl bg-[#E85D3B]/10 flex items-center justify-center">
-                        <span className="text-xl font-bold text-[#E85D3B]">{overallScore}</span>
+                      <div className="w-14 h-14 rounded-xl bg-[#E53935]/10 flex items-center justify-center">
+                        <span className="text-xl font-bold text-[#E53935]">{overallScore}</span>
                       </div>
                     )}
                     <div>
-                      <h4 className="font-semibold text-[#1A1F2E] text-lg">{a.project.brandName}</h4>
-                      <div className="flex items-center gap-3 text-sm text-[#6B7280]">
+                      <h4 className="font-semibold text-[#1A1A1A] text-lg">{a.project.brandName}</h4>
+                      <div className="flex items-center gap-3 text-sm text-[#666666]">
                         <span>{a.project.date || 'No date'}</span>
                         {a.project.industry && a.project.industry !== 'other' && (
                           <>
-                            <span className="w-1 h-1 rounded-full bg-[#6B7280]"></span>
+                            <span className="w-1 h-1 rounded-full bg-[#666666]"></span>
                             <span>{INDUSTRIES.find(ind => ind.id === a.project.industry)?.name || a.project.industry}</span>
                           </>
                         )}
                         {overallScore !== null && (
                           <>
-                            <span className="w-1 h-1 rounded-full bg-[#6B7280]"></span>
+                            <span className="w-1 h-1 rounded-full bg-[#666666]"></span>
                             <span>{getMaturityStage(overallScore).name}</span>
                           </>
                         )}
@@ -2077,10 +2282,10 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => onShare(a)} className="text-[#6B7280] hover:text-[#E85D3B] hover:bg-[#E85D3B]/10 p-2 rounded-lg transition-colors" title="Share Link">
+                    <button onClick={() => onShare(a)} className="text-[#666666] hover:text-[#E53935] hover:bg-[#E53935]/10 p-2 rounded-lg transition-colors" title="Share Link">
                       <Share2 className="w-4 h-4" />
                     </button>
-                    <button onClick={() => onExport(a)} className="text-[#6B7280] hover:text-[#1A1F2E] hover:bg-gray-100 p-2 rounded-lg transition-colors" title="Export JSON">
+                    <button onClick={() => onExport(a)} className="text-[#666666] hover:text-[#1A1A1A] hover:bg-gray-100 p-2 rounded-lg transition-colors" title="Export JSON">
                       <Download className="w-4 h-4" />
                     </button>
                     <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-4">Load</button>
@@ -2136,17 +2341,17 @@ function SharedReportView({ report, onClose }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5]">
+    <div className="min-h-screen bg-[#E8E6E1]">
       {/* Header */}
-      <header className="bg-[#FAF8F5] border-b border-[#E8E4DE] py-5 px-6">
+      <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-5 px-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
-            <div className="h-6 w-px bg-[#1A1F2E]" />
-            <span className="text-lg font-semibold text-[#1A1F2E]">Conscious Compass</span>
+            <div className="h-6 w-px bg-[#1A1A1A]" />
+            <span className="text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-[#6B7280] bg-[#F5F3F0] px-3 py-1 rounded-full">Shared Report (Read-only)</span>
+            <span className="text-sm text-[#666666] bg-[#F0EEEA] px-3 py-1 rounded-full">Shared Report (Read-only)</span>
             <button onClick={onClose} className="btn-secondary text-sm">
               Start New Assessment
             </button>
@@ -2157,42 +2362,42 @@ function SharedReportView({ report, onClose }) {
       <div className="max-w-4xl mx-auto p-8 animate-fade-in">
         {/* Report Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-[#1A1F2E] mb-2">Brand Consciousness Report</h1>
-          <p className="text-xl text-[#4A4E5A]">{project.brandName}</p>
-          <p className="text-sm text-[#6B7280] mt-2">{industryName} | {project.businessModel?.toUpperCase() || 'B2B'} | {project.date || 'No date'}</p>
+          <h1 className="text-4xl font-bold text-[#1A1A1A] mb-2">Brand Consciousness Report</h1>
+          <p className="text-xl text-[#333333]">{project.brandName}</p>
+          <p className="text-sm text-[#666666] mt-2">{industryName} | {project.businessModel?.toUpperCase() || 'B2B'} | {project.date || 'No date'}</p>
         </div>
 
         {/* Overall Score */}
-        <div className="card p-8 mb-8 text-center bg-gradient-to-br from-[#E85D3B]/5 to-[#E85D3B]/10">
-          <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-[#E85D3B] text-white mb-4">
+        <div className="card p-8 mb-8 text-center bg-gradient-to-br from-[#E53935]/5 to-[#E53935]/10">
+          <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-[#E53935] text-white mb-4">
             <span className="text-5xl font-bold">{overall}</span>
           </div>
-          <h2 className="text-2xl font-bold text-[#1A1F2E] mb-2">{stage.name}</h2>
-          <p className="text-[#4A4E5A]">{stage.description}</p>
+          <h2 className="text-2xl font-bold text-[#1A1A1A] mb-2">{stage.name}</h2>
+          <p className="text-[#333333]">{stage.description}</p>
         </div>
 
         {/* Spider Chart */}
         <div className="card p-6 mb-8">
-          <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4 text-center">Brand Consciousness Profile</h3>
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4 text-center">Brand Consciousness Profile</h3>
           <SpiderChart scores={scores} size={450} />
         </div>
 
         {/* Executive Summary */}
         <div className="card p-6 mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">EXECUTIVE SUMMARY</h3>
-          <p className="text-[#4A4E5A] leading-relaxed">
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">EXECUTIVE SUMMARY</h3>
+          <p className="text-[#333333] leading-relaxed">
             {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
           </p>
         </div>
 
         {/* Score Summary */}
         <div className="card p-6 mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">SCORE SUMMARY</h3>
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">SCORE SUMMARY</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="text-center p-3 bg-[#F5F3F0] rounded-lg">
+              <div key={attr.id} className="text-center p-3 bg-[#F0EEEA] rounded-lg">
                 <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-                <div className="text-xs text-[#6B7280] mt-1">{attr.name}</div>
+                <div className="text-xs text-[#666666] mt-1">{attr.name}</div>
               </div>
             ))}
           </div>
@@ -2203,14 +2408,14 @@ function SharedReportView({ report, onClose }) {
 
         {/* Maturity Stage Context */}
         <div className="card p-6 mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">MATURITY STAGE CONTEXT</h3>
-          <p className="text-[#4A4E5A] leading-relaxed">
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">MATURITY STAGE CONTEXT</h3>
+          <p className="text-[#333333] leading-relaxed">
             With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
           </p>
         </div>
 
         {/* Attribute Analysis */}
-        <h3 className="text-xl font-semibold text-[#1A1F2E] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
+        <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
         <div className="space-y-4 mb-8">
           {ATTRIBUTES.map(attr => (
             <div key={attr.id} className="card p-5">
@@ -2220,32 +2425,35 @@ function SharedReportView({ report, onClose }) {
                     {scores[attr.id]?.score || 0}
                   </div>
                   <div>
-                    <h4 className="font-bold text-[#1A1F2E]">{attr.name}</h4>
-                    <p className="text-sm text-[#6B7280]">{attr.fullName}</p>
+                    <h4 className="font-bold text-[#1A1A1A]">{attr.name}</h4>
+                    <p className="text-sm text-[#666666]">{attr.fullName}</p>
                   </div>
                 </div>
               </div>
-              <p className="text-sm text-[#4A4E5A]">{scores[attr.id]?.summary || attr.description}</p>
+              <p className="text-sm text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+              {scores[attr.id]?.opportunity && (
+                <p className="text-sm text-[#E53935] italic">{scores[attr.id].opportunity}</p>
+              )}
             </div>
           ))}
         </div>
 
         {/* Recommendations */}
-        <h3 className="text-xl font-semibold text-[#1A1F2E] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
-        <p className="text-[#6B7280] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
+        <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
+        <p className="text-[#666666] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
         <div className="space-y-4 mb-6">
           {recommendations.map((r, i) => (
             <div key={i} className="card p-5">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-[#E85D3B] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
+                <div className="w-8 h-8 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
                 <div className="flex-1">
-                  <h4 className="font-semibold text-[#1A1F2E] mb-2">{r.title}</h4>
-                  <p className="text-sm text-[#4A4E5A] leading-relaxed mb-2">
+                  <h4 className="font-semibold text-[#1A1A1A] mb-2">{r.title}</h4>
+                  <p className="text-sm text-[#333333] leading-relaxed mb-2">
                     {r.description} {r.impact}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {r.attributes.map((attr, j) => (
-                      <span key={j} className="text-xs px-2 py-1 bg-[#E85D3B]/10 text-[#E85D3B] rounded-full font-medium">{attr}</span>
+                      <span key={j} className="text-xs px-2 py-1 bg-[#E53935]/10 text-[#E53935] rounded-full font-medium">{attr}</span>
                     ))}
                   </div>
                 </div>
@@ -2256,14 +2464,14 @@ function SharedReportView({ report, onClose }) {
 
         {/* Conclusions */}
         <div className="card p-6 mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">CONCLUSIONS</h3>
-          <p className="text-[#4A4E5A] leading-relaxed">
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">CONCLUSIONS</h3>
+          <p className="text-[#333333] leading-relaxed">
             {project.brandName} has demonstrated {overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening {sortedAttrs[0].name} and {sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, {project.brandName} is well positioned to become a more consequential presence in its industry.
           </p>
         </div>
 
         {/* Footer */}
-        <div className="text-center pt-8 border-t border-[#E8E4DE]">
+        <div className="text-center pt-8 border-t border-[#D9D6D0]">
           <p className="text-sm text-[#9CA3AF]">
             This report was generated using Antenna Group's Brand Consciousness Framework v2.3
           </p>
@@ -2287,7 +2495,7 @@ export default function App() {
   });
   const [assessments, setAssessments] = useState({
     website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '' },
-    social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', socialImages: [] },
+    social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
     aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
     earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
   });
@@ -2335,7 +2543,7 @@ export default function App() {
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '' },
-        social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', socialImages: [] },
+        social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
         aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
         earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
       });
@@ -2448,7 +2656,7 @@ export default function App() {
   // Show saved assessments page
   if (showSavedPage) {
     return (
-      <div className="min-h-screen bg-[#FAF8F5]">
+      <div className="min-h-screen bg-[#E8E6E1]">
         <Header onNewAssessment={handleNewAssessment} onSavedAssessments={() => setShowSavedPage(false)} />
         <SavedAssessmentsPage 
           assessments={savedAssessments} 
@@ -2464,7 +2672,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5]">
+    <div className="min-h-screen bg-[#E8E6E1]">
       <Header onNewAssessment={handleNewAssessment} onSavedAssessments={() => setShowSavedPage(true)} />
       {currentStep > 0 && currentStep < 8 && <ProgressSteps currentStep={currentStep} steps={steps} />}
 
