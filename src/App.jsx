@@ -1671,6 +1671,83 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
       });
       addSpace(5);
 
+      // Spider Chart
+      addHeading('BRAND CONSCIOUSNESS PROFILE');
+      
+      // Draw spider chart
+      const chartCenterX = pageWidth / 2;
+      const chartCenterY = y + 45;
+      const chartRadius = 35;
+      const numAttrs = ATTRIBUTES.length;
+      const angleStep = (2 * Math.PI) / numAttrs;
+      
+      // Draw grid circles
+      pdf.setDrawColor(220, 220, 220);
+      pdf.setLineWidth(0.3);
+      [0.2, 0.4, 0.6, 0.8, 1.0].forEach(level => {
+        const r = chartRadius * level;
+        pdf.circle(chartCenterX, chartCenterY, r, 'S');
+      });
+      
+      // Draw axis lines
+      pdf.setDrawColor(220, 220, 220);
+      ATTRIBUTES.forEach((attr, i) => {
+        const angle = angleStep * i - Math.PI / 2;
+        const x2 = chartCenterX + chartRadius * Math.cos(angle);
+        const y2 = chartCenterY + chartRadius * Math.sin(angle);
+        pdf.line(chartCenterX, chartCenterY, x2, y2);
+      });
+      
+      // Calculate data points
+      const points = ATTRIBUTES.map((attr, i) => {
+        const score = scores[attr.id]?.score || 0;
+        const angle = angleStep * i - Math.PI / 2;
+        const r = (score / 100) * chartRadius;
+        return {
+          x: chartCenterX + r * Math.cos(angle),
+          y: chartCenterY + r * Math.sin(angle)
+        };
+      });
+      
+      // Draw filled polygon using triangle fan (light peach fill)
+      pdf.setFillColor(252, 220, 210);
+      for (let i = 0; i < points.length; i++) {
+        const p1 = points[i];
+        const p2 = points[(i + 1) % points.length];
+        pdf.triangle(chartCenterX, chartCenterY, p1.x, p1.y, p2.x, p2.y, 'F');
+      }
+      
+      // Draw polygon outline
+      pdf.setDrawColor(232, 93, 59);
+      pdf.setLineWidth(1.2);
+      for (let i = 0; i < points.length; i++) {
+        const p1 = points[i];
+        const p2 = points[(i + 1) % points.length];
+        pdf.line(p1.x, p1.y, p2.x, p2.y);
+      }
+      
+      // Draw data points
+      pdf.setFillColor(232, 93, 59);
+      points.forEach(p => {
+        pdf.circle(p.x, p.y, 1.5, 'F');
+      });
+      
+      // Draw labels with scores
+      pdf.setFontSize(7);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(26, 31, 46);
+      ATTRIBUTES.forEach((attr, i) => {
+        const angle = angleStep * i - Math.PI / 2;
+        const labelRadius = chartRadius + 10;
+        const labelX = chartCenterX + labelRadius * Math.cos(angle);
+        const labelY = chartCenterY + labelRadius * Math.sin(angle) + 1;
+        const score = scores[attr.id]?.score || 0;
+        pdf.text(`${attr.name} (${score})`, labelX, labelY, { align: 'center' });
+      });
+      
+      y = chartCenterY + chartRadius + 18;
+      addSpace(5);
+
       // Attribute Analysis
       addHeading('ATTRIBUTE ANALYSIS');
       ATTRIBUTES.forEach(attr => {
@@ -2033,6 +2110,31 @@ function SharedReportView({ report, onClose }) {
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
   const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
 
+  // Generate recommendations for shared view
+  const recommendations = [];
+  let attrIndex = 0;
+  let recIndex = 0;
+  while (recommendations.length < 12 && attrIndex < sortedAttrs.length) {
+    const attr = sortedAttrs[attrIndex];
+    const attrRecs = SERVICE_RECOMMENDATIONS[attr.id] || [];
+    if (recIndex < attrRecs.length) {
+      const rec = attrRecs[recIndex];
+      recommendations.push({ 
+        attr: attr.name, 
+        attrId: attr.id, 
+        title: rec.title,
+        description: rec.description,
+        impact: rec.impact,
+        attributes: rec.attributes,
+        score: attr.score 
+      });
+      recIndex++;
+    } else {
+      attrIndex++;
+      recIndex = 0;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#FAF8F5]">
       {/* Header */}
@@ -2096,6 +2198,17 @@ function SharedReportView({ report, onClose }) {
           </div>
         </div>
 
+        {/* Maturity Continuum */}
+        <MaturityContinuum score={overall} />
+
+        {/* Maturity Stage Context */}
+        <div className="card p-6 mb-6">
+          <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">MATURITY STAGE CONTEXT</h3>
+          <p className="text-[#4A4E5A] leading-relaxed">
+            With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
+          </p>
+        </div>
+
         {/* Attribute Analysis */}
         <h3 className="text-xl font-semibold text-[#1A1F2E] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
         <div className="space-y-4 mb-8">
@@ -2115,6 +2228,38 @@ function SharedReportView({ report, onClose }) {
               <p className="text-sm text-[#4A4E5A]">{scores[attr.id]?.summary || attr.description}</p>
             </div>
           ))}
+        </div>
+
+        {/* Recommendations */}
+        <h3 className="text-xl font-semibold text-[#1A1F2E] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
+        <p className="text-[#6B7280] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
+        <div className="space-y-4 mb-6">
+          {recommendations.map((r, i) => (
+            <div key={i} className="card p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-[#E85D3B] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-[#1A1F2E] mb-2">{r.title}</h4>
+                  <p className="text-sm text-[#4A4E5A] leading-relaxed mb-2">
+                    {r.description} {r.impact}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {r.attributes.map((attr, j) => (
+                      <span key={j} className="text-xs px-2 py-1 bg-[#E85D3B]/10 text-[#E85D3B] rounded-full font-medium">{attr}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Conclusions */}
+        <div className="card p-6 mb-6">
+          <h3 className="text-lg font-semibold text-[#1A1F2E] mb-4">CONCLUSIONS</h3>
+          <p className="text-[#4A4E5A] leading-relaxed">
+            {project.brandName} has demonstrated {overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening {sortedAttrs[0].name} and {sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, {project.brandName} is well positioned to become a more consequential presence in its industry.
+          </p>
         </div>
 
         {/* Footer */}
