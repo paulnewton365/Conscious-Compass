@@ -2556,21 +2556,32 @@ export default function App() {
       alert('Please enter a brand name before saving.');
       return;
     }
-    let saved = JSON.parse(localStorage.getItem('conscious-compass-saved') || '[]');
-    const data = { project, assessments, scores, savedAt: new Date().toISOString() };
-    const idx = saved.findIndex(s => s.project.brandName === project.brandName);
-    if (idx >= 0) {
-      saved[idx] = data;
-    } else {
-      // Limit to 15 assessments
-      if (saved.length >= 15) {
-        saved = saved.slice(-14); // Keep most recent 14 to make room for new one
+    try {
+      let saved = JSON.parse(localStorage.getItem('conscious-compass-saved') || '[]');
+      // Create a copy of assessments without large image data to reduce storage size
+      const assessmentsToSave = {
+        ...assessments,
+        website: { ...assessments.website, images: [] }, // Exclude website screenshots
+        social: { ...assessments.social, socialImages: [], instagramImages: [] }, // Exclude social images
+      };
+      const data = { project, assessments: assessmentsToSave, scores, savedAt: new Date().toISOString() };
+      const idx = saved.findIndex(s => s.project.brandName === project.brandName);
+      if (idx >= 0) {
+        saved[idx] = data;
+      } else {
+        // Limit to 15 assessments
+        if (saved.length >= 15) {
+          saved = saved.slice(-14); // Keep most recent 14 to make room for new one
+        }
+        saved.push(data);
       }
-      saved.push(data);
+      localStorage.setItem('conscious-compass-saved', JSON.stringify(saved));
+      setSavedAssessments(saved);
+      alert('Assessment saved!');
+    } catch (e) {
+      console.error('Save failed:', e);
+      alert('Save failed: ' + (e.message || 'Storage limit may have been exceeded. Try clearing old assessments.'));
     }
-    localStorage.setItem('conscious-compass-saved', JSON.stringify(saved));
-    setSavedAssessments(saved);
-    alert('Assessment saved!');
   };
 
   const handleLoad = (data) => {
