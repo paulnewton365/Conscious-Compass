@@ -203,6 +203,9 @@ function SpiderChart({ scores, size = 400 }) {
   const attrs = ATTRIBUTES;
   const angleStep = (2 * Math.PI) / attrs.length;
   
+  // Calculate overall score
+  const overall = scores ? Math.round(Object.values(scores).reduce((a, v) => a + v.score, 0) / 8) : 0;
+  
   const getPoint = (index, value) => {
     const angle = angleStep * index - Math.PI / 2;
     const r = (value / 100) * radius;
@@ -236,12 +239,19 @@ function SpiderChart({ scores, size = 400 }) {
       })}
       
       {/* Data polygon */}
-      <path d={pathD} fill="rgba(229, 57, 53, 0.2)" stroke="#E53935" strokeWidth="2.5" />
+      <path d={pathD} fill="rgba(158, 157, 36, 0.35)" stroke="#9E9D24" strokeWidth="2.5" />
       
       {/* Data points */}
       {dataPoints.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="6" fill="#E53935" stroke="white" strokeWidth="2" />
+        <circle key={i} cx={p.x} cy={p.y} r="6" fill="#9E9D24" stroke="white" strokeWidth="2" />
       ))}
+      
+      {/* Center score circle */}
+      <circle cx={center} cy={center} r="45" fill="#9E9D24" />
+      <text x={center} y={center + 2} textAnchor="middle" dominantBaseline="middle" 
+            className="font-bold fill-white" style={{ fontSize: '32px' }}>
+        {overall}
+      </text>
       
       {/* Labels */}
       {attrs.map((attr, i) => {
@@ -262,7 +272,7 @@ function SpiderChart({ scores, size = 400 }) {
         const point = dataPoints[i];
         return (
           <text key={`score-${attr.id}`} x={point.x} y={point.y - 14} textAnchor="middle" 
-                className="text-xs font-bold fill-[#E53935]">
+                className="text-xs font-bold fill-[#9E9D24]">
             {scores[attr.id]?.score || 0}
           </text>
         );
@@ -516,6 +526,7 @@ Based on the screenshots and content provided, deliver a comprehensive website a
    - What is the core value proposition? Is it immediately apparent?
    - How well does the visual identity support and reinforce the brand?
    - Is there a consistent brand voice across pages?
+   - CRITICAL: Compare brand presentation across screenshots - is the brand identity cohesive?
 
 2. MESSAGING AND STORYTELLING
    - Analyze the headline/hero messaging effectiveness
@@ -536,13 +547,15 @@ Based on the screenshots and content provided, deliver a comprehensive website a
    - How easy is it to find key information (pricing, contact, services)?
    - Is there clear hierarchy from primary to secondary to tertiary content?
 
-5. USER INTERFACE (UI) DESIGN
+5. USER INTERFACE (UI) DESIGN & VISUAL CONSISTENCY
    - How professional, modern, and polished is the interface?
-   - Are interactive elements (buttons, forms, links) clearly identifiable?
+   - CRITICAL: Evaluate design consistency across all screenshots - are colors, fonts, spacing, and visual treatments consistent page-to-page?
+   - Are interactive elements (buttons, forms, links) styled consistently throughout?
    - Is there appropriate use of whitespace and visual breathing room?
    - How effective is the typography hierarchy (headings, body, captions)?
    - Are images and media high quality and purposeful?
    - Is the design responsive and mobile-friendly (if visible)?
+   - Note any inconsistencies in: color palette, button styles, heading treatments, spacing patterns, or visual language
 
 6. USER EXPERIENCE (UX) AND NAVIGATION
    - How intuitive is the navigation structure?
@@ -568,9 +581,10 @@ Based on the screenshots and content provided, deliver a comprehensive website a
    - Is content structured for discoverability?
    - Are key brand messages likely to be picked up by AI search engines?
 
-Write in flowing prose with specific observations. Be concrete about what you see in the screenshots.
+Write in flowing prose with specific observations. Be concrete about what you see in the screenshots. Compare elements across different pages to identify consistency or inconsistency.
 
 End with:
+- DESIGN CONSISTENCY RATING (1-10): Rate overall visual consistency across pages with brief explanation
 - 3-5 KEY STRENGTHS (what the website does well)
 - 3-5 PRIORITY IMPROVEMENTS (specific, actionable recommendations)`;
 
