@@ -1634,13 +1634,11 @@ IMPORTANT SCORING CONSIDERATIONS:
 - Nextdoor presence impacts AWARE score (audience connection and community trust)
 - WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
 
-For each attribute, provide:
-1. A score from 0-100
-2. A "findings" section: 2-3 specific observations about what was found (cite specific evidence)
-3. An "opportunity" section: 1-2 sentences describing what could be improved and the expected effort/impact
+FIRST, provide a detailed SCORING JUSTIFICATION explaining your reasoning for each attribute score. Cite specific evidence from the assessments. This should be 2-3 paragraphs explaining the overall scoring approach and key factors.
 
-Return ONLY valid JSON in this exact format:
+THEN return the JSON scores in this exact format:
 {
+  "justification": "Your detailed scoring justification text here explaining the reasoning behind each score...",
   "AWAKE": {"score": 45, "findings": "Specific observations about thought leadership presence, media mentions, and industry authority.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
   "AWARE": {"score": 52, "findings": "Specific observations about audience understanding, community engagement, and trust signals.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
   "REFLECTIVE": {"score": 38, "findings": "Specific observations about brand narrative consistency, self-awareness, and reputation management.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
@@ -1728,6 +1726,7 @@ Return ONLY valid JSON in this exact format:
 function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showJustification, setShowJustification] = useState(false);
 
   const overall = scores ? Math.round(Object.values(scores).reduce((a, v) => a + v.score, 0) / 8) : 0;
   const stage = getMaturityStage(overall);
@@ -2196,7 +2195,42 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
         <p className="text-[#333333] leading-relaxed">
           This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.3, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
         </p>
+        {scores?.justification && (
+          <button 
+            onClick={() => setShowJustification(true)} 
+            className="mt-4 text-sm text-[#E53935] hover:underline flex items-center gap-1"
+          >
+            <FileText className="w-4 h-4" /> View Scoring Justification
+          </button>
+        )}
       </div>
+
+      {/* Scoring Justification Modal */}
+      {showJustification && scores?.justification && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-[#D9D6D0]">
+              <h3 className="text-xl font-bold text-[#1A1A1A]">Scoring Justification</h3>
+              <button onClick={() => setShowJustification(false)} className="text-[#666666] hover:text-[#1A1A1A]">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <p className="text-sm text-[#666666] mb-4">
+                This justification explains the reasoning behind each attribute score based on the assessment data collected.
+              </p>
+              <div className="prose prose-sm max-w-none">
+                {scores.justification.split('\n').map((paragraph, i) => (
+                  paragraph.trim() && <p key={i} className="text-[#333333] mb-4">{paragraph}</p>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 border-t border-[#D9D6D0]">
+              <button onClick={() => setShowJustification(false)} className="btn-secondary w-full">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-start pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
@@ -2323,6 +2357,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
 // Shared Report View (read-only view for shared links)
 function SharedReportView({ report, onClose }) {
+  const [showJustification, setShowJustification] = useState(false);
   const { project, scores } = report;
   const overall = Math.round(Object.values(scores).reduce((sum, v) => sum + v.score, 0) / 8);
   const stage = getMaturityStage(overall);
@@ -2482,7 +2517,42 @@ function SharedReportView({ report, onClose }) {
           <p className="text-[#333333] leading-relaxed">
             {project.brandName} has demonstrated {overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening {sortedAttrs[0].name} and {sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, {project.brandName} is well positioned to become a more consequential presence in its industry.
           </p>
+          {scores?.justification && (
+            <button 
+              onClick={() => setShowJustification(true)} 
+              className="mt-4 text-sm text-[#E53935] hover:underline flex items-center gap-1"
+            >
+              <FileText className="w-4 h-4" /> View Scoring Justification
+            </button>
+          )}
         </div>
+
+        {/* Scoring Justification Modal */}
+        {showJustification && scores?.justification && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between p-6 border-b border-[#D9D6D0]">
+                <h3 className="text-xl font-bold text-[#1A1A1A]">Scoring Justification</h3>
+                <button onClick={() => setShowJustification(false)} className="text-[#666666] hover:text-[#1A1A1A]">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto">
+                <p className="text-sm text-[#666666] mb-4">
+                  This justification explains the reasoning behind each attribute score based on the assessment data collected.
+                </p>
+                <div className="prose prose-sm max-w-none">
+                  {scores.justification.split('\n').map((paragraph, i) => (
+                    paragraph.trim() && <p key={i} className="text-[#333333] mb-4">{paragraph}</p>
+                  ))}
+                </div>
+              </div>
+              <div className="p-4 border-t border-[#D9D6D0]">
+                <button onClick={() => setShowJustification(false)} className="btn-secondary w-full">Close</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="text-center pt-8 border-t border-[#D9D6D0]">
