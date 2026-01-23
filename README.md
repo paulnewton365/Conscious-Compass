@@ -1,74 +1,61 @@
-# SOW Review Tool
+# Conscious Compass
 
-A Statement of Work quality assessment tool for Antenna Group. Upload an SOW document and get automated feedback based on the agency's quality standards framework.
+**Brand Consciousness Assessment Framework v2.3** by Antenna Group
 
-## Features
+## What's New in This Update
 
-- **Document Support**: Upload PDF, DOCX, or plain text SOW documents
-- **Engagement Types**: Specialized assessment for Branding, Website, PR/Communications, Creative Retainer, and Integrated engagements
-- **Comprehensive Analysis**: Checks universal requirements, client responsibilities, master assumptions, service-line specifics, and budget alignment
-- **Actionable Feedback**: Critical issues, recommended improvements, red flags, and overall compliance scoring
+### Typography & Design
+- Inter font throughout (matching Antenna brand)
+- Spider/radar chart visualization for attribute scores
+- Maturity continuum visual showing brand position with arrow indicator
+
+### Enhanced Input Fields
+
+**Website Assessment:**
+- Homepage screenshot upload
+
+**Social Media Assessment:**
+- LinkedIn: About section, Posts (with engagement), Articles (paste fields)
+- X (Twitter): Content paste field
+- YouTube: Channel URL field (blank = no channel)
+- Reddit: Brand mention search included in analysis
+
+**Earned Media Assessment:**
+- 3-month coverage paste field
+- AI search for additional coverage
+
+### Scoring & Report
+- Interactive spider chart showing all 8 attributes
+- Visual maturity scale with position indicator
+- Complete report visible on-screen before download
+- Save/load assessments to browser storage
+
+## 8 Brand Consciousness Attributes
+
+1. **Awake** — Influence & Narrative Leadership
+2. **Aware** — Trust Building & Audience Understanding
+3. **Reflective** — Authenticity & Reputation Management
+4. **Attentive** — Experience Quality & Excellence
+5. **Cogent** — Strategic Intelligence & Data-Driven Marketing
+6. **Sentient** — Creative Differentiation & Emotional Connection
+7. **Visionary** — Future Vision & Audience Benefit
+8. **Intentional** — Credibility & Organizational Confidence
+
+## Quick Start
+
+```bash
+npm install
+npm run dev
+```
+
+## Deploy to Vercel
+
+Upload to GitHub (excluding node_modules), then import to Vercel.
 
 ## Tech Stack
 
-- React 18
-- Vite
-- Tailwind CSS
-- Claude API (Anthropic)
+React 19 + Vite, Tailwind CSS, Lucide React, docx
 
-## Local Development
+---
 
-1. Clone the repository:
-   ```bash
-   git clone <your-repo-url>
-   cd sow-reviewer
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-4. Open http://localhost:5173 in your browser
-
-## Deployment to Vercel
-
-See DEPLOYMENT.md for step-by-step instructions.
-
-## Usage
-
-1. Enter your Anthropic API key (get one at https://console.anthropic.com)
-2. Upload your SOW document (PDF, DOCX, or TXT)
-3. Select the engagement type
-4. Click "Analyze SOW"
-5. Review the structured feedback
-
-## Assessment Framework
-
-The tool checks SOWs against the following criteria:
-
-### Universal Requirements
-- Decimal numbering structure
-- Completion criteria for each deliverable
-- Controlled language (no red flag phrases)
-- Deliverable structure (activities, outputs, assumptions)
-- Client responsibilities (consolidated feedback, approval windows, change control)
-- Master assumptions (scope boundaries, revision limits, pause/termination)
-- Explicit scope exclusions
-- Budget alignment
-
-### Service-Line Specific
-- **Branding**: Phase gates, IDI counts, creative territories, brand components
-- **Website**: BRD, page counts, platform, UAT, warranty, hosting
-- **PR/Comms**: Retainer structure, rate card, reporting cadence, media disclaimers
-- **Creative Retainer**: Drawdown, request parameters, SLAs, exclusions
-- **Integrated**: Fee structure separation, timeline visualization, quarterly planning
-
-## License
-
-Internal use only - Antenna Group
+© 2026 Antenna Group
