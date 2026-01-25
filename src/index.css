@@ -39,13 +39,18 @@ h1, h2, h3, h4 {
   border-radius: 0;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 15px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
 }
 
-.btn-primary:hover { background: var(--antenna-yellow-dark); transform: translateY(-1px); }
+.btn-primary:hover { 
+  background: var(--antenna-yellow-dark); 
+}
+
 .btn-primary:disabled { background: #CCCCCC; color: #888888; cursor: not-allowed; transform: none; }
 
 .btn-secondary {
@@ -56,11 +61,30 @@ h1, h2, h3, h4 {
   border-radius: 0;
   border: 1px solid var(--antenna-black);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  position: relative;
+  overflow: hidden;
 }
 
-.btn-secondary:hover { background: var(--antenna-cream); }
+.btn-secondary:hover { 
+  background: var(--antenna-cream); 
+}
+
+/* Arrow button modifier - adds animated arrow */
+.btn-arrow::after {
+  content: '↗';
+  margin-left: 10px;
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 1.1em;
+}
+
+.btn-arrow:hover::after {
+  transform: translate(3px, -3px);
+}
 
 /* Cards */
 .card {

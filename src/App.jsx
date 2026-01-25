@@ -49,7 +49,7 @@ function PasswordGate({ onSuccess }) {
             />
             {error && <p className="text-red-500 text-sm mt-2">Incorrect password</p>}
           </div>
-          <button type="submit" className="btn-primary w-full">
+          <button type="submit" className="btn-primary btn-arrow w-full">
             Access Tool
           </button>
         </form>
@@ -380,8 +380,8 @@ function WelcomePage({ onStart }) {
           They don't just show up, they stand out. They don't follow trends; they shape narratives. 
           The Conscious Compass explores your brand's impact across 8 essential attributes.
         </p>
-        <button onClick={onStart} className="btn-primary inline-flex items-center gap-3 text-lg">
-          Start Assessment <ArrowRight className="w-5 h-5" />
+        <button onClick={onStart} className="btn-primary btn-arrow text-lg px-8 py-4">
+          Start Assessment
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
@@ -1716,7 +1716,7 @@ THEN return the JSON scores in this exact format:
 
       <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={onNext} disabled={!scores} className="btn-primary flex items-center gap-2">View Report <ArrowRight className="w-4 h-4" /></button>
+        <button onClick={onNext} disabled={!scores} className="btn-primary btn-arrow">View Report</button>
       </div>
     </div>
   );
