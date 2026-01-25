@@ -45,13 +45,28 @@ h1, h2, h3, h4 {
   text-transform: uppercase;
   position: relative;
   overflow: hidden;
+  z-index: 1;
 }
 
-.btn-primary:hover { 
-  background: var(--antenna-yellow-dark); 
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--antenna-yellow-dark);
+  transform: translateX(-101%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
+}
+
+.btn-primary:hover::before { 
+  transform: translateX(0);
 }
 
 .btn-primary:disabled { background: #CCCCCC; color: #888888; cursor: not-allowed; transform: none; }
+.btn-primary:disabled::before { display: none; }
 
 .btn-secondary {
   background: white;
@@ -67,10 +82,28 @@ h1, h2, h3, h4 {
   letter-spacing: 0.02em;
   position: relative;
   overflow: hidden;
+  z-index: 1;
+}
+
+.btn-secondary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--antenna-yellow);
+  transform: translateX(-101%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
+}
+
+.btn-secondary:hover::before { 
+  transform: translateX(0);
 }
 
 .btn-secondary:hover { 
-  background: var(--antenna-cream); 
+  border-color: var(--antenna-yellow);
 }
 
 /* Arrow button modifier - adds animated arrow */
