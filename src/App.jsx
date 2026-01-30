@@ -2334,7 +2334,11 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       ) : (
         <div className="space-y-3">
           {assessments.map((a, i) => {
-            const overallScore = a.scores ? Math.round(Object.values(a.scores).reduce((sum, v) => sum + v.score, 0) / 8) : null;
+            const overallScore = a.scores ? Math.round(
+              Object.entries(a.scores)
+                .filter(([key, val]) => val && typeof val.score === 'number')
+                .reduce((sum, [, v]) => sum + v.score, 0) / 8
+            ) : null;
             return (
               <div key={i} className="card p-5 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between">
