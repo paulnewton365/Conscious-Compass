@@ -781,13 +781,14 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
 Website: ${project.websiteUrl}
 Industry: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
 
-Based on your knowledge, provide a brief assessment for each platform:
+Based on your knowledge, provide a brief assessment for each platform. IMPORTANT: Do NOT guess or estimate specific numbers like subscriber counts, follower counts, or engagement metrics - these change constantly and any estimates would be inaccurate. Focus on qualitative observations only.
 
 1. YOUTUBE PRESENCE:
-- Does ${project.brandName} appear to have an official YouTube channel?
-- What type of content would they likely publish?
-- Estimated subscriber count if known
-- Content quality and consistency observations
+- Does ${project.brandName} appear to have an official YouTube channel? (Yes/No/Unknown)
+- If yes, what is the channel name or URL if known?
+- What type of content do they publish (tutorials, thought leadership, product demos, etc.)?
+- General observations about content quality and posting consistency
+- DO NOT estimate subscriber counts or view counts - these must be manually verified
 - If no YouTube presence, note "No known YouTube channel"
 
 2. WIKIPEDIA PRESENCE:
@@ -805,10 +806,8 @@ Based on your knowledge, provide a brief assessment for each platform:
 
 4. GLASSDOOR PRESENCE (impacts brand self-awareness/Reflective score):
 - Does ${project.brandName} have a Glassdoor profile?
-- What is the overall rating (out of 5)?
-- What do reviews say about company culture, leadership, work-life balance?
-- Are there patterns in positive or negative feedback?
-- CEO approval rating if known
+- General themes in reviews about company culture, leadership, work-life balance
+- DO NOT guess specific ratings - these must be manually verified at glassdoor.com
 - If no Glassdoor presence, note "No Glassdoor profile found"
 
 5. NEXTDOOR PRESENCE (impacts audience connection/Aware score):
@@ -823,7 +822,7 @@ Based on your knowledge, provide a brief assessment for each platform:
 - Are there any trademark conflicts or similar names that could cause confusion?
 - If unknown, note "Trademark status requires manual verification at branddb.wipo.int"
 
-Format your response clearly with headers for each platform. Be concise but informative.`;
+Format your response clearly with headers for each platform. Be concise but informative. Remind the user to manually verify any specific statistics.`;
 
       const result = await callClaude(prompt, apiKey);
       
