@@ -203,8 +203,12 @@ function SpiderChart({ scores, size = 400 }) {
   const attrs = ATTRIBUTES;
   const angleStep = (2 * Math.PI) / attrs.length;
   
-  // Calculate overall score
-  const overall = scores ? Math.round(Object.values(scores).reduce((a, v) => a + v.score, 0) / 8) : 0;
+  // Calculate overall score (filter to only include attribute scores, not justification)
+  const overall = scores ? Math.round(
+    Object.entries(scores)
+      .filter(([key, val]) => val && typeof val.score === 'number')
+      .reduce((a, [, v]) => a + v.score, 0) / 8
+  ) : 0;
   
   const getPoint = (index, value) => {
     const angle = angleStep * index - Math.PI / 2;
@@ -1656,7 +1660,11 @@ THEN return the JSON scores in this exact format:
     finally { setIsProcessing(false); }
   };
 
-  const overall = scores ? Math.round(Object.values(scores).reduce((a, v) => a + v.score, 0) / 8) : 0;
+  const overall = scores ? Math.round(
+    Object.entries(scores)
+      .filter(([key, val]) => val && typeof val.score === 'number')
+      .reduce((a, [, v]) => a + v.score, 0) / 8
+  ) : 0;
 
   return (
     <div className="max-w-5xl mx-auto p-8 animate-fade-in">
@@ -1670,11 +1678,18 @@ THEN return the JSON scores in this exact format:
         </div>
       </div>
 
-      {!scores && (
-        <button onClick={runScoring} disabled={isProcessing} className="btn-primary flex items-center gap-2 mb-6">
-          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> Generate Scores</>}
-        </button>
-      )}
+      {/* Generate or Regenerate Scores Button */}
+      <div className="flex gap-3 mb-6">
+        {!scores ? (
+          <button onClick={runScoring} disabled={isProcessing} className="btn-primary flex items-center gap-2">
+            {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> Generate Scores</>}
+          </button>
+        ) : (
+          <button onClick={runScoring} disabled={isProcessing} className="btn-secondary flex items-center gap-2">
+            {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Scores</>}
+          </button>
+        )}
+      </div>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
 
@@ -1728,7 +1743,11 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showJustification, setShowJustification] = useState(false);
 
-  const overall = scores ? Math.round(Object.values(scores).reduce((a, v) => a + v.score, 0) / 8) : 0;
+  const overall = scores ? Math.round(
+    Object.entries(scores)
+      .filter(([key, val]) => val && typeof val.score === 'number')
+      .reduce((a, [, v]) => a + v.score, 0) / 8
+  ) : 0;
   const stage = getMaturityStage(overall);
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
@@ -2241,7 +2260,7 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
 
 // Saved Assessments Modal
 // Saved Assessments Page
-function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare }) {
+function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore }) {
   const fileInputRef = useRef(null);
 
   const handleFileImport = (e) => {
@@ -2336,6 +2355,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                     <button onClick={() => onExport(a)} className="text-[#666666] hover:text-[#1A1A1A] hover:bg-gray-100 p-2 rounded-lg transition-colors" title="Export JSON">
                       <Download className="w-4 h-4" />
                     </button>
+                    <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-4" title="Regenerate scores using current rubric">Rescore</button>
                     <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-4">Load</button>
                     <button onClick={() => onDelete(i)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete">
                       <Trash2 className="w-4 h-4" />
@@ -2359,7 +2379,11 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 function SharedReportView({ report, onClose }) {
   const [showJustification, setShowJustification] = useState(false);
   const { project, scores } = report;
-  const overall = Math.round(Object.values(scores).reduce((sum, v) => sum + v.score, 0) / 8);
+  const overall = Math.round(
+    Object.entries(scores)
+      .filter(([key, val]) => val && typeof val.score === 'number')
+      .reduce((a, [, v]) => a + v.score, 0) / 8
+  );
   const stage = getMaturityStage(overall);
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
   const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
@@ -2676,6 +2700,14 @@ export default function App() {
     setShowSavedPage(false);
   };
 
+  const handleRescore = (data) => {
+    setProject(data.project);
+    setAssessments(data.assessments);
+    setScores(null); // Clear existing scores so user can regenerate
+    setCurrentStep(6); // Go to Scoring page
+    setShowSavedPage(false);
+  };
+
   const handleDelete = (index) => {
     if (confirm('Delete this saved assessment?')) {
       const saved = JSON.parse(localStorage.getItem('conscious-compass-saved') || '[]');
@@ -2761,6 +2793,7 @@ export default function App() {
           onImport={handleImport}
           onExport={handleExport}
           onShare={handleShare}
+          onRescore={handleRescore}
         />
       </div>
     );
