@@ -1601,6 +1601,10 @@ function ScoringPage({ scores, setScores, assessments, apiKey, project, onPrev, 
   const [error, setError] = useState(null);
 
   const runScoring = async () => {
+    if (!apiKey) {
+      setError('API key is required. Please go back to Setup and enter your Anthropic API key.');
+      return;
+    }
     setIsProcessing(true);
     setError(null);
     try {
@@ -2596,7 +2600,7 @@ function SharedReportView({ report, onClose }) {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [apiKey, setApiKey] = useState(DEFAULT_API_KEY);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('conscious-compass-apikey') || DEFAULT_API_KEY);
   const [project, setProject] = useState({
     brandName: '', websiteUrl: '', 
     businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0]
@@ -2611,6 +2615,13 @@ export default function App() {
   const [showSavedPage, setShowSavedPage] = useState(false);
   const [savedAssessments, setSavedAssessments] = useState([]);
   const [sharedReport, setSharedReport] = useState(null); // For viewing shared reports
+
+  // Persist API key to localStorage whenever it changes
+  useEffect(() => {
+    if (apiKey) {
+      localStorage.setItem('conscious-compass-apikey', apiKey);
+    }
+  }, [apiKey]);
 
   useEffect(() => {
     // Check if already authenticated
@@ -2701,6 +2712,14 @@ export default function App() {
   };
 
   const handleRescore = (data) => {
+    if (!apiKey) {
+      const key = prompt('Please enter your Anthropic API key to regenerate scores:');
+      if (!key) {
+        alert('API key is required to regenerate scores.');
+        return;
+      }
+      setApiKey(key);
+    }
     setProject(data.project);
     setAssessments(data.assessments);
     setScores(null); // Clear existing scores so user can regenerate
