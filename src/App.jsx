@@ -143,7 +143,7 @@ function compressImage(dataUrl, maxSizeMB = 4) {
   });
 }
 
-async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = []) {
+async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 1) {
   const content = [];
   
   // Add primary image if provided
@@ -183,6 +183,7 @@ async function callClaude(prompt, apiKey, primaryImage = null, additionalImages 
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 6000,
+      temperature: temperature,
       messages: [{ role: 'user', content }]
     })
   });
@@ -389,7 +390,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.3.5
+        Version 2.3.6
       </div>
     </div>
   );
@@ -1635,11 +1636,21 @@ ${assessments.earnedMedia.observations ? `Assessor Notes: ${assessments.earnedMe
 SCORING RUBRIC v2.3 - Score each attribute 0-100 based on these criteria:
 ${ATTRIBUTES.map(a => `${a.id} (${a.fullName}): ${a.description}`).join('\n')}
 
+SCORE RANGE DEFINITIONS (use these anchors for consistency):
+- 0-25 (Pre-Foundational): Significant gaps, minimal evidence of the attribute
+- 26-39 (Foundational): Basic presence but major improvements needed
+- 40-55 (Establishing): Moderate capability with clear room for growth
+- 56-69 (Differentiating): Above average, showing intentional effort
+- 70-84 (Leading): Strong performance, industry-competitive
+- 85-100 (Transforming): Exceptional, category-defining excellence
+
 IMPORTANT SCORING CONSIDERATIONS:
 - Website accessibility compliance should be evaluated against WCAG 2.1 Level AA and factor into ATTENTIVE score
 - Glassdoor reviews impact REFLECTIVE score (brand self-awareness and reputation)
 - Nextdoor presence impacts AWARE score (audience connection and community trust)
 - WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
+- Be precise and consistent: the same evidence should always produce the same score range
+- Scores should be calibrated relative to industry peers and best practices
 
 FIRST, provide a detailed SCORING JUSTIFICATION explaining your reasoning for each attribute score. Cite specific evidence from the assessments. This should be 2-3 paragraphs explaining the overall scoring approach and key factors.
 
@@ -1656,7 +1667,8 @@ THEN return the JSON scores in this exact format:
   "INTENTIONAL": {"score": 50, "findings": "Specific observations about professionalism, credibility signals, and strategic positioning.", "opportunity": "The opportunity is [specific action] with [effort level] effort."}
 }`;
 
-      const result = await callClaude(prompt, apiKey);
+      // Use temperature=0 for consistent, deterministic scoring
+      const result = await callClaude(prompt, apiKey, null, [], 0);
       const match = result.match(/\{[\s\S]*\}/);
       if (match) setScores(JSON.parse(match[0]));
     } catch (e) { setError(e.message); }
