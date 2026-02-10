@@ -390,7 +390,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.3.7
+        Version 2.4.0
       </div>
     </div>
   );
@@ -463,63 +463,70 @@ function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project,
   const [websiteContent, setWebsiteContent] = useState(assessmentData.websiteContent || '');
   const fileInputRef = useRef(null);
   
-  // SEO Visibility State
-  const [seoKeywords, setSeoKeywords] = useState(assessmentData.seoKeywords || ['', '', '', '', '', '']);
-  const [seoRankings, setSeoRankings] = useState(assessmentData.seoRankings || [null, null, null, null, null, null]);
-  const [brandSearchChecks, setBrandSearchChecks] = useState(assessmentData.brandSearchChecks || {
-    ranksFirst: false,
-    hasKnowledgePanel: false,
-    positiveResults: false,
-    noNegativeResults: false
-  });
-  const [indexedPages, setIndexedPages] = useState(assessmentData.indexedPages || '');
+  // SEO Visibility State (simplified)
+  const [seoAssessment, setSeoAssessment] = useState(assessmentData.seoAssessment || '');
+  const [isAssessingSeo, setIsAssessingSeo] = useState(false);
 
-  // Calculate SEO Visibility Score
-  const calculateSeoScore = () => {
-    // Keyword ranking points (max 60 points - 10 points each for 6 keywords)
-    const rankingPoints = { 'top3': 10, 'page1': 7, 'page2': 4, 'page3plus': 2, 'notfound': 0 };
-    let keywordScore = 0;
-    let keywordsWithRanking = 0;
-    seoRankings.forEach((ranking, i) => {
-      if (ranking && seoKeywords[i]?.trim()) {
-        keywordScore += rankingPoints[ranking] || 0;
-        keywordsWithRanking++;
-      }
-    });
-    // Normalize to 60 points max (if fewer keywords, scale up)
-    const normalizedKeywordScore = keywordsWithRanking > 0 ? (keywordScore / keywordsWithRanking) * 6 : 0;
-    
-    // Brand search quality points (max 40 points)
-    let brandScore = 0;
-    if (brandSearchChecks.ranksFirst) brandScore += 15;
-    if (brandSearchChecks.hasKnowledgePanel) brandScore += 10;
-    if (brandSearchChecks.positiveResults) brandScore += 10;
-    if (brandSearchChecks.noNegativeResults) brandScore += 5;
-    
-    return Math.round(normalizedKeywordScore + brandScore);
-  };
+  const runSeoAssessment = async () => {
+    if (!apiKey) {
+      setError('API key required for SEO assessment');
+      return;
+    }
+    setIsAssessingSeo(true);
+    setError(null);
+    try {
+      const prompt = `You are an SEO expert assessing ${project.brandName}'s likely search visibility.
 
-  const seoScore = calculateSeoScore();
-  const hasSeoData = seoKeywords.some(k => k.trim()) || Object.values(brandSearchChecks).some(v => v);
+BRAND: ${project.brandName}
+WEBSITE: ${project.websiteUrl}
+INDUSTRY: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
 
-  const updateSeoKeyword = (index, value) => {
-    const updated = [...seoKeywords];
-    updated[index] = value;
-    setSeoKeywords(updated);
-    setAssessmentData({ ...assessmentData, seoKeywords: updated });
-  };
+${websiteContent ? `WEBSITE CONTENT PROVIDED:\n${websiteContent}\n` : ''}
+${pagesReviewed ? `PAGES REVIEWED: ${pagesReviewed}\n` : ''}
 
-  const updateSeoRanking = (index, value) => {
-    const updated = [...seoRankings];
-    updated[index] = value;
-    setSeoRankings(updated);
-    setAssessmentData({ ...assessmentData, seoRankings: updated });
-  };
+Provide a comprehensive SEO visibility assessment:
 
-  const updateBrandCheck = (key, value) => {
-    const updated = { ...brandSearchChecks, [key]: value };
-    setBrandSearchChecks(updated);
-    setAssessmentData({ ...assessmentData, brandSearchChecks: updated });
+1. TARGET KEYWORDS (identify 5-6 keywords this brand should rank for):
+   - List specific keywords based on their industry, services, and positioning
+   - Include a mix of branded, service-based, and industry terms
+   - Note the likely competitiveness of each keyword
+
+2. BRAND SEARCHABILITY ASSESSMENT:
+   - Is the brand name unique/distinctive or generic/common?
+   - Are there likely naming conflicts with other companies?
+   - Would someone searching the brand name easily find them?
+
+3. CONTENT & TECHNICAL SEO SIGNALS:
+   - Based on the website content, assess keyword optimization
+   - Note content depth and topical authority signals
+   - Identify any obvious SEO gaps or opportunities
+
+4. COMPETITIVE LANDSCAPE:
+   - How competitive is SEO in their industry?
+   - What challenges might they face ranking for key terms?
+
+5. SEO VISIBILITY RATING:
+   Provide an estimated SEO visibility score (0-100) based on:
+   - Brand name searchability (unique vs generic)
+   - Content quality and depth signals
+   - Industry competitiveness
+   - Likely keyword ranking potential
+
+Format: "SEO VISIBILITY SCORE: XX/100"
+
+6. KEY RECOMMENDATIONS:
+   - 2-3 specific, actionable SEO improvements
+
+Keep the assessment concise but insightful. Focus on qualitative analysis since you cannot access live search rankings.`;
+
+      const result = await callClaude(prompt, apiKey);
+      setSeoAssessment(result);
+      setAssessmentData({ ...assessmentData, seoAssessment: result });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setIsAssessingSeo(false);
+    }
   };
 
   const handleImageUpload = (e) => {
@@ -761,134 +768,48 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-semibold text-[#1A1A1A]">SEO Visibility Assessment</h3>
-            <p className="text-sm text-[#666666]">Influences the COGENT (clarity & findability) score</p>
+            <p className="text-sm text-[#666666]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
           </div>
-          {hasSeoData && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-[#666666]">SEO Score:</span>
-              <span className={`text-xl font-bold ${seoScore >= 70 ? 'text-green-600' : seoScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
-                {seoScore}/100
+        </div>
+
+        {!seoAssessment ? (
+          <div>
+            <p className="text-sm text-[#666666] mb-4">
+              Claude will analyze {project.brandName}'s likely SEO visibility based on brand name uniqueness, 
+              industry competitiveness, content signals, and identify target keywords they should rank for.
+            </p>
+            <button 
+              onClick={runSeoAssessment} 
+              disabled={isAssessingSeo || !apiKey}
+              className="btn-secondary flex items-center gap-2"
+            >
+              {isAssessingSeo ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing SEO Visibility...</>
+              ) : (
+                <><Play className="w-4 h-4" /> Auto-Assess SEO Visibility</>
+              )}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
+                <Check className="w-4 h-4 text-green-600" /> SEO Assessment Complete
               </span>
+              <button 
+                onClick={runSeoAssessment} 
+                disabled={isAssessingSeo}
+                className="text-sm text-[#E53935] hover:underline flex items-center gap-1"
+              >
+                {isAssessingSeo ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                Regenerate
+              </button>
             </div>
-          )}
-        </div>
-
-        {/* Instructions */}
-        <div className="bg-[#F0EEEA] rounded-lg p-4 mb-4">
-          <p className="text-sm text-[#666666] mb-2"><strong>How to assess:</strong></p>
-          <ol className="text-sm text-[#666666] list-decimal list-inside space-y-1">
-            <li>Open Google in <strong>Incognito/Private mode</strong></li>
-            <li>Search each keyword and note where {project.brandName} appears</li>
-            <li>Search the brand name directly to check brand search quality</li>
-            <li>Use <code className="bg-white px-1 rounded">site:{project.websiteUrl?.replace(/https?:\/\//, '').split('/')[0]}</code> to estimate indexed pages</li>
-          </ol>
-        </div>
-
-        {/* Target Keywords */}
-        <div className="mb-6">
-          <h4 className="font-medium text-[#1A1A1A] mb-3">Target Keyword Rankings</h4>
-          <p className="text-sm text-[#666666] mb-3">Enter 3-6 keywords the brand should rank for, then record their Google ranking position.</p>
-          <div className="space-y-3">
-            {[0, 1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="flex gap-3 items-center">
-                <input
-                  type="text"
-                  value={seoKeywords[i]}
-                  onChange={(e) => updateSeoKeyword(i, e.target.value)}
-                  placeholder={`Keyword ${i + 1}${i < 3 ? ' (recommended)' : ' (optional)'}`}
-                  className="flex-1 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
-                />
-                <select
-                  value={seoRankings[i] || ''}
-                  onChange={(e) => updateSeoRanking(i, e.target.value || null)}
-                  disabled={!seoKeywords[i]?.trim()}
-                  className="w-48 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm disabled:opacity-50"
-                >
-                  <option value="">Select ranking...</option>
-                  <option value="top3">Position 1-3 (Top of Page 1)</option>
-                  <option value="page1">Position 4-10 (Page 1)</option>
-                  <option value="page2">Position 11-20 (Page 2)</option>
-                  <option value="page3plus">Position 21-30 (Page 3)</option>
-                  <option value="notfound">Not in top 30</option>
-                </select>
-              </div>
-            ))}
+            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-64 overflow-y-auto">
+              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{seoAssessment}</pre>
+            </div>
           </div>
-        </div>
-
-        {/* Brand Search Quality */}
-        <div className="mb-6">
-          <h4 className="font-medium text-[#1A1A1A] mb-3">Brand Name Search Quality</h4>
-          <p className="text-sm text-[#666666] mb-3">Search for "{project.brandName}" directly and check:</p>
-          <div className="grid md:grid-cols-2 gap-3">
-            <label className="flex items-center gap-3 p-3 border border-[#D9D6D0] rounded-lg cursor-pointer hover:bg-[#F0EEEA]">
-              <input
-                type="checkbox"
-                checked={brandSearchChecks.ranksFirst}
-                onChange={(e) => updateBrandCheck('ranksFirst', e.target.checked)}
-                className="w-4 h-4 rounded border-[#D9D6D0]"
-              />
-              <div>
-                <span className="text-sm font-medium text-[#1A1A1A]">Website ranks #1</span>
-                <p className="text-xs text-[#666666]">Brand's website is the first organic result</p>
-              </div>
-            </label>
-            <label className="flex items-center gap-3 p-3 border border-[#D9D6D0] rounded-lg cursor-pointer hover:bg-[#F0EEEA]">
-              <input
-                type="checkbox"
-                checked={brandSearchChecks.hasKnowledgePanel}
-                onChange={(e) => updateBrandCheck('hasKnowledgePanel', e.target.checked)}
-                className="w-4 h-4 rounded border-[#D9D6D0]"
-              />
-              <div>
-                <span className="text-sm font-medium text-[#1A1A1A]">Knowledge Panel present</span>
-                <p className="text-xs text-[#666666]">Google shows an info box on the right</p>
-              </div>
-            </label>
-            <label className="flex items-center gap-3 p-3 border border-[#D9D6D0] rounded-lg cursor-pointer hover:bg-[#F0EEEA]">
-              <input
-                type="checkbox"
-                checked={brandSearchChecks.positiveResults}
-                onChange={(e) => updateBrandCheck('positiveResults', e.target.checked)}
-                className="w-4 h-4 rounded border-[#D9D6D0]"
-              />
-              <div>
-                <span className="text-sm font-medium text-[#1A1A1A]">Positive Page 1 results</span>
-                <p className="text-xs text-[#666666]">Other results show owned properties or good press</p>
-              </div>
-            </label>
-            <label className="flex items-center gap-3 p-3 border border-[#D9D6D0] rounded-lg cursor-pointer hover:bg-[#F0EEEA]">
-              <input
-                type="checkbox"
-                checked={brandSearchChecks.noNegativeResults}
-                onChange={(e) => updateBrandCheck('noNegativeResults', e.target.checked)}
-                className="w-4 h-4 rounded border-[#D9D6D0]"
-              />
-              <div>
-                <span className="text-sm font-medium text-[#1A1A1A]">No negative results</span>
-                <p className="text-xs text-[#666666]">No complaints, bad reviews, or competitor ads</p>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        {/* Indexed Pages */}
-        <div>
-          <h4 className="font-medium text-[#1A1A1A] mb-3">Indexed Pages Estimate</h4>
-          <p className="text-sm text-[#666666] mb-3">
-            Search <code className="bg-[#F0EEEA] px-1 rounded">site:{project.websiteUrl?.replace(/https?:\/\//, '').split('/')[0]}</code> and note the approximate result count.
-          </p>
-          <input
-            type="text"
-            value={indexedPages}
-            onChange={(e) => {
-              setIndexedPages(e.target.value);
-              setAssessmentData({ ...assessmentData, indexedPages: e.target.value });
-            }}
-            placeholder="e.g., ~500 pages, About 1,200 results"
-            className="w-full md:w-1/2 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
-          />
-        </div>
+        )}
       </div>
 
       {/* Assessor Observations */}
@@ -1860,38 +1781,8 @@ ${assessments.website.observations ? `Assessor Notes: ${assessments.website.obse
 Pages Reviewed: ${assessments.website.pagesReviewed || 'Not specified'}
 Additional Content: ${assessments.website.websiteContent || 'None'}
 
-SEO VISIBILITY DATA:
-${(() => {
-  const seoKeywords = assessments.website.seoKeywords || [];
-  const seoRankings = assessments.website.seoRankings || [];
-  const brandChecks = assessments.website.brandSearchChecks || {};
-  const indexedPages = assessments.website.indexedPages || 'Not checked';
-  
-  const rankingLabels = { 'top3': 'Position 1-3', 'page1': 'Position 4-10', 'page2': 'Page 2', 'page3plus': 'Page 3+', 'notfound': 'Not in top 30' };
-  const keywordResults = seoKeywords
-    .map((kw, i) => kw?.trim() ? `- "${kw}": ${rankingLabels[seoRankings[i]] || 'Not checked'}` : null)
-    .filter(Boolean)
-    .join('\n');
-  
-  const brandResults = [
-    brandChecks.ranksFirst ? '✓ Website ranks #1 for brand name' : '✗ Website does NOT rank #1 for brand name',
-    brandChecks.hasKnowledgePanel ? '✓ Google Knowledge Panel present' : '✗ No Google Knowledge Panel',
-    brandChecks.positiveResults ? '✓ Positive results on Page 1' : '✗ Mixed/neutral results on Page 1',
-    brandChecks.noNegativeResults ? '✓ No negative results visible' : '✗ Some negative results present'
-  ].join('\n');
-  
-  if (!keywordResults && !Object.values(brandChecks).some(v => v)) {
-    return 'SEO visibility not assessed';
-  }
-  
-  return `Target Keyword Rankings:
-${keywordResults || 'No keywords tested'}
-
-Brand Name Search Quality:
-${brandResults}
-
-Indexed Pages: ${indexedPages}`;
-})()}
+SEO VISIBILITY ASSESSMENT:
+${assessments.website.seoAssessment || 'SEO visibility not assessed'}
 
 SOCIAL MEDIA ASSESSMENT:
 ${assessments.social.content}
@@ -1921,7 +1812,7 @@ SCORE RANGE DEFINITIONS (use these anchors for consistency):
 
 IMPORTANT SCORING CONSIDERATIONS:
 - Website accessibility compliance should be evaluated against WCAG 2.1 Level AA and factor into ATTENTIVE score
-- SEO visibility data (keyword rankings, brand search quality, indexed pages) should significantly impact COGENT score - strong findability indicates clear, well-structured messaging
+- SEO visibility assessment should significantly impact COGENT score - consider target keywords, brand searchability, content signals, and the estimated SEO visibility score provided
 - Glassdoor reviews impact REFLECTIVE score (brand self-awareness and reputation)
 - Nextdoor presence impacts AWARE score (audience connection and community trust)
 - WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
@@ -2897,7 +2788,7 @@ export default function App() {
     businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0]
   });
   const [assessments, setAssessments] = useState({
-    website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoKeywords: ['', '', '', '', '', ''], seoRankings: [null, null, null, null, null, null], brandSearchChecks: { ranksFirst: false, hasKnowledgePanel: false, positiveResults: false, noNegativeResults: false }, indexedPages: '' },
+    website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '' },
     social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
     aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
     earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
@@ -2952,7 +2843,7 @@ export default function App() {
       setShowSavedPage(false);
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
       setAssessments({
-        website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoKeywords: ['', '', '', '', '', ''], seoRankings: [null, null, null, null, null, null], brandSearchChecks: { ranksFirst: false, hasKnowledgePanel: false, positiveResults: false, noNegativeResults: false }, indexedPages: '' },
+        website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '' },
         social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
         aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
         earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
