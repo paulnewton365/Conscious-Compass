@@ -590,6 +590,8 @@ SCREENSHOTS PROVIDED: ${images.length} image(s) showing key pages
 
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
 
+${seoAssessment ? `SEO VISIBILITY ASSESSMENT (previously generated):\n${seoAssessment}\n` : ''}
+
 Based on the screenshots and content provided, deliver a comprehensive website assessment covering:
 
 1. BRAND STRATEGY AND POSITIONING
@@ -647,15 +649,20 @@ Based on the screenshots and content provided, deliver a comprehensive website a
    - Would keyboard-only navigation likely work (focus states, tab order)?
    - Provide a specific accessibility compliance percentage estimate and explain your reasoning
 
-8. AI AND SEARCH READABILITY
-   - Based on visible structure, how well could AI systems understand this brand?
-   - Is content structured for discoverability?
-   - Are key brand messages likely to be picked up by AI search engines?
+8. SEO & SEARCH VISIBILITY
+   - Based on visible content structure, how well-optimized is this site for search?
+   - Are key brand messages and value propositions likely to rank for relevant keywords?
+   - Is content structured for discoverability (headings, meta-likely content)?
+   - How well could AI systems understand and represent this brand?
+${seoAssessment ? `   - INTEGRATE the SEO Visibility Assessment findings above into your analysis
+   - Reference the target keywords identified and assess if the website content supports ranking for them
+   - Consider the brand searchability assessment in your evaluation` : '   - Note: No SEO visibility assessment was run - provide general observations only'}
 
 Write in flowing prose with specific observations. Be concrete about what you see in the screenshots. Compare elements across different pages to identify consistency or inconsistency.
 
 End with:
 - DESIGN CONSISTENCY RATING (1-10): Rate overall visual consistency across pages with brief explanation
+${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, rate how well the site is positioned for search visibility' : ''}
 - 3-5 KEY STRENGTHS (what the website does well)
 - 3-5 PRIORITY IMPROVEMENTS (specific, actionable recommendations)`;
 
@@ -666,7 +673,8 @@ End with:
         content: result, 
         images, 
         pagesReviewed, 
-        websiteContent 
+        websiteContent,
+        seoAssessment // Preserve SEO assessment
       });
     } catch (err) {
       setError(err.message);
@@ -778,6 +786,12 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
               Claude will analyze {project.brandName}'s likely SEO visibility based on brand name uniqueness, 
               industry competitiveness, content signals, and identify target keywords they should rank for.
             </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-yellow-800">
+                <strong>💡 Tip:</strong> Run this before the main Website Analysis for best results. 
+                SEO insights will be automatically integrated into the full assessment.
+              </p>
+            </div>
             <button 
               onClick={runSeoAssessment} 
               disabled={isAssessingSeo || !apiKey}
@@ -795,6 +809,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
                 <Check className="w-4 h-4 text-green-600" /> SEO Assessment Complete
+                <span className="text-xs text-[#666666] font-normal">(will be included in Website Analysis)</span>
               </span>
               <button 
                 onClick={runSeoAssessment} 
