@@ -454,7 +454,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext }) {
 
 // Website Assessment with Image Upload
 // Website Assessment with Multiple Image Upload (up to 4)
-function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext }) {
+function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [error, setError] = useState(null);
@@ -723,9 +723,21 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 
       {isComplete && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
-            <Check className="w-5 h-5 text-[#E53935]" /> Analysis Complete
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#E53935]" /> Analysis Complete
+            </h3>
+            <button 
+              onClick={() => {
+                runAnalysis();
+                if (onClearScores) onClearScores();
+              }} 
+              disabled={isProcessing || images.length === 0} 
+              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+            >
+              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
+            </button>
+          </div>
           <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
             <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
@@ -741,7 +753,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 }
 
 // Social Media Assessment with all platforms and image uploads
-function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext }) {
+function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAutoChecking, setIsAutoChecking] = useState(false);
@@ -1307,9 +1319,21 @@ Write in flowing prose with specific observations from the content provided. End
 
       {isComplete && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
-            <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
+            </h3>
+            <button 
+              onClick={() => {
+                runAnalysis();
+                if (onClearScores) onClearScores();
+              }} 
+              disabled={isProcessing || !hasMinimumContent} 
+              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+            >
+              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
+            </button>
+          </div>
           <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
             <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
@@ -1325,7 +1349,7 @@ Write in flowing prose with specific observations from the content provided. End
 }
 
 // AI Reputation Page
-function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext }) {
+function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [responses, setResponses] = useState(assessmentData.responses || { claude: '', gemini: '', chatgpt: '' });
   const [manualInput, setManualInput] = useState({ gemini: assessmentData.geminiManual || '', chatgpt: assessmentData.chatgptManual || '' });
   const [isProcessing, setIsProcessing] = useState({});
@@ -1465,9 +1489,21 @@ Write in flowing prose.`;
 
       {isComplete && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
-            <Check className="w-5 h-5 text-[#3B82F6]" /> Synthesis Complete
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#3B82F6]" /> Synthesis Complete
+            </h3>
+            <button 
+              onClick={() => {
+                generateSynthesis();
+                if (onClearScores) onClearScores();
+              }} 
+              disabled={isProcessing.synthesis} 
+              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+            >
+              {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Synthesis</>}
+            </button>
+          </div>
           <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-64 overflow-y-auto text-sm text-[#333333]">{assessmentData.content}</div>
         </div>
       )}
@@ -1481,7 +1517,7 @@ Write in flowing prose.`;
 }
 
 // Earned Media Assessment with paste field
-function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext }) {
+function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [coveragePaste, setCoveragePaste] = useState(assessmentData.coveragePaste || '');
@@ -1578,9 +1614,21 @@ Example:
 
       {isComplete && (
         <div className="card p-6 mb-6">
-          <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
-            <Check className="w-5 h-5 text-[#10B981]" /> Analysis Complete
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#10B981]" /> Analysis Complete
+            </h3>
+            <button 
+              onClick={() => {
+                runAnalysis();
+                if (onClearScores) onClearScores();
+              }} 
+              disabled={isProcessing} 
+              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+            >
+              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
+            </button>
+          </div>
           <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
             <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
@@ -2840,10 +2888,10 @@ export default function App() {
 
       {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
       {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} />}
-      {currentStep === 2 && <WebsiteAssessment assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} />}
-      {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} />}
-      {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} />}
-      {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} />}
+      {currentStep === 2 && <WebsiteAssessment assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
+      {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
+      {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
+      {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
       {currentStep === 6 && <ScoringPage scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(5)} onNext={() => setCurrentStep(7)} />}
       {currentStep === 7 && <ReportPage project={project} scores={scores} assessments={assessments} onSave={handleSave} onShare={() => handleShare({ project, scores, assessments })} onPrev={() => setCurrentStep(6)} />}
     </div>
