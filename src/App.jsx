@@ -456,7 +456,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.8.2
+        Version 2.8.3
       </div>
     </div>
   );
@@ -3011,7 +3011,7 @@ function ComparisonPage({ results, onBack }) {
   const [filterIndustry, setFilterIndustry] = useState('all');
   const [filterBusinessModel, setFilterBusinessModel] = useState('all');
   const [viewMode, setViewMode] = useState('brands'); // 'brands' or 'industry'
-  const maxComparison = 4;
+  const maxComparison = 6;
 
   const industries = [
     { id: 'all', name: 'All Industries' },
@@ -3208,24 +3208,34 @@ function ComparisonPage({ results, onBack }) {
                 {/* Industry Attribute Comparison */}
                 <div className="card p-6">
                   <h3 className="font-semibold text-[#1A1A1A] mb-4">Attribute Comparison by Industry</h3>
-                  <div className="space-y-4">
+                  
+                  {/* Industry labels header */}
+                  <div className="flex items-center gap-2 mb-4 text-xs text-[#666666]">
+                    <div className="w-24 flex-shrink-0"></div>
+                    <div className="flex-1 flex gap-1">
+                      {Object.entries(industryBenchmarks).map(([industry, data]) => (
+                        <div key={industry} className="flex-1 truncate text-center">{data.industryName}</div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
                     {ATTRIBUTES.map((attr) => (
-                      <div key={attr.id}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }} />
-                          <span className="text-sm font-medium text-[#1A1A1A]">{attr.name}</span>
+                      <div key={attr.id} className="flex items-center gap-2">
+                        <div className="w-24 flex-shrink-0 flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
+                          <span className="text-xs font-medium text-[#1A1A1A] truncate">{attr.name}</span>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                        <div className="flex-1 flex gap-1">
                           {Object.entries(industryBenchmarks).map(([industry, data]) => (
-                            <div key={industry} className="relative">
-                              <div className="text-xs text-[#666666] mb-1 truncate">{data.industryName}</div>
-                              <div className="h-6 bg-[#E8E6E1] rounded overflow-hidden">
+                            <div key={industry} className="flex-1 relative">
+                              <div className="h-4 bg-[#E8E6E1] rounded overflow-hidden">
                                 <div 
                                   className="h-full rounded transition-all duration-500"
                                   style={{ width: `${data.attrAvgs[attr.id]}%`, backgroundColor: attr.color }}
                                 />
                               </div>
-                              <div className="absolute right-1 top-5 text-xs font-medium text-white mix-blend-difference">
+                              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white mix-blend-difference">
                                 {data.attrAvgs[attr.id]}
                               </div>
                             </div>
@@ -3358,58 +3368,92 @@ function ComparisonPage({ results, onBack }) {
                   {/* Overall Score Comparison */}
                   <div className="card p-6">
                     <h3 className="font-semibold text-[#1A1A1A] mb-4">Overall Scores</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="flex flex-wrap justify-center gap-4">
                       {selectedBrands.map((brand) => {
                         const stage = MATURITY_STAGES.find(s => s.name === brand.maturityLevel) || MATURITY_STAGES[0];
                         return (
                           <div key={brand.id} className="text-center">
                             <div 
-                              className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-2xl"
+                              className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl md:text-2xl"
                               style={{ backgroundColor: stage.color }}
                             >
                               {brand.totalScore}
                             </div>
-                            <div className="font-medium text-sm text-[#1A1A1A] truncate">{brand.brandName}</div>
+                            <div className="font-medium text-xs md:text-sm text-[#1A1A1A] truncate max-w-[100px]">{brand.brandName}</div>
                             <div className="text-xs text-[#666666]">{brand.maturityLevel}</div>
                           </div>
                         );
                       })}
+                      {/* Average Score */}
+                      <div className="text-center border-l-2 border-[#D9D6D0] pl-4">
+                        <div 
+                          className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl md:text-2xl bg-[#1A1A1A]"
+                        >
+                          {Math.round(selectedBrands.reduce((sum, b) => sum + b.totalScore, 0) / selectedBrands.length)}
+                        </div>
+                        <div className="font-medium text-xs md:text-sm text-[#1A1A1A]">AVERAGE</div>
+                        <div className="text-xs text-[#666666]">{selectedBrands.length} brands</div>
+                      </div>
                     </div>
                   </div>
 
                   {/* Attribute Comparison */}
                   <div className="card p-6">
                     <h3 className="font-semibold text-[#1A1A1A] mb-4">Attribute Comparison</h3>
-                    <div className="space-y-4">
-                      {ATTRIBUTES.map((attr) => (
-                        <div key={attr.id}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }} />
-                              <span className="text-sm font-medium text-[#1A1A1A]">{attr.name}</span>
+                    
+                    {/* Brand labels header */}
+                    <div className="flex items-center gap-2 mb-4 text-xs text-[#666666]">
+                      <div className="w-24 flex-shrink-0"></div>
+                      <div className="flex-1 flex gap-1">
+                        {selectedBrands.map((brand) => (
+                          <div key={brand.id} className="flex-1 truncate text-center">{brand.brandName}</div>
+                        ))}
+                        <div className="flex-1 text-center font-medium text-[#1A1A1A]">AVG</div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {ATTRIBUTES.map((attr) => {
+                        const avgScore = Math.round(selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length);
+                        return (
+                          <div key={attr.id} className="flex items-center gap-2">
+                            <div className="w-24 flex-shrink-0 flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
+                              <span className="text-xs font-medium text-[#1A1A1A] truncate">{attr.name}</span>
+                            </div>
+                            <div className="flex-1 flex gap-1">
+                              {selectedBrands.map((brand) => {
+                                const score = brand.scores?.[attr.id] || 0;
+                                return (
+                                  <div key={brand.id} className="flex-1 relative">
+                                    <div className="h-4 bg-[#E8E6E1] rounded overflow-hidden">
+                                      <div 
+                                        className="h-full rounded transition-all duration-500"
+                                        style={{ width: `${score}%`, backgroundColor: attr.color }}
+                                      />
+                                    </div>
+                                    <div className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white mix-blend-difference">
+                                      {score}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {/* Average bar */}
+                              <div className="flex-1 relative">
+                                <div className="h-4 bg-[#E8E6E1] rounded overflow-hidden">
+                                  <div 
+                                    className="h-full rounded transition-all duration-500 bg-[#1A1A1A]"
+                                    style={{ width: `${avgScore}%` }}
+                                  />
+                                </div>
+                                <div className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white mix-blend-difference">
+                                  {avgScore}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {selectedBrands.map((brand) => {
-                              const score = brand.scores?.[attr.id] || 0;
-                              return (
-                                <div key={brand.id} className="relative">
-                                  <div className="text-xs text-[#666666] mb-1 truncate">{brand.brandName}</div>
-                                  <div className="h-6 bg-[#E8E6E1] rounded overflow-hidden">
-                                    <div 
-                                      className="h-full rounded transition-all duration-500"
-                                      style={{ width: `${score}%`, backgroundColor: attr.color }}
-                                    />
-                                  </div>
-                                  <div className="absolute right-1 top-5 text-xs font-medium text-white mix-blend-difference">
-                                    {score}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
