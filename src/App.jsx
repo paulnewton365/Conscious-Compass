@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS } from './data/rubric';
-import { SERVICES, ATTRIBUTE_SERVICE_MAPPING, getAllRecommendations, formatBudget, formatTerm } from './data/serviceMapping';
+import { getAllRecommendations, formatBudget } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Lock, Share2, Link, Copy } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
@@ -297,7 +297,7 @@ function MaturityContinuum({ score }) {
       <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Brand Consciousness Maturity</h3>
       
       {/* Scale */}
-      <div className="relative mb-8">
+      <div className="relative mb-16">
         <div className="h-4 rounded-full maturity-scale" />
         
         {/* Marker */}
@@ -332,7 +332,7 @@ function MaturityContinuum({ score }) {
 }
 
 // Header
-function Header({ onNewAssessment, onSavedAssessments }) {
+function Header({ onNewAssessment, onSavedAssessments, onCompassResults }) {
   return (
     <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-5 px-6">
       <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -342,6 +342,9 @@ function Header({ onNewAssessment, onSavedAssessments }) {
           <span className="text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={onCompassResults} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
+            <BarChart3 className="w-4 h-4" /> Results Grid
+          </button>
           <button onClick={onSavedAssessments} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
             <FileText className="w-4 h-4" /> Saved Assessments
           </button>
@@ -391,7 +394,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.5.0
+        Version 2.7.0
       </div>
     </div>
   );
@@ -1338,26 +1341,6 @@ Write in flowing prose with specific observations from the content provided. End
         )}
       </div>
 
-      {/* Auto-Check Button */}
-      <div className="card p-6 mb-6 bg-gradient-to-r from-[#E53935]/5 to-[#E53935]/10 border-[#E53935]/20">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-[#1A1A1A] mb-1 flex items-center gap-2">
-              <Bot className="w-5 h-5 text-[#E53935]" /> Auto-Check Presence
-            </h3>
-            <p className="text-sm text-[#666666]">Check {project.brandName}'s YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor, and WIPO status</p>
-          </div>
-          <button 
-            onClick={runAutoCheck} 
-            disabled={isAutoChecking || !project.brandName}
-            className="btn-secondary flex items-center gap-2 text-sm"
-          >
-            {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Checking...</> : <><Play className="w-4 h-4" /> Run Auto-Check</>}
-          </button>
-        </div>
-        <p className="text-xs text-[#9CA3AF] mt-2">Note: Auto-check uses Claude's knowledge and may not reflect the latest information. Verify and supplement with manual research.</p>
-      </div>
-
       {/* YouTube Input */}
       <div className="card p-6 mb-6">
         <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
@@ -1497,7 +1480,7 @@ function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, 
     finally { setIsProcessing(p => ({ ...p, claude: false })); }
   };
 
-  const hasAllResponses = responses.claude && (responses.gemini || manualInput.gemini) && (responses.chatgpt || manualInput.chatgpt);
+  const hasAllResponses = manualInput.claude && manualInput.gemini && manualInput.chatgpt;
   const isComplete = assessmentData.status === 'complete';
 
   const generateSynthesis = async () => {
@@ -1505,9 +1488,9 @@ function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, 
     try {
       const prompt = `Analyze these AI system responses about ${project.brandName}:
 
-CLAUDE: ${responses.claude}
-GEMINI: ${responses.gemini || manualInput.gemini}
-CHATGPT: ${responses.chatgpt || manualInput.chatgpt}
+CLAUDE: ${manualInput.claude}
+GEMINI: ${manualInput.gemini}
+CHATGPT: ${manualInput.chatgpt}
 
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS TO CONSIDER:\n${assessmentData.observations}` : ''}
 
@@ -1525,7 +1508,8 @@ Write in flowing prose.`;
         ...assessmentData, 
         status: 'complete', 
         content: result, 
-        responses, 
+        responses,
+        claudeManual: manualInput.claude,
         geminiManual: manualInput.gemini,
         chatgptManual: manualInput.chatgpt
       });
@@ -1550,27 +1534,22 @@ Write in flowing prose.`;
         <p className="text-[#1A1A1A] italic text-sm">"{standardQuery}"</p>
       </div>
 
-      {!responses.claude && (
-        <button onClick={queryClaude} disabled={isProcessing.claude} className="btn-primary flex items-center gap-2 mb-6">
-          {isProcessing.claude ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} Query Claude
-        </button>
-      )}
-
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700 text-sm">{error}</div>}
 
       <div className="space-y-4 mb-6">
         {/* Claude */}
-        <div className={`card p-4 ${responses.claude ? 'bg-[#F0EEEA]' : ''}`}>
+        <div className={`card p-4 ${manualInput.claude ? 'bg-[#F0EEEA]' : ''}`}>
           <div className="flex items-center gap-3 mb-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${responses.claude ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
-              {isProcessing.claude ? <Loader2 className="w-5 h-5 animate-spin" /> : responses.claude ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.claude ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
+              {manualInput.claude ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
             </div>
             <div>
               <h4 className="font-medium">Claude (Anthropic)</h4>
-              <p className="text-sm text-[#666666]">{responses.claude ? 'Response received' : 'Click button above to query'}</p>
+              <p className="text-sm text-[#666666]">Paste response from claude.ai</p>
             </div>
           </div>
-          {responses.claude && <div className="bg-white rounded-lg p-3 max-h-40 overflow-y-auto text-sm text-[#333333] border border-[#D9D6D0]">{responses.claude}</div>}
+          <textarea value={manualInput.claude || ''} onChange={(e) => setManualInput(m => ({ ...m, claude: e.target.value }))}
+            placeholder="Paste Claude's response here..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm bg-white" />
         </div>
 
         {/* Gemini */}
@@ -1773,19 +1752,21 @@ Example:
     </div>
   );
 }
+// Report Page
+function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onShare, onPrev }) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isScoring, setIsScoring] = useState(false);
+  const [scoringError, setScoringError] = useState(null);
 
-// Scoring Page
-function ScoringPage({ scores, setScores, assessments, apiKey, project, onPrev, onNext }) {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState(null);
-
+  // Scoring logic (moved from ScoringPage)
   const runScoring = async () => {
     if (!apiKey) {
-      setError('API key is required. Please go back to Setup and enter your Anthropic API key.');
+      setScoringError('API key is required. Please go back to Setup and enter your Anthropic API key.');
       return;
     }
-    setIsProcessing(true);
-    setError(null);
+    setIsScoring(true);
+    setScoringError(null);
     try {
       const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v2.3.
 
@@ -1828,124 +1809,93 @@ SCORE RANGE DEFINITIONS (use these anchors for consistency):
 
 IMPORTANT SCORING CONSIDERATIONS:
 - Website accessibility compliance should be evaluated against WCAG 2.1 Level AA and factor into ATTENTIVE score
-- SEO visibility assessment should significantly impact COGENT score - consider target keywords, brand searchability, content signals, and the estimated SEO visibility score provided
+- SEO visibility assessment should significantly impact COGENT score
 - Glassdoor reviews impact REFLECTIVE score (brand self-awareness and reputation)
 - Nextdoor presence impacts AWARE score (audience connection and community trust)
 - WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
 - Be precise and consistent: the same evidence should always produce the same score range
-- Scores should be calibrated relative to industry peers and best practices
 
-FIRST, provide a detailed SCORING JUSTIFICATION explaining your reasoning for each attribute score. Cite specific evidence from the assessments. This should be 2-3 paragraphs explaining the overall scoring approach and key factors.
+SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
+- AWAKE: Executive Visibility, PR & Media Relations, Thought Leadership Content
+- AWARE: Audience Research, Social Media Strategy, Community Management, GEO
+- REFLECTIVE: Brand Strategy, Brand Expression, Crisis Communications, Brand Training
+- ATTENTIVE: Website Strategy & Development, Creative Production, Brand Guidelines
+- COGENT: SEO Strategy, Measurement & Analytics, GEO, Marketing Strategy
+- SENTIENT: Creative Campaigns, Brand Expression, Content Strategy, Events
+- VISIONARY: Brand Strategy, Impact Communications, Executive Visibility
+- INTENTIONAL: Brand Strategy, Brand Assets & Guidelines, Website Development, Communications Training
 
-THEN return the JSON scores in this exact format:
+Return the JSON scores in this exact format:
 {
-  "justification": "Your detailed scoring justification text here explaining the reasoning behind each score...",
-  "AWAKE": {"score": 45, "findings": "Specific observations about thought leadership presence, media mentions, and industry authority.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
-  "AWARE": {"score": 52, "findings": "Specific observations about audience understanding, community engagement, and trust signals.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
-  "REFLECTIVE": {"score": 38, "findings": "Specific observations about brand narrative consistency, self-awareness, and reputation management.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
-  "ATTENTIVE": {"score": 55, "findings": "Specific observations about content quality, UX, accessibility compliance (estimate WCAG 2.1 AA percentage), and attention to detail.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
-  "COGENT": {"score": 42, "findings": "Specific observations about messaging clarity, information architecture, SEO visibility (keyword rankings, brand search quality), and data-driven approach.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
-  "SENTIENT": {"score": 35, "findings": "Specific observations about emotional resonance, creative execution, and brand personality.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
-  "VISIONARY": {"score": 48, "findings": "Specific observations about purpose, future orientation, and aspirational messaging.", "opportunity": "The opportunity is [specific action] with [effort level] effort."},
-  "INTENTIONAL": {"score": 50, "findings": "Specific observations about professionalism, credibility signals, and strategic positioning.", "opportunity": "The opportunity is [specific action] with [effort level] effort."}
+  "AWAKE": {"score": 45, "findings": "Specific observations about thought leadership presence, media mentions, and industry authority.", "opportunity": "Consider Executive Visibility and PR services to build industry influence and narrative leadership."},
+  "AWARE": {"score": 52, "findings": "Specific observations about audience understanding, community engagement, and trust signals.", "opportunity": "Audience Research and Social Media Strategy would strengthen audience connection and trust."},
+  "REFLECTIVE": {"score": 38, "findings": "Specific observations about brand narrative consistency, self-awareness, and reputation management.", "opportunity": "Brand Strategy and Brand Expression services would establish authentic brand foundation."},
+  "ATTENTIVE": {"score": 55, "findings": "Specific observations about content quality, UX, accessibility compliance (estimate WCAG 2.1 AA percentage), and attention to detail.", "opportunity": "Website Strategy & Development would improve experience quality and accessibility."},
+  "COGENT": {"score": 42, "findings": "Specific observations about messaging clarity, information architecture, SEO visibility (keyword rankings, brand search quality), and data-driven approach.", "opportunity": "SEO Strategy and Integrated Measurement would strengthen data-driven marketing approach."},
+  "SENTIENT": {"score": 35, "findings": "Specific observations about emotional resonance, creative execution, and brand personality.", "opportunity": "Creative Campaigns and Brand Expression would create stronger emotional connections."},
+  "VISIONARY": {"score": 48, "findings": "Specific observations about purpose, future orientation, and aspirational messaging.", "opportunity": "Brand Strategy and Impact Communications would clarify purpose and vision."},
+  "INTENTIONAL": {"score": 50, "findings": "Specific observations about professionalism, credibility signals, and strategic positioning.", "opportunity": "Brand Assets & Guidelines would ensure professional, intentional market presence."}
 }`;
 
-      // Use temperature=0 for consistent, deterministic scoring
       const result = await callClaude(prompt, apiKey, null, [], 0);
       const match = result.match(/\{[\s\S]*\}/);
       if (match) setScores(JSON.parse(match[0]));
-    } catch (e) { setError(e.message); }
-    finally { setIsProcessing(false); }
+    } catch (e) { setScoringError(e.message); }
+    finally { setIsScoring(false); }
   };
 
-  const overall = scores ? Math.round(
+  // If no scores yet, show scoring prompt
+  if (!scores) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+        <div className="flex items-start gap-4 mb-8">
+          <div className="w-14 h-14 bg-[#E53935]/10 rounded-xl flex items-center justify-center">
+            <BarChart3 className="w-7 h-7 text-[#E53935]" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-[#1A1A1A]">Generate Brand Report</h2>
+            <p className="text-[#333333]">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
+          </div>
+        </div>
+
+        <div className="card p-8 text-center mb-6">
+          <Compass className="w-16 h-16 text-[#E53935] mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Assessment Complete</h3>
+          <p className="text-[#666666] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
+          
+          <button 
+            onClick={runScoring} 
+            disabled={isScoring}
+            className="btn-primary flex items-center gap-2 mx-auto text-lg px-8 py-3"
+          >
+            {isScoring ? (
+              <><Loader2 className="w-5 h-5 animate-spin" /> Analyzing Brand...</>
+            ) : (
+              <><Play className="w-5 h-5" /> Generate Brand Report</>
+            )}
+          </button>
+          
+          {scoringError && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+              {scoringError}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-between">
+          <button onClick={onPrev} className="btn-secondary flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" /> Back to Earned Media
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const overall = Math.round(
     Object.entries(scores)
       .filter(([key, val]) => val && typeof val.score === 'number')
       .reduce((a, [, v]) => a + v.score, 0) / 8
-  ) : 0;
-
-  return (
-    <div className="max-w-5xl mx-auto p-8 animate-fade-in">
-      <div className="flex items-start gap-4 mb-8">
-        <div className="w-14 h-14 bg-[#6366F1]/10 rounded-xl flex items-center justify-center">
-          <BarChart3 className="w-7 h-7 text-[#6366F1]" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Scoring & Analysis</h2>
-          <p className="text-[#333333]">AI-generated scores based on the four assessments.</p>
-        </div>
-      </div>
-
-      {/* Generate or Regenerate Scores Button */}
-      <div className="flex gap-3 mb-6">
-        {!scores ? (
-          <button onClick={runScoring} disabled={isProcessing} className="btn-primary flex items-center gap-2">
-            {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> Generate Scores</>}
-          </button>
-        ) : (
-          <button onClick={runScoring} disabled={isProcessing} className="btn-secondary flex items-center gap-2">
-            {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Scores</>}
-          </button>
-        )}
-      </div>
-
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
-
-      {scores && (
-        <>
-          {/* Spider Chart */}
-          <div className="card p-6 mb-8">
-            <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4 text-center">Attribute Scores</h3>
-            <SpiderChart scores={scores} />
-          </div>
-
-          {/* Maturity Continuum */}
-          <MaturityContinuum score={overall} />
-
-          {/* Attribute Cards */}
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mt-8 mb-4">Detailed Breakdown</h3>
-          <div className="grid md:grid-cols-2 gap-4 mb-8">
-            {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="card p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="inline-block px-2 py-1 rounded text-xs font-semibold text-white mb-1" style={{ backgroundColor: attr.color }}>{attr.name}</div>
-                    <h4 className="font-semibold text-[#1A1A1A] text-sm">{attr.fullName}</h4>
-                  </div>
-                  <span className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
-                </div>
-                <div className="h-2 bg-[#F0EEEA] rounded-full overflow-hidden mb-3">
-                  <div className="h-full rounded-full" style={{ width: `${scores[attr.id]?.score || 0}%`, backgroundColor: attr.color }} />
-                </div>
-                <p className="text-xs text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
-                {scores[attr.id]?.opportunity && (
-                  <p className="text-xs text-[#E53935] italic">{scores[attr.id].opportunity}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={onNext} disabled={!scores} className="btn-primary btn-arrow">View Report</button>
-      </div>
-    </div>
   );
-}
-
-// Report Page
-function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [showJustification, setShowJustification] = useState(false);
-
-  const overall = scores ? Math.round(
-    Object.entries(scores)
-      .filter(([key, val]) => val && typeof val.score === 'number')
-      .reduce((a, [, v]) => a + v.score, 0) / 8
-  ) : 0;
   const stage = getMaturityStage(overall);
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
@@ -2460,46 +2410,296 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
         <p className="text-[#333333] leading-relaxed">
           This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.3, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
         </p>
-        {scores?.justification && (
-          <button 
-            onClick={() => setShowJustification(true)} 
-            className="mt-4 text-sm text-[#E53935] hover:underline flex items-center gap-1"
-          >
-            <FileText className="w-4 h-4" /> View Scoring Justification
-          </button>
-        )}
       </div>
-
-      {/* Scoring Justification Modal */}
-      {showJustification && scores?.justification && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-[#D9D6D0]">
-              <h3 className="text-xl font-bold text-[#1A1A1A]">Scoring Justification</h3>
-              <button onClick={() => setShowJustification(false)} className="text-[#666666] hover:text-[#1A1A1A]">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto">
-              <p className="text-sm text-[#666666] mb-4">
-                This justification explains the reasoning behind each attribute score based on the assessment data collected.
-              </p>
-              <div className="prose prose-sm max-w-none">
-                {scores.justification.split('\n').map((paragraph, i) => (
-                  paragraph.trim() && <p key={i} className="text-[#333333] mb-4">{paragraph}</p>
-                ))}
-              </div>
-            </div>
-            <div className="p-4 border-t border-[#D9D6D0]">
-              <button onClick={() => setShowJustification(false)} className="btn-secondary w-full">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="flex items-center justify-start pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
       </div>
+    </div>
+  );
+}
+
+// Compass Results Page - Summary grid of all assessments
+function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateResults }) {
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [manualEntry, setManualEntry] = useState({
+    brandName: '',
+    businessModel: 'b2b',
+    industry: 'other',
+    scores: { AWAKE: 50, AWARE: 50, REFLECTIVE: 50, ATTENTIVE: 50, COGENT: 50, SENTIENT: 50, VISIONARY: 50, INTENTIONAL: 50 },
+  });
+
+  const industries = [
+    { id: 'technology', name: 'Technology' },
+    { id: 'healthcare', name: 'Healthcare' },
+    { id: 'financial', name: 'Financial Services' },
+    { id: 'energy', name: 'Energy & Utilities' },
+    { id: 'manufacturing', name: 'Manufacturing' },
+    { id: 'retail', name: 'Retail & Consumer' },
+    { id: 'professional', name: 'Professional Services' },
+    { id: 'nonprofit', name: 'Nonprofit' },
+    { id: 'other', name: 'Other' },
+  ];
+
+  const handleExportCSV = () => {
+    if (results.length === 0) {
+      alert('No results to export');
+      return;
+    }
+    
+    const headers = ['Brand Name', 'Business Model', 'Industry', 'Total Score', 'Maturity Level', 
+      'AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL',
+      'Services Recommended', 'Date', 'Manual Entry'];
+    
+    const rows = results.map(r => [
+      r.brandName,
+      r.businessModel?.toUpperCase() || '',
+      r.industry || '',
+      r.totalScore,
+      r.maturityLevel,
+      r.scores?.AWAKE || 0,
+      r.scores?.AWARE || 0,
+      r.scores?.REFLECTIVE || 0,
+      r.scores?.ATTENTIVE || 0,
+      r.scores?.COGENT || 0,
+      r.scores?.SENTIENT || 0,
+      r.scores?.VISIONARY || 0,
+      r.scores?.INTENTIONAL || 0,
+      (r.servicesRecommended || []).join('; '),
+      r.savedAt ? new Date(r.savedAt).toLocaleDateString() : '',
+      r.isManual ? 'Yes' : 'No',
+    ]);
+    
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `compass-results-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
+  const handleAddManual = () => {
+    if (!manualEntry.brandName.trim()) {
+      alert('Please enter a brand name');
+      return;
+    }
+    
+    const overall = Math.round(Object.values(manualEntry.scores).reduce((a, b) => a + b, 0) / 8);
+    const stage = getMaturityStage(overall);
+    
+    const newResult = {
+      id: `manual-${Date.now()}`,
+      brandName: manualEntry.brandName,
+      businessModel: manualEntry.businessModel,
+      industry: manualEntry.industry,
+      totalScore: overall,
+      maturityLevel: stage.name,
+      scores: { ...manualEntry.scores },
+      servicesRecommended: [],
+      savedAt: new Date().toISOString(),
+      isManual: true,
+    };
+    
+    const updated = [...results, newResult];
+    localStorage.setItem('conscious-compass-results', JSON.stringify(updated));
+    onUpdateResults(updated);
+    setShowAddModal(false);
+    setManualEntry({
+      brandName: '',
+      businessModel: 'b2b',
+      industry: 'other',
+      scores: { AWAKE: 50, AWARE: 50, REFLECTIVE: 50, ATTENTIVE: 50, COGENT: 50, SENTIENT: 50, VISIONARY: 50, INTENTIONAL: 50 },
+    });
+  };
+
+  const handleDelete = (id) => {
+    if (confirm('Delete this result?')) {
+      const updated = results.filter(r => r.id !== id);
+      localStorage.setItem('conscious-compass-results', JSON.stringify(updated));
+      onUpdateResults(updated);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F5F4F0]">
+      <div className="max-w-7xl mx-auto p-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="btn-secondary flex items-center gap-2">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+            <h1 className="text-2xl font-bold text-[#1A1A1A]">Compass Results</h1>
+            <span className="text-sm text-[#666666]">{results.length} assessments</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowAddModal(true)} className="btn-secondary flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Add Manual Entry
+            </button>
+            <button onClick={handleExportCSV} disabled={results.length === 0} className="btn-primary flex items-center gap-2">
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+          </div>
+        </div>
+
+        {results.length === 0 ? (
+          <div className="card p-12 text-center">
+            <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Results Yet</h3>
+            <p className="text-[#666666] mb-4">Complete and save assessments to see them here, or add manual entries.</p>
+            <button onClick={() => setShowAddModal(true)} className="btn-primary">
+              Add Manual Entry
+            </button>
+          </div>
+        ) : (
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[#F0EEEA] border-b border-[#D9D6D0]">
+                  <tr>
+                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Brand</th>
+                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Model</th>
+                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Industry</th>
+                    <th className="text-center p-3 font-semibold text-[#1A1A1A]">Score</th>
+                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Maturity</th>
+                    {['AWK', 'AWR', 'REF', 'ATT', 'COG', 'SEN', 'VIS', 'INT'].map(attr => (
+                      <th key={attr} className="text-center p-3 font-semibold text-[#1A1A1A] text-xs">{attr}</th>
+                    ))}
+                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Services</th>
+                    <th className="text-center p-3 font-semibold text-[#1A1A1A]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map((r, i) => {
+                    const stage = MATURITY_STAGES.find(s => s.name === r.maturityLevel) || MATURITY_STAGES[0];
+                    return (
+                      <tr key={r.id || i} className="border-b border-[#E8E6E1] hover:bg-[#F0EEEA]/50">
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-[#1A1A1A]">{r.brandName}</span>
+                            {r.isManual && (
+                              <span className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">Manual</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 text-[#666666]">{r.businessModel?.toUpperCase()}</td>
+                        <td className="p-3 text-[#666666] text-xs">{r.industry}</td>
+                        <td className="p-3 text-center">
+                          <span className="font-bold text-lg" style={{ color: stage.color }}>{r.totalScore}</span>
+                        </td>
+                        <td className="p-3">
+                          <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>
+                            {r.maturityLevel}
+                          </span>
+                        </td>
+                        {['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL'].map(attr => (
+                          <td key={attr} className="p-3 text-center text-xs text-[#666666]">
+                            {r.scores?.[attr] || 0}
+                          </td>
+                        ))}
+                        <td className="p-3 text-xs text-[#666666] max-w-[150px]">
+                          {(r.servicesRecommended || []).slice(0, 2).join(', ')}
+                          {(r.servicesRecommended || []).length > 2 && '...'}
+                        </td>
+                        <td className="p-3 text-center">
+                          <button onClick={() => handleDelete(r.id)} className="text-red-500 hover:text-red-700">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Add Manual Entry Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-[#D9D6D0]">
+              <h3 className="text-xl font-bold text-[#1A1A1A]">Add Manual Entry</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-[#666666] hover:text-[#1A1A1A]">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Brand Name *</label>
+                <input
+                  type="text"
+                  value={manualEntry.brandName}
+                  onChange={(e) => setManualEntry({ ...manualEntry, brandName: e.target.value })}
+                  placeholder="Enter brand name"
+                  className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Business Model</label>
+                  <select
+                    value={manualEntry.businessModel}
+                    onChange={(e) => setManualEntry({ ...manualEntry, businessModel: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg"
+                  >
+                    <option value="b2b">B2B</option>
+                    <option value="b2c">B2C</option>
+                    <option value="b2b2c">B2B2C</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Industry</label>
+                  <select
+                    value={manualEntry.industry}
+                    onChange={(e) => setManualEntry({ ...manualEntry, industry: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg"
+                  >
+                    {industries.map(ind => (
+                      <option key={ind.id} value={ind.id}>{ind.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-[#1A1A1A] mb-3">Attribute Scores (0-100)</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {ATTRIBUTES.map(attr => (
+                    <div key={attr.id} className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }}></span>
+                      <span className="text-sm text-[#666666] w-24">{attr.name}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={manualEntry.scores[attr.id]}
+                        onChange={(e) => setManualEntry({
+                          ...manualEntry,
+                          scores: { ...manualEntry.scores, [attr.id]: parseInt(e.target.value) || 0 }
+                        })}
+                        className="w-20 px-2 py-1 border border-[#D9D6D0] rounded text-center"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  <strong>Note:</strong> Manual entries will be flagged as such in the results grid.
+                </p>
+              </div>
+            </div>
+            <div className="p-6 border-t border-[#D9D6D0] flex justify-end gap-3">
+              <button onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleAddManual} className="btn-primary">Add Entry</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2627,7 +2827,6 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
 // Shared Report View (read-only view for shared links)
 function SharedReportView({ report, onClose }) {
-  const [showJustification, setShowJustification] = useState(false);
   const { project, scores } = report;
   const overall = Math.round(
     Object.entries(scores)
@@ -2791,42 +2990,7 @@ function SharedReportView({ report, onClose }) {
           <p className="text-[#333333] leading-relaxed">
             {project.brandName} has demonstrated {overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening {sortedAttrs[0].name} and {sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, {project.brandName} is well positioned to become a more consequential presence in its industry.
           </p>
-          {scores?.justification && (
-            <button 
-              onClick={() => setShowJustification(true)} 
-              className="mt-4 text-sm text-[#E53935] hover:underline flex items-center gap-1"
-            >
-              <FileText className="w-4 h-4" /> View Scoring Justification
-            </button>
-          )}
         </div>
-
-        {/* Scoring Justification Modal */}
-        {showJustification && scores?.justification && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between p-6 border-b border-[#D9D6D0]">
-                <h3 className="text-xl font-bold text-[#1A1A1A]">Scoring Justification</h3>
-                <button onClick={() => setShowJustification(false)} className="text-[#666666] hover:text-[#1A1A1A]">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto">
-                <p className="text-sm text-[#666666] mb-4">
-                  This justification explains the reasoning behind each attribute score based on the assessment data collected.
-                </p>
-                <div className="prose prose-sm max-w-none">
-                  {scores.justification.split('\n').map((paragraph, i) => (
-                    paragraph.trim() && <p key={i} className="text-[#333333] mb-4">{paragraph}</p>
-                  ))}
-                </div>
-              </div>
-              <div className="p-4 border-t border-[#D9D6D0]">
-                <button onClick={() => setShowJustification(false)} className="btn-secondary w-full">Close</button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Footer */}
         <div className="text-center pt-8 border-t border-[#D9D6D0]">
@@ -2859,7 +3023,9 @@ export default function App() {
   });
   const [scores, setScores] = useState(null);
   const [showSavedPage, setShowSavedPage] = useState(false);
+  const [showResultsPage, setShowResultsPage] = useState(false);
   const [savedAssessments, setSavedAssessments] = useState([]);
+  const [compassResults, setCompassResults] = useState([]);
   const [sharedReport, setSharedReport] = useState(null); // For viewing shared reports
 
   // Persist API key to localStorage whenever it changes
@@ -2875,6 +3041,7 @@ export default function App() {
       setIsAuthenticated(true);
     }
     setSavedAssessments(JSON.parse(localStorage.getItem('conscious-compass-saved') || '[]'));
+    setCompassResults(JSON.parse(localStorage.getItem('conscious-compass-results') || '[]'));
     
     // Check for shared report in URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -2897,7 +3064,6 @@ export default function App() {
     { id: 'social', name: 'Social' },
     { id: 'ai', name: 'AI Rep' },
     { id: 'earned', name: 'Earned' },
-    { id: 'scoring', name: 'Scoring' },
     { id: 'report', name: 'Report' },
   ];
 
@@ -2942,6 +3108,50 @@ export default function App() {
       }
       localStorage.setItem('conscious-compass-saved', JSON.stringify(saved));
       setSavedAssessments(saved);
+      
+      // Also save to compass results (summary only)
+      if (scores) {
+        const overall = Math.round(
+          Object.entries(scores)
+            .filter(([key, val]) => val && typeof val.score === 'number')
+            .reduce((a, [, v]) => a + v.score, 0) / 8
+        );
+        const stage = getMaturityStage(overall);
+        const serviceRecs = getAllRecommendations(scores);
+        
+        let results = JSON.parse(localStorage.getItem('conscious-compass-results') || '[]');
+        const resultData = {
+          id: `${project.brandName}-${Date.now()}`,
+          brandName: project.brandName,
+          businessModel: project.businessModel,
+          industry: project.industry,
+          totalScore: overall,
+          maturityLevel: stage.name,
+          scores: {
+            AWAKE: scores.AWAKE?.score || 0,
+            AWARE: scores.AWARE?.score || 0,
+            REFLECTIVE: scores.REFLECTIVE?.score || 0,
+            ATTENTIVE: scores.ATTENTIVE?.score || 0,
+            COGENT: scores.COGENT?.score || 0,
+            SENTIENT: scores.SENTIENT?.score || 0,
+            VISIONARY: scores.VISIONARY?.score || 0,
+            INTENTIONAL: scores.INTENTIONAL?.score || 0,
+          },
+          servicesRecommended: serviceRecs.slice(0, 6).map(r => r.service?.name || '').filter(Boolean),
+          savedAt: new Date().toISOString(),
+          isManual: false,
+        };
+        
+        const resultIdx = results.findIndex(r => r.brandName === project.brandName && !r.isManual);
+        if (resultIdx >= 0) {
+          results[resultIdx] = resultData;
+        } else {
+          results.push(resultData);
+        }
+        localStorage.setItem('conscious-compass-results', JSON.stringify(results));
+        setCompassResults(results);
+      }
+      
       alert('Assessment saved!');
     } catch (e) {
       console.error('Save failed:', e);
@@ -2953,7 +3163,7 @@ export default function App() {
     setProject(data.project);
     setAssessments(data.assessments);
     setScores(data.scores);
-    setCurrentStep(data.scores ? 7 : 0);
+    setCurrentStep(data.scores ? 6 : 0);
     setShowSavedPage(false);
   };
 
@@ -2969,7 +3179,7 @@ export default function App() {
     setProject(data.project);
     setAssessments(data.assessments);
     setScores(null); // Clear existing scores so user can regenerate
-    setCurrentStep(6); // Go to Scoring page
+    setCurrentStep(6); // Go to Report page (which now handles scoring)
     setShowSavedPage(false);
   };
 
@@ -3045,11 +3255,33 @@ export default function App() {
     }} />;
   }
 
+  // Show compass results page
+  if (showResultsPage) {
+    return (
+      <div className="min-h-screen bg-[#E8E6E1]">
+        <Header 
+          onNewAssessment={handleNewAssessment} 
+          onSavedAssessments={() => { setShowResultsPage(false); setShowSavedPage(true); }}
+          onCompassResults={() => setShowResultsPage(false)}
+        />
+        <CompassResultsPage 
+          results={compassResults}
+          onBack={() => setShowResultsPage(false)}
+          onUpdateResults={setCompassResults}
+        />
+      </div>
+    );
+  }
+
   // Show saved assessments page
   if (showSavedPage) {
     return (
       <div className="min-h-screen bg-[#E8E6E1]">
-        <Header onNewAssessment={handleNewAssessment} onSavedAssessments={() => setShowSavedPage(false)} />
+        <Header 
+          onNewAssessment={handleNewAssessment} 
+          onSavedAssessments={() => setShowSavedPage(false)}
+          onCompassResults={() => { setShowSavedPage(false); setShowResultsPage(true); }}
+        />
         <SavedAssessmentsPage 
           assessments={savedAssessments} 
           onLoad={handleLoad} 
@@ -3066,8 +3298,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#E8E6E1]">
-      <Header onNewAssessment={handleNewAssessment} onSavedAssessments={() => setShowSavedPage(true)} />
-      {currentStep > 0 && currentStep < 8 && <ProgressSteps currentStep={currentStep} steps={steps} />}
+      <Header 
+        onNewAssessment={handleNewAssessment} 
+        onSavedAssessments={() => setShowSavedPage(true)}
+        onCompassResults={() => setShowResultsPage(true)}
+      />
+      {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} />}
 
       {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
       {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} />}
@@ -3075,8 +3311,7 @@ export default function App() {
       {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
       {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
       {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
-      {currentStep === 6 && <ScoringPage scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(5)} onNext={() => setCurrentStep(7)} />}
-      {currentStep === 7 && <ReportPage project={project} scores={scores} assessments={assessments} onSave={handleSave} onShare={() => handleShare({ project, scores, assessments })} onPrev={() => setCurrentStep(6)} />}
+      {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onShare={() => handleShare({ project, scores, assessments })} onPrev={() => setCurrentStep(5)} />}
     </div>
   );
 }
