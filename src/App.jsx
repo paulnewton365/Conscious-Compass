@@ -456,7 +456,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.8.1
+        Version 2.8.2
       </div>
     </div>
   );
@@ -2616,6 +2616,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
     brandName: '',
     businessModel: 'b2b',
     industry: 'other',
+    totalScore: 50,
     scores: { AWAKE: 50, AWARE: 50, REFLECTIVE: 50, ATTENTIVE: 50, COGENT: 50, SENTIENT: 50, VISIONARY: 50, INTENTIONAL: 50 },
   });
 
@@ -2665,15 +2666,14 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       return;
     }
     
-    const overall = Math.round(Object.values(manualEntry.scores).reduce((a, b) => a + b, 0) / 8);
-    const stage = getMaturityStage(overall);
+    const stage = getMaturityStage(manualEntry.totalScore);
     
     const newResult = {
       id: `manual-${Date.now()}`,
       brandName: manualEntry.brandName,
       businessModel: manualEntry.businessModel,
       industry: manualEntry.industry,
-      totalScore: overall,
+      totalScore: manualEntry.totalScore,
       maturityLevel: stage.name,
       scores: { ...manualEntry.scores },
       servicesRecommended: [],
@@ -2689,6 +2689,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       brandName: '',
       businessModel: 'b2b',
       industry: 'other',
+      totalScore: 50,
       scores: { AWAKE: 50, AWARE: 50, REFLECTIVE: 50, ATTENTIVE: 50, COGENT: 50, SENTIENT: 50, VISIONARY: 50, INTENTIONAL: 50 },
     });
   };
@@ -2841,6 +2842,24 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       <option key={ind.id} value={ind.id}>{ind.name}</option>
                     ))}
                   </select>
+                </div>
+              </div>
+              
+              {/* Total Compass Score */}
+              <div className="bg-[#F0EEEA] rounded-lg p-4">
+                <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Total Compass Score (0-100) *</label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={manualEntry.totalScore}
+                    onChange={(e) => setManualEntry({ ...manualEntry, totalScore: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
+                    className="w-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-center text-lg font-bold"
+                  />
+                  <span className="text-sm text-[#666666]">
+                    Weighted score (not auto-calculated from attributes)
+                  </span>
                 </div>
               </div>
               
