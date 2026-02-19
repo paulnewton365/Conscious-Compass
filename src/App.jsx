@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS } from './data/rubric';
+import { SERVICES, ATTRIBUTE_SERVICE_MAPPING, getAllRecommendations, formatBudget, formatTerm } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Lock, Share2, Link, Copy } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
@@ -390,7 +391,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.4.0
+        Version 2.5.0
       </div>
     </div>
   );
@@ -2396,6 +2397,54 @@ function ReportPage({ project, scores, assessments, onSave, onShare, onPrev }) {
           </div>
         ))}
       </div>
+
+      {/* Antenna Group Services */}
+      {(() => {
+        const serviceRecs = getAllRecommendations(scores);
+        const topServices = serviceRecs.slice(0, 6);
+        if (topServices.length === 0) return null;
+        
+        return (
+          <>
+            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">RECOMMENDED ANTENNA GROUP SERVICES</h3>
+            <p className="text-[#666666] mb-4">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              {topServices.map((rec, i) => {
+                const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
+                return (
+                  <div key={i} className="card p-5 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h4 className="font-semibold text-[#1A1A1A]">{rec.service.name}</h4>
+                        <p className="text-xs text-[#666666]">{rec.service.category}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                        rec.priorityLevel === 'critical' ? 'bg-red-100 text-red-700' :
+                        rec.priorityLevel === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {rec.priorityLevel === 'critical' ? 'High Priority' : 
+                         rec.priorityLevel === 'moderate' ? 'Recommended' : 'Opportunity'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[#333333] mb-3">{rec.rationale}</p>
+                    <div className="flex items-center justify-between text-xs text-[#666666]">
+                      <span className="flex items-center gap-1">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr?.color || '#E53935' }}></span>
+                        Improves {attr?.name} (currently {rec.attributeScore})
+                      </span>
+                      <span className="font-medium">{formatBudget(rec.service)}</span>
+                    </div>
+                    {rec.service.note && (
+                      <p className="text-xs text-[#999999] mt-2 italic">{rec.service.note}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Conclusions */}
       <div className="card p-6 mb-6">
