@@ -332,46 +332,107 @@ function MaturityContinuum({ score }) {
 }
 
 // Header
-function Header({ onNewAssessment, onSavedAssessments, onCompassResults }) {
+function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, lastAutoSave }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
   return (
-    <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-5 px-6">
+    <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-4 md:py-5 px-4 md:px-6">
       <div className="max-w-6xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
-          <div className="h-6 w-px bg-[#1A1A1A]" />
-          <span className="text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
+        <div className="flex items-center gap-2 md:gap-4">
+          <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
+          <div className="hidden md:block h-6 w-px bg-[#1A1A1A]" />
+          <span className="hidden md:block text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
         </div>
-        <div className="flex items-center gap-3">
+        
+        {/* Desktop Navigation */}
+        <div className="hidden md:flex items-center gap-3">
+          {lastAutoSave && (
+            <span className="text-xs text-[#9CA3AF] mr-2">
+              Auto-saved {lastAutoSave.toLocaleTimeString()}
+            </span>
+          )}
+          <button onClick={onComparison} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
+            <Users className="w-4 h-4" /> Compare
+          </button>
           <button onClick={onCompassResults} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
-            <BarChart3 className="w-4 h-4" /> Results Grid
+            <BarChart3 className="w-4 h-4" /> Results
           </button>
           <button onClick={onSavedAssessments} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
-            <FileText className="w-4 h-4" /> Saved Assessments
+            <FileText className="w-4 h-4" /> Saved
           </button>
           <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#1A1A1A] text-white hover:bg-[#333333] px-4 py-2 rounded-lg transition-colors">
-            <Plus className="w-4 h-4" /> New Assessment
+            <Plus className="w-4 h-4" /> New
           </button>
         </div>
+
+        {/* Mobile Menu Button */}
+        <button 
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="md:hidden p-2 text-[#1A1A1A]"
+        >
+          {mobileMenuOpen ? <X className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
+        </button>
       </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden mt-4 pt-4 border-t border-[#D9D6D0] space-y-2">
+          {lastAutoSave && (
+            <div className="text-xs text-[#9CA3AF] px-2 pb-2">
+              Auto-saved {lastAutoSave.toLocaleTimeString()}
+            </div>
+          )}
+          <button onClick={() => { onComparison(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#333333] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+            <Users className="w-5 h-5" /> Compare Brands
+          </button>
+          <button onClick={() => { onCompassResults(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#333333] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+            <BarChart3 className="w-5 h-5" /> Results Grid
+          </button>
+          <button onClick={() => { onSavedAssessments(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#333333] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+            <FileText className="w-5 h-5" /> Saved Assessments
+          </button>
+          <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#1A1A1A] text-white rounded-lg transition-colors">
+            <Plus className="w-5 h-5" /> New Assessment
+          </button>
+        </div>
+      )}
     </header>
   );
 }
 
 // Progress Steps
-function ProgressSteps({ currentStep, steps }) {
+function ProgressSteps({ currentStep, steps, assessments }) {
   return (
-    <div className="bg-white border-b border-[#D9D6D0] py-4 px-6">
-      <div className="max-w-6xl mx-auto flex items-center justify-center gap-2">
-        {steps.map((step, i) => (
-          <div key={step.id} className="flex items-center">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
-              i < currentStep ? 'bg-[#E53935] text-white' : i === currentStep ? 'bg-[#E53935]/10 text-[#E53935] ring-2 ring-[#E53935]' : 'bg-[#F0EEEA] text-gray-400'
-            }`}>
-              {i < currentStep ? <Check className="w-4 h-4" /> : i + 1}
+    <div className="bg-white border-b border-[#D9D6D0] py-3 md:py-4 px-4 md:px-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Desktop Progress */}
+        <div className="hidden md:flex items-center justify-center gap-2">
+          {steps.map((step, i) => (
+            <div key={step.id} className="flex items-center">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
+                i < currentStep ? 'bg-[#E53935] text-white' : i === currentStep ? 'bg-[#E53935]/10 text-[#E53935] ring-2 ring-[#E53935]' : 'bg-[#F0EEEA] text-gray-400'
+              }`}>
+                {i < currentStep ? <Check className="w-4 h-4" /> : i + 1}
+              </div>
+              {i < steps.length - 1 && <div className={`w-8 h-0.5 mx-1 ${i < currentStep ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`} />}
             </div>
-            {i < steps.length - 1 && <div className={`w-8 h-0.5 mx-1 ${i < currentStep ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`} />}
+          ))}
+        </div>
+        
+        {/* Mobile Progress */}
+        <div className="md:hidden flex items-center justify-between">
+          <span className="text-sm font-medium text-[#1A1A1A]">
+            Step {currentStep} of {steps.length - 1}: {steps[currentStep]?.name}
+          </span>
+          <div className="flex items-center gap-1">
+            {steps.slice(1).map((_, i) => (
+              <div 
+                key={i}
+                className={`w-2 h-2 rounded-full ${i < currentStep ? 'bg-[#E53935]' : i === currentStep - 1 ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`}
+              />
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
@@ -394,7 +455,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.7.0
+        Version 2.8.0
       </div>
     </div>
   );
@@ -1758,8 +1819,21 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isScoring, setIsScoring] = useState(false);
   const [scoringError, setScoringError] = useState(null);
+  const [scoringProgress, setScoringProgress] = useState(0);
+  const [scoringStage, setScoringStage] = useState('');
+  const [expandedSections, setExpandedSections] = useState({
+    attributes: true,
+    recommendations: true,
+    services: true,
+    conclusions: true,
+    evaluated: false,
+  });
 
-  // Scoring logic (moved from ScoringPage)
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  // Scoring logic with progress
   const runScoring = async () => {
     if (!apiKey) {
       setScoringError('API key is required. Please go back to Setup and enter your Anthropic API key.');
@@ -1767,6 +1841,28 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     }
     setIsScoring(true);
     setScoringError(null);
+    setScoringProgress(0);
+    
+    // Simulate progress stages
+    const progressStages = [
+      { progress: 10, stage: 'Analyzing website assessment...' },
+      { progress: 25, stage: 'Evaluating social media presence...' },
+      { progress: 40, stage: 'Processing AI reputation data...' },
+      { progress: 55, stage: 'Reviewing earned media coverage...' },
+      { progress: 70, stage: 'Calculating attribute scores...' },
+      { progress: 85, stage: 'Generating recommendations...' },
+      { progress: 95, stage: 'Finalizing report...' },
+    ];
+    
+    let stageIndex = 0;
+    const progressInterval = setInterval(() => {
+      if (stageIndex < progressStages.length) {
+        setScoringProgress(progressStages[stageIndex].progress);
+        setScoringStage(progressStages[stageIndex].stage);
+        stageIndex++;
+      }
+    }, 800);
+
     try {
       const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v2.3.
 
@@ -1838,42 +1934,83 @@ Return the JSON scores in this exact format:
 }`;
 
       const result = await callClaude(prompt, apiKey, null, [], 0);
+      clearInterval(progressInterval);
+      setScoringProgress(100);
+      setScoringStage('Complete!');
       const match = result.match(/\{[\s\S]*\}/);
       if (match) setScores(JSON.parse(match[0]));
-    } catch (e) { setScoringError(e.message); }
+    } catch (e) { 
+      clearInterval(progressInterval);
+      setScoringError(e.message); 
+    }
     finally { setIsScoring(false); }
   };
 
   // If no scores yet, show scoring prompt
   if (!scores) {
     return (
-      <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+      <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
         <div className="flex items-start gap-4 mb-8">
-          <div className="w-14 h-14 bg-[#E53935]/10 rounded-xl flex items-center justify-center">
+          <div className="w-14 h-14 bg-[#E53935]/10 rounded-xl flex items-center justify-center flex-shrink-0">
             <BarChart3 className="w-7 h-7 text-[#E53935]" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-[#1A1A1A]">Generate Brand Report</h2>
-            <p className="text-[#333333]">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
+            <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Generate Brand Report</h2>
+            <p className="text-[#333333] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
           </div>
         </div>
 
-        <div className="card p-8 text-center mb-6">
-          <Compass className="w-16 h-16 text-[#E53935] mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Assessment Complete</h3>
-          <p className="text-[#666666] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
-          
-          <button 
-            onClick={runScoring} 
-            disabled={isScoring}
-            className="btn-primary flex items-center gap-2 mx-auto text-lg px-8 py-3"
-          >
-            {isScoring ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> Analyzing Brand...</>
-            ) : (
-              <><Play className="w-5 h-5" /> Generate Brand Report</>
-            )}
-          </button>
+        <div className="card p-6 md:p-8 text-center mb-6">
+          {isScoring ? (
+            <>
+              <Loader2 className="w-16 h-16 text-[#E53935] mx-auto mb-4 animate-spin" />
+              <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Generating Report...</h3>
+              <p className="text-[#666666] mb-4">{scoringStage}</p>
+              
+              {/* Progress bar */}
+              <div className="w-full max-w-md mx-auto bg-[#E8E6E1] rounded-full h-3 mb-4">
+                <div 
+                  className="bg-[#E53935] h-3 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${scoringProgress}%` }}
+                />
+              </div>
+              <p className="text-sm text-[#666666]">{scoringProgress}% complete</p>
+              
+              {/* Progress stages */}
+              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-[#666666]">
+                <div className={`flex items-center gap-1 ${scoringProgress >= 10 ? 'text-[#E53935]' : ''}`}>
+                  {scoringProgress >= 25 ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
+                  Website
+                </div>
+                <div className={`flex items-center gap-1 ${scoringProgress >= 25 ? 'text-[#E53935]' : ''}`}>
+                  {scoringProgress >= 40 ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
+                  Social
+                </div>
+                <div className={`flex items-center gap-1 ${scoringProgress >= 40 ? 'text-[#E53935]' : ''}`}>
+                  {scoringProgress >= 55 ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
+                  AI Rep
+                </div>
+                <div className={`flex items-center gap-1 ${scoringProgress >= 55 ? 'text-[#E53935]' : ''}`}>
+                  {scoringProgress >= 70 ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
+                  Earned
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <Compass className="w-16 h-16 text-[#E53935] mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Assessment Complete</h3>
+              <p className="text-[#666666] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
+              
+              <button 
+                onClick={runScoring} 
+                disabled={isScoring}
+                className="btn-primary flex items-center gap-2 mx-auto text-lg px-8 py-3"
+              >
+                <Play className="w-5 h-5" /> Generate Brand Report
+              </button>
+            </>
+          )}
           
           {scoringError && (
             <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
@@ -2300,116 +2437,168 @@ Return the JSON scores in this exact format:
         </p>
       </div>
 
-      {/* Attribute Analysis */}
-      <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
-      <div className="space-y-4 mb-8">
-        {ATTRIBUTES.map(attr => (
-          <div key={attr.id} className="card p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: attr.color }}>
-                  {scores[attr.id]?.score || 0}
+      {/* Attribute Analysis - Collapsible */}
+      <div className="mt-8 mb-8">
+        <button 
+          onClick={() => toggleSection('attributes')} 
+          className="w-full flex items-center justify-between text-xl font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+        >
+          <span>ATTRIBUTE ANALYSIS</span>
+          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.attributes ? 'rotate-180' : ''}`} />
+        </button>
+        {expandedSections.attributes && (
+          <div className="space-y-4 animate-fade-in">
+            {ATTRIBUTES.map(attr => (
+              <div key={attr.id} className="card p-4 md:p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center text-white font-bold text-base md:text-lg flex-shrink-0" style={{ backgroundColor: attr.color }}>
+                      {scores[attr.id]?.score || 0}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-[#1A1A1A] text-sm md:text-base">{attr.name}</h4>
+                      <p className="text-xs md:text-sm text-[#666666]">{attr.fullName}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-[#1A1A1A]">{attr.name}</h4>
-                  <p className="text-sm text-[#666666]">{attr.fullName}</p>
-                </div>
+                <p className="text-xs md:text-sm text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+                {scores[attr.id]?.opportunity && (
+                  <p className="text-xs md:text-sm text-[#E53935] italic">{scores[attr.id].opportunity}</p>
+                )}
               </div>
-            </div>
-            <p className="text-sm text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
-            {scores[attr.id]?.opportunity && (
-              <p className="text-sm text-[#E53935] italic">{scores[attr.id].opportunity}</p>
-            )}
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
-      {/* Recommendations */}
-      <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
-      <p className="text-[#666666] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
-      <div className="space-y-4 mb-6">
-        {recommendations.map((r, i) => (
-          <div key={i} className="card p-5">
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-[#1A1A1A] mb-2">{r.title}</h4>
-                <p className="text-sm text-[#333333] leading-relaxed mb-2">
-                  {r.description} {r.impact}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {r.attributes.map((attr, j) => (
-                    <span key={j} className="text-xs px-2 py-1 bg-[#E53935]/10 text-[#E53935] rounded-full font-medium">{attr}</span>
-                  ))}
+      {/* Recommendations - Collapsible */}
+      <div className="mb-6">
+        <button 
+          onClick={() => toggleSection('recommendations')} 
+          className="w-full flex items-center justify-between text-xl font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+        >
+          <span>INTEGRATED MARKETING RECOMMENDATIONS</span>
+          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.recommendations ? 'rotate-180' : ''}`} />
+        </button>
+        {expandedSections.recommendations && (
+          <div className="animate-fade-in">
+            <p className="text-[#666666] mb-4 text-sm md:text-base">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
+            <div className="space-y-4">
+              {recommendations.map((r, i) => (
+                <div key={i} className="card p-4 md:p-5">
+                  <div className="flex items-start gap-3 md:gap-4">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-xs md:text-sm flex-shrink-0">{i + 1}</div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-[#1A1A1A] mb-2 text-sm md:text-base">{r.title}</h4>
+                      <p className="text-xs md:text-sm text-[#333333] leading-relaxed mb-2">
+                        {r.description} {r.impact}
+                      </p>
+                      <div className="flex flex-wrap gap-1 md:gap-2">
+                        {r.attributes.map((attr, j) => (
+                          <span key={j} className="text-xs px-2 py-0.5 md:py-1 bg-[#E53935]/10 text-[#E53935] rounded-full font-medium">{attr}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
-        ))}
+        )}
       </div>
 
-      {/* Antenna Group Services */}
+      {/* Antenna Group Services - Collapsible */}
       {(() => {
         const serviceRecs = getAllRecommendations(scores);
         const topServices = serviceRecs.slice(0, 6);
         if (topServices.length === 0) return null;
         
         return (
-          <>
-            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">RECOMMENDED ANTENNA GROUP SERVICES</h3>
-            <p className="text-[#666666] mb-4">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
-              {topServices.map((rec, i) => {
-                const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
-                return (
-                  <div key={i} className="card p-5 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h4 className="font-semibold text-[#1A1A1A]">{rec.service.name}</h4>
-                        <p className="text-xs text-[#666666]">{rec.service.category}</p>
+          <div className="mb-6">
+            <button 
+              onClick={() => toggleSection('services')} 
+              className="w-full flex items-center justify-between text-xl font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+            >
+              <span>RECOMMENDED ANTENNA GROUP SERVICES</span>
+              <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.services ? 'rotate-180' : ''}`} />
+            </button>
+            {expandedSections.services && (
+              <div className="animate-fade-in">
+                <p className="text-[#666666] mb-4 text-sm md:text-base">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {topServices.map((rec, i) => {
+                    const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
+                    return (
+                      <div key={i} className="card p-4 md:p-5 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h4 className="font-semibold text-[#1A1A1A] text-sm md:text-base">{rec.service.name}</h4>
+                            <p className="text-xs text-[#666666]">{rec.service.category}</p>
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                            rec.priorityLevel === 'critical' ? 'bg-red-100 text-red-700' :
+                            rec.priorityLevel === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {rec.priorityLevel === 'critical' ? 'High Priority' : 
+                             rec.priorityLevel === 'moderate' ? 'Recommended' : 'Opportunity'}
+                          </span>
+                        </div>
+                        <p className="text-xs md:text-sm text-[#333333] mb-3">{rec.rationale}</p>
+                        <div className="flex items-center justify-between text-xs text-[#666666]">
+                          <span className="flex items-center gap-1">
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr?.color || '#E53935' }}></span>
+                            Improves {attr?.name} (currently {rec.attributeScore})
+                          </span>
+                          <span className="font-medium">{formatBudget(rec.service)}</span>
+                        </div>
+                        {rec.service.note && (
+                          <p className="text-xs text-[#999999] mt-2 italic">{rec.service.note}</p>
+                        )}
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                        rec.priorityLevel === 'critical' ? 'bg-red-100 text-red-700' :
-                        rec.priorityLevel === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-green-100 text-green-700'
-                      }`}>
-                        {rec.priorityLevel === 'critical' ? 'High Priority' : 
-                         rec.priorityLevel === 'moderate' ? 'Recommended' : 'Opportunity'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-[#333333] mb-3">{rec.rationale}</p>
-                    <div className="flex items-center justify-between text-xs text-[#666666]">
-                      <span className="flex items-center gap-1">
-                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr?.color || '#E53935' }}></span>
-                        Improves {attr?.name} (currently {rec.attributeScore})
-                      </span>
-                      <span className="font-medium">{formatBudget(rec.service)}</span>
-                    </div>
-                    {rec.service.note && (
-                      <p className="text-xs text-[#999999] mt-2 italic">{rec.service.note}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         );
       })()}
 
-      {/* Conclusions */}
-      <div className="card p-6 mb-6">
-        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">CONCLUSIONS</h3>
-        <p className="text-[#333333] leading-relaxed">
-          {project.brandName} has demonstrated {overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening {sortedAttrs[0].name} and {sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, {project.brandName} is well positioned to become a more consequential presence in its industry.
-        </p>
+      {/* Conclusions - Collapsible */}
+      <div className="mb-6">
+        <button 
+          onClick={() => toggleSection('conclusions')} 
+          className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+        >
+          <span>CONCLUSIONS</span>
+          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.conclusions ? 'rotate-180' : ''}`} />
+        </button>
+        {expandedSections.conclusions && (
+          <div className="card p-4 md:p-6 animate-fade-in">
+            <p className="text-sm md:text-base text-[#333333] leading-relaxed">
+              {project.brandName} has demonstrated {overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening {sortedAttrs[0].name} and {sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, {project.brandName} is well positioned to become a more consequential presence in its industry.
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* What We Evaluated */}
-      <div className="card p-6 mb-8">
-        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">WHAT WE EVALUATED</h3>
-        <p className="text-[#333333] leading-relaxed">
-          This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.3, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
-        </p>
+      {/* What We Evaluated - Collapsible */}
+      <div className="mb-8">
+        <button 
+          onClick={() => toggleSection('evaluated')} 
+          className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+        >
+          <span>WHAT WE EVALUATED</span>
+          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.evaluated ? 'rotate-180' : ''}`} />
+        </button>
+        {expandedSections.evaluated && (
+          <div className="card p-4 md:p-6 animate-fade-in">
+            <p className="text-sm md:text-base text-[#333333] leading-relaxed">
+              This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.3, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-start pt-6 border-t border-[#D9D6D0]">
@@ -2700,6 +2889,382 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Onboarding Tour Component
+function OnboardingTour({ onComplete }) {
+  const [step, setStep] = useState(0);
+  
+  const steps = [
+    {
+      title: "Welcome to Conscious Compass",
+      description: "This tool helps you assess brands across 8 consciousness attributes to understand their market presence and identify opportunities for growth.",
+      icon: Compass,
+    },
+    {
+      title: "Four Assessment Areas",
+      description: "You'll evaluate the brand's Website presence, Social Media footprint, AI Reputation across major AI systems, and Earned Media coverage.",
+      icon: Globe,
+    },
+    {
+      title: "Upload Screenshots & Data",
+      description: "Capture screenshots of the brand's digital presence and paste relevant content. The AI will analyze everything to generate insights.",
+      icon: Image,
+    },
+    {
+      title: "Get Actionable Results",
+      description: "Receive scores across 8 attributes, specific recommendations, and suggested services to improve brand consciousness.",
+      icon: BarChart3,
+    },
+    {
+      title: "Compare & Track Progress",
+      description: "Save assessments, compare multiple brands side-by-side, and export results to track improvements over time.",
+      icon: Users,
+    },
+  ];
+
+  const currentStep = steps[step];
+  const Icon = currentStep.icon;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-lg w-full overflow-hidden animate-fade-in">
+        <div className="bg-gradient-to-r from-[#E53935] to-[#C62828] p-8 text-center">
+          <Icon className="w-16 h-16 text-white mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white">{currentStep.title}</h2>
+        </div>
+        
+        <div className="p-6">
+          <p className="text-[#333333] text-center mb-6">{currentStep.description}</p>
+          
+          {/* Progress dots */}
+          <div className="flex justify-center gap-2 mb-6">
+            {steps.map((_, i) => (
+              <div 
+                key={i} 
+                className={`w-2 h-2 rounded-full transition-colors ${i === step ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`}
+              />
+            ))}
+          </div>
+          
+          <div className="flex gap-3">
+            {step > 0 && (
+              <button 
+                onClick={() => setStep(step - 1)} 
+                className="btn-secondary flex-1"
+              >
+                Back
+              </button>
+            )}
+            {step < steps.length - 1 ? (
+              <button 
+                onClick={() => setStep(step + 1)} 
+                className="btn-primary flex-1"
+              >
+                Next
+              </button>
+            ) : (
+              <button 
+                onClick={() => {
+                  localStorage.setItem('conscious-compass-onboarded', 'true');
+                  onComplete();
+                }} 
+                className="btn-primary flex-1"
+              >
+                Get Started
+              </button>
+            )}
+          </div>
+          
+          {step < steps.length - 1 && (
+            <button 
+              onClick={() => {
+                localStorage.setItem('conscious-compass-onboarded', 'true');
+                onComplete();
+              }}
+              className="w-full text-center text-sm text-[#666666] mt-4 hover:text-[#1A1A1A]"
+            >
+              Skip tour
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Brand Comparison Page
+function ComparisonPage({ results, onBack }) {
+  const [selectedBrands, setSelectedBrands] = useState([]);
+  const maxComparison = 4;
+
+  const toggleBrand = (brand) => {
+    if (selectedBrands.find(b => b.id === brand.id)) {
+      setSelectedBrands(selectedBrands.filter(b => b.id !== brand.id));
+    } else if (selectedBrands.length < maxComparison) {
+      setSelectedBrands([...selectedBrands, brand]);
+    }
+  };
+
+  const exportComparison = () => {
+    if (selectedBrands.length < 2) {
+      alert('Select at least 2 brands to export comparison');
+      return;
+    }
+    
+    const headers = ['Attribute', ...selectedBrands.map(b => b.brandName)];
+    const rows = ATTRIBUTES.map(attr => [
+      attr.name,
+      ...selectedBrands.map(b => b.scores?.[attr.id] || 0)
+    ]);
+    rows.unshift(['Overall Score', ...selectedBrands.map(b => b.totalScore)]);
+    rows.push(['Maturity Level', ...selectedBrands.map(b => b.maturityLevel)]);
+    
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `brand-comparison-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F5F4F0]">
+      <div className="max-w-7xl mx-auto p-4 md:p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="btn-secondary flex items-center gap-2">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Compare Brands</h1>
+              <p className="text-sm text-[#666666]">Select up to {maxComparison} brands to compare</p>
+            </div>
+          </div>
+          <button 
+            onClick={exportComparison} 
+            disabled={selectedBrands.length < 2}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" /> Export Comparison
+          </button>
+        </div>
+
+        {results.length === 0 ? (
+          <div className="card p-12 text-center">
+            <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Results to Compare</h3>
+            <p className="text-[#666666]">Complete some assessments first to compare brands.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Brand Selection */}
+            <div className="lg:col-span-1">
+              <div className="card p-4">
+                <h3 className="font-semibold text-[#1A1A1A] mb-4">Select Brands ({selectedBrands.length}/{maxComparison})</h3>
+                <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                  {results.map((r) => {
+                    const isSelected = selectedBrands.find(b => b.id === r.id);
+                    const isDisabled = !isSelected && selectedBrands.length >= maxComparison;
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => toggleBrand(r)}
+                        disabled={isDisabled}
+                        className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                          isSelected 
+                            ? 'border-[#E53935] bg-[#E53935]/5' 
+                            : isDisabled 
+                              ? 'border-[#E8E6E1] bg-[#F5F4F0] opacity-50 cursor-not-allowed'
+                              : 'border-[#D9D6D0] hover:border-[#E53935]/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-medium text-[#1A1A1A]">{r.brandName}</span>
+                            <div className="text-xs text-[#666666]">{r.industry}</div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-lg">{r.totalScore}</span>
+                            <div className="text-xs text-[#666666]">{r.maturityLevel}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Comparison View */}
+            <div className="lg:col-span-2">
+              {selectedBrands.length < 2 ? (
+                <div className="card p-12 text-center">
+                  <Users className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Select Brands to Compare</h3>
+                  <p className="text-[#666666]">Choose at least 2 brands from the list to see a comparison.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Overall Score Comparison */}
+                  <div className="card p-6">
+                    <h3 className="font-semibold text-[#1A1A1A] mb-4">Overall Scores</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {selectedBrands.map((brand) => {
+                        const stage = MATURITY_STAGES.find(s => s.name === brand.maturityLevel) || MATURITY_STAGES[0];
+                        return (
+                          <div key={brand.id} className="text-center">
+                            <div 
+                              className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-2xl"
+                              style={{ backgroundColor: stage.color }}
+                            >
+                              {brand.totalScore}
+                            </div>
+                            <div className="font-medium text-sm text-[#1A1A1A] truncate">{brand.brandName}</div>
+                            <div className="text-xs text-[#666666]">{brand.maturityLevel}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Attribute Comparison */}
+                  <div className="card p-6">
+                    <h3 className="font-semibold text-[#1A1A1A] mb-4">Attribute Comparison</h3>
+                    <div className="space-y-4">
+                      {ATTRIBUTES.map((attr) => (
+                        <div key={attr.id}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }} />
+                              <span className="text-sm font-medium text-[#1A1A1A]">{attr.name}</span>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {selectedBrands.map((brand) => {
+                              const score = brand.scores?.[attr.id] || 0;
+                              return (
+                                <div key={brand.id} className="relative">
+                                  <div className="text-xs text-[#666666] mb-1 truncate">{brand.brandName}</div>
+                                  <div className="h-6 bg-[#E8E6E1] rounded overflow-hidden">
+                                    <div 
+                                      className="h-full rounded transition-all duration-500"
+                                      style={{ width: `${score}%`, backgroundColor: attr.color }}
+                                    />
+                                  </div>
+                                  <div className="absolute right-1 top-5 text-xs font-medium text-white mix-blend-difference">
+                                    {score}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Quick Insights */}
+                  <div className="card p-6">
+                    <h3 className="font-semibold text-[#1A1A1A] mb-4">Quick Insights</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div className="bg-[#F0EEEA] rounded-lg p-4">
+                        <div className="font-medium text-[#1A1A1A] mb-2">Highest Overall Score</div>
+                        <div className="text-[#E53935] font-bold">
+                          {selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).brandName}
+                          <span className="text-[#666666] font-normal ml-2">
+                            ({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})
+                          </span>
+                        </div>
+                      </div>
+                      <div className="bg-[#F0EEEA] rounded-lg p-4">
+                        <div className="font-medium text-[#1A1A1A] mb-2">Largest Gap</div>
+                        {(() => {
+                          let maxGap = 0;
+                          let gapAttr = ATTRIBUTES[0];
+                          ATTRIBUTES.forEach(attr => {
+                            const scores = selectedBrands.map(b => b.scores?.[attr.id] || 0);
+                            const gap = Math.max(...scores) - Math.min(...scores);
+                            if (gap > maxGap) {
+                              maxGap = gap;
+                              gapAttr = attr;
+                            }
+                          });
+                          return (
+                            <div className="text-[#E53935] font-bold">
+                              {gapAttr.name}
+                              <span className="text-[#666666] font-normal ml-2">({maxGap} points)</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Assessment Status Indicator - shows completion status for each assessment area
+function AssessmentStatusIndicator({ assessments }) {
+  const getStatus = (assessment, type) => {
+    if (type === 'website') {
+      const hasContent = assessment.content || assessment.images?.length > 0;
+      const hasExtra = assessment.pagesReviewed || assessment.websiteContent || assessment.seoAssessment;
+      if (hasContent && hasExtra) return 'complete';
+      if (hasContent || hasExtra) return 'partial';
+      return 'empty';
+    }
+    if (type === 'social') {
+      const fields = [assessment.linkedinAbout, assessment.linkedinPosts, assessment.xContent, 
+                      assessment.instagramContent, assessment.youtubeContent, assessment.redditContent,
+                      assessment.wikipediaContent, assessment.glassdoorContent];
+      const filled = fields.filter(Boolean).length;
+      if (assessment.content && filled >= 3) return 'complete';
+      if (assessment.content || filled > 0) return 'partial';
+      return 'empty';
+    }
+    if (type === 'aiReputation') {
+      const hasContent = assessment.content;
+      if (hasContent) return 'complete';
+      return 'empty';
+    }
+    if (type === 'earnedMedia') {
+      const hasContent = assessment.content || assessment.coveragePaste;
+      if (hasContent) return 'complete';
+      return 'empty';
+    }
+    return 'empty';
+  };
+
+  const statuses = {
+    website: getStatus(assessments.website, 'website'),
+    social: getStatus(assessments.social, 'social'),
+    aiReputation: getStatus(assessments.aiReputation, 'aiReputation'),
+    earnedMedia: getStatus(assessments.earnedMedia, 'earnedMedia'),
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      {Object.entries(statuses).map(([key, status]) => (
+        <div 
+          key={key}
+          className={`w-2 h-2 rounded-full ${
+            status === 'complete' ? 'bg-green-500' : 
+            status === 'partial' ? 'bg-yellow-500' : 
+            'bg-[#D9D6D0]'
+          }`}
+          title={`${key}: ${status}`}
+        />
+      ))}
     </div>
   );
 }
@@ -3024,9 +3589,13 @@ export default function App() {
   const [scores, setScores] = useState(null);
   const [showSavedPage, setShowSavedPage] = useState(false);
   const [showResultsPage, setShowResultsPage] = useState(false);
+  const [showComparisonPage, setShowComparisonPage] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
   const [savedAssessments, setSavedAssessments] = useState([]);
   const [compassResults, setCompassResults] = useState([]);
   const [sharedReport, setSharedReport] = useState(null); // For viewing shared reports
+  const [lastAutoSave, setLastAutoSave] = useState(null);
 
   // Persist API key to localStorage whenever it changes
   useEffect(() => {
@@ -3035,6 +3604,19 @@ export default function App() {
     }
   }, [apiKey]);
 
+  // Auto-save draft every 30 seconds if there's data
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      if (project.brandName && currentStep > 0) {
+        const draft = { project, assessments, currentStep, savedAt: new Date().toISOString() };
+        localStorage.setItem('conscious-compass-draft', JSON.stringify(draft));
+        setLastAutoSave(new Date());
+      }
+    }, 30000);
+    return () => clearInterval(autoSaveInterval);
+  }, [project, assessments, currentStep]);
+
+  // Load draft on mount if exists
   useEffect(() => {
     // Check if already authenticated
     if (localStorage.getItem('conscious-compass-auth') === 'true') {
@@ -3042,6 +3624,28 @@ export default function App() {
     }
     setSavedAssessments(JSON.parse(localStorage.getItem('conscious-compass-saved') || '[]'));
     setCompassResults(JSON.parse(localStorage.getItem('conscious-compass-results') || '[]'));
+    
+    // Check for draft
+    const draft = localStorage.getItem('conscious-compass-draft');
+    if (draft) {
+      const parsed = JSON.parse(draft);
+      const draftAge = Date.now() - new Date(parsed.savedAt).getTime();
+      // Only restore drafts less than 24 hours old
+      if (draftAge < 24 * 60 * 60 * 1000 && parsed.project?.brandName) {
+        if (confirm(`Resume your draft assessment for "${parsed.project.brandName}"?`)) {
+          setProject(parsed.project);
+          setAssessments(parsed.assessments);
+          setCurrentStep(parsed.currentStep);
+        } else {
+          localStorage.removeItem('conscious-compass-draft');
+        }
+      }
+    }
+    
+    // Check for first time user
+    if (!localStorage.getItem('conscious-compass-onboarded')) {
+      setShowOnboarding(true);
+    }
     
     // Check for shared report in URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -3255,6 +3859,25 @@ export default function App() {
     }} />;
   }
 
+  // Show comparison page
+  if (showComparisonPage) {
+    return (
+      <div className="min-h-screen bg-[#E8E6E1]">
+        <Header 
+          onNewAssessment={handleNewAssessment} 
+          onSavedAssessments={() => { setShowComparisonPage(false); setShowSavedPage(true); }}
+          onCompassResults={() => { setShowComparisonPage(false); setShowResultsPage(true); }}
+          onComparison={() => setShowComparisonPage(false)}
+          lastAutoSave={lastAutoSave}
+        />
+        <ComparisonPage 
+          results={compassResults}
+          onBack={() => setShowComparisonPage(false)}
+        />
+      </div>
+    );
+  }
+
   // Show compass results page
   if (showResultsPage) {
     return (
@@ -3263,6 +3886,8 @@ export default function App() {
           onNewAssessment={handleNewAssessment} 
           onSavedAssessments={() => { setShowResultsPage(false); setShowSavedPage(true); }}
           onCompassResults={() => setShowResultsPage(false)}
+          onComparison={() => { setShowResultsPage(false); setShowComparisonPage(true); }}
+          lastAutoSave={lastAutoSave}
         />
         <CompassResultsPage 
           results={compassResults}
@@ -3281,6 +3906,8 @@ export default function App() {
           onNewAssessment={handleNewAssessment} 
           onSavedAssessments={() => setShowSavedPage(false)}
           onCompassResults={() => { setShowSavedPage(false); setShowResultsPage(true); }}
+          onComparison={() => { setShowSavedPage(false); setShowComparisonPage(true); }}
+          lastAutoSave={lastAutoSave}
         />
         <SavedAssessmentsPage 
           assessments={savedAssessments} 
@@ -3298,12 +3925,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#E8E6E1]">
+      {/* Onboarding Tour */}
+      {showOnboarding && (
+        <OnboardingTour onComplete={() => setShowOnboarding(false)} />
+      )}
+      
       <Header 
         onNewAssessment={handleNewAssessment} 
         onSavedAssessments={() => setShowSavedPage(true)}
         onCompassResults={() => setShowResultsPage(true)}
+        onComparison={() => setShowComparisonPage(true)}
+        lastAutoSave={lastAutoSave}
       />
-      {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} />}
+      {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
 
       {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
       {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} />}

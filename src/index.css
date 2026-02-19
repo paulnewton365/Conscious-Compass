@@ -170,3 +170,49 @@ input:focus, select:focus, textarea:focus {
     #9E9D24 84%, #9E9D24 100%
   );
 }
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .btn-primary, .btn-secondary {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+  
+  .card {
+    border-radius: 8px;
+  }
+  
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+  
+  input, select, textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  button, a, input, select, textarea {
+    min-height: 44px;
+  }
+  
+  .btn-primary::before,
+  .btn-secondary::before {
+    display: none; /* Disable hover effects on touch */
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: max(0px)) {
+  .min-h-screen {
+    min-height: calc(100vh - env(safe-area-inset-bottom));
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in { animation: none; }
+  .animate-spin { animation: none; }
+  * { transition-duration: 0.01ms !important; }
+}
