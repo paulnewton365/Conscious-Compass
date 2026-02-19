@@ -74,6 +74,7 @@ const INDUSTRIES = [
   { id: 'telecom', name: 'Telecommunications' },
   { id: 'professional', name: 'Professional Services' },
   { id: 'realestate', name: 'Real Estate & Construction' },
+  { id: 'mobility', name: 'Mobility & Automotive' },
   { id: 'transportation', name: 'Transportation & Logistics' },
   { id: 'hospitality', name: 'Hospitality & Travel' },
   { id: 'education', name: 'Education' },
@@ -455,7 +456,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.8.0
+        Version 2.8.1
       </div>
     </div>
   );
@@ -2618,17 +2619,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
     scores: { AWAKE: 50, AWARE: 50, REFLECTIVE: 50, ATTENTIVE: 50, COGENT: 50, SENTIENT: 50, VISIONARY: 50, INTENTIONAL: 50 },
   });
 
-  const industries = [
-    { id: 'technology', name: 'Technology' },
-    { id: 'healthcare', name: 'Healthcare' },
-    { id: 'financial', name: 'Financial Services' },
-    { id: 'energy', name: 'Energy & Utilities' },
-    { id: 'manufacturing', name: 'Manufacturing' },
-    { id: 'retail', name: 'Retail & Consumer' },
-    { id: 'professional', name: 'Professional Services' },
-    { id: 'nonprofit', name: 'Nonprofit' },
-    { id: 'other', name: 'Other' },
-  ];
+  const industries = INDUSTRIES;
 
   const handleExportCSV = () => {
     if (results.length === 0) {
@@ -2929,22 +2920,22 @@ function OnboardingTour({ onComplete }) {
   const Icon = currentStep.icon;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-lg w-full overflow-hidden animate-fade-in">
-        <div className="bg-gradient-to-r from-[#E53935] to-[#C62828] p-8 text-center">
-          <Icon className="w-16 h-16 text-white mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white">{currentStep.title}</h2>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#1A1A1A] rounded-lg max-w-lg w-full overflow-hidden animate-fade-in">
+        <div className="bg-[#E8FF00] p-8 text-center">
+          <Icon className="w-16 h-16 text-[#1A1A1A] mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-[#1A1A1A]">{currentStep.title}</h2>
         </div>
         
         <div className="p-6">
-          <p className="text-[#333333] text-center mb-6">{currentStep.description}</p>
+          <p className="text-[#E8E6E1] text-center mb-6">{currentStep.description}</p>
           
           {/* Progress dots */}
           <div className="flex justify-center gap-2 mb-6">
             {steps.map((_, i) => (
               <div 
                 key={i} 
-                className={`w-2 h-2 rounded-full transition-colors ${i === step ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`}
+                className={`w-2 h-2 rounded-full transition-colors ${i === step ? 'bg-[#E8FF00]' : 'bg-[#666666]'}`}
               />
             ))}
           </div>
@@ -2953,7 +2944,7 @@ function OnboardingTour({ onComplete }) {
             {step > 0 && (
               <button 
                 onClick={() => setStep(step - 1)} 
-                className="btn-secondary flex-1"
+                className="flex-1 bg-transparent border border-[#E8FF00] text-[#E8FF00] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#E8FF00] hover:text-[#1A1A1A] transition-colors"
               >
                 Back
               </button>
@@ -2961,7 +2952,7 @@ function OnboardingTour({ onComplete }) {
             {step < steps.length - 1 ? (
               <button 
                 onClick={() => setStep(step + 1)} 
-                className="btn-primary flex-1"
+                className="flex-1 bg-[#E8FF00] text-[#1A1A1A] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
               >
                 Next
               </button>
@@ -2971,7 +2962,7 @@ function OnboardingTour({ onComplete }) {
                   localStorage.setItem('conscious-compass-onboarded', 'true');
                   onComplete();
                 }} 
-                className="btn-primary flex-1"
+                className="flex-1 bg-[#E8FF00] text-[#1A1A1A] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
               >
                 Get Started
               </button>
@@ -2984,7 +2975,7 @@ function OnboardingTour({ onComplete }) {
                 localStorage.setItem('conscious-compass-onboarded', 'true');
                 onComplete();
               }}
-              className="w-full text-center text-sm text-[#666666] mt-4 hover:text-[#1A1A1A]"
+              className="w-full text-center text-sm text-[#666666] mt-4 hover:text-[#E8FF00] transition-colors"
             >
               Skip tour
             </button>
@@ -2998,7 +2989,58 @@ function OnboardingTour({ onComplete }) {
 // Brand Comparison Page
 function ComparisonPage({ results, onBack }) {
   const [selectedBrands, setSelectedBrands] = useState([]);
+  const [filterIndustry, setFilterIndustry] = useState('all');
+  const [filterBusinessModel, setFilterBusinessModel] = useState('all');
+  const [viewMode, setViewMode] = useState('brands'); // 'brands' or 'industry'
   const maxComparison = 4;
+
+  const industries = [
+    { id: 'all', name: 'All Industries' },
+    ...INDUSTRIES
+  ];
+
+  const businessModels = [
+    { id: 'all', name: 'All Models' },
+    { id: 'b2b', name: 'B2B' },
+    { id: 'b2c', name: 'B2C' },
+    { id: 'b2b2c', name: 'B2B2C' },
+  ];
+
+  // Filter results
+  const filteredResults = results.filter(r => {
+    if (filterIndustry !== 'all' && r.industry !== filterIndustry) return false;
+    if (filterBusinessModel !== 'all' && r.businessModel !== filterBusinessModel) return false;
+    return true;
+  });
+
+  // Get unique industries with data
+  const industriesWithData = [...new Set(results.map(r => r.industry).filter(Boolean))];
+
+  // Calculate industry benchmarks
+  const getIndustryBenchmarks = () => {
+    const benchmarks = {};
+    industriesWithData.forEach(industry => {
+      const industryBrands = results.filter(r => r.industry === industry);
+      if (industryBrands.length > 0) {
+        const avgScore = Math.round(industryBrands.reduce((sum, b) => sum + b.totalScore, 0) / industryBrands.length);
+        const attrAvgs = {};
+        ATTRIBUTES.forEach(attr => {
+          attrAvgs[attr.id] = Math.round(
+            industryBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / industryBrands.length
+          );
+        });
+        benchmarks[industry] = {
+          avgScore,
+          attrAvgs,
+          count: industryBrands.length,
+          industryName: industries.find(i => i.id === industry)?.name || industry,
+        };
+      }
+    });
+    return benchmarks;
+  };
+
+  const industryBenchmarks = getIndustryBenchmarks();
 
   const toggleBrand = (brand) => {
     if (selectedBrands.find(b => b.id === brand.id)) {
@@ -3008,48 +3050,100 @@ function ComparisonPage({ results, onBack }) {
     }
   };
 
+  const selectAllInIndustry = (industry) => {
+    const industryBrands = results.filter(r => r.industry === industry).slice(0, maxComparison);
+    setSelectedBrands(industryBrands);
+  };
+
   const exportComparison = () => {
-    if (selectedBrands.length < 2) {
+    if (viewMode === 'brands' && selectedBrands.length < 2) {
       alert('Select at least 2 brands to export comparison');
       return;
     }
     
-    const headers = ['Attribute', ...selectedBrands.map(b => b.brandName)];
-    const rows = ATTRIBUTES.map(attr => [
-      attr.name,
-      ...selectedBrands.map(b => b.scores?.[attr.id] || 0)
-    ]);
-    rows.unshift(['Overall Score', ...selectedBrands.map(b => b.totalScore)]);
-    rows.push(['Maturity Level', ...selectedBrands.map(b => b.maturityLevel)]);
-    
-    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `brand-comparison-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    if (viewMode === 'brands') {
+      const headers = ['Attribute', ...selectedBrands.map(b => b.brandName)];
+      const rows = ATTRIBUTES.map(attr => [
+        attr.name,
+        ...selectedBrands.map(b => b.scores?.[attr.id] || 0)
+      ]);
+      rows.unshift(['Overall Score', ...selectedBrands.map(b => b.totalScore)]);
+      rows.push(['Maturity Level', ...selectedBrands.map(b => b.maturityLevel)]);
+      
+      const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `brand-comparison-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+    } else {
+      // Export industry benchmarks
+      const benchmarkEntries = Object.entries(industryBenchmarks);
+      if (benchmarkEntries.length === 0) {
+        alert('No industry data to export');
+        return;
+      }
+      const headers = ['Attribute', ...benchmarkEntries.map(([, b]) => `${b.industryName} (n=${b.count})`)];
+      const rows = ATTRIBUTES.map(attr => [
+        attr.name,
+        ...benchmarkEntries.map(([, b]) => b.attrAvgs[attr.id])
+      ]);
+      rows.unshift(['Average Score', ...benchmarkEntries.map(([, b]) => b.avgScore)]);
+      
+      const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `industry-benchmarks-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#F5F4F0]">
       <div className="max-w-7xl mx-auto p-4 md:p-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="btn-secondary flex items-center gap-2">
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Compare Brands</h1>
-              <p className="text-sm text-[#666666]">Select up to {maxComparison} brands to compare</p>
+              <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Compare</h1>
+              <p className="text-sm text-[#666666]">Compare brands or view industry benchmarks</p>
             </div>
           </div>
           <button 
             onClick={exportComparison} 
-            disabled={selectedBrands.length < 2}
+            disabled={viewMode === 'brands' ? selectedBrands.length < 2 : Object.keys(industryBenchmarks).length === 0}
             className="btn-primary flex items-center gap-2"
           >
-            <Download className="w-4 h-4" /> Export Comparison
+            <Download className="w-4 h-4" /> Export {viewMode === 'brands' ? 'Comparison' : 'Benchmarks'}
+          </button>
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setViewMode('brands')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              viewMode === 'brands' 
+                ? 'bg-[#1A1A1A] text-white' 
+                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+            }`}
+          >
+            Compare Brands
+          </button>
+          <button
+            onClick={() => setViewMode('industry')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              viewMode === 'industry' 
+                ? 'bg-[#1A1A1A] text-white' 
+                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+            }`}
+          >
+            Industry Benchmarks
           </button>
         </div>
 
@@ -3059,14 +3153,138 @@ function ComparisonPage({ results, onBack }) {
             <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Results to Compare</h3>
             <p className="text-[#666666]">Complete some assessments first to compare brands.</p>
           </div>
+        ) : viewMode === 'industry' ? (
+          /* Industry Benchmarks View */
+          <div className="space-y-6">
+            {Object.keys(industryBenchmarks).length === 0 ? (
+              <div className="card p-12 text-center">
+                <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Industry Data</h3>
+                <p className="text-[#666666]">Add industry information to your assessments to see benchmarks.</p>
+              </div>
+            ) : (
+              <>
+                {/* Industry Overview */}
+                <div className="card p-6">
+                  <h3 className="font-semibold text-[#1A1A1A] mb-4">Industry Average Scores</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {Object.entries(industryBenchmarks).map(([industry, data]) => {
+                      const stage = getMaturityStage(data.avgScore);
+                      return (
+                        <div key={industry} className="text-center p-4 bg-[#F0EEEA] rounded-lg">
+                          <div 
+                            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl"
+                            style={{ backgroundColor: stage.color }}
+                          >
+                            {data.avgScore}
+                          </div>
+                          <div className="font-medium text-sm text-[#1A1A1A]">{data.industryName}</div>
+                          <div className="text-xs text-[#666666]">{data.count} brand{data.count !== 1 ? 's' : ''}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Industry Attribute Comparison */}
+                <div className="card p-6">
+                  <h3 className="font-semibold text-[#1A1A1A] mb-4">Attribute Comparison by Industry</h3>
+                  <div className="space-y-4">
+                    {ATTRIBUTES.map((attr) => (
+                      <div key={attr.id}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }} />
+                          <span className="text-sm font-medium text-[#1A1A1A]">{attr.name}</span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                          {Object.entries(industryBenchmarks).map(([industry, data]) => (
+                            <div key={industry} className="relative">
+                              <div className="text-xs text-[#666666] mb-1 truncate">{data.industryName}</div>
+                              <div className="h-6 bg-[#E8E6E1] rounded overflow-hidden">
+                                <div 
+                                  className="h-full rounded transition-all duration-500"
+                                  style={{ width: `${data.attrAvgs[attr.id]}%`, backgroundColor: attr.color }}
+                                />
+                              </div>
+                              <div className="absolute right-1 top-5 text-xs font-medium text-white mix-blend-difference">
+                                {data.attrAvgs[attr.id]}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         ) : (
+          /* Brand Comparison View */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Brand Selection */}
-            <div className="lg:col-span-1">
+            {/* Brand Selection with Filters */}
+            <div className="lg:col-span-1 space-y-4">
+              {/* Filters */}
               <div className="card p-4">
-                <h3 className="font-semibold text-[#1A1A1A] mb-4">Select Brands ({selectedBrands.length}/{maxComparison})</h3>
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                  {results.map((r) => {
+                <h3 className="font-semibold text-[#1A1A1A] mb-3">Filters</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-[#666666] mb-1 block">Industry</label>
+                    <select
+                      value={filterIndustry}
+                      onChange={(e) => setFilterIndustry(e.target.value)}
+                      className="w-full px-3 py-2 border border-[#D9D6D0] rounded text-sm"
+                    >
+                      {industries.map(ind => (
+                        <option key={ind.id} value={ind.id}>{ind.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-[#666666] mb-1 block">Business Model</label>
+                    <select
+                      value={filterBusinessModel}
+                      onChange={(e) => setFilterBusinessModel(e.target.value)}
+                      className="w-full px-3 py-2 border border-[#D9D6D0] rounded text-sm"
+                    >
+                      {businessModels.map(bm => (
+                        <option key={bm.id} value={bm.id}>{bm.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                {/* Quick select by industry */}
+                {industriesWithData.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-[#E8E6E1]">
+                    <label className="text-xs text-[#666666] mb-2 block">Quick Select Industry</label>
+                    <div className="flex flex-wrap gap-1">
+                      {industriesWithData.slice(0, 5).map(industry => (
+                        <button
+                          key={industry}
+                          onClick={() => selectAllInIndustry(industry)}
+                          className="text-xs px-2 py-1 bg-[#F0EEEA] hover:bg-[#E8E6E1] rounded transition-colors"
+                        >
+                          {industries.find(i => i.id === industry)?.name || industry}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Brand List */}
+              <div className="card p-4">
+                <h3 className="font-semibold text-[#1A1A1A] mb-4">
+                  Select Brands ({selectedBrands.length}/{maxComparison})
+                  {filteredResults.length !== results.length && (
+                    <span className="text-xs font-normal text-[#666666] ml-2">
+                      Showing {filteredResults.length} of {results.length}
+                    </span>
+                  )}
+                </h3>
+                <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                  {filteredResults.map((r) => {
                     const isSelected = selectedBrands.find(b => b.id === r.id);
                     const isDisabled = !isSelected && selectedBrands.length >= maxComparison;
                     return (
@@ -3085,7 +3303,11 @@ function ComparisonPage({ results, onBack }) {
                         <div className="flex items-center justify-between">
                           <div>
                             <span className="font-medium text-[#1A1A1A]">{r.brandName}</span>
-                            <div className="text-xs text-[#666666]">{r.industry}</div>
+                            <div className="text-xs text-[#666666]">
+                              {r.industry && <span>{industries.find(i => i.id === r.industry)?.name || r.industry}</span>}
+                              {r.industry && r.businessModel && <span> · </span>}
+                              {r.businessModel && <span>{r.businessModel.toUpperCase()}</span>}
+                            </div>
                           </div>
                           <div className="text-right">
                             <span className="font-bold text-lg">{r.totalScore}</span>
@@ -3095,6 +3317,11 @@ function ComparisonPage({ results, onBack }) {
                       </button>
                     );
                   })}
+                  {filteredResults.length === 0 && (
+                    <div className="text-center py-8 text-[#666666] text-sm">
+                      No brands match the selected filters
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -3197,6 +3424,46 @@ function ComparisonPage({ results, onBack }) {
                             <div className="text-[#E53935] font-bold">
                               {gapAttr.name}
                               <span className="text-[#666666] font-normal ml-2">({maxGap} points)</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div className="bg-[#F0EEEA] rounded-lg p-4">
+                        <div className="font-medium text-[#1A1A1A] mb-2">Strongest Attribute (Avg)</div>
+                        {(() => {
+                          let maxAvg = 0;
+                          let strongAttr = ATTRIBUTES[0];
+                          ATTRIBUTES.forEach(attr => {
+                            const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
+                            if (avg > maxAvg) {
+                              maxAvg = avg;
+                              strongAttr = attr;
+                            }
+                          });
+                          return (
+                            <div className="text-[#E53935] font-bold">
+                              {strongAttr.name}
+                              <span className="text-[#666666] font-normal ml-2">({Math.round(maxAvg)} avg)</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div className="bg-[#F0EEEA] rounded-lg p-4">
+                        <div className="font-medium text-[#1A1A1A] mb-2">Weakest Attribute (Avg)</div>
+                        {(() => {
+                          let minAvg = 100;
+                          let weakAttr = ATTRIBUTES[0];
+                          ATTRIBUTES.forEach(attr => {
+                            const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
+                            if (avg < minAvg) {
+                              minAvg = avg;
+                              weakAttr = attr;
+                            }
+                          });
+                          return (
+                            <div className="text-[#E53935] font-bold">
+                              {weakAttr.name}
+                              <span className="text-[#666666] font-normal ml-2">({Math.round(minAvg)} avg)</span>
                             </div>
                           );
                         })()}
