@@ -792,7 +792,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.11
+        Version 2.12.12
       </div>
     </div>
   );
@@ -2985,6 +2985,52 @@ Return the JSON scores in this exact format:
         y += 8;
       });
 
+      // ========== RECOMMENDED ANTENNA GROUP SERVICES ==========
+      const serviceRecs = getAllRecommendations(scores);
+      const topServices = serviceRecs.slice(0, 6);
+      
+      if (topServices.length > 0) {
+        addSection('RECOMMENDED ANTENNA GROUP SERVICES');
+        
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(100, 100, 100);
+        pdf.text('Based on the assessment, these services would have the greatest impact:', margin, y);
+        y += 8;
+
+        topServices.forEach((rec, i) => {
+          checkPage();
+          const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
+
+          pdf.setFontSize(11);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(0, 0, 0);
+          pdf.text(`${i + 1}. ${rec.service.name}`, margin, y);
+          y += 5;
+
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(100, 100, 100);
+          pdf.text(`${rec.service.category} | Improves ${attr?.name || 'brand'} | ${formatBudget(rec.service)}`, margin, y);
+          y += 5;
+
+          const rationaleLines = pdf.splitTextToSize(rec.rationale, contentWidth);
+          pdf.setFontSize(9);
+          pdf.setTextColor(50, 50, 50);
+          rationaleLines.forEach(line => {
+            checkPage();
+            pdf.text(line, margin, y);
+            y += 4;
+          });
+          y += 4;
+        });
+      }
+
+      // ========== CONCLUSIONS ==========
+      addSection('CONCLUSIONS');
+      const conclusionText = `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, ${project.brandName} is well positioned to become a more consequential presence in its industry.`;
+      addParagraph(conclusionText);
+
       // ========== METHODOLOGY ==========
       addSection('METHODOLOGY');
       addParagraph(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`);
@@ -3246,12 +3292,14 @@ Return the JSON scores in this exact format:
         <div className="flex gap-3">
           <button onClick={onShare} className="btn-secondary flex items-center gap-2"><Share2 className="w-4 h-4" /> Share</button>
           <button onClick={onSave} className="btn-secondary flex items-center gap-2"><Save className="w-4 h-4" /> Save</button>
-          <button onClick={generatePdf} disabled={isGeneratingPdf} className="btn-secondary flex items-center gap-2">
+          <button onClick={generatePdf} disabled={isGeneratingPdf} className="btn-primary flex items-center gap-2">
             {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF
           </button>
+          {/* DOCX export temporarily disabled
           <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-2">
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} DOCX
           </button>
+          */}
         </div>
       </div>
 
@@ -3282,7 +3330,7 @@ Return the JSON scores in this exact format:
           {/* Right: Spider Chart */}
           <div className="flex justify-center">
             <div ref={chartRef}>
-              <SpiderChart scores={scores} size={320} />
+              <SpiderChart scores={scores} size={420} />
             </div>
           </div>
         </div>
