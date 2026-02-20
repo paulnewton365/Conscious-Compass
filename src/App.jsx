@@ -792,7 +792,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.13
+        Version 2.12.14
       </div>
     </div>
   );
@@ -2896,7 +2896,7 @@ Return the JSON scores in this exact format:
             logging: false,
           });
           const imgData = canvas.toDataURL('image/png');
-          const imgWidth = 140;
+          const imgWidth = 160;
           const imgHeight = (canvas.height * imgWidth) / canvas.width;
           
           // Center the chart
