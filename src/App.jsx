@@ -792,7 +792,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.18
+        Version 2.12.19
       </div>
     </div>
   );
@@ -3320,7 +3320,7 @@ Return the JSON scores in this exact format:
 
       {/* Hero Section - Score & Chart Side by Side */}
       <div className="card p-6 mb-6">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
+        <div className="grid md:grid-cols-2 gap-8 items-start">
           {/* Left: Score & Summary */}
           <div>
             <div className="flex items-start gap-4 mb-4">
