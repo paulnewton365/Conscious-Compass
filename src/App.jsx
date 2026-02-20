@@ -766,7 +766,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.11.1
+        Version 2.11.2
       </div>
     </div>
   );
@@ -828,188 +828,107 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext }) {
   );
 }
 
-// Technical Performance Audit Component
+// Technical Performance Audit Component (Manual Entry)
 function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }) {
-  const [isRunning, setIsRunning] = useState(false);
-  const [error, setError] = useState(null);
-  const [techAudit, setTechAudit] = useState(assessmentData.techAudit || null);
+  const [techAudit, setTechAudit] = useState(assessmentData.techAudit || {
+    scores: { performance: '', accessibility: '', bestPractices: '', seo: '' },
+    metrics: {}
+  });
 
-  const runTechAudit = async () => {
-    if (!websiteUrl) {
-      setError('Website URL is required');
-      return;
-    }
-
-    setIsRunning(true);
-    setError(null);
-
-    try {
-      // Ensure URL has protocol
-      let fullUrl = websiteUrl.trim();
-      if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-        fullUrl = 'https://' + fullUrl;
-      }
-
-      // Use Google PageSpeed Insights API (free, no auth required)
-      const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(fullUrl)}&category=performance&category=accessibility&category=best-practices&category=seo`;
-      
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        // Extract error message from Google's response
-        const errorMsg = data?.error?.message || 'Failed to analyze website';
-        throw new Error(errorMsg);
-      }
-
-      const lighthouse = data.lighthouseResult;
-      const categories = lighthouse?.categories || {};
-      
-      const audit = {
-        url: fullUrl,
-        fetchedAt: new Date().toISOString(),
-        scores: {
-          performance: Math.round((categories.performance?.score || 0) * 100),
-          accessibility: Math.round((categories.accessibility?.score || 0) * 100),
-          bestPractices: Math.round((categories['best-practices']?.score || 0) * 100),
-          seo: Math.round((categories.seo?.score || 0) * 100),
-        },
-        metrics: {
-          firstContentfulPaint: lighthouse?.audits?.['first-contentful-paint']?.displayValue || 'N/A',
-          largestContentfulPaint: lighthouse?.audits?.['largest-contentful-paint']?.displayValue || 'N/A',
-          totalBlockingTime: lighthouse?.audits?.['total-blocking-time']?.displayValue || 'N/A',
-          cumulativeLayoutShift: lighthouse?.audits?.['cumulative-layout-shift']?.displayValue || 'N/A',
-          speedIndex: lighthouse?.audits?.['speed-index']?.displayValue || 'N/A',
-        },
-        mobile: data.loadingExperience?.overall_category || 'UNKNOWN',
-      };
-
-      setTechAudit(audit);
-      setAssessmentData({ ...assessmentData, techAudit: audit });
-    } catch (err) {
-      setError(err.message || 'Failed to run technical audit');
-    } finally {
-      setIsRunning(false);
-    }
+  const updateScore = (field, value) => {
+    const numValue = value === '' ? '' : Math.min(100, Math.max(0, parseInt(value) || 0));
+    const updated = {
+      ...techAudit,
+      scores: { ...techAudit.scores, [field]: numValue },
+      fetchedAt: new Date().toISOString(),
+    };
+    setTechAudit(updated);
+    
+    // Only save to assessment if at least one score is entered
+    const hasScores = Object.values(updated.scores).some(s => s !== '' && s !== undefined);
+    setAssessmentData({ ...assessmentData, techAudit: hasScores ? updated : null });
   };
 
   const getScoreColor = (score) => {
-    if (score >= 90) return '#059669'; // Green
-    if (score >= 50) return '#F59E0B'; // Amber
-    return '#E11D48'; // Red
+    if (score === '' || score === undefined) return '#D9D6D0';
+    if (score >= 90) return '#059669';
+    if (score >= 50) return '#F59E0B';
+    return '#E11D48';
   };
 
   const getScoreLabel = (score) => {
+    if (score === '' || score === undefined) return '—';
     if (score >= 90) return 'Good';
-    if (score >= 50) return 'Needs Improvement';
+    if (score >= 50) return 'Needs Work';
     return 'Poor';
   };
 
+  // Generate PageSpeed URL for the website
+  const pageSpeedUrl = websiteUrl 
+    ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(websiteUrl.startsWith('http') ? websiteUrl : 'https://' + websiteUrl)}`
+    : null;
+
+  const hasAnyScore = Object.values(techAudit.scores).some(s => s !== '' && s !== undefined);
+
   return (
     <div className="card p-5 mb-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="font-semibold text-[#1A1A1A]">Technical Performance Audit</h3>
-          <p className="text-sm text-[#666666]">Google PageSpeed analysis for performance, accessibility & SEO (influences ATTENTIVE & COGENT scores)</p>
+          <h3 className="text-sm font-medium text-[#1A1A1A]">Technical Performance Audit</h3>
+          <p className="text-xs text-[#666666]">PageSpeed scores impact ATTENTIVE & COGENT</p>
         </div>
+        {pageSpeedUrl && (
+          <a 
+            href={pageSpeedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
+          >
+            <ExternalLink className="w-3 h-3" /> Open PageSpeed
+          </a>
+        )}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
+      <div className="bg-[#F0EEEA] rounded-lg p-3 mb-4">
+        <p className="text-xs text-[#666666]">
+          Click "Open PageSpeed" above, wait for the analysis, then enter the 4 scores below.
+        </p>
+      </div>
 
-      {!techAudit ? (
-        <div>
-          <p className="text-sm text-[#666666] mb-4">
-            Fetches real performance data from Google PageSpeed Insights including Core Web Vitals, 
-            accessibility compliance, and technical SEO signals.
-          </p>
-          <button 
-            onClick={runTechAudit} 
-            disabled={isRunning || !websiteUrl}
-            className="btn-secondary flex items-center gap-2"
-          >
-            {isRunning ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Running Audit...</>
-            ) : (
-              <><Play className="w-4 h-4" /> Run Technical Audit</>
-            )}
-          </button>
-          {!websiteUrl && (
-            <p className="text-xs text-[#999999] mt-2">Enter website URL in Setup to enable</p>
-          )}
-        </div>
-      ) : (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
-              <Check className="w-4 h-4 text-green-600" /> Audit Complete
-              <span className="text-xs text-[#666666] font-normal">({new Date(techAudit.fetchedAt).toLocaleDateString()})</span>
-            </span>
-            <button 
-              onClick={runTechAudit} 
-              disabled={isRunning}
-              className="text-sm text-[#E53935] hover:underline flex items-center gap-1"
+      {/* Score Input Grid */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { key: 'performance', label: 'Performance' },
+          { key: 'accessibility', label: 'Accessibility' },
+          { key: 'bestPractices', label: 'Best Practices' },
+          { key: 'seo', label: 'SEO' },
+        ].map((item) => (
+          <div key={item.key} className="text-center">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={techAudit.scores[item.key] ?? ''}
+              onChange={(e) => updateScore(item.key, e.target.value)}
+              placeholder="—"
+              className="w-full text-center text-2xl font-bold py-2 border border-[#D9D6D0] rounded-lg bg-white focus:ring-2 focus:ring-[#E53935] focus:border-transparent"
+              style={{ color: getScoreColor(techAudit.scores[item.key]) }}
+            />
+            <div className="text-xs text-[#666666] mt-1">{item.label}</div>
+            <div 
+              className="text-[10px] font-medium"
+              style={{ color: getScoreColor(techAudit.scores[item.key]) }}
             >
-              {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-              Re-run
-            </button>
-          </div>
-
-          {/* Score Cards */}
-          <div className="grid grid-cols-4 gap-3 mb-4">
-            {[
-              { label: 'Performance', score: techAudit.scores.performance },
-              { label: 'Accessibility', score: techAudit.scores.accessibility },
-              { label: 'Best Practices', score: techAudit.scores.bestPractices },
-              { label: 'SEO', score: techAudit.scores.seo },
-            ].map((item) => (
-              <div key={item.label} className="bg-[#F0EEEA] rounded-lg p-3 text-center">
-                <div 
-                  className="text-2xl font-bold mb-1"
-                  style={{ color: getScoreColor(item.score) }}
-                >
-                  {item.score}
-                </div>
-                <div className="text-xs text-[#666666]">{item.label}</div>
-                <div 
-                  className="text-[10px] font-medium mt-1"
-                  style={{ color: getScoreColor(item.score) }}
-                >
-                  {getScoreLabel(item.score)}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Core Web Vitals */}
-          <div className="bg-[#F0EEEA] rounded-lg p-4">
-            <div className="text-xs font-medium text-[#666666] mb-2">Core Web Vitals</div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-              <div>
-                <div className="text-[#999999]">FCP</div>
-                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.firstContentfulPaint}</div>
-              </div>
-              <div>
-                <div className="text-[#999999]">LCP</div>
-                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.largestContentfulPaint}</div>
-              </div>
-              <div>
-                <div className="text-[#999999]">TBT</div>
-                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.totalBlockingTime}</div>
-              </div>
-              <div>
-                <div className="text-[#999999]">CLS</div>
-                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.cumulativeLayoutShift}</div>
-              </div>
-              <div>
-                <div className="text-[#999999]">Speed Index</div>
-                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.speedIndex}</div>
-              </div>
+              {getScoreLabel(techAudit.scores[item.key])}
             </div>
           </div>
+        ))}
+      </div>
+
+      {hasAnyScore && (
+        <div className="mt-3 pt-3 border-t border-[#E8E6E1] flex items-center gap-2">
+          <Check className="w-4 h-4 text-[#059669]" />
+          <span className="text-xs text-[#666666]">Scores will be included in assessment</span>
         </div>
       )}
     </div>
@@ -1156,13 +1075,11 @@ ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observ
 
 ${seoAssessment ? `SEO VISIBILITY ASSESSMENT (previously generated):\n${seoAssessment}\n` : ''}
 
-${assessmentData.techAudit ? `TECHNICAL PERFORMANCE AUDIT (Google PageSpeed):
-- Performance: ${assessmentData.techAudit.scores.performance}/100
-- Accessibility: ${assessmentData.techAudit.scores.accessibility}/100
-- Best Practices: ${assessmentData.techAudit.scores.bestPractices}/100
-- Technical SEO: ${assessmentData.techAudit.scores.seo}/100
-- LCP: ${assessmentData.techAudit.metrics.largestContentfulPaint}
-- CLS: ${assessmentData.techAudit.metrics.cumulativeLayoutShift}
+${assessmentData.techAudit && (assessmentData.techAudit.scores.performance !== '' || assessmentData.techAudit.scores.accessibility !== '') ? `TECHNICAL PERFORMANCE AUDIT (PageSpeed):
+- Performance: ${assessmentData.techAudit.scores.performance !== '' ? assessmentData.techAudit.scores.performance + '/100' : 'N/A'}
+- Accessibility: ${assessmentData.techAudit.scores.accessibility !== '' ? assessmentData.techAudit.scores.accessibility + '/100' : 'N/A'}
+- Best Practices: ${assessmentData.techAudit.scores.bestPractices !== '' ? assessmentData.techAudit.scores.bestPractices + '/100' : 'N/A'}
+- Technical SEO: ${assessmentData.techAudit.scores.seo !== '' ? assessmentData.techAudit.scores.seo + '/100' : 'N/A'}
 ` : ''}
 
 Based on the screenshots and content provided, deliver a comprehensive website assessment covering:
@@ -2432,17 +2349,12 @@ SEO VISIBILITY ASSESSMENT:
 ${assessments.website.seoAssessment || 'SEO visibility not assessed'}
 
 TECHNICAL PERFORMANCE AUDIT:
-${assessments.website.techAudit ? `
-Performance Score: ${assessments.website.techAudit.scores.performance}/100
-Accessibility Score: ${assessments.website.techAudit.scores.accessibility}/100
-Best Practices Score: ${assessments.website.techAudit.scores.bestPractices}/100
-Technical SEO Score: ${assessments.website.techAudit.scores.seo}/100
-Core Web Vitals:
-- First Contentful Paint: ${assessments.website.techAudit.metrics.firstContentfulPaint}
-- Largest Contentful Paint: ${assessments.website.techAudit.metrics.largestContentfulPaint}
-- Total Blocking Time: ${assessments.website.techAudit.metrics.totalBlockingTime}
-- Cumulative Layout Shift: ${assessments.website.techAudit.metrics.cumulativeLayoutShift}
-` : 'Technical audit not run'}
+${assessments.website.techAudit && (assessments.website.techAudit.scores.performance !== '' || assessments.website.techAudit.scores.accessibility !== '' || assessments.website.techAudit.scores.bestPractices !== '' || assessments.website.techAudit.scores.seo !== '') ? `
+Performance Score: ${assessments.website.techAudit.scores.performance !== '' ? assessments.website.techAudit.scores.performance + '/100' : 'Not provided'}
+Accessibility Score: ${assessments.website.techAudit.scores.accessibility !== '' ? assessments.website.techAudit.scores.accessibility + '/100' : 'Not provided'}
+Best Practices Score: ${assessments.website.techAudit.scores.bestPractices !== '' ? assessments.website.techAudit.scores.bestPractices + '/100' : 'Not provided'}
+Technical SEO Score: ${assessments.website.techAudit.scores.seo !== '' ? assessments.website.techAudit.scores.seo + '/100' : 'Not provided'}
+` : 'Technical audit not completed'}
 
 SOCIAL MEDIA ASSESSMENT:
 ${assessments.social.content}
