@@ -792,7 +792,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.14
+        Version 2.12.15
       </div>
     </div>
   );
@@ -3320,9 +3320,9 @@ Return the JSON scores in this exact format:
 
       {/* Hero Section - Score & Chart Side by Side */}
       <div className="card p-6 mb-6">
-        <div className="grid md:grid-cols-2 gap-6 items-center">
-          {/* Left: Score & Summary */}
-          <div>
+        <div className="grid md:grid-cols-5 gap-6 items-center">
+          {/* Left: Score & Summary - 2 columns */}
+          <div className="md:col-span-2">
             <div className="flex items-start gap-4 mb-4">
               <div className="text-center">
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold" style={{ backgroundColor: stage.color }}>
@@ -3342,10 +3342,10 @@ Return the JSON scores in this exact format:
             </div>
           </div>
           
-          {/* Right: Spider Chart */}
-          <div className="flex justify-center">
+          {/* Right: Spider Chart - 3 columns */}
+          <div className="md:col-span-3 flex justify-center">
             <div ref={chartRef}>
-              <SpiderChart scores={scores} size={420} />
+              <SpiderChart scores={scores} size={500} />
             </div>
           </div>
         </div>
