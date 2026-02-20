@@ -1,12 +1,12 @@
 // Brand Consciousness Assessment Framework v2.3
 
 export const MATURITY_STAGES = [
-  { id: 'pre-foundational', name: 'Pre-Foundational', min: 0, max: 25, color: '#9E9E9E', description: 'Requires fundamental development across most attributes' },
-  { id: 'foundational', name: 'Foundational', min: 26, max: 39, color: '#E53935', description: 'Building basic presence with significant gaps' },
-  { id: 'establishing', name: 'Establishing', min: 40, max: 55, color: '#BF360C', description: 'Creating consistency with room for growth' },
-  { id: 'differentiating', name: 'Differentiating', min: 56, max: 69, color: '#8D6E63', description: 'Standing out intentionally from competitors' },
-  { id: 'leading', name: 'Leading', min: 70, max: 84, color: '#5D4037', description: 'Shaping industry narratives and standards' },
-  { id: 'transforming', name: 'Transforming', min: 85, max: 100, color: '#9E9D24', description: 'Redefining category expectations' },
+  { id: 'pre-foundational', name: 'Pre-Foundational', min: 0, max: 25, color: '#94A3B8', description: 'Requires fundamental development across most attributes' },
+  { id: 'foundational', name: 'Foundational', min: 26, max: 39, color: '#F59E0B', description: 'Building basic presence with significant gaps' },
+  { id: 'establishing', name: 'Establishing', min: 40, max: 55, color: '#D97706', description: 'Creating consistency with room for growth' },
+  { id: 'differentiating', name: 'Differentiating', min: 56, max: 69, color: '#059669', description: 'Standing out intentionally from competitors' },
+  { id: 'leading', name: 'Leading', min: 70, max: 84, color: '#0D9488', description: 'Shaping industry narratives and standards' },
+  { id: 'transforming', name: 'Transforming', min: 85, max: 100, color: '#6366F1', description: 'Redefining category expectations' },
 ];
 
 export const BUSINESS_MODELS = [
@@ -21,56 +21,56 @@ export const ATTRIBUTES = [
     name: 'Awake',
     fullName: 'Influence & Narrative Leadership',
     description: 'Brands should influence and shape broader narratives through thought leadership, coalition building, and externally validated contributions to industry discourse.',
-    color: '#E53935',
+    color: '#E11D48',
   },
   {
     id: 'AWARE',
     name: 'Aware',
     fullName: 'Trust Building & Audience Understanding',
     description: 'Demonstrate deep audience understanding and systematically build trust through reflection, effectiveness, reliability, honesty, and conscience.',
-    color: '#BF360C',
+    color: '#F97316',
   },
   {
     id: 'REFLECTIVE',
     name: 'Reflective',
     fullName: 'Authenticity & Reputation Management',
     description: 'Brand authenticity is the external expression of internal culture, mission, and purpose—what you do, how you think, and why you exist.',
-    color: '#8D6E63',
+    color: '#FBBF24',
   },
   {
     id: 'ATTENTIVE',
     name: 'Attentive',
     fullName: 'Experience Quality & Excellence',
     description: 'Quality extends beyond error-free copy to optimal UX, intuitive IA, substantiated claims, authentic expression, and consistent execution.',
-    color: '#5D4037',
+    color: '#34D399',
   },
   {
     id: 'COGENT',
     name: 'Cogent',
     fullName: 'Strategic Intelligence & Data-Driven Marketing',
     description: 'Evidence of insights driving marketing through segmentation, strategy, data capture, SEO, nurture, channel coordination, and AI representation.',
-    color: '#455A64',
+    color: '#22D3EE',
   },
   {
     id: 'SENTIENT',
     name: 'Sentient',
     fullName: 'Creative Differentiation & Emotional Connection',
     description: 'Provide a "reason to care" through creativity that captures attention, inspires action, and creates authentic differentiation from industry norms.',
-    color: '#333333',
+    color: '#818CF8',
   },
   {
     id: 'VISIONARY',
     name: 'Visionary',
     fullName: 'Future Vision & Audience Benefit',
     description: 'Present a plausible, believable, inspiring vision that audiences understand, which solves their problems and paints benefit clearly.',
-    color: '#9E9D24',
+    color: '#A78BFA',
   },
   {
     id: 'INTENTIONAL',
     name: 'Intentional',
     fullName: 'Credibility & Organizational Confidence',
     description: 'Demonstrate credibility through confident language, reputable leadership, cited expertise, and professional presentation.',
-    color: '#1A1A1A',
+    color: '#64748B',
   },
 ];
 

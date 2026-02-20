@@ -71,6 +71,8 @@ export const saveCompassResult = async (result) => {
     scores: result.scores,
     services_recommended: result.servicesRecommended || [],
     is_manual: result.isManual || false,
+    assessor_name: result.assessorName || null,
+    rubric_version: result.rubricVersion || '2.3',
     updated_at: new Date().toISOString(),
   };
 

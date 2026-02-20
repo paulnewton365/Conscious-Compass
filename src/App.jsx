@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS } from './data/rubric';
 import { getAllRecommendations, formatBudget } from './data/serviceMapping';
-import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Lock, Share2, Link, Copy, LogOut, Shield, UserCheck, UserX, Mail } from 'lucide-react';
+import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Lock, Share2, Link, Copy, LogOut, Shield, UserCheck, UserX, Mail, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
@@ -729,7 +729,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.9.0
+        Version 2.9.2
       </div>
     </div>
   );
@@ -2883,7 +2883,7 @@ Return the JSON scores in this exact format:
 }
 
 // Compass Results Page - Summary grid of all assessments
-function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateResults }) {
+function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateResults, profile, user }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [manualEntry, setManualEntry] = useState({
     brandName: '',
@@ -2903,7 +2903,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
     
     const headers = ['Brand Name', 'Business Model', 'Industry', 'Total Score', 'Maturity Level', 
       'AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL',
-      'Services Recommended', 'Date', 'Manual Entry'];
+      'Assessor', 'Date', 'Rubric Version', 'Manual Entry'];
     
     const rows = results.map(r => [
       r.brandName,
@@ -2919,8 +2919,9 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       r.scores?.SENTIENT || 0,
       r.scores?.VISIONARY || 0,
       r.scores?.INTENTIONAL || 0,
-      (r.servicesRecommended || []).join('; '),
+      r.assessorName || 'Paul Newton',
       r.savedAt ? new Date(r.savedAt).toLocaleDateString() : '',
+      r.rubricVersion || '2.3',
       r.isManual ? 'Yes' : 'No',
     ]);
     
@@ -2933,7 +2934,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
     a.click();
   };
 
-  const handleAddManual = () => {
+  const handleAddManual = async () => {
     if (!manualEntry.brandName.trim()) {
       alert('Please enter a brand name');
       return;
@@ -2942,7 +2943,6 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
     const stage = getMaturityStage(manualEntry.totalScore);
     
     const newResult = {
-      id: `manual-${Date.now()}`,
       brandName: manualEntry.brandName,
       businessModel: manualEntry.businessModel,
       industry: manualEntry.industry,
@@ -2950,13 +2950,16 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       maturityLevel: stage.name,
       scores: { ...manualEntry.scores },
       servicesRecommended: [],
-      savedAt: new Date().toISOString(),
       isManual: true,
+      assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
+      rubricVersion: '2.3',
     };
     
-    const updated = [...results, newResult];
-    localStorage.setItem('conscious-compass-results', JSON.stringify(updated));
-    onUpdateResults(updated);
+    // Save to Supabase
+    await saveCompassResult(newResult);
+    
+    // Reload results will be handled by parent
+    onUpdateResults(null); // Signal to reload
     setShowAddModal(false);
     setManualEntry({
       brandName: '',
@@ -2967,11 +2970,10 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
     });
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('Delete this result?')) {
-      const updated = results.filter(r => r.id !== id);
-      localStorage.setItem('conscious-compass-results', JSON.stringify(updated));
-      onUpdateResults(updated);
+      await deleteCompassResult(id);
+      onUpdateResults(null); // Signal to reload
     }
   };
 
@@ -3008,19 +3010,21 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
         ) : (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs">
                 <thead className="bg-[#F0EEEA] border-b border-[#D9D6D0]">
                   <tr>
-                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Brand</th>
-                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Model</th>
-                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Industry</th>
-                    <th className="text-center p-3 font-semibold text-[#1A1A1A]">Score</th>
-                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Maturity</th>
+                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Brand</th>
+                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Model</th>
+                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Industry</th>
+                    <th className="text-center p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Score</th>
+                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Maturity</th>
                     {['AWK', 'AWR', 'REF', 'ATT', 'COG', 'SEN', 'VIS', 'INT'].map(attr => (
-                      <th key={attr} className="text-center p-3 font-semibold text-[#1A1A1A] text-xs">{attr}</th>
+                      <th key={attr} className="text-center p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">{attr}</th>
                     ))}
-                    <th className="text-left p-3 font-semibold text-[#1A1A1A]">Services</th>
-                    <th className="text-center p-3 font-semibold text-[#1A1A1A]">Actions</th>
+                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Assessor</th>
+                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Date</th>
+                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Ver</th>
+                    <th className="text-center p-2 font-semibold text-[#1A1A1A] whitespace-nowrap"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3028,36 +3032,41 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     const stage = MATURITY_STAGES.find(s => s.name === r.maturityLevel) || MATURITY_STAGES[0];
                     return (
                       <tr key={r.id || i} className="border-b border-[#E8E6E1] hover:bg-[#F0EEEA]/50">
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
+                        <td className="p-2 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
                             <span className="font-medium text-[#1A1A1A]">{r.brandName}</span>
                             {r.isManual && (
-                              <span className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">Manual</span>
+                              <span className="text-[10px] px-1 py-0.5 bg-yellow-100 text-yellow-700 rounded">M</span>
                             )}
                           </div>
                         </td>
-                        <td className="p-3 text-[#666666]">{r.businessModel?.toUpperCase()}</td>
-                        <td className="p-3 text-[#666666] text-xs">{r.industry}</td>
-                        <td className="p-3 text-center">
-                          <span className="font-bold text-lg" style={{ color: stage.color }}>{r.totalScore}</span>
+                        <td className="p-2 text-[#666666] whitespace-nowrap">{r.businessModel?.toUpperCase()}</td>
+                        <td className="p-2 text-[#666666] whitespace-nowrap max-w-[80px] truncate" title={r.industry}>{r.industry}</td>
+                        <td className="p-2 text-center whitespace-nowrap">
+                          <span className="font-bold" style={{ color: stage.color }}>{r.totalScore}</span>
                         </td>
-                        <td className="p-3">
-                          <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>
+                        <td className="p-2 whitespace-nowrap">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>
                             {r.maturityLevel}
                           </span>
                         </td>
                         {['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL'].map(attr => (
-                          <td key={attr} className="p-3 text-center text-xs text-[#666666]">
+                          <td key={attr} className="p-2 text-center text-[#666666] whitespace-nowrap">
                             {r.scores?.[attr] || 0}
                           </td>
                         ))}
-                        <td className="p-3 text-xs text-[#666666] max-w-[150px]">
-                          {(r.servicesRecommended || []).slice(0, 2).join(', ')}
-                          {(r.servicesRecommended || []).length > 2 && '...'}
+                        <td className="p-2 text-[#666666] whitespace-nowrap max-w-[100px] truncate" title={r.assessorName || 'Paul Newton'}>
+                          {r.assessorName || 'Paul Newton'}
                         </td>
-                        <td className="p-3 text-center">
+                        <td className="p-2 text-[#666666] whitespace-nowrap">
+                          {r.savedAt ? new Date(r.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
+                        </td>
+                        <td className="p-2 text-[#666666] whitespace-nowrap">
+                          {r.rubricVersion || '2.3'}
+                        </td>
+                        <td className="p-2 text-center whitespace-nowrap">
                           <button onClick={() => handleDelete(r.id)} className="text-red-500 hover:text-red-700">
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </td>
                       </tr>
@@ -3278,6 +3287,405 @@ function OnboardingTour({ onComplete }) {
   );
 }
 
+// Portfolio Insights View Component
+function InsightsView({ results, industryBenchmarks, industries }) {
+  const [aiInsights, setAiInsights] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
+  // Calculate portfolio-wide statistics
+  const portfolioStats = useMemo(() => {
+    if (results.length === 0) return null;
+    
+    const totalBrands = results.length;
+    const avgScore = Math.round(results.reduce((sum, r) => sum + r.totalScore, 0) / totalBrands);
+    
+    // Distribution by maturity
+    const maturityDistribution = {};
+    results.forEach(r => {
+      const stage = r.maturityLevel || 'Unknown';
+      maturityDistribution[stage] = (maturityDistribution[stage] || 0) + 1;
+    });
+    
+    // Attribute averages
+    const attrAverages = {};
+    ATTRIBUTES.forEach(attr => {
+      const sum = results.reduce((s, r) => s + (r.scores?.[attr.id] || 0), 0);
+      attrAverages[attr.id] = Math.round(sum / totalBrands);
+    });
+    
+    // Find strongest and weakest attributes
+    const sortedAttrs = Object.entries(attrAverages).sort((a, b) => b[1] - a[1]);
+    const strongestAttr = sortedAttrs[0];
+    const weakestAttr = sortedAttrs[sortedAttrs.length - 1];
+    
+    // Top and bottom performers
+    const sortedBrands = [...results].sort((a, b) => b.totalScore - a.totalScore);
+    const topPerformers = sortedBrands.slice(0, 3);
+    const bottomPerformers = sortedBrands.slice(-3).reverse();
+    
+    // Industry breakdown
+    const industryBreakdown = {};
+    results.forEach(r => {
+      const ind = r.industry || 'other';
+      if (!industryBreakdown[ind]) {
+        industryBreakdown[ind] = { count: 0, totalScore: 0 };
+      }
+      industryBreakdown[ind].count++;
+      industryBreakdown[ind].totalScore += r.totalScore;
+    });
+    Object.keys(industryBreakdown).forEach(ind => {
+      industryBreakdown[ind].avgScore = Math.round(industryBreakdown[ind].totalScore / industryBreakdown[ind].count);
+    });
+    
+    // Score distribution (for histogram)
+    const scoreDistribution = [
+      { range: '0-25', label: 'Pre-Foundational', count: results.filter(r => r.totalScore <= 25).length, color: '#94A3B8' },
+      { range: '26-39', label: 'Foundational', count: results.filter(r => r.totalScore > 25 && r.totalScore <= 39).length, color: '#F59E0B' },
+      { range: '40-55', label: 'Establishing', count: results.filter(r => r.totalScore > 39 && r.totalScore <= 55).length, color: '#D97706' },
+      { range: '56-69', label: 'Differentiating', count: results.filter(r => r.totalScore > 55 && r.totalScore <= 69).length, color: '#059669' },
+      { range: '70-84', label: 'Leading', count: results.filter(r => r.totalScore > 69 && r.totalScore <= 84).length, color: '#0D9488' },
+      { range: '85-100', label: 'Transforming', count: results.filter(r => r.totalScore > 84).length, color: '#6366F1' },
+    ];
+    
+    return {
+      totalBrands,
+      avgScore,
+      maturityDistribution,
+      attrAverages,
+      strongestAttr,
+      weakestAttr,
+      topPerformers,
+      bottomPerformers,
+      industryBreakdown,
+      scoreDistribution,
+    };
+  }, [results]);
+
+  const generateInsights = async () => {
+    const apiKey = localStorage.getItem('conscious-compass-apikey');
+    if (!apiKey) {
+      setError('Please add your API key in the Setup page to generate AI insights.');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const prompt = `Analyze this portfolio of ${results.length} brand assessments and provide strategic insights.
+
+PORTFOLIO DATA:
+- Average Score: ${portfolioStats.avgScore}/100
+- Strongest Attribute (avg): ${portfolioStats.strongestAttr[0]} (${portfolioStats.strongestAttr[1]})
+- Weakest Attribute (avg): ${portfolioStats.weakestAttr[0]} (${portfolioStats.weakestAttr[1]})
+- Maturity Distribution: ${JSON.stringify(portfolioStats.maturityDistribution)}
+- Industry Breakdown: ${JSON.stringify(portfolioStats.industryBreakdown)}
+
+TOP PERFORMERS:
+${portfolioStats.topPerformers.map(b => `- ${b.brandName}: ${b.totalScore} (${b.maturityLevel})`).join('\n')}
+
+BRANDS NEEDING ATTENTION:
+${portfolioStats.bottomPerformers.map(b => `- ${b.brandName}: ${b.totalScore} (${b.maturityLevel})`).join('\n')}
+
+ATTRIBUTE AVERAGES:
+${Object.entries(portfolioStats.attrAverages).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+
+Provide insights in this JSON format:
+{
+  "headline": "One compelling headline summarizing the portfolio state (max 10 words)",
+  "summary": "2-3 sentence executive summary of portfolio health",
+  "keyFindings": [
+    {"title": "Finding title", "description": "Brief description", "type": "strength|weakness|opportunity"},
+    ...3-4 more findings
+  ],
+  "recommendations": [
+    {"priority": "high|medium", "action": "Specific action to take", "impact": "Expected impact"},
+    ...2-3 more recommendations
+  ],
+  "industryInsight": "One insight about industry patterns or comparisons",
+  "opportunityScore": 75
+}`;
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1500,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+
+      if (!response.ok) throw new Error('API request failed');
+      
+      const data = await response.json();
+      const text = data.content[0].text;
+      
+      // Parse JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        setAiInsights(JSON.parse(jsonMatch[0]));
+      }
+    } catch (err) {
+      setError('Failed to generate insights. Please try again.');
+      console.error(err);
+    }
+    
+    setLoading(false);
+  };
+
+  if (!portfolioStats) {
+    return (
+      <div className="card p-12 text-center">
+        <TrendingUp className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Data for Insights</h3>
+        <p className="text-[#666666]">Add some brand assessments to see portfolio insights.</p>
+      </div>
+    );
+  }
+
+  const maxCount = Math.max(...portfolioStats.scoreDistribution.map(d => d.count), 1);
+
+  return (
+    <div className="space-y-6">
+      {/* Portfolio Overview Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="card p-5 text-center">
+          <div className="text-4xl font-bold text-[#1A1A1A] mb-1">{portfolioStats.totalBrands}</div>
+          <div className="text-sm text-[#666666]">Brands Assessed</div>
+        </div>
+        <div className="card p-5 text-center">
+          <div className="text-4xl font-bold mb-1" style={{ color: getMaturityStage(portfolioStats.avgScore).color }}>
+            {portfolioStats.avgScore}
+          </div>
+          <div className="text-sm text-[#666666]">Portfolio Average</div>
+        </div>
+        <div className="card p-5 text-center">
+          <div className="text-lg font-bold text-[#059669] mb-1 flex items-center justify-center gap-1">
+            <TrendingUp className="w-5 h-5" />
+            {ATTRIBUTES.find(a => a.id === portfolioStats.strongestAttr[0])?.name}
+          </div>
+          <div className="text-sm text-[#666666]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
+        </div>
+        <div className="card p-5 text-center">
+          <div className="text-lg font-bold text-[#F59E0B] mb-1 flex items-center justify-center gap-1">
+            <TrendingDown className="w-5 h-5" />
+            {ATTRIBUTES.find(a => a.id === portfolioStats.weakestAttr[0])?.name}
+          </div>
+          <div className="text-sm text-[#666666]">Growth Opportunity ({portfolioStats.weakestAttr[1]})</div>
+        </div>
+      </div>
+
+      {/* Score Distribution Visualization */}
+      <div className="card p-6">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4">Portfolio Maturity Distribution</h3>
+        <div className="flex items-end gap-3 h-40 mb-4">
+          {portfolioStats.scoreDistribution.map((bucket, idx) => (
+            <div key={idx} className="flex-1 flex flex-col items-center">
+              <div className="text-sm font-medium text-[#1A1A1A] mb-2">{bucket.count}</div>
+              <div 
+                className="w-full rounded-t-lg transition-all duration-500"
+                style={{ 
+                  backgroundColor: bucket.color,
+                  height: `${bucket.count > 0 ? Math.max((bucket.count / maxCount) * 100, 10) : 5}%`,
+                  opacity: bucket.count > 0 ? 1 : 0.3
+                }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-3">
+          {portfolioStats.scoreDistribution.map((bucket, idx) => (
+            <div key={idx} className="flex-1 text-center">
+              <div className="text-xs text-[#666666]">{bucket.label}</div>
+              <div className="text-[10px] text-[#999999]">{bucket.range}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Attribute Radar / Bar Chart */}
+      <div className="card p-6">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4">Attribute Performance Overview</h3>
+        <div className="space-y-3">
+          {ATTRIBUTES.map(attr => {
+            const score = portfolioStats.attrAverages[attr.id];
+            return (
+              <div key={attr.id} className="flex items-center gap-3">
+                <div className="w-24 text-sm text-[#666666] flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }} />
+                  {attr.name}
+                </div>
+                <div className="flex-1 h-6 bg-[#F0EEEA] rounded-full overflow-hidden">
+                  <div 
+                    className="h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2"
+                    style={{ 
+                      width: `${score}%`, 
+                      backgroundColor: attr.color,
+                    }}
+                  >
+                    <span className="text-xs font-medium text-white">{score}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Top & Bottom Performers */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="card p-6">
+          <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+            <Star className="w-5 h-5 text-[#F59E0B]" /> Top Performers
+          </h3>
+          <div className="space-y-3">
+            {portfolioStats.topPerformers.map((brand, idx) => (
+              <div key={brand.id || idx} className="flex items-center justify-between p-3 bg-[#F0EEEA] rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#059669] text-white flex items-center justify-center font-bold text-sm">
+                    {idx + 1}
+                  </div>
+                  <div>
+                    <div className="font-medium text-[#1A1A1A]">{brand.brandName}</div>
+                    <div className="text-xs text-[#666666]">{brand.maturityLevel}</div>
+                  </div>
+                </div>
+                <div className="text-xl font-bold" style={{ color: getMaturityStage(brand.totalScore).color }}>
+                  {brand.totalScore}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="card p-6">
+          <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-[#F59E0B]" /> Growth Opportunities
+          </h3>
+          <div className="space-y-3">
+            {portfolioStats.bottomPerformers.map((brand, idx) => (
+              <div key={brand.id || idx} className="flex items-center justify-between p-3 bg-[#F0EEEA] rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#F59E0B] text-white flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-[#1A1A1A]">{brand.brandName}</div>
+                    <div className="text-xs text-[#666666]">{brand.maturityLevel}</div>
+                  </div>
+                </div>
+                <div className="text-xl font-bold" style={{ color: getMaturityStage(brand.totalScore).color }}>
+                  {brand.totalScore}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* AI Insights Section */}
+      <div className="card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#6366F1]" /> AI-Powered Insights
+          </h3>
+          <button
+            onClick={generateInsights}
+            disabled={loading}
+            className="btn-primary flex items-center gap-2 text-sm"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {loading ? 'Analyzing...' : aiInsights ? 'Refresh Insights' : 'Generate Insights'}
+          </button>
+        </div>
+
+        {error && (
+          <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        {!aiInsights && !loading && !error && (
+          <div className="text-center py-8 text-[#666666]">
+            <Sparkles className="w-12 h-12 mx-auto mb-3 text-[#D9D6D0]" />
+            <p>Click "Generate Insights" to get AI-powered analysis of your portfolio trends,<br/>opportunities, and strategic recommendations.</p>
+          </div>
+        )}
+
+        {aiInsights && (
+          <div className="space-y-6">
+            {/* Headline & Summary */}
+            <div className="p-4 bg-gradient-to-r from-[#6366F1]/10 to-[#A78BFA]/10 rounded-xl border border-[#6366F1]/20">
+              <h4 className="text-xl font-bold text-[#1A1A1A] mb-2">{aiInsights.headline}</h4>
+              <p className="text-[#666666]">{aiInsights.summary}</p>
+            </div>
+
+            {/* Key Findings */}
+            <div>
+              <h4 className="font-medium text-[#1A1A1A] mb-3">Key Findings</h4>
+              <div className="grid md:grid-cols-2 gap-3">
+                {aiInsights.keyFindings?.map((finding, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`p-4 rounded-lg border-l-4 ${
+                      finding.type === 'strength' ? 'bg-green-50 border-[#059669]' :
+                      finding.type === 'weakness' ? 'bg-amber-50 border-[#F59E0B]' :
+                      'bg-blue-50 border-[#6366F1]'
+                    }`}
+                  >
+                    <div className="font-medium text-[#1A1A1A] text-sm">{finding.title}</div>
+                    <div className="text-xs text-[#666666] mt-1">{finding.description}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recommendations */}
+            <div>
+              <h4 className="font-medium text-[#1A1A1A] mb-3">Strategic Recommendations</h4>
+              <div className="space-y-3">
+                {aiInsights.recommendations?.map((rec, idx) => (
+                  <div key={idx} className="flex gap-3 p-4 bg-[#F0EEEA] rounded-lg">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      rec.priority === 'high' ? 'bg-[#E11D48] text-white' : 'bg-[#6366F1] text-white'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <div className="font-medium text-[#1A1A1A] text-sm">{rec.action}</div>
+                      <div className="text-xs text-[#666666] mt-1">Impact: {rec.impact}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Industry Insight */}
+            {aiInsights.industryInsight && (
+              <div className="p-4 bg-[#F0EEEA] rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Lightbulb className="w-5 h-5 text-[#F59E0B] flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-medium text-[#1A1A1A] text-sm">Industry Insight</div>
+                    <div className="text-sm text-[#666666] mt-1">{aiInsights.industryInsight}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Brand Comparison Page
 function ComparisonPage({ results, onBack }) {
   const [selectedBrands, setSelectedBrands] = useState([]);
@@ -3437,6 +3845,16 @@ function ComparisonPage({ results, onBack }) {
           >
             Industry Benchmarks
           </button>
+          <button
+            onClick={() => setViewMode('insights')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              viewMode === 'insights' 
+                ? 'bg-[#1A1A1A] text-white' 
+                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+            }`}
+          >
+            ✨ Insights
+          </button>
         </div>
 
         {results.length === 0 ? (
@@ -3521,6 +3939,9 @@ function ComparisonPage({ results, onBack }) {
               </>
             )}
           </div>
+        ) : viewMode === 'insights' ? (
+          /* AI Insights View */
+          <InsightsView results={results} industryBenchmarks={industryBenchmarks} industries={industries} />
         ) : (
           /* Brand Comparison View */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -4243,6 +4664,8 @@ export default function App() {
           servicesRecommended: r.services_recommended || [],
           savedAt: r.created_at,
           isManual: r.is_manual,
+          assessorName: r.assessor_name,
+          rubricVersion: r.rubric_version || '2.3',
         }));
         setCompassResults(formattedResults);
       }
@@ -4387,6 +4810,8 @@ export default function App() {
           },
           servicesRecommended: serviceRecs.slice(0, 6).map(r => r.service?.name || '').filter(Boolean),
           isManual: false,
+          assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
+          rubricVersion: '2.3',
         };
         
         await saveCompassResult(resultData);
@@ -4551,7 +4976,9 @@ export default function App() {
         <CompassResultsPage 
           results={compassResults}
           onBack={() => setShowResultsPage(false)}
-          onUpdateResults={setCompassResults}
+          onUpdateResults={async (val) => { if (val === null) await loadDataFromSupabase(); else setCompassResults(val); }}
+          profile={profile}
+          user={user}
         />
       </div>
     );
