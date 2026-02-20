@@ -674,6 +674,43 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
   );
 }
 
+// Completion Indicator for Assessment Pages
+function CompletionIndicator({ items }) {
+  const completed = items.filter(i => i.done).length;
+  const total = items.length;
+  const percentage = Math.round((completed / total) * 100);
+  
+  return (
+    <div className="bg-white border border-[#E8E6E1] rounded-lg p-3 mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-[#666666] uppercase tracking-wide">Progress</span>
+        <span className="text-xs font-medium text-[#1A1A1A]">{completed}/{total} complete</span>
+      </div>
+      <div className="h-1.5 bg-[#E8E6E1] rounded-full overflow-hidden mb-3">
+        <div 
+          className="h-full bg-[#E53935] rounded-full transition-all duration-300"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item, i) => (
+          <span 
+            key={i}
+            className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${
+              item.done 
+                ? 'bg-[#E53935]/10 text-[#E53935]' 
+                : 'bg-[#F0EEEA] text-[#999999]'
+            }`}
+          >
+            {item.done ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-current" />}
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Progress Steps
 function ProgressSteps({ currentStep, steps, assessments }) {
   return (
@@ -729,7 +766,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.9.3
+        Version 2.11.0
       </div>
     </div>
   );
@@ -787,6 +824,187 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext }) {
           Continue <ArrowRight className="w-4 h-4" />
         </button>
       </div>
+    </div>
+  );
+}
+
+// Technical Performance Audit Component
+function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }) {
+  const [isRunning, setIsRunning] = useState(false);
+  const [error, setError] = useState(null);
+  const [techAudit, setTechAudit] = useState(assessmentData.techAudit || null);
+
+  const runTechAudit = async () => {
+    if (!websiteUrl) {
+      setError('Website URL is required');
+      return;
+    }
+
+    setIsRunning(true);
+    setError(null);
+
+    try {
+      // Use Google PageSpeed Insights API (free, no auth required)
+      const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(websiteUrl)}&category=performance&category=accessibility&category=best-practices&category=seo`;
+      
+      const response = await fetch(apiUrl);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch PageSpeed data. The website may be blocking analysis or the URL may be incorrect.');
+      }
+
+      const data = await response.json();
+      
+      const lighthouse = data.lighthouseResult;
+      const categories = lighthouse?.categories || {};
+      
+      const audit = {
+        url: websiteUrl,
+        fetchedAt: new Date().toISOString(),
+        scores: {
+          performance: Math.round((categories.performance?.score || 0) * 100),
+          accessibility: Math.round((categories.accessibility?.score || 0) * 100),
+          bestPractices: Math.round((categories['best-practices']?.score || 0) * 100),
+          seo: Math.round((categories.seo?.score || 0) * 100),
+        },
+        metrics: {
+          firstContentfulPaint: lighthouse?.audits?.['first-contentful-paint']?.displayValue || 'N/A',
+          largestContentfulPaint: lighthouse?.audits?.['largest-contentful-paint']?.displayValue || 'N/A',
+          totalBlockingTime: lighthouse?.audits?.['total-blocking-time']?.displayValue || 'N/A',
+          cumulativeLayoutShift: lighthouse?.audits?.['cumulative-layout-shift']?.displayValue || 'N/A',
+          speedIndex: lighthouse?.audits?.['speed-index']?.displayValue || 'N/A',
+        },
+        mobile: data.loadingExperience?.overall_category || 'UNKNOWN',
+      };
+
+      setTechAudit(audit);
+      setAssessmentData({ ...assessmentData, techAudit: audit });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 90) return '#059669'; // Green
+    if (score >= 50) return '#F59E0B'; // Amber
+    return '#E11D48'; // Red
+  };
+
+  const getScoreLabel = (score) => {
+    if (score >= 90) return 'Good';
+    if (score >= 50) return 'Needs Improvement';
+    return 'Poor';
+  };
+
+  return (
+    <div className="card p-5 mb-4">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-[#1A1A1A]">Technical Performance Audit</h3>
+          <p className="text-sm text-[#666666]">Google PageSpeed analysis for performance, accessibility & SEO (influences ATTENTIVE & COGENT scores)</p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+
+      {!techAudit ? (
+        <div>
+          <p className="text-sm text-[#666666] mb-4">
+            Fetches real performance data from Google PageSpeed Insights including Core Web Vitals, 
+            accessibility compliance, and technical SEO signals.
+          </p>
+          <button 
+            onClick={runTechAudit} 
+            disabled={isRunning || !websiteUrl}
+            className="btn-secondary flex items-center gap-2"
+          >
+            {isRunning ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Running Audit...</>
+            ) : (
+              <><Play className="w-4 h-4" /> Run Technical Audit</>
+            )}
+          </button>
+          {!websiteUrl && (
+            <p className="text-xs text-[#999999] mt-2">Enter website URL in Setup to enable</p>
+          )}
+        </div>
+      ) : (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
+              <Check className="w-4 h-4 text-green-600" /> Audit Complete
+              <span className="text-xs text-[#666666] font-normal">({new Date(techAudit.fetchedAt).toLocaleDateString()})</span>
+            </span>
+            <button 
+              onClick={runTechAudit} 
+              disabled={isRunning}
+              className="text-sm text-[#E53935] hover:underline flex items-center gap-1"
+            >
+              {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+              Re-run
+            </button>
+          </div>
+
+          {/* Score Cards */}
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            {[
+              { label: 'Performance', score: techAudit.scores.performance },
+              { label: 'Accessibility', score: techAudit.scores.accessibility },
+              { label: 'Best Practices', score: techAudit.scores.bestPractices },
+              { label: 'SEO', score: techAudit.scores.seo },
+            ].map((item) => (
+              <div key={item.label} className="bg-[#F0EEEA] rounded-lg p-3 text-center">
+                <div 
+                  className="text-2xl font-bold mb-1"
+                  style={{ color: getScoreColor(item.score) }}
+                >
+                  {item.score}
+                </div>
+                <div className="text-xs text-[#666666]">{item.label}</div>
+                <div 
+                  className="text-[10px] font-medium mt-1"
+                  style={{ color: getScoreColor(item.score) }}
+                >
+                  {getScoreLabel(item.score)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Core Web Vitals */}
+          <div className="bg-[#F0EEEA] rounded-lg p-4">
+            <div className="text-xs font-medium text-[#666666] mb-2">Core Web Vitals</div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+              <div>
+                <div className="text-[#999999]">FCP</div>
+                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.firstContentfulPaint}</div>
+              </div>
+              <div>
+                <div className="text-[#999999]">LCP</div>
+                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.largestContentfulPaint}</div>
+              </div>
+              <div>
+                <div className="text-[#999999]">TBT</div>
+                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.totalBlockingTime}</div>
+              </div>
+              <div>
+                <div className="text-[#999999]">CLS</div>
+                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.cumulativeLayoutShift}</div>
+              </div>
+              <div>
+                <div className="text-[#999999]">Speed Index</div>
+                <div className="font-medium text-[#1A1A1A]">{techAudit.metrics.speedIndex}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -931,6 +1149,15 @@ ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observ
 
 ${seoAssessment ? `SEO VISIBILITY ASSESSMENT (previously generated):\n${seoAssessment}\n` : ''}
 
+${assessmentData.techAudit ? `TECHNICAL PERFORMANCE AUDIT (Google PageSpeed):
+- Performance: ${assessmentData.techAudit.scores.performance}/100
+- Accessibility: ${assessmentData.techAudit.scores.accessibility}/100
+- Best Practices: ${assessmentData.techAudit.scores.bestPractices}/100
+- Technical SEO: ${assessmentData.techAudit.scores.seo}/100
+- LCP: ${assessmentData.techAudit.metrics.largestContentfulPaint}
+- CLS: ${assessmentData.techAudit.metrics.cumulativeLayoutShift}
+` : ''}
+
 Based on the screenshots and content provided, deliver a comprehensive website assessment covering:
 
 1. BRAND STRATEGY AND POSITIONING
@@ -1024,21 +1251,32 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 
   const isComplete = assessmentData.status === 'complete';
 
+  // Completion tracking
+  const completionItems = [
+    { label: 'Screenshots', done: images.length > 0 },
+    { label: 'Pages Listed', done: !!pagesReviewed },
+    { label: 'Tech Audit', done: !!assessmentData.techAudit },
+    { label: 'SEO Check', done: !!seoAssessment },
+    { label: 'Analysis', done: isComplete },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-      <div className="flex items-start gap-4 mb-8">
-        <div className="w-14 h-14 bg-[#E53935]/10 rounded-xl flex items-center justify-center">
-          <Globe className="w-7 h-7 text-[#E53935]" />
+      <div className="flex items-start gap-4 mb-6">
+        <div className="w-12 h-12 bg-[#E53935]/10 rounded-xl flex items-center justify-center">
+          <Globe className="w-6 h-6 text-[#E53935]" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Website Assessment</h2>
-          <p className="text-[#333333]">Analyzing {project.brandName}'s website: {project.websiteUrl}</p>
+          <h2 className="text-xl font-bold text-[#1A1A1A]">Website Assessment</h2>
+          <p className="text-sm text-[#666666]">{project.brandName} · {project.websiteUrl}</p>
         </div>
       </div>
 
+      <CompletionIndicator items={completionItems} />
+
       {/* Pages Reviewed */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-3">Pages Reviewed</h3>
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Pages Reviewed</h3>
         <p className="text-sm text-[#666666] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
         <input 
           type="text" 
@@ -1050,8 +1288,8 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Screenshots */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2 flex items-center gap-2">
           <Image className="w-5 h-5" /> Website Screenshots (up to 4)
         </h3>
         <p className="text-sm text-[#666666] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
@@ -1092,8 +1330,8 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Website Content */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-3">Website Content (Optional)</h3>
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Website Content (Optional)</h3>
         <p className="text-sm text-[#666666] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
         <textarea 
           value={websiteContent} 
@@ -1106,12 +1344,12 @@ TAGLINE: 'Enterprise solutions for the modern era'
 ABOUT: 'Founded in 2015, we help companies...'
 VALUE PROP: 'Reduce costs by 40% while improving...'
 ..."
-          className="w-full h-40 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
+          className="w-full h-28 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
         />
       </div>
 
       {/* SEO Visibility Assessment */}
-      <div className="card p-6 mb-6">
+      <div className="card p-5 mb-4">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-semibold text-[#1A1A1A]">SEO Visibility Assessment</h3>
@@ -1166,9 +1404,16 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         )}
       </div>
 
+      {/* Technical Performance Audit */}
+      <TechnicalAuditSection 
+        websiteUrl={project.websiteUrl} 
+        assessmentData={assessmentData}
+        setAssessmentData={setAssessmentData}
+      />
+
       {/* Assessor Observations */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-3">Assessor Observations</h3>
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
         <p className="text-sm text-[#666666] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Add your observations about:
@@ -1177,7 +1422,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 - Consistency across pages
 - Navigation or UX concerns
 - Content gaps
-- Competitive positioning..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
+- Competitive positioning..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -1191,7 +1436,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
 
       {isComplete && (
-        <div className="card p-6 mb-6">
+        <div className="card p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#E53935]" /> Analysis Complete
@@ -1530,27 +1775,37 @@ Write in flowing prose with specific observations from the content provided. End
   const isComplete = assessmentData.status === 'complete';
   const hasMinimumContent = inputs.linkedinAbout || inputs.linkedinPosts || inputs.xContent || inputs.youtubeContent || inputs.instagramContent;
 
+  // Completion tracking
+  const completionItems = [
+    { label: 'LinkedIn', done: !!(inputs.linkedinAbout || inputs.linkedinPosts) },
+    { label: 'X/Twitter', done: !!inputs.xContent },
+    { label: 'Other Platforms', done: !!(inputs.youtubeContent || inputs.wikipediaContent || inputs.redditContent) },
+    { label: 'Analysis', done: isComplete },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-      <div className="flex items-start gap-4 mb-8">
-        <div className="w-14 h-14 bg-[#8B5CF6]/10 rounded-xl flex items-center justify-center">
-          <Users className="w-7 h-7 text-[#8B5CF6]" />
+      <div className="flex items-start gap-4 mb-6">
+        <div className="w-12 h-12 bg-[#8B5CF6]/10 rounded-xl flex items-center justify-center">
+          <Users className="w-6 h-6 text-[#8B5CF6]" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Social Media Assessment</h2>
-          <p className="text-[#333333]">Evaluating {project.brandName}'s social presence</p>
+          <h2 className="text-xl font-bold text-[#1A1A1A]">Social Media Assessment</h2>
+          <p className="text-sm text-[#666666]">{project.brandName}'s social presence</p>
         </div>
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-        <p className="text-sm text-amber-800">
-          <strong>Note:</strong> Copy and paste content directly from each platform. Claude cannot visit URLs directly.
+      <CompletionIndicator items={completionItems} />
+
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+        <p className="text-xs text-amber-800">
+          <strong>Tip:</strong> Copy and paste content directly from each platform. Use Auto-Check for YouTube, Wikipedia, Reddit, and Glassdoor.
         </p>
       </div>
 
       {/* Screenshot Upload */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-3">Social Media Screenshots (up to 4)</h3>
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Social Media Screenshots (up to 4)</h3>
         <p className="text-sm text-[#666666] mb-4">Upload screenshots from social profiles for visual analysis.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
@@ -1574,8 +1829,8 @@ Write in flowing prose with specific observations from the content provided. End
       </div>
 
       {/* LinkedIn Inputs */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> LinkedIn Content
         </h3>
         
@@ -1603,7 +1858,7 @@ Write in flowing prose with specific observations from the content provided. End
           <div>
             <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Recent Posts (include engagement metrics)</label>
             <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
-              placeholder="Copy 5-10 recent posts. Include the post text and engagement (e.g., '245 likes, 32 comments, 15 reposts')..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Copy 5-10 recent posts. Include the post text and engagement (e.g., '245 likes, 32 comments, 15 reposts')..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
           
           <div>
@@ -1615,8 +1870,8 @@ Write in flowing prose with specific observations from the content provided. End
       </div>
 
       {/* X (Twitter) Input */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> X (Twitter) Content
         </h3>
         
@@ -1644,8 +1899,8 @@ Write in flowing prose with specific observations from the content provided. End
       </div>
 
       {/* Instagram Input with Image Upload */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
           <Image className="w-5 h-5" /> Instagram Content
         </h3>
         <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
@@ -1677,8 +1932,8 @@ Write in flowing prose with specific observations from the content provided. End
       </div>
 
       {/* YouTube Input */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> YouTube Content
         </h3>
         
@@ -1697,8 +1952,8 @@ Write in flowing prose with specific observations from the content provided. End
       </div>
 
       {/* Reddit and Wikipedia */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> Reddit and Wikipedia Presence
         </h3>
         
@@ -1718,8 +1973,8 @@ Write in flowing prose with specific observations from the content provided. End
       </div>
 
       {/* Glassdoor - impacts Reflective score */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> Glassdoor Reviews
           <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">Impacts Reflective Score</span>
         </h3>
@@ -1729,8 +1984,8 @@ Write in flowing prose with specific observations from the content provided. End
       </div>
 
       {/* Nextdoor - impacts Aware score */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> Nextdoor Presence
           <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Impacts Aware Score</span>
         </h3>
@@ -1740,8 +1995,8 @@ Write in flowing prose with specific observations from the content provided. End
       </div>
 
       {/* WIPO Trademark - impacts Intentional score */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
           <ExternalLink className="w-5 h-5" /> WIPO Trademark Search
           <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">Impacts Intentional Score</span>
         </h3>
@@ -1751,11 +2006,11 @@ Write in flowing prose with specific observations from the content provided. End
       </div>
 
       {/* Assessor Observations */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-3">Assessor Observations</h3>
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
         <p className="text-sm text-[#666666] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about their social media presence..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
+          placeholder="Add your own observations about their social media presence..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -1767,7 +2022,7 @@ Write in flowing prose with specific observations from the content provided. End
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
 
       {isComplete && (
-        <div className="card p-6 mb-6">
+        <div className="card p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
@@ -1852,26 +2107,36 @@ Write in flowing prose.`;
     finally { setIsProcessing(p => ({ ...p, synthesis: false })); }
   };
 
+  // Completion tracking
+  const completionItems = [
+    { label: 'Claude', done: !!manualInput.claude },
+    { label: 'Gemini', done: !!manualInput.gemini },
+    { label: 'ChatGPT', done: !!manualInput.chatgpt },
+    { label: 'Synthesis', done: isComplete },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-      <div className="flex items-start gap-4 mb-8">
-        <div className="w-14 h-14 bg-[#3B82F6]/10 rounded-xl flex items-center justify-center">
-          <Bot className="w-7 h-7 text-[#3B82F6]" />
+      <div className="flex items-start gap-4 mb-6">
+        <div className="w-12 h-12 bg-[#3B82F6]/10 rounded-xl flex items-center justify-center">
+          <Bot className="w-6 h-6 text-[#3B82F6]" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">AI Reputation Assessment</h2>
-          <p className="text-[#333333]">How does {project.brandName} appear across AI systems?</p>
+          <h2 className="text-xl font-bold text-[#1A1A1A]">AI Reputation Assessment</h2>
+          <p className="text-sm text-[#666666]">How AI systems describe {project.brandName}</p>
         </div>
       </div>
 
-      <div className="bg-[#F0EEEA] rounded-lg p-4 mb-6">
-        <p className="text-sm text-[#666666] mb-2">Query each AI system with:</p>
+      <CompletionIndicator items={completionItems} />
+
+      <div className="bg-[#F0EEEA] rounded-lg p-3 mb-4">
+        <p className="text-xs text-[#666666] mb-1">Ask each AI:</p>
         <p className="text-[#1A1A1A] italic text-sm">"{standardQuery}"</p>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700 text-sm">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
 
-      <div className="space-y-4 mb-6">
+      <div className="space-y-3 mb-4">
         {/* Claude */}
         <div className={`card p-4 ${manualInput.claude ? 'bg-[#F0EEEA]' : ''}`}>
           <div className="flex items-center gap-3 mb-3">
@@ -1919,11 +2184,11 @@ Write in flowing prose.`;
       </div>
 
       {/* Assessor Observations - moved before synthesis */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-3">Assessor Observations</h3>
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
         <p className="text-sm text-[#666666] mb-3">Your observations will be included in the synthesis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about the AI responses, discrepancies noticed, concerns, etc..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
+          placeholder="Add your own observations about the AI responses, discrepancies noticed, concerns, etc..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
       </div>
 
       {hasAllResponses && !isComplete && (
@@ -1933,7 +2198,7 @@ Write in flowing prose.`;
       )}
 
       {isComplete && (
-        <div className="card p-6 mb-6">
+        <div className="card p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#3B82F6]" /> Synthesis Complete
@@ -2008,21 +2273,29 @@ Write in flowing prose with specific examples. End with priority recommendations
 
   const isComplete = assessmentData.status === 'complete';
 
+  // Completion tracking
+  const completionItems = [
+    { label: 'Coverage Added', done: !!coveragePaste },
+    { label: 'Analysis', done: isComplete },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-      <div className="flex items-start gap-4 mb-8">
-        <div className="w-14 h-14 bg-[#10B981]/10 rounded-xl flex items-center justify-center">
-          <Newspaper className="w-7 h-7 text-[#10B981]" />
+      <div className="flex items-start gap-4 mb-6">
+        <div className="w-12 h-12 bg-[#10B981]/10 rounded-xl flex items-center justify-center">
+          <Newspaper className="w-6 h-6 text-[#10B981]" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Earned Media Assessment</h2>
-          <p className="text-[#333333]">Analyzing {project.brandName}'s press coverage</p>
+          <h2 className="text-xl font-bold text-[#1A1A1A]">Earned Media Assessment</h2>
+          <p className="text-sm text-[#666666]">{project.brandName}'s press coverage</p>
         </div>
       </div>
 
+      <CompletionIndicator items={completionItems} />
+
       {/* Coverage Paste Field */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-3">Media Coverage (Last 3 Months)</h3>
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Media Coverage (Last 3 Months)</h3>
         <p className="text-sm text-[#666666] mb-4">
           Paste any press coverage, news articles, mentions, or media clips from the last 3 months. 
           Include headlines, publication names, dates, and key quotes if available.
@@ -2037,16 +2310,16 @@ Example:
 - Forbes (Jan 8, 2026): CEO quoted on industry trends
 - Industry Podcast (Dec 20, 2025): 30-min interview with CTO
 ..."
-          className="w-full h-48 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
+          className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
         />
       </div>
 
       {/* Assessor Observations - before analysis button */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-3">Assessor Observations</h3>
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
         <p className="text-sm text-[#666666] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-32 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
+          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -2058,7 +2331,7 @@ Example:
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
 
       {isComplete && (
-        <div className="card p-6 mb-6">
+        <div className="card p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#10B981]" /> Analysis Complete
@@ -2138,7 +2411,7 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     }, 800);
 
     try {
-      const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v2.3.
+      const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v2.4.
 
 ASSESSMENT DATA COLLECTED:
 
@@ -2150,6 +2423,19 @@ Additional Content: ${assessments.website.websiteContent || 'None'}
 
 SEO VISIBILITY ASSESSMENT:
 ${assessments.website.seoAssessment || 'SEO visibility not assessed'}
+
+TECHNICAL PERFORMANCE AUDIT:
+${assessments.website.techAudit ? `
+Performance Score: ${assessments.website.techAudit.scores.performance}/100
+Accessibility Score: ${assessments.website.techAudit.scores.accessibility}/100
+Best Practices Score: ${assessments.website.techAudit.scores.bestPractices}/100
+Technical SEO Score: ${assessments.website.techAudit.scores.seo}/100
+Core Web Vitals:
+- First Contentful Paint: ${assessments.website.techAudit.metrics.firstContentfulPaint}
+- Largest Contentful Paint: ${assessments.website.techAudit.metrics.largestContentfulPaint}
+- Total Blocking Time: ${assessments.website.techAudit.metrics.totalBlockingTime}
+- Cumulative Layout Shift: ${assessments.website.techAudit.metrics.cumulativeLayoutShift}
+` : 'Technical audit not run'}
 
 SOCIAL MEDIA ASSESSMENT:
 ${assessments.social.content}
@@ -2166,7 +2452,7 @@ EARNED MEDIA ASSESSMENT:
 ${assessments.earnedMedia.content}
 ${assessments.earnedMedia.observations ? `Assessor Notes: ${assessments.earnedMedia.observations}` : ''}
 
-SCORING RUBRIC v2.3 - Score each attribute 0-100 based on these criteria:
+SCORING RUBRIC v2.4 - Score each attribute 0-100 based on these criteria:
 ${ATTRIBUTES.map(a => `${a.id} (${a.fullName}): ${a.description}`).join('\n')}
 
 SCORE RANGE DEFINITIONS (use these anchors for consistency):
@@ -2177,13 +2463,39 @@ SCORE RANGE DEFINITIONS (use these anchors for consistency):
 - 70-84 (Leading): Strong performance, industry-competitive
 - 85-100 (Transforming): Exceptional, category-defining excellence
 
-IMPORTANT SCORING CONSIDERATIONS:
-- Website accessibility compliance should be evaluated against WCAG 2.1 Level AA and factor into ATTENTIVE score
-- SEO visibility assessment should significantly impact COGENT score
+CRITICAL SCORING REQUIREMENTS:
+1. EVIDENCE-BASED: Every score MUST be justified by specific, observable evidence from the assessment data
+2. CITE SOURCES: Reference the exact source of evidence (e.g., "Website About page states...", "LinkedIn post from [date]...", "Forbes article mentioned...")
+3. RECENCY MATTERS: Weight recent evidence (last 3 months) more heavily than older content
+4. CONFIDENCE LEVEL: Indicate confidence based on quantity and quality of evidence available
+5. IDENTIFY GAPS: List specific missing elements that would improve the score
+6. CONSISTENCY: The same evidence patterns should always produce the same score range (±3 points)
+
+EVIDENCE STRENGTH GUIDELINES:
+- Tier 1 (Strong): Major publications, verified awards, clear data/metrics, official certifications
+- Tier 2 (Moderate): Industry publications, social proof, consistent messaging across channels
+- Tier 3 (Weak): Self-reported claims without verification, outdated content, single instances
+
+SCORING CONSIDERATIONS:
+
+WEIGHTED SCORING FOR TECHNICAL AUDIT DATA:
+When Technical Performance Audit data is available, use this weighted approach for ATTENTIVE:
+- 70% qualitative assessment (design, content quality, UX, brand consistency from screenshots)
+- 30% technical metrics (Performance score, Accessibility score, Core Web Vitals)
+Calculate: ATTENTIVE = (qualitative_score × 0.7) + (avg_technical_score × 0.3)
+
+For COGENT, technical SEO contributes ~20% of the score:
+- 80% qualitative assessment (messaging clarity, data-driven signals, content strategy)
+- 20% technical SEO score from PageSpeed audit
+Calculate: COGENT = (qualitative_score × 0.8) + (technical_seo_score × 0.2)
+
+If Technical Audit was not run, score based on qualitative assessment alone but note reduced confidence.
+
+OTHER SCORING FACTORS:
 - Glassdoor reviews impact REFLECTIVE score (brand self-awareness and reputation)
 - Nextdoor presence impacts AWARE score (audience connection and community trust)
 - WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
-- Be precise and consistent: the same evidence should always produce the same score range
+- Core Web Vitals (LCP, CLS, TBT) indicate user experience quality - factor into the technical portion of ATTENTIVE
 
 SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 - AWAKE: Executive Visibility, PR & Media Relations, Thought Leadership Content
@@ -2197,14 +2509,73 @@ SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 
 Return the JSON scores in this exact format:
 {
-  "AWAKE": {"score": 45, "findings": "Specific observations about thought leadership presence, media mentions, and industry authority.", "opportunity": "Consider Executive Visibility and PR services to build industry influence and narrative leadership."},
-  "AWARE": {"score": 52, "findings": "Specific observations about audience understanding, community engagement, and trust signals.", "opportunity": "Audience Research and Social Media Strategy would strengthen audience connection and trust."},
-  "REFLECTIVE": {"score": 38, "findings": "Specific observations about brand narrative consistency, self-awareness, and reputation management.", "opportunity": "Brand Strategy and Brand Expression services would establish authentic brand foundation."},
-  "ATTENTIVE": {"score": 55, "findings": "Specific observations about content quality, UX, accessibility compliance (estimate WCAG 2.1 AA percentage), and attention to detail.", "opportunity": "Website Strategy & Development would improve experience quality and accessibility."},
-  "COGENT": {"score": 42, "findings": "Specific observations about messaging clarity, information architecture, SEO visibility (keyword rankings, brand search quality), and data-driven approach.", "opportunity": "SEO Strategy and Integrated Measurement would strengthen data-driven marketing approach."},
-  "SENTIENT": {"score": 35, "findings": "Specific observations about emotional resonance, creative execution, and brand personality.", "opportunity": "Creative Campaigns and Brand Expression would create stronger emotional connections."},
-  "VISIONARY": {"score": 48, "findings": "Specific observations about purpose, future orientation, and aspirational messaging.", "opportunity": "Brand Strategy and Impact Communications would clarify purpose and vision."},
-  "INTENTIONAL": {"score": 50, "findings": "Specific observations about professionalism, credibility signals, and strategic positioning.", "opportunity": "Brand Assets & Guidelines would ensure professional, intentional market presence."}
+  "AWAKE": {
+    "score": 45,
+    "confidence": "medium",
+    "findings": "Specific observations with cited evidence. E.g., 'Forbes coverage (Jan 2026) demonstrates tier-1 media presence. LinkedIn shows 3 thought leadership articles in past quarter.'",
+    "evidence": [
+      {"source": "Forbes article", "type": "earned_media", "strength": "strong", "detail": "CEO quoted on industry trends"},
+      {"source": "LinkedIn articles", "type": "thought_leadership", "strength": "moderate", "detail": "3 articles published in Q4"}
+    ],
+    "gaps": ["No podcast appearances found", "Limited speaking engagement visibility", "No Wikipedia presence"],
+    "opportunity": "Consider Executive Visibility and PR services to build industry influence and narrative leadership."
+  },
+  "AWARE": {
+    "score": 52,
+    "confidence": "high",
+    "findings": "Evidence-based observations about audience understanding and trust signals.",
+    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
+    "gaps": ["List specific missing elements"],
+    "opportunity": "Audience Research and Social Media Strategy would strengthen audience connection."
+  },
+  "REFLECTIVE": {
+    "score": 38,
+    "confidence": "medium",
+    "findings": "Evidence-based observations about brand consistency and reputation.",
+    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
+    "gaps": ["List specific missing elements"],
+    "opportunity": "Brand Strategy services would establish authentic brand foundation."
+  },
+  "ATTENTIVE": {
+    "score": 55,
+    "confidence": "high",
+    "findings": "Evidence-based observations about quality, UX, and accessibility (estimate WCAG 2.1 AA compliance).",
+    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
+    "gaps": ["List specific missing elements"],
+    "opportunity": "Website Strategy & Development would improve experience quality."
+  },
+  "COGENT": {
+    "score": 42,
+    "confidence": "medium",
+    "findings": "Evidence-based observations about SEO, data-driven approach, and strategic intelligence.",
+    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
+    "gaps": ["List specific missing elements"],
+    "opportunity": "SEO Strategy and Integrated Measurement would strengthen data-driven marketing."
+  },
+  "SENTIENT": {
+    "score": 35,
+    "confidence": "medium",
+    "findings": "Evidence-based observations about emotional resonance and creative differentiation.",
+    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
+    "gaps": ["List specific missing elements"],
+    "opportunity": "Creative Campaigns would create stronger emotional connections."
+  },
+  "VISIONARY": {
+    "score": 48,
+    "confidence": "medium",
+    "findings": "Evidence-based observations about purpose, vision, and forward-thinking positioning.",
+    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
+    "gaps": ["List specific missing elements"],
+    "opportunity": "Brand Strategy and Impact Communications would clarify purpose and vision."
+  },
+  "INTENTIONAL": {
+    "score": 50,
+    "confidence": "high",
+    "findings": "Evidence-based observations about credibility, professionalism, and intentional positioning.",
+    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
+    "gaps": ["List specific missing elements"],
+    "opportunity": "Brand Assets & Guidelines would ensure professional market presence."
+  }
 }`;
 
       const result = await callClaude(prompt, apiKey, null, [], 0);
@@ -2569,7 +2940,7 @@ Return the JSON scores in this exact format:
 
       // What We Evaluated
       addHeading('WHAT WE EVALUATED');
-      addText(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.3, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, 9);
+      addText(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, 9);
 
       // Footer on each page
       const pageCount = pdf.internal.getNumberOfPages();
@@ -2642,7 +3013,7 @@ Return the JSON scores in this exact format:
             
             // What We Evaluated
             new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('WHAT WE EVALUATED')] }),
-            new Paragraph({ children: [new TextRun(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.3, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`)] }),
+            new Paragraph({ children: [new TextRun(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`)] }),
           ]
         }]
       });
@@ -2674,7 +3045,7 @@ Return the JSON scores in this exact format:
       </div>
 
       {/* Executive Summary */}
-      <div className="card p-6 mb-6">
+      <div className="card p-5 mb-4">
         <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">EXECUTIVE SUMMARY</h3>
         <p className="text-[#333333] leading-relaxed">
           {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
@@ -2682,13 +3053,13 @@ Return the JSON scores in this exact format:
       </div>
 
       {/* Spider Chart */}
-      <div className="card p-6 mb-6">
+      <div className="card p-5 mb-4">
         <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4 text-center">Brand Consciousness Profile</h3>
         <SpiderChart scores={scores} size={450} />
       </div>
 
       {/* Score Summary */}
-      <div className="card p-6 mb-6">
+      <div className="card p-5 mb-4">
         <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">SCORE SUMMARY</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {ATTRIBUTES.map(attr => (
@@ -2704,7 +3075,7 @@ Return the JSON scores in this exact format:
       <MaturityContinuum score={overall} />
 
       {/* Maturity Stage Context */}
-      <div className="card p-6 mb-6">
+      <div className="card p-5 mb-4">
         <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">MATURITY STAGE CONTEXT</h3>
         <p className="text-[#333333] leading-relaxed">
           With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
@@ -2869,7 +3240,7 @@ Return the JSON scores in this exact format:
         {expandedSections.evaluated && (
           <div className="card p-4 md:p-6 animate-fade-in">
             <p className="text-sm md:text-base text-[#333333] leading-relaxed">
-              This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.3, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
+              This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
           </div>
         )}
@@ -2952,7 +3323,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       servicesRecommended: [],
       isManual: true,
       assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
-      rubricVersion: '2.3',
+      rubricVersion: '2.4',
     };
     
     // Save to Supabase
@@ -3552,7 +3923,7 @@ Based on this data, provide thought leadership insights in this JSON format:
 
       {/* Score Distribution Visualization */}
       <div className="card p-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4">Portfolio Maturity Distribution</h3>
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Portfolio Maturity Distribution</h3>
         <div className="flex items-end gap-3 mb-4" style={{ height: '160px' }}>
           {portfolioStats.scoreDistribution.map((bucket, idx) => {
             const barHeight = bucket.count > 0 ? Math.max((bucket.count / maxCount) * 140, 16) : 8;
@@ -3583,7 +3954,7 @@ Based on this data, provide thought leadership insights in this JSON format:
 
       {/* Attribute Radar / Bar Chart */}
       <div className="card p-6">
-        <h3 className="font-semibold text-[#1A1A1A] mb-4">Attribute Performance Overview</h3>
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Performance Overview</h3>
         <div className="space-y-3">
           {ATTRIBUTES.map(attr => {
             const score = portfolioStats.attrAverages[attr.id];
@@ -3613,7 +3984,7 @@ Based on this data, provide thought leadership insights in this JSON format:
       {/* Top & Bottom Performers */}
       <div className="grid md:grid-cols-2 gap-6">
         <div className="card p-6">
-          <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
             <Star className="w-5 h-5 text-[#F59E0B]" /> Top Performers
           </h3>
           <div className="space-y-3">
@@ -3637,7 +4008,7 @@ Based on this data, provide thought leadership insights in this JSON format:
         </div>
 
         <div className="card p-6">
-          <h3 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-[#F59E0B]" /> Growth Opportunities
           </h3>
           <div className="space-y-3">
@@ -3988,7 +4359,7 @@ function ComparisonPage({ results, onBack }) {
               <>
                 {/* Industry Overview */}
                 <div className="card p-6">
-                  <h3 className="font-semibold text-[#1A1A1A] mb-4">Industry Average Scores</h3>
+                  <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Industry Average Scores</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {Object.entries(industryBenchmarks).map(([industry, data]) => {
                       const stage = getMaturityStage(data.avgScore);
@@ -4010,7 +4381,7 @@ function ComparisonPage({ results, onBack }) {
 
                 {/* Industry Attribute Comparison */}
                 <div className="card p-6">
-                  <h3 className="font-semibold text-[#1A1A1A] mb-4">Attribute Comparison by Industry</h3>
+                  <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Comparison by Industry</h3>
                   
                   {/* Industry labels header */}
                   <div className="flex items-center gap-2 mb-4 text-xs text-[#666666]">
@@ -4061,7 +4432,7 @@ function ComparisonPage({ results, onBack }) {
             <div className="lg:col-span-1 space-y-4">
               {/* Filters */}
               <div className="card p-4">
-                <h3 className="font-semibold text-[#1A1A1A] mb-3">Filters</h3>
+                <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Filters</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-[#666666] mb-1 block">Industry</label>
@@ -4110,7 +4481,7 @@ function ComparisonPage({ results, onBack }) {
 
               {/* Brand List */}
               <div className="card p-4">
-                <h3 className="font-semibold text-[#1A1A1A] mb-4">
+                <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">
                   Select Brands ({selectedBrands.length}/{maxComparison})
                   {filteredResults.length !== results.length && (
                     <span className="text-xs font-normal text-[#666666] ml-2">
@@ -4173,7 +4544,7 @@ function ComparisonPage({ results, onBack }) {
                 <div className="space-y-6">
                   {/* Overall Score Comparison */}
                   <div className="card p-6">
-                    <h3 className="font-semibold text-[#1A1A1A] mb-4">Overall Scores</h3>
+                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Overall Scores</h3>
                     <div className="flex flex-wrap justify-center gap-4">
                       {selectedBrands.map((brand) => {
                         const stage = MATURITY_STAGES.find(s => s.name === brand.maturityLevel) || MATURITY_STAGES[0];
@@ -4205,7 +4576,7 @@ function ComparisonPage({ results, onBack }) {
 
                   {/* Attribute Comparison */}
                   <div className="card p-6">
-                    <h3 className="font-semibold text-[#1A1A1A] mb-4">Attribute Comparison</h3>
+                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Comparison</h3>
                     
                     {/* Brand labels header */}
                     <div className="flex items-center gap-2 mb-4 text-xs text-[#666666]">
@@ -4265,7 +4636,7 @@ function ComparisonPage({ results, onBack }) {
 
                   {/* Quick Insights */}
                   <div className="card p-6">
-                    <h3 className="font-semibold text-[#1A1A1A] mb-4">Quick Insights</h3>
+                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Quick Insights</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div className="bg-[#F0EEEA] rounded-lg p-4">
                         <div className="font-medium text-[#1A1A1A] mb-2">Highest Overall Score</div>
@@ -4606,7 +4977,7 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Executive Summary */}
-        <div className="card p-6 mb-6">
+        <div className="card p-5 mb-4">
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">EXECUTIVE SUMMARY</h3>
           <p className="text-[#333333] leading-relaxed">
             {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
@@ -4614,7 +4985,7 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Score Summary */}
-        <div className="card p-6 mb-6">
+        <div className="card p-5 mb-4">
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">SCORE SUMMARY</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ATTRIBUTES.map(attr => (
@@ -4630,7 +5001,7 @@ function SharedReportView({ report, onClose }) {
         <MaturityContinuum score={overall} />
 
         {/* Maturity Stage Context */}
-        <div className="card p-6 mb-6">
+        <div className="card p-5 mb-4">
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">MATURITY STAGE CONTEXT</h3>
           <p className="text-[#333333] leading-relaxed">
             With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
@@ -4686,7 +5057,7 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Conclusions */}
-        <div className="card p-6 mb-6">
+        <div className="card p-5 mb-4">
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">CONCLUSIONS</h3>
           <p className="text-[#333333] leading-relaxed">
             {project.brandName} has demonstrated {overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening {sortedAttrs[0].name} and {sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, {project.brandName} is well positioned to become a more consequential presence in its industry.
@@ -4696,7 +5067,7 @@ function SharedReportView({ report, onClose }) {
         {/* Footer */}
         <div className="text-center pt-8 border-t border-[#D9D6D0]">
           <p className="text-sm text-[#9CA3AF]">
-            This report was generated using Antenna Group's Brand Consciousness Framework v2.3
+            This report was generated using Antenna Group's Brand Consciousness Framework v2.4
           </p>
           <p className="text-xs text-[#9CA3AF] mt-2">
             Shared on {report.sharedAt ? new Date(report.sharedAt).toLocaleDateString() : 'Unknown date'}
@@ -4720,7 +5091,7 @@ export default function App() {
     businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0]
   });
   const [assessments, setAssessments] = useState({
-    website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '' },
+    website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '', techAudit: null },
     social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
     aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
     earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
@@ -4777,7 +5148,7 @@ export default function App() {
           savedAt: r.created_at,
           isManual: r.is_manual,
           assessorName: r.assessor_name,
-          rubricVersion: r.rubric_version || '2.3',
+          rubricVersion: r.rubric_version || '2.4',
         }));
         setCompassResults(formattedResults);
       }
@@ -4863,7 +5234,7 @@ export default function App() {
       setShowSavedPage(false);
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
       setAssessments({
-        website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '' },
+        website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '', techAudit: null },
         social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
         aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
         earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
@@ -4923,7 +5294,7 @@ export default function App() {
           servicesRecommended: serviceRecs.slice(0, 6).map(r => r.service?.name || '').filter(Boolean),
           isManual: false,
           assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
-          rubricVersion: '2.3',
+          rubricVersion: '2.4',
         };
         
         await saveCompassResult(resultData);

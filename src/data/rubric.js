@@ -1,4 +1,4 @@
-// Brand Consciousness Assessment Framework v2.3
+// Brand Consciousness Assessment Framework v2.4
 
 export const MATURITY_STAGES = [
   { id: 'pre-foundational', name: 'Pre-Foundational', min: 0, max: 25, color: '#94A3B8', description: 'Requires fundamental development across most attributes' },
