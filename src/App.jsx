@@ -766,7 +766,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.2
+        Version 2.12.4
       </div>
     </div>
   );
@@ -1370,7 +1370,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
                 runAnalysis();
                 if (onClearScores) onClearScores();
               }} 
-              disabled={isProcessing || images.length === 0} 
+              disabled={isProcessing} 
               className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
             >
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
@@ -1407,6 +1407,7 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     youtubeContent: assessmentData.youtubeContent || '',
     hasYouTube: assessmentData.hasYouTube ?? true,
     redditContent: assessmentData.redditContent || '',
+    redditAnswersContent: assessmentData.redditAnswersContent || '',
     wikipediaContent: assessmentData.wikipediaContent || '',
     glassdoorContent: assessmentData.glassdoorContent || '',
     nextdoorContent: assessmentData.nextdoorContent || '',
@@ -1434,50 +1435,51 @@ Industry: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
 
 CRITICAL INSTRUCTION: Only report what you can verify from your training data. If you are uncertain or don't have evidence, state "NEEDS MANUAL VERIFICATION" for that item. Do NOT speculate or guess. Every claim must be evidence-based.
 
+ABSOLUTE RULE: NEVER provide ANY numbers including:
+- Subscriber counts (not even "estimated" or "approximately")
+- Follower counts
+- View counts
+- Video counts
+- Rating numbers
+- Review counts
+- Any other metrics
+These CANNOT be known from training data as they change constantly. Always say "Verify at [platform]" instead.
+
 1. YOUTUBE PRESENCE:
-Evidence-based assessment only. For each item, state what you know or "Needs verification":
-- EXISTENCE: Does ${project.brandName} have an official YouTube channel? (Confirmed Yes / Confirmed No / Needs verification)
-- CHANNEL NAME/URL: If known, provide exact channel name
-- SETUP: Is the channel properly branded (profile image, banner, description)?
-- CONTENT TYPE: What types of videos do they publish? (tutorials, thought leadership, product demos, testimonials, etc.)
-- POSTING REGULARITY: If known, how frequently do they post? (weekly, monthly, sporadic, inactive)
-- ENGAGEMENT SIGNALS: Are comments enabled? Do videos show significant engagement?
-- NOTE: Do not estimate subscriber counts or view counts - state "Verify at youtube.com/@channelname"
+- EXISTENCE: Does ${project.brandName} have an official YouTube channel? (Confirmed Yes / Confirmed No / Unknown - needs verification)
+- CHANNEL NAME/URL: Only if you are certain of the exact channel name. Otherwise "Unknown - verify at youtube.com"
+- CONTENT THEMES: What topics/types of content? (Only if you have evidence from training data)
+- POSTING PATTERN: Regular, sporadic, or inactive? (Only if evidence exists)
+- SUBSCRIBERS/VIEWS: DO NOT PROVIDE - state "Verify metrics at YouTube"
 
 2. WIKIPEDIA PRESENCE:
-Evidence-based assessment only:
-- EXISTENCE: Does ${project.brandName} have a Wikipedia page? (Confirmed Yes / Confirmed No / Needs verification)
-- PAGE URL: If known, provide the exact Wikipedia URL
-- ACCURACY: Does the page appear accurate and well-maintained? Any outdated information?
-- SENTIMENT: Is the overall tone neutral, positive, or does it highlight controversies?
-- ACCOMPLISHMENTS: What achievements, awards, or milestones are mentioned?
-- CRITICISM: Are there any criticism sections or controversies documented?
-- NAME CONFLICT: Is there another company/entity with a similar name that might own or compete for this Wikipedia page?
-- PAGE QUALITY: Is it a stub, start-class, or well-developed article?
+- EXISTENCE: Does ${project.brandName} have a Wikipedia page? (Confirmed Yes / Confirmed No / Unknown)
+- PAGE URL: Only if certain (e.g., en.wikipedia.org/wiki/CompanyName)
+- CONTENT SUMMARY: Brief factual summary if page exists
+- SENTIMENT: Neutral/positive/controversial tone?
+- ACCOMPLISHMENTS: Awards, milestones mentioned?
+- CRITICISM SECTION: Any controversies documented?
+- NAME CONFLICT: Another entity with similar name competing for this page?
+- PAGE QUALITY: Stub/developing/comprehensive?
 
 3. REDDIT PRESENCE:
-Evidence-based assessment including Reddit Answers:
-- SUBREDDIT: Does ${project.brandName} have an official subreddit? If yes, provide r/name
-- DISCUSSIONS: Are they discussed in relevant industry subreddits? Which ones?
-- SENTIMENT: What is the general tone of discussions? (positive, negative, mixed, neutral)
-- COMMON THEMES: What topics come up most frequently?
-- REDDIT ANSWERS: Check if ${project.brandName} appears in Reddit Answers (reddit.com/answers/) - this is Reddit's AI-powered Q&A feature. Is the brand mentioned in AI-generated answers?
-- NOTABLE THREADS: Any significant threads (AMAs, controversies, praise)?
-- If limited or no presence, state "Limited Reddit presence - needs manual verification"
+- OFFICIAL SUBREDDIT: r/name if exists, otherwise "None found"
+- INDUSTRY DISCUSSIONS: Which subreddits discuss them?
+- SENTIMENT: Positive/negative/mixed/neutral (only with evidence)
+- COMMON THEMES: What do people discuss?
+- NOTE: User will manually check Reddit Answers (reddit.com/answers/) separately
+- If uncertain, state "Limited presence - verify manually"
 
 4. GLASSDOOR PRESENCE:
-Evidence-based assessment only:
-- EXISTENCE: Does ${project.brandName} have a Glassdoor profile? (Confirmed Yes / Confirmed No / Needs verification)
-- PROFILE URL: If known
-- REVIEW THEMES: General themes mentioned (culture, leadership, compensation, work-life balance)
-- DO NOT guess ratings - state "Rating needs verification at glassdoor.com/company-name"
-- CEO/LEADERSHIP: Any mentions of leadership reputation?
+- EXISTENCE: Profile exists? (Yes/No/Unknown)
+- REVIEW THEMES: Culture, leadership, work-life balance themes (qualitative only)
+- RATING: DO NOT PROVIDE - state "Verify rating at glassdoor.com"
+- CEO REPUTATION: Any mentions? (qualitative only)
 
 5. NEXTDOOR PRESENCE:
-Evidence-based assessment only:
-- APPLICABILITY: Is Nextdoor relevant for this brand type? (B2C/local = relevant, B2B = typically not)
-- PRESENCE: Is ${project.brandName} active on Nextdoor as a business?
-- COMMUNITY MENTIONS: Are they discussed in neighborhood recommendations?
+- RELEVANCE: Is Nextdoor relevant? (B2C/local = yes, B2B = typically no)
+- PRESENCE: Business profile exists?
+- COMMUNITY SENTIMENT: What do locals say? (qualitative only)
 - SENTIMENT: What do local communities say about them?
 - If B2B or not applicable, state "Not applicable for B2B brands - skip"
 
@@ -1646,6 +1648,9 @@ ${inputs.hasYouTube ? (inputs.youtubeContent || '[User indicated they have YouTu
 === REDDIT PRESENCE ===
 ${inputs.redditContent || '[Not provided - please note any Reddit mentions or discussions about ' + project.brandName + ']'}
 
+=== REDDIT ANSWERS (AI Search Visibility) ===
+${inputs.redditAnswersContent || '[Not checked - Reddit Answers shows how AI perceives brand reputation]'}
+
 === WIKIPEDIA PRESENCE ===
 ${inputs.wikipediaContent || '[Not provided - please note if ' + project.brandName + ' has a Wikipedia page]'}
 
@@ -1674,7 +1679,9 @@ Based on the content provided above, deliver a comprehensive social media and re
 
 5. Reddit Presence: What subreddits mention this brand? What is the sentiment? How does user-generated content affect their reputation?
 
-6. Wikipedia Presence: Does the brand have a Wikipedia page? How does this impact their credibility and AI search visibility?
+6. Reddit Answers (AI Search): If provided, analyze how Reddit's AI summarizes the brand. This indicates how AI search engines perceive brand reputation, credibility, and trust.
+
+7. Wikipedia Presence: Does the brand have a Wikipedia page? How does this impact their credibility and AI search visibility?
 
 7. Glassdoor & Employer Reputation: Analyze employee reviews, ratings, and sentiment. How self-aware is the brand about its culture and reputation?
 
@@ -1719,7 +1726,7 @@ Write in flowing prose with specific observations from the content provided. End
   const completionItems = [
     { label: 'LinkedIn', done: !!(inputs.linkedinAbout || inputs.linkedinPosts) },
     { label: 'X/Twitter', done: !!inputs.xContent },
-    { label: 'Other Platforms', done: !!(inputs.youtubeContent || inputs.wikipediaContent || inputs.redditContent) },
+    { label: 'Other Platforms', done: !!(inputs.youtubeContent || inputs.wikipediaContent || inputs.redditContent || inputs.redditAnswersContent) },
     { label: 'Analysis', done: isComplete },
   ];
 
@@ -1884,7 +1891,7 @@ Write in flowing prose with specific observations from the content provided. End
           icon={Globe} 
           isOpen={expanded.other} 
           onClick={() => toggleSection('other')}
-          hasContent={!!(inputs.youtubeContent || inputs.redditContent || inputs.wikipediaContent)}
+          hasContent={!!(inputs.youtubeContent || inputs.redditContent || inputs.redditAnswersContent || inputs.wikipediaContent)}
         />
         {expanded.other && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
@@ -1894,7 +1901,7 @@ Write in flowing prose with specific observations from the content provided. End
                 {autoCheckStatus.youtube && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
               </div>
               <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
-                placeholder="Subscriber count, video count, content themes, posting frequency..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Channel exists? Content themes, posting frequency, engagement quality... (verify metrics at YouTube)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -1906,11 +1913,20 @@ Write in flowing prose with specific observations from the content provided. End
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#666666]">Reddit</label>
+                <label className="text-xs font-medium text-[#666666]">Reddit Discussions</label>
                 {autoCheckStatus.reddit && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
               </div>
               <textarea value={inputs.redditContent} onChange={(e) => updateInput('redditContent', e.target.value)}
                 placeholder="Subreddits, sentiment, notable discussions..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#666666]">Reddit Answers <span className="text-orange-600">(AI Search)</span></label>
+                <a href="https://www.reddit.com/answers/" target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#E53935] hover:underline">Open Reddit Answers →</a>
+              </div>
+              <p className="text-[10px] text-[#999999] mb-1">Ask: "What is [brand name]'s reputation? Is [brand name] trustworthy?"</p>
+              <textarea value={inputs.redditAnswersContent} onChange={(e) => updateInput('redditAnswersContent', e.target.value)}
+                placeholder="Paste Reddit Answers response about brand sentiment, visibility, reputation, credibility, and trust..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -2680,6 +2696,7 @@ Return the JSON scores in this exact format:
   if (assessments.social?.instagramContent) evaluatedInputs.push('Instagram presence and visual brand');
   if (assessments.social?.youtubeContent) evaluatedInputs.push('YouTube channel and video content');
   if (assessments.social?.redditContent) evaluatedInputs.push('Reddit community mentions and sentiment');
+  if (assessments.social?.redditAnswersContent) evaluatedInputs.push('Reddit Answers AI search visibility');
   if (assessments.social?.wikipediaContent) evaluatedInputs.push('Wikipedia presence and credibility signals');
   if (assessments.social?.socialImages?.length > 0) evaluatedInputs.push(`${assessments.social.socialImages.length} social media screenshot(s)`);
   
@@ -5070,7 +5087,7 @@ export default function App() {
   });
   const [assessments, setAssessments] = useState({
     website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '', techAudit: null },
-    social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+    social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
     aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
     earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
   });
@@ -5213,7 +5230,7 @@ export default function App() {
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '', techAudit: null },
-        social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+        social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
         aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
         earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
       });
