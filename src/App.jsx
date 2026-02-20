@@ -1,63 +1,306 @@
 import { useState, useEffect, useRef } from 'react';
 import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS } from './data/rubric';
 import { getAllRecommendations, formatBudget } from './data/serviceMapping';
-import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Lock, Share2, Link, Copy } from 'lucide-react';
+import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Lock, Share2, Link, Copy, LogOut, Shield, UserCheck, UserX, Mail } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
+import { 
+  supabase, 
+  signUp, 
+  signIn, 
+  signOut, 
+  getProfile,
+  fetchCompassResults,
+  saveCompassResult,
+  deleteCompassResult,
+  fetchSavedAssessments,
+  saveAssessment,
+  deleteAssessment,
+  fetchAllProfiles,
+  approveUser,
+  revokeUser,
+  makeAdmin,
+  removeAdmin
+} from './lib/supabase';
 
 const DEFAULT_API_KEY = '';
 
-const APP_PASSWORD = 'paulisbuildingthis';
-
-// Password Gate Component
-function PasswordGate({ onSuccess }) {
+// Auth Page Component (Login/Signup)
+function AuthPage({ onAuthSuccess }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (password === APP_PASSWORD) {
-      localStorage.setItem('conscious-compass-auth', 'true');
-      onSuccess();
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    if (isLogin) {
+      const { data, error } = await signIn(email, password);
+      if (error) {
+        setError(error.message);
+      } else if (data.user) {
+        const { data: profile } = await getProfile(data.user.id);
+        if (profile && !profile.is_approved) {
+          setError('Your account is pending approval. Please contact an administrator.');
+          await signOut();
+        } else {
+          onAuthSuccess(data.user, profile);
+        }
+      }
     } else {
-      setError(true);
-      setPassword('');
+      const { data, error } = await signUp(email, password, fullName);
+      if (error) {
+        setError(error.message);
+      } else {
+        setMessage('Account created! Please wait for an administrator to approve your access.');
+        setIsLogin(true);
+      }
     }
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#E8E6E1] flex items-center justify-center p-8">
+    <div className="min-h-screen bg-[#E8E6E1] flex items-center justify-center p-4 md:p-8">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-[#E53935]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8 text-[#E53935]" />
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
+            <div className="h-6 w-px bg-[#1A1A1A]" />
+            <span className="text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
           </div>
-          <h1 className="text-2xl font-bold text-[#1A1A1A] mb-2">Conscious Compass</h1>
-          <p className="text-[#666666]">Enter password to access the assessment tool</p>
+          <p className="text-[#666666]">{isLogin ? 'Sign in to access the assessment tool' : 'Create an account to get started'}</p>
         </div>
         
         <form onSubmit={handleSubmit} className="card p-6">
+          {!isLogin && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Full Name</label>
+              <input 
+                type="text" 
+                value={fullName} 
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your name"
+                className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
+                required={!isLogin}
+              />
+            </div>
+          )}
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Email</label>
+            <input 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
+              required
+            />
+          </div>
+          
           <div className="mb-4">
             <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Password</label>
             <input 
               type="password" 
               value={password} 
-              onChange={(e) => { setPassword(e.target.value); setError(false); }}
-              placeholder="Enter password"
-              className={`w-full px-4 py-3 border rounded-lg bg-white ${error ? 'border-red-500' : 'border-[#D9D6D0]'}`}
-              autoFocus
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={isLogin ? "Enter password" : "Create password (min 6 chars)"}
+              className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
+              required
+              minLength={6}
             />
-            {error && <p className="text-red-500 text-sm mt-2">Incorrect password</p>}
           </div>
-          <button type="submit" className="btn-primary btn-arrow w-full">
-            Access Tool
+          
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+          
+          {message && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+              {message}
+            </div>
+          )}
+          
+          <button type="submit" disabled={loading} className="btn-primary btn-arrow w-full">
+            {loading ? (
+              <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> {isLogin ? 'Signing in...' : 'Creating account...'}</>
+            ) : (
+              isLogin ? 'Sign In' : 'Create Account'
+            )}
           </button>
+          
+          <div className="mt-4 text-center">
+            <button 
+              type="button"
+              onClick={() => { setIsLogin(!isLogin); setError(''); setMessage(''); }}
+              className="text-sm text-[#E53935] hover:underline"
+            >
+              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            </button>
+          </div>
         </form>
         
         <p className="text-center text-xs text-[#9CA3AF] mt-6">
           Antenna Group | Brand Consciousness Assessment
         </p>
+      </div>
+    </div>
+  );
+}
+
+// Admin User Management Page
+function AdminPage({ currentUser, onBack }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    setLoading(true);
+    const { data } = await fetchAllProfiles();
+    if (data) setUsers(data);
+    setLoading(false);
+  };
+
+  const handleApprove = async (userId) => {
+    await approveUser(userId);
+    loadUsers();
+  };
+
+  const handleRevoke = async (userId) => {
+    if (confirm('Revoke access for this user?')) {
+      await revokeUser(userId);
+      loadUsers();
+    }
+  };
+
+  const handleToggleAdmin = async (userId, isCurrentlyAdmin) => {
+    if (userId === currentUser.id) {
+      alert("You can't change your own admin status");
+      return;
+    }
+    if (isCurrentlyAdmin) {
+      await removeAdmin(userId);
+    } else {
+      await makeAdmin(userId);
+    }
+    loadUsers();
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F5F4F0]">
+      <div className="max-w-4xl mx-auto p-4 md:p-8">
+        <div className="flex items-center gap-4 mb-8">
+          <button onClick={onBack} className="btn-secondary flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-[#1A1A1A]">User Management</h1>
+            <p className="text-sm text-[#666666]">Approve users and manage access</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="card p-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#E53935]" />
+            <p className="mt-4 text-[#666666]">Loading users...</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Pending Users */}
+            {users.filter(u => !u.is_approved).length > 0 && (
+              <div className="card p-6">
+                <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-yellow-600" />
+                  Pending Approval ({users.filter(u => !u.is_approved).length})
+                </h2>
+                <div className="space-y-3">
+                  {users.filter(u => !u.is_approved).map(user => (
+                    <div key={user.id} className="flex items-center justify-between p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div>
+                        <div className="font-medium text-[#1A1A1A]">{user.full_name || 'No name'}</div>
+                        <div className="text-sm text-[#666666]">{user.email}</div>
+                        <div className="text-xs text-[#9CA3AF]">Signed up {new Date(user.created_at).toLocaleDateString()}</div>
+                      </div>
+                      <button 
+                        onClick={() => handleApprove(user.id)}
+                        className="btn-primary text-sm px-4 py-2"
+                      >
+                        Approve
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Approved Users */}
+            <div className="card p-6">
+              <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+                <Users className="w-5 h-5 text-green-600" />
+                Active Users ({users.filter(u => u.is_approved).length})
+              </h2>
+              <div className="space-y-3">
+                {users.filter(u => u.is_approved).map(user => (
+                  <div key={user.id} className="flex items-center justify-between p-4 bg-white border border-[#D9D6D0] rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${user.is_admin ? 'bg-[#E53935]' : 'bg-[#666666]'}`}>
+                        {(user.full_name || user.email || '?')[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-medium text-[#1A1A1A] flex items-center gap-2">
+                          {user.full_name || 'No name'}
+                          {user.is_admin && (
+                            <span className="text-xs px-2 py-0.5 bg-[#E53935] text-white rounded-full">Admin</span>
+                          )}
+                          {user.id === currentUser.id && (
+                            <span className="text-xs text-[#666666]">(you)</span>
+                          )}
+                        </div>
+                        <div className="text-sm text-[#666666]">{user.email}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => handleToggleAdmin(user.id, user.is_admin)}
+                        className={`text-sm px-3 py-1.5 rounded border transition-colors ${
+                          user.is_admin 
+                            ? 'border-[#E53935] text-[#E53935] hover:bg-[#E53935]/10' 
+                            : 'border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+                        }`}
+                        disabled={user.id === currentUser.id}
+                        title={user.id === currentUser.id ? "Can't change your own admin status" : ""}
+                      >
+                        <Shield className="w-4 h-4 inline mr-1" />
+                        {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                      </button>
+                      <button 
+                        onClick={() => handleRevoke(user.id)}
+                        className="text-sm px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                        disabled={user.id === currentUser.id}
+                      >
+                        <UserX className="w-4 h-4 inline mr-1" />
+                        Revoke
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -333,7 +576,7 @@ function MaturityContinuum({ score }) {
 }
 
 // Header
-function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, lastAutoSave }) {
+function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, lastAutoSave, user, profile, onLogout, onAdmin }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   return (
@@ -364,6 +607,21 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
           <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#1A1A1A] text-white hover:bg-[#333333] px-4 py-2 rounded-lg transition-colors">
             <Plus className="w-4 h-4" /> New
           </button>
+          
+          {/* User Menu */}
+          <div className="ml-2 pl-3 border-l border-[#D9D6D0] flex items-center gap-2">
+            {profile?.is_admin && (
+              <button onClick={onAdmin} className="flex items-center gap-1 text-sm text-[#E53935] hover:text-[#C62828] transition-colors" title="User Management">
+                <Shield className="w-4 h-4" />
+              </button>
+            )}
+            <span className="text-xs text-[#666666] max-w-[120px] truncate" title={user?.email}>
+              {profile?.full_name || user?.email?.split('@')[0]}
+            </span>
+            <button onClick={onLogout} className="flex items-center gap-1 text-sm text-[#666666] hover:text-[#E53935] transition-colors" title="Sign out">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Mobile Menu Button */}
@@ -395,6 +653,21 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
           <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#1A1A1A] text-white rounded-lg transition-colors">
             <Plus className="w-5 h-5" /> New Assessment
           </button>
+          
+          {/* Mobile User Controls */}
+          <div className="pt-2 mt-2 border-t border-[#D9D6D0]">
+            <div className="px-4 py-2 text-sm text-[#666666]">
+              Signed in as <span className="font-medium">{profile?.full_name || user?.email}</span>
+            </div>
+            {profile?.is_admin && (
+              <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#E53935] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+                <Shield className="w-5 h-5" /> User Management
+              </button>
+            )}
+            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#666666] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+              <LogOut className="w-5 h-5" /> Sign Out
+            </button>
+          </div>
         </div>
       )}
     </header>
@@ -456,7 +729,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.8.3
+        Version 2.9.0
       </div>
     </div>
   );
@@ -3903,7 +4176,10 @@ function SharedReportView({ report, onClose }) {
 
 // Main App
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [showAdminPage, setShowAdminPage] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('conscious-compass-apikey') || DEFAULT_API_KEY);
   const [project, setProject] = useState({
@@ -3921,11 +4197,102 @@ export default function App() {
   const [showResultsPage, setShowResultsPage] = useState(false);
   const [showComparisonPage, setShowComparisonPage] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
   const [savedAssessments, setSavedAssessments] = useState([]);
   const [compassResults, setCompassResults] = useState([]);
-  const [sharedReport, setSharedReport] = useState(null); // For viewing shared reports
+  const [sharedReport, setSharedReport] = useState(null);
   const [lastAutoSave, setLastAutoSave] = useState(null);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profileData } = await getProfile(session.user.id);
+        if (profileData?.is_approved) {
+          setUser(session.user);
+          setProfile(profileData);
+          loadDataFromSupabase();
+        }
+      }
+      setAuthLoading(false);
+    };
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadDataFromSupabase = async () => {
+    try {
+      const { data: resultsData } = await fetchCompassResults();
+      if (resultsData) {
+        const formattedResults = resultsData.map(r => ({
+          id: r.id,
+          brandName: r.brand_name,
+          businessModel: r.business_model,
+          industry: r.industry,
+          totalScore: r.total_score,
+          maturityLevel: r.maturity_level,
+          scores: r.scores,
+          servicesRecommended: r.services_recommended || [],
+          savedAt: r.created_at,
+          isManual: r.is_manual,
+        }));
+        setCompassResults(formattedResults);
+      }
+
+      const { data: assessmentsData } = await fetchSavedAssessments();
+      if (assessmentsData) {
+        const formattedAssessments = assessmentsData.map(a => ({
+          id: a.id,
+          project: a.project,
+          assessments: a.assessments,
+          scores: a.scores,
+          savedAt: a.created_at,
+        }));
+        setSavedAssessments(formattedAssessments);
+      }
+    } catch (err) {
+      console.error('Error loading data:', err);
+    }
+
+    if (!localStorage.getItem('conscious-compass-onboarded')) {
+      setShowOnboarding(true);
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedData = urlParams.get('report');
+    if (sharedData) {
+      try {
+        const decoded = JSON.parse(atob(sharedData));
+        if (decoded.project && decoded.scores) {
+          setSharedReport(decoded);
+        }
+      } catch (err) {
+        console.error('Failed to parse shared report:', err);
+      }
+    }
+  };
+
+  const handleAuthSuccess = async (authUser, authProfile) => {
+    setUser(authUser);
+    setProfile(authProfile);
+    await loadDataFromSupabase();
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    setUser(null);
+    setProfile(null);
+    setCompassResults([]);
+    setSavedAssessments([]);
+  };
 
   // Persist API key to localStorage whenever it changes
   useEffect(() => {
@@ -3945,52 +4312,6 @@ export default function App() {
     }, 30000);
     return () => clearInterval(autoSaveInterval);
   }, [project, assessments, currentStep]);
-
-  // Load draft on mount if exists
-  useEffect(() => {
-    // Check if already authenticated
-    if (localStorage.getItem('conscious-compass-auth') === 'true') {
-      setIsAuthenticated(true);
-    }
-    setSavedAssessments(JSON.parse(localStorage.getItem('conscious-compass-saved') || '[]'));
-    setCompassResults(JSON.parse(localStorage.getItem('conscious-compass-results') || '[]'));
-    
-    // Check for draft
-    const draft = localStorage.getItem('conscious-compass-draft');
-    if (draft) {
-      const parsed = JSON.parse(draft);
-      const draftAge = Date.now() - new Date(parsed.savedAt).getTime();
-      // Only restore drafts less than 24 hours old
-      if (draftAge < 24 * 60 * 60 * 1000 && parsed.project?.brandName) {
-        if (confirm(`Resume your draft assessment for "${parsed.project.brandName}"?`)) {
-          setProject(parsed.project);
-          setAssessments(parsed.assessments);
-          setCurrentStep(parsed.currentStep);
-        } else {
-          localStorage.removeItem('conscious-compass-draft');
-        }
-      }
-    }
-    
-    // Check for first time user
-    if (!localStorage.getItem('conscious-compass-onboarded')) {
-      setShowOnboarding(true);
-    }
-    
-    // Check for shared report in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const sharedData = urlParams.get('report');
-    if (sharedData) {
-      try {
-        const decoded = JSON.parse(atob(sharedData));
-        if (decoded.project && decoded.scores) {
-          setSharedReport(decoded);
-        }
-      } catch (err) {
-        console.error('Failed to parse shared report:', err);
-      }
-    }
-  }, []);
 
   const steps = [
     { id: 'setup', name: 'Setup' },
@@ -4016,33 +4337,28 @@ export default function App() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!project.brandName) {
       alert('Please enter a brand name before saving.');
       return;
     }
     try {
-      let saved = JSON.parse(localStorage.getItem('conscious-compass-saved') || '[]');
-      // Create a copy of assessments without large image data to reduce storage size
+      // Create a copy of assessments without large image data
       const assessmentsToSave = {
         ...assessments,
-        website: { ...assessments.website, images: [] }, // Exclude website screenshots
-        social: { ...assessments.social, socialImages: [], instagramImages: [] }, // Exclude social images
+        website: { ...assessments.website, images: [] },
+        social: { ...assessments.social, socialImages: [], instagramImages: [] },
       };
-      const data = { project, assessments: assessmentsToSave, scores, savedAt: new Date().toISOString() };
-      const idx = saved.findIndex(s => s.project.brandName === project.brandName);
-      if (idx >= 0) {
-        saved[idx] = data;
-      } else {
-        // Limit to 15 assessments
-        if (saved.length >= 15) {
-          saved = saved.slice(-14); // Keep most recent 14 to make room for new one
-        }
-        saved.push(data);
-      }
-      localStorage.setItem('conscious-compass-saved', JSON.stringify(saved));
-      setSavedAssessments(saved);
       
+      // Save to Supabase - saved assessments
+      const { error: saveError } = await saveAssessment({
+        project,
+        assessments: assessmentsToSave,
+        scores,
+      });
+      
+      if (saveError) throw saveError;
+
       // Also save to compass results (summary only)
       if (scores) {
         const overall = Math.round(
@@ -4053,9 +4369,7 @@ export default function App() {
         const stage = getMaturityStage(overall);
         const serviceRecs = getAllRecommendations(scores);
         
-        let results = JSON.parse(localStorage.getItem('conscious-compass-results') || '[]');
         const resultData = {
-          id: `${project.brandName}-${Date.now()}`,
           brandName: project.brandName,
           businessModel: project.businessModel,
           industry: project.industry,
@@ -4072,24 +4386,19 @@ export default function App() {
             INTENTIONAL: scores.INTENTIONAL?.score || 0,
           },
           servicesRecommended: serviceRecs.slice(0, 6).map(r => r.service?.name || '').filter(Boolean),
-          savedAt: new Date().toISOString(),
           isManual: false,
         };
         
-        const resultIdx = results.findIndex(r => r.brandName === project.brandName && !r.isManual);
-        if (resultIdx >= 0) {
-          results[resultIdx] = resultData;
-        } else {
-          results.push(resultData);
-        }
-        localStorage.setItem('conscious-compass-results', JSON.stringify(results));
-        setCompassResults(results);
+        await saveCompassResult(resultData);
       }
+
+      // Reload data from Supabase
+      await loadDataFromSupabase();
       
       alert('Assessment saved!');
     } catch (e) {
       console.error('Save failed:', e);
-      alert('Save failed: ' + (e.message || 'Storage limit may have been exceeded. Try clearing old assessments.'));
+      alert('Save failed: ' + (e.message || 'Unknown error'));
     }
   };
 
@@ -4117,12 +4426,12 @@ export default function App() {
     setShowSavedPage(false);
   };
 
-  const handleDelete = (index) => {
-    if (confirm('Delete this saved assessment?')) {
-      const saved = JSON.parse(localStorage.getItem('conscious-compass-saved') || '[]');
-      saved.splice(index, 1);
-      localStorage.setItem('conscious-compass-saved', JSON.stringify(saved));
-      setSavedAssessments(saved);
+  const handleDelete = async (assessment) => {
+    if (confirm(`Delete assessment for "${assessment.project?.brandName || 'this brand'}"?`)) {
+      if (assessment.id) {
+        await deleteAssessment(assessment.id);
+        await loadDataFromSupabase();
+      }
     }
   };
 
@@ -4137,28 +4446,23 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = (data) => {
-    let saved = JSON.parse(localStorage.getItem('conscious-compass-saved') || '[]');
-    const idx = saved.findIndex(s => s.project.brandName === data.project.brandName);
-    if (idx >= 0) {
-      if (confirm(`An assessment for "${data.project.brandName}" already exists. Replace it?`)) {
-        saved[idx] = { ...data, savedAt: new Date().toISOString() };
-      } else {
-        return;
-      }
-    } else {
-      if (saved.length >= 15) {
-        saved = saved.slice(-14);
-      }
-      saved.push({ ...data, savedAt: new Date().toISOString() });
+  const handleImport = async (data) => {
+    if (!data.project || !data.assessments) {
+      alert('Invalid file format');
+      return;
     }
-    localStorage.setItem('conscious-compass-saved', JSON.stringify(saved));
-    setSavedAssessments(saved);
+    
+    await saveAssessment({
+      project: data.project,
+      assessments: data.assessments,
+      scores: data.scores,
+    });
+    
+    await loadDataFromSupabase();
     alert(`Assessment for "${data.project.brandName}" imported successfully!`);
   };
 
   const handleShare = (assessment) => {
-    // Create a minimal shareable version (just project info and scores, no raw assessment data)
     const shareData = {
       project: assessment.project,
       scores: assessment.scores,
@@ -4176,9 +4480,26 @@ export default function App() {
 
   const updateAssessment = (key, data) => setAssessments(prev => ({ ...prev, [key]: { ...prev[key], ...data } }));
 
-  // Show password gate if not authenticated
-  if (!isAuthenticated) {
-    return <PasswordGate onSuccess={() => setIsAuthenticated(true)} />;
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#E8E6E1] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#E53935]" />
+          <p className="mt-4 text-[#666666]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auth page if not logged in
+  if (!user || !profile) {
+    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
+  }
+
+  // Show admin page
+  if (showAdminPage) {
+    return <AdminPage currentUser={user} onBack={() => setShowAdminPage(false)} />;
   }
 
   // Show shared report if accessed via share link
@@ -4199,6 +4520,10 @@ export default function App() {
           onCompassResults={() => { setShowComparisonPage(false); setShowResultsPage(true); }}
           onComparison={() => setShowComparisonPage(false)}
           lastAutoSave={lastAutoSave}
+          user={user}
+          profile={profile}
+          onLogout={handleLogout}
+          onAdmin={() => setShowAdminPage(true)}
         />
         <ComparisonPage 
           results={compassResults}
@@ -4218,6 +4543,10 @@ export default function App() {
           onCompassResults={() => setShowResultsPage(false)}
           onComparison={() => { setShowResultsPage(false); setShowComparisonPage(true); }}
           lastAutoSave={lastAutoSave}
+          user={user}
+          profile={profile}
+          onLogout={handleLogout}
+          onAdmin={() => setShowAdminPage(true)}
         />
         <CompassResultsPage 
           results={compassResults}
@@ -4238,6 +4567,10 @@ export default function App() {
           onCompassResults={() => { setShowSavedPage(false); setShowResultsPage(true); }}
           onComparison={() => { setShowSavedPage(false); setShowComparisonPage(true); }}
           lastAutoSave={lastAutoSave}
+          user={user}
+          profile={profile}
+          onLogout={handleLogout}
+          onAdmin={() => setShowAdminPage(true)}
         />
         <SavedAssessmentsPage 
           assessments={savedAssessments} 
@@ -4266,6 +4599,10 @@ export default function App() {
         onCompassResults={() => setShowResultsPage(true)}
         onComparison={() => setShowComparisonPage(true)}
         lastAutoSave={lastAutoSave}
+        user={user}
+        profile={profile}
+        onLogout={handleLogout}
+        onAdmin={() => setShowAdminPage(true)}
       />
       {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
 
