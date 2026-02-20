@@ -24,7 +24,7 @@ import {
   removeAdmin
 } from './lib/supabase';
 
-const DEFAULT_API_KEY = '';
+const DEFAULT_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || '';
 
 // Auth Page Component (Login/Signup)
 function AuthPage({ onAuthSuccess }) {
@@ -766,7 +766,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.5
+        Version 2.12.6
       </div>
     </div>
   );
@@ -811,12 +811,23 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext }) {
           <p className="text-xs text-[#666666] mt-1">Used for industry context in the assessment</p>
         </div>
 
-        <div className="pt-4 border-t border-[#D9D6D0]">
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Claude API Key *</label>
-          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white font-mono text-sm" />
-          <p className="text-xs text-[#666666] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">console.anthropic.com</a></p>
-        </div>
+        {/* Only show API key field if no default is configured */}
+        {!DEFAULT_API_KEY && (
+          <div className="pt-4 border-t border-[#D9D6D0]">
+            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Claude API Key *</label>
+            <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white font-mono text-sm" />
+            <p className="text-xs text-[#666666] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">console.anthropic.com</a></p>
+          </div>
+        )}
+        {DEFAULT_API_KEY && (
+          <div className="pt-4 border-t border-[#D9D6D0]">
+            <div className="flex items-center gap-2 text-sm text-[#059669]">
+              <Check className="w-4 h-4" />
+              <span>API key configured</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end mt-10">
