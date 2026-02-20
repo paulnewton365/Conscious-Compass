@@ -766,7 +766,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.0
+        Version 2.12.2
       </div>
     </div>
   );
@@ -863,9 +863,9 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
     return 'Poor';
   };
 
-  // Generate PageSpeed URL for the website
+  // Generate PageSpeed URL for the website (desktop analysis)
   const pageSpeedUrl = websiteUrl 
-    ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(websiteUrl.startsWith('http') ? websiteUrl : 'https://' + websiteUrl)}`
+    ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(websiteUrl.startsWith('http') ? websiteUrl : 'https://' + websiteUrl)}&form_factor=desktop`
     : null;
 
   const hasAnyScore = Object.values(techAudit.scores).some(s => s !== '' && s !== undefined);
@@ -1422,7 +1422,7 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     setAssessmentData({ ...assessmentData, [key]: value });
   };
 
-  // Auto-check YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor, and WIPO
+  // Auto-check YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor (NOT WIPO - manual only)
   const runAutoCheck = async () => {
     setIsAutoChecking(true);
     setError(null);
@@ -1432,60 +1432,67 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
 Website: ${project.websiteUrl}
 Industry: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
 
-Based on your knowledge, provide a brief assessment for each platform. IMPORTANT: Do NOT guess or estimate specific numbers like subscriber counts, follower counts, or engagement metrics - these change constantly and any estimates would be inaccurate. Focus on qualitative observations only.
+CRITICAL INSTRUCTION: Only report what you can verify from your training data. If you are uncertain or don't have evidence, state "NEEDS MANUAL VERIFICATION" for that item. Do NOT speculate or guess. Every claim must be evidence-based.
 
 1. YOUTUBE PRESENCE:
-- Does ${project.brandName} appear to have an official YouTube channel? (Yes/No/Unknown)
-- If yes, what is the channel name or URL if known?
-- What type of content do they publish (tutorials, thought leadership, product demos, etc.)?
-- General observations about content quality and posting consistency
-- DO NOT estimate subscriber counts or view counts - these must be manually verified
-- If no YouTube presence, note "No known YouTube channel"
+Evidence-based assessment only. For each item, state what you know or "Needs verification":
+- EXISTENCE: Does ${project.brandName} have an official YouTube channel? (Confirmed Yes / Confirmed No / Needs verification)
+- CHANNEL NAME/URL: If known, provide exact channel name
+- SETUP: Is the channel properly branded (profile image, banner, description)?
+- CONTENT TYPE: What types of videos do they publish? (tutorials, thought leadership, product demos, testimonials, etc.)
+- POSTING REGULARITY: If known, how frequently do they post? (weekly, monthly, sporadic, inactive)
+- ENGAGEMENT SIGNALS: Are comments enabled? Do videos show significant engagement?
+- NOTE: Do not estimate subscriber counts or view counts - state "Verify at youtube.com/@channelname"
 
 2. WIKIPEDIA PRESENCE:
-- Does ${project.brandName} have a Wikipedia page?
-- If yes, summarize the key information: founding, headquarters, key products/services, notable achievements
-- Note the page quality (stub, well-developed, etc.)
-- If no Wikipedia page, note "No Wikipedia page found"
+Evidence-based assessment only:
+- EXISTENCE: Does ${project.brandName} have a Wikipedia page? (Confirmed Yes / Confirmed No / Needs verification)
+- PAGE URL: If known, provide the exact Wikipedia URL
+- ACCURACY: Does the page appear accurate and well-maintained? Any outdated information?
+- SENTIMENT: Is the overall tone neutral, positive, or does it highlight controversies?
+- ACCOMPLISHMENTS: What achievements, awards, or milestones are mentioned?
+- CRITICISM: Are there any criticism sections or controversies documented?
+- NAME CONFLICT: Is there another company/entity with a similar name that might own or compete for this Wikipedia page?
+- PAGE QUALITY: Is it a stub, start-class, or well-developed article?
 
 3. REDDIT PRESENCE:
-- Is ${project.brandName} discussed on Reddit?
-- Are there any brand-owned subreddits?
-- What is the general sentiment in discussions?
-- Notable threads or mentions
-- If minimal presence, note "Limited Reddit presence"
+Evidence-based assessment including Reddit Answers:
+- SUBREDDIT: Does ${project.brandName} have an official subreddit? If yes, provide r/name
+- DISCUSSIONS: Are they discussed in relevant industry subreddits? Which ones?
+- SENTIMENT: What is the general tone of discussions? (positive, negative, mixed, neutral)
+- COMMON THEMES: What topics come up most frequently?
+- REDDIT ANSWERS: Check if ${project.brandName} appears in Reddit Answers (reddit.com/answers/) - this is Reddit's AI-powered Q&A feature. Is the brand mentioned in AI-generated answers?
+- NOTABLE THREADS: Any significant threads (AMAs, controversies, praise)?
+- If limited or no presence, state "Limited Reddit presence - needs manual verification"
 
-4. GLASSDOOR PRESENCE (impacts brand self-awareness/Reflective score):
-- Does ${project.brandName} have a Glassdoor profile?
-- General themes in reviews about company culture, leadership, work-life balance
-- DO NOT guess specific ratings - these must be manually verified at glassdoor.com
-- If no Glassdoor presence, note "No Glassdoor profile found"
+4. GLASSDOOR PRESENCE:
+Evidence-based assessment only:
+- EXISTENCE: Does ${project.brandName} have a Glassdoor profile? (Confirmed Yes / Confirmed No / Needs verification)
+- PROFILE URL: If known
+- REVIEW THEMES: General themes mentioned (culture, leadership, compensation, work-life balance)
+- DO NOT guess ratings - state "Rating needs verification at glassdoor.com/company-name"
+- CEO/LEADERSHIP: Any mentions of leadership reputation?
 
-5. NEXTDOOR PRESENCE (impacts audience connection/Aware score):
-- Is ${project.brandName} active on Nextdoor or mentioned in neighborhood discussions?
-- For B2B brands, this may not be applicable
-- For B2C/local businesses, what is the community sentiment?
-- If not applicable or no presence, note "Not applicable/No Nextdoor presence"
+5. NEXTDOOR PRESENCE:
+Evidence-based assessment only:
+- APPLICABILITY: Is Nextdoor relevant for this brand type? (B2C/local = relevant, B2B = typically not)
+- PRESENCE: Is ${project.brandName} active on Nextdoor as a business?
+- COMMUNITY MENTIONS: Are they discussed in neighborhood recommendations?
+- SENTIMENT: What do local communities say about them?
+- If B2B or not applicable, state "Not applicable for B2B brands - skip"
 
-6. WIPO TRADEMARK STATUS (impacts brand professionalism/Intentional score):
-- Does ${project.brandName} have registered trademarks via WIPO (World Intellectual Property Organization)?
-- In which jurisdictions is the brand name protected?
-- Are there any trademark conflicts or similar names that could cause confusion?
-- If unknown, note "Trademark status requires manual verification at branddb.wipo.int"
-
-Format your response clearly with headers for each platform. Be concise but informative. Remind the user to manually verify any specific statistics.`;
+Format each section with clear headers. Be explicit about what is verified vs. what needs manual verification.`;
 
       const result = await callClaude(prompt, apiKey);
       
       // Parse the response and update the relevant fields
-      const sections = result.split(/(?=\d\.\s*(?:YOUTUBE|WIKIPEDIA|REDDIT|GLASSDOOR|NEXTDOOR|WIPO))/i);
+      const sections = result.split(/(?=\d\.\s*(?:YOUTUBE|WIKIPEDIA|REDDIT|GLASSDOOR|NEXTDOOR))/i);
       
       let youtubeInfo = '';
       let wikiInfo = '';
       let redditInfo = '';
       let glassdoorInfo = '';
       let nextdoorInfo = '';
-      let wipoInfo = '';
       
       sections.forEach(section => {
         if (section.toLowerCase().includes('youtube')) {
@@ -1498,8 +1505,6 @@ Format your response clearly with headers for each platform. Be concise but info
           glassdoorInfo = section.replace(/^\d\.\s*GLASSDOOR[^:]*:/i, '').trim();
         } else if (section.toLowerCase().includes('nextdoor')) {
           nextdoorInfo = section.replace(/^\d\.\s*NEXTDOOR[^:]*:/i, '').trim();
-        } else if (section.toLowerCase().includes('wipo')) {
-          wipoInfo = section.replace(/^\d\.\s*WIPO[^:]*:/i, '').trim();
         }
       });
 
@@ -1518,9 +1523,6 @@ Format your response clearly with headers for each platform. Be concise but info
       }
       if (nextdoorInfo && !inputs.nextdoorContent) {
         updateInput('nextdoorContent', `[Auto-checked] ${nextdoorInfo}`);
-      }
-      if (wipoInfo && !inputs.wipoContent) {
-        updateInput('wipoContent', `[Auto-checked] ${wipoInfo}`);
       }
 
     } catch (err) {
@@ -1703,14 +1705,13 @@ Write in flowing prose with specific observations from the content provided. End
   const [expanded, setExpanded] = useState({ linkedin: true, x: false, instagram: false, other: false, reputation: false });
   const toggleSection = (section) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
-  // Status badges for auto-check
+  // Status badges for auto-check (5 platforms - WIPO is manual only)
   const autoCheckStatus = {
     youtube: !!inputs.youtubeContent?.includes('[Auto-checked]'),
     wikipedia: !!inputs.wikipediaContent?.includes('[Auto-checked]'),
     reddit: !!inputs.redditContent?.includes('[Auto-checked]'),
     glassdoor: !!inputs.glassdoorContent?.includes('[Auto-checked]'),
     nextdoor: !!inputs.nextdoorContent?.includes('[Auto-checked]'),
-    wipo: !!inputs.wipoContent?.includes('[Auto-checked]'),
   };
   const autoCheckCount = Object.values(autoCheckStatus).filter(Boolean).length;
 
@@ -1757,11 +1758,11 @@ Write in flowing prose with specific observations from the content provided. End
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-medium text-[#1A1A1A]">Quick Auto-Check</h3>
-            <p className="text-xs text-[#666666]">Auto-fill YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor & WIPO</p>
+            <p className="text-xs text-[#666666]">Evidence-based check: YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor</p>
           </div>
           <div className="flex items-center gap-3">
             {autoCheckCount > 0 && (
-              <span className="text-xs text-[#059669] font-medium">{autoCheckCount}/6 checked</span>
+              <span className="text-xs text-[#059669] font-medium">{autoCheckCount}/5 checked</span>
             )}
             <button 
               onClick={runAutoCheck} 
@@ -1819,10 +1820,16 @@ Write in flowing prose with specific observations from the content provided. End
                 </a>
               )}
             </div>
-            <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
-              placeholder="Paste the 'About' section..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
-              placeholder="Paste 5-10 recent posts with engagement metrics..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            <div>
+              <label className="text-xs font-medium text-[#666666] mb-1 block">Company Profile & About Section</label>
+              <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
+                placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[#666666] mb-1 block">Recent Posts & Engagement</label>
+              <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
+                placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
           </div>
         )}
       </div>
@@ -1860,26 +1867,12 @@ Write in flowing prose with specific observations from the content provided. End
           icon={Image} 
           isOpen={expanded.instagram} 
           onClick={() => toggleSection('instagram')}
-          hasContent={!!(inputs.instagramContent || instagramImages.length > 0)}
+          hasContent={!!inputs.instagramContent}
         />
         {expanded.instagram && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white">
             <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
-              placeholder="Bio, follower count, content themes, engagement levels..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            <input type="file" ref={instagramFileInputRef} onChange={handleInstagramImageUpload} accept="image/*" multiple className="hidden" />
-            <div className="flex items-center gap-2">
-              {instagramImages.map((img, idx) => (
-                <div key={idx} className="relative w-12 h-12">
-                  <img src={img} alt={`IG ${idx + 1}`} className="w-full h-full object-cover rounded border" />
-                  <button onClick={() => removeInstagramImage(idx)} className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs">×</button>
-                </div>
-              ))}
-              {instagramImages.length < 4 && (
-                <button onClick={() => instagramFileInputRef.current?.click()} className="w-12 h-12 border-2 border-dashed border-[#E53935] rounded flex items-center justify-center hover:bg-[#E53935]/5">
-                  <Upload className="w-4 h-4 text-[#E53935]" />
-                </button>
-              )}
-            </div>
+              placeholder="Bio, follower count, content themes (lifestyle, product, behind-scenes), posting frequency, engagement patterns, visual consistency..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         )}
       </div>
@@ -1938,26 +1931,32 @@ Write in flowing prose with specific observations from the content provided. End
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#666666]">Glassdoor <span className="text-purple-600">(→ Reflective)</span></label>
-                {autoCheckStatus.glassdoor && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                <div className="flex items-center gap-2">
+                  {autoCheckStatus.glassdoor && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                  <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#666666] hover:text-[#E53935]">Verify →</a>
+                </div>
               </div>
               <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
-                placeholder="Rating, CEO approval, culture themes, review patterns..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Rating (out of 5), CEO approval %, # of reviews, culture themes, pros/cons patterns..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#666666]">Nextdoor <span className="text-green-600">(→ Aware)</span></label>
-                {autoCheckStatus.nextdoor && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                <div className="flex items-center gap-2">
+                  {autoCheckStatus.nextdoor && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                  <a href="https://nextdoor.com/find-business/" target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#666666] hover:text-[#E53935]">Verify →</a>
+                </div>
               </div>
               <textarea value={inputs.nextdoorContent} onChange={(e) => updateInput('nextdoorContent', e.target.value)}
-                placeholder="Community presence, local reputation... (N/A for pure B2B)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Business profile, recommendations count, community sentiment... (N/A for pure B2B)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#666666]">WIPO Trademark <span className="text-blue-600">(→ Intentional)</span></label>
-                {autoCheckStatus.wipo && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                <a href="https://branddb.wipo.int/en/similarname" target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#E53935] hover:underline">Manual search →</a>
               </div>
               <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
-                placeholder="Trademark registrations, jurisdictions, conflicts..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Search branddb.wipo.int for: trademark registrations, jurisdictions covered, any similar/conflicting marks..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -3347,6 +3346,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
             {results.map((r, i) => {
               const stage = MATURITY_STAGES.find(s => s.name === r.maturityLevel) || MATURITY_STAGES[0];
               const isExpanded = expandedRows.includes(r.id || i);
+              const assessmentDate = r.savedAt ? new Date(r.savedAt) : null;
               return (
                 <div key={r.id || i} className="card overflow-hidden">
                   {/* Main Row */}
@@ -3354,7 +3354,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     className="flex items-center gap-4 p-4 cursor-pointer hover:bg-[#F8F7F5] transition-colors"
                     onClick={() => toggleRow(r.id || i)}
                   >
-                    {/* Brand & Score */}
+                    {/* Brand & Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-[#1A1A1A] truncate">{r.brandName}</span>
@@ -3366,8 +3366,22 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                         <span>{r.businessModel?.toUpperCase()}</span>
                         <span>•</span>
                         <span className="truncate">{r.industry}</span>
+                        <span>•</span>
+                        <span>v{r.rubricVersion || '2.3'}</span>
                       </div>
                     </div>
+                    
+                    {/* Date Badge */}
+                    {assessmentDate && (
+                      <div className="text-center px-2">
+                        <div className="text-xs font-medium text-[#666666]">
+                          {assessmentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </div>
+                        <div className="text-[10px] text-[#999999]">
+                          {assessmentDate.getFullYear()}
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Score Badge */}
                     <div className="flex items-center gap-3">
@@ -3379,13 +3393,8 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       </div>
                     </div>
                     
-                    {/* Date & Actions */}
-                    <div className="flex items-center gap-3 text-xs text-[#666666]">
-                      <span className="hidden sm:inline">
-                        {r.savedAt ? new Date(r.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : '-'}
-                      </span>
-                      <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                    </div>
+                    {/* Expand Icon */}
+                    <ChevronDown className={`w-4 h-4 text-[#666666] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
                   
                   {/* Expanded Details */}
@@ -3404,8 +3413,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       {/* Meta Info */}
                       <div className="flex flex-wrap items-center gap-4 text-xs text-[#666666]">
                         <span><strong>Assessor:</strong> {r.assessorName || 'Unknown'}</span>
-                        <span><strong>Version:</strong> {r.rubricVersion || '2.3'}</span>
-                        <span><strong>Date:</strong> {r.savedAt ? new Date(r.savedAt).toLocaleDateString() : '-'}</span>
+                        <span><strong>Full Date:</strong> {r.savedAt ? new Date(r.savedAt).toLocaleString() : '-'}</span>
                         {profile?.is_admin && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} 

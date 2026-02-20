@@ -54,14 +54,8 @@ export const fetchCompassResults = async () => {
 };
 
 export const saveCompassResult = async (result) => {
-  // Check if result with same brand name exists (non-manual)
-  const { data: existing } = await supabase
-    .from('compass_results')
-    .select('id')
-    .eq('brand_name', result.brandName)
-    .eq('is_manual', false)
-    .single();
-
+  // Always create a new record to allow tracking improvements over time
+  // Multiple assessments for same brand with different timestamps are allowed
   const resultData = {
     brand_name: result.brandName,
     business_model: result.businessModel,
@@ -72,28 +66,17 @@ export const saveCompassResult = async (result) => {
     services_recommended: result.servicesRecommended || [],
     is_manual: result.isManual || false,
     assessor_name: result.assessorName || null,
-    rubric_version: result.rubricVersion || '2.3',
+    rubric_version: result.rubricVersion || '2.4',
     updated_at: new Date().toISOString(),
   };
 
-  if (existing?.id && !result.isManual) {
-    // Update existing
-    const { data, error } = await supabase
-      .from('compass_results')
-      .update(resultData)
-      .eq('id', existing.id)
-      .select()
-      .single();
-    return { data, error };
-  } else {
-    // Insert new
-    const { data, error } = await supabase
-      .from('compass_results')
-      .insert(resultData)
-      .select()
-      .single();
-    return { data, error };
-  }
+  // Insert new record (allows multiple assessments per brand over time)
+  const { data, error } = await supabase
+    .from('compass_results')
+    .insert(resultData)
+    .select()
+    .single();
+  return { data, error };
 };
 
 export const deleteCompassResult = async (id) => {
