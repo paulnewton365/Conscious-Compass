@@ -791,7 +791,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.8
+        Version 2.12.9
       </div>
     </div>
   );
@@ -2792,7 +2792,8 @@ Return the JSON scores in this exact format:
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 20;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
       const contentWidth = pageWidth - (margin * 2);
       let y = margin;
 
@@ -2800,118 +2801,125 @@ Return the JSON scores in this exact format:
       const brandRed = [229, 57, 53];
       const brandBlack = [26, 26, 26];
       const brandGray = [102, 102, 102];
+      const lightGray = [240, 238, 234];
 
-      const addText = (text, fontSize = 10, isBold = false, color = brandBlack) => {
+      // Helper to convert hex to RGB
+      const hexToRgb = (hex) => {
+        const h = hex.replace('#', '');
+        return [parseInt(h.substr(0, 2), 16), parseInt(h.substr(2, 2), 16), parseInt(h.substr(4, 2), 16)];
+      };
+
+      const checkPageBreak = (needed = 30) => {
+        if (y + needed > pageHeight - 20) {
+          pdf.addPage();
+          y = margin;
+          return true;
+        }
+        return false;
+      };
+
+      const addText = (text, fontSize = 10, isBold = false, color = brandBlack, maxWidth = contentWidth) => {
         pdf.setFontSize(fontSize);
         pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
         pdf.setTextColor(color[0], color[1], color[2]);
-        const lines = pdf.splitTextToSize(text, contentWidth);
+        const lines = pdf.splitTextToSize(String(text || ''), maxWidth);
         lines.forEach(line => {
-          if (y > 270) { pdf.addPage(); y = margin; }
+          checkPageBreak(fontSize * 0.5);
           pdf.text(line, margin, y);
-          y += fontSize * 0.5;
+          y += fontSize * 0.45;
         });
-        y += 2;
+        y += 1;
       };
 
       const addHeading = (text) => {
-        y += 5;
-        if (y > 250) { pdf.addPage(); y = margin; }
+        checkPageBreak(20);
+        y += 6;
         pdf.setFillColor(brandRed[0], brandRed[1], brandRed[2]);
-        pdf.rect(margin, y - 4, 3, 12, 'F');
-        pdf.setFontSize(14);
+        pdf.rect(margin, y - 3, 3, 10, 'F');
+        pdf.setFontSize(12);
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(brandBlack[0], brandBlack[1], brandBlack[2]);
         pdf.text(text, margin + 6, y + 4);
-        y += 12;
+        y += 14;
       };
 
-      const addSpace = (space = 5) => { y += space; };
-
-      // Header with brand styling
-      pdf.setFillColor(brandRed[0], brandRed[1], brandRed[2]);
-      pdf.rect(0, 0, pageWidth, 35, 'F');
+      // ========== PAGE 1: HEADER + HERO ==========
       
+      // Red header bar
+      pdf.setFillColor(brandRed[0], brandRed[1], brandRed[2]);
+      pdf.rect(0, 0, pageWidth, 30, 'F');
+      
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(project.brandName, margin, 15);
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Conscious Compass Assessment Report', margin, 22);
+      
+      pdf.setFontSize(8);
+      pdf.text(`${project.date || new Date().toLocaleDateString()} | ${industryName} | ${project.businessModel.toUpperCase()}`, margin, 27);
+      
+      y = 38;
+
+      // Hero section - Score on left, Spider chart on right
+      const heroLeft = margin;
+      const heroMid = pageWidth / 2 - 5;
+      const heroRight = pageWidth / 2 + 5;
+      
+      // Left side: Score box
+      const stageRgb = hexToRgb(stage.color);
+      pdf.setFillColor(stageRgb[0], stageRgb[1], stageRgb[2]);
+      pdf.roundedRect(heroLeft, y, 35, 30, 3, 3, 'F');
+      pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(24);
       pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text(project.brandName, margin, 18);
-      
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Conscious Compass Assessment Report', margin, 26);
-      
-      pdf.setFontSize(9);
-      pdf.text(`${project.date || new Date().toLocaleDateString()} | ${industryName} | ${project.businessModel.toUpperCase()}`, margin, 32);
-      
-      y = 45;
-
-      // Overall Score Box with maturity color
-      const stageHex = stage.color.replace('#', '');
-      const stageR = parseInt(stageHex.substr(0, 2), 16);
-      const stageG = parseInt(stageHex.substr(2, 2), 16);
-      const stageB = parseInt(stageHex.substr(4, 2), 16);
-      
-      pdf.setFillColor(stageR, stageG, stageB);
-      pdf.roundedRect(margin, y, 40, 25, 3, 3, 'F');
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(22);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(`${overall}`, margin + 12, y + 15);
+      pdf.text(String(overall), heroLeft + 17, y + 18, { align: 'center' });
       pdf.setFontSize(8);
-      pdf.text('/100', margin + 26, y + 15);
+      pdf.text('/100', heroLeft + 17, y + 25, { align: 'center' });
       
+      // Stage name and description
       pdf.setTextColor(brandBlack[0], brandBlack[1], brandBlack[2]);
       pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
-      pdf.text(stage.name, margin + 48, y + 10);
-      pdf.setFontSize(9);
+      pdf.text(stage.name, heroLeft + 42, y + 10);
+      
+      pdf.setFontSize(8);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(brandGray[0], brandGray[1], brandGray[2]);
-      const stageDesc = pdf.splitTextToSize(stage.description, contentWidth - 55);
-      pdf.text(stageDesc, margin + 48, y + 16);
-      y += 32;
-
-      // Strengths & Opportunities mini summary
-      pdf.setFontSize(9);
+      const descLines = pdf.splitTextToSize(stage.description, heroMid - heroLeft - 45);
+      pdf.text(descLines, heroLeft + 42, y + 16);
+      
+      // Strengths & Opportunities
+      pdf.setFontSize(8);
       pdf.setTextColor(5, 150, 105);
-      pdf.text(`Strengths: ${sortedAttrs.slice(-2).map(a => a.name).join(', ')}`, margin, y);
+      pdf.text(`Strengths: ${sortedAttrs.slice(-2).map(a => a.name).join(', ')}`, heroLeft, y + 35);
       pdf.setTextColor(220, 38, 38);
-      pdf.text(`Opportunities: ${sortedAttrs.slice(0, 2).map(a => a.name).join(', ')}`, margin + 85, y);
-      y += 8;
-
-      // Spider Chart Section
-      addHeading('BRAND CONSCIOUSNESS PROFILE');
+      pdf.text(`Opportunities: ${sortedAttrs.slice(0, 2).map(a => a.name).join(', ')}`, heroLeft, y + 41);
       
-      const chartCenterX = pageWidth / 2;
-      const chartCenterY = y + 50;
-      const chartRadius = 40;
-      const numAttrs = ATTRIBUTES.length;
-      const angleStep = (2 * Math.PI) / numAttrs;
+      // Right side: Spider chart
+      const chartCenterX = heroRight + (pageWidth - heroRight - margin) / 2;
+      const chartCenterY = y + 25;
+      const chartRadius = 28;
+      const angleStep = (2 * Math.PI) / 8;
       
-      // Draw grid circles with labels
-      pdf.setDrawColor(230, 230, 230);
+      // Grid circles
+      pdf.setDrawColor(220, 220, 220);
       pdf.setLineWidth(0.2);
-      [20, 40, 60, 80, 100].forEach((level, idx) => {
-        const r = chartRadius * (level / 100);
-        pdf.circle(chartCenterX, chartCenterY, r, 'S');
-        if (idx % 2 === 0) {
-          pdf.setFontSize(6);
-          pdf.setTextColor(180, 180, 180);
-          pdf.text(String(level), chartCenterX + 1, chartCenterY - r + 2);
-        }
+      [25, 50, 75, 100].forEach(level => {
+        pdf.circle(chartCenterX, chartCenterY, chartRadius * (level / 100), 'S');
       });
       
-      // Draw axis lines
-      ATTRIBUTES.forEach((attr, i) => {
+      // Axis lines
+      ATTRIBUTES.forEach((_, i) => {
         const angle = angleStep * i - Math.PI / 2;
-        const x2 = chartCenterX + chartRadius * Math.cos(angle);
-        const y2 = chartCenterY + chartRadius * Math.sin(angle);
-        pdf.setDrawColor(230, 230, 230);
-        pdf.line(chartCenterX, chartCenterY, x2, y2);
+        pdf.line(chartCenterX, chartCenterY, 
+          chartCenterX + chartRadius * Math.cos(angle), 
+          chartCenterY + chartRadius * Math.sin(angle));
       });
       
-      // Calculate and draw data polygon
+      // Data polygon
       const points = ATTRIBUTES.map((attr, i) => {
         const score = scores[attr.id]?.score || 0;
         const angle = angleStep * i - Math.PI / 2;
@@ -2919,171 +2927,191 @@ Return the JSON scores in this exact format:
         return { x: chartCenterX + r * Math.cos(angle), y: chartCenterY + r * Math.sin(angle) };
       });
       
-      // Fill polygon
-      pdf.setFillColor(229, 57, 53, 0.15);
+      // Fill
+      pdf.setFillColor(252, 220, 210);
       for (let i = 0; i < points.length; i++) {
-        const p1 = points[i];
-        const p2 = points[(i + 1) % points.length];
-        pdf.setFillColor(252, 220, 210);
-        pdf.triangle(chartCenterX, chartCenterY, p1.x, p1.y, p2.x, p2.y, 'F');
+        pdf.triangle(chartCenterX, chartCenterY, points[i].x, points[i].y, 
+          points[(i + 1) % points.length].x, points[(i + 1) % points.length].y, 'F');
       }
       
-      // Outline polygon
+      // Outline
       pdf.setDrawColor(brandRed[0], brandRed[1], brandRed[2]);
-      pdf.setLineWidth(1.5);
+      pdf.setLineWidth(1);
       for (let i = 0; i < points.length; i++) {
-        const p1 = points[i];
-        const p2 = points[(i + 1) % points.length];
-        pdf.line(p1.x, p1.y, p2.x, p2.y);
+        pdf.line(points[i].x, points[i].y, points[(i + 1) % points.length].x, points[(i + 1) % points.length].y);
       }
       
       // Data points
       pdf.setFillColor(brandRed[0], brandRed[1], brandRed[2]);
-      points.forEach(p => pdf.circle(p.x, p.y, 2, 'F'));
+      points.forEach(p => pdf.circle(p.x, p.y, 1.5, 'F'));
       
       // Center score
       pdf.setFillColor(255, 255, 255);
-      pdf.circle(chartCenterX, chartCenterY, 12, 'F');
-      pdf.setFontSize(14);
+      pdf.circle(chartCenterX, chartCenterY, 8, 'F');
+      pdf.setFontSize(10);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(brandRed[0], brandRed[1], brandRed[2]);
-      pdf.text(String(overall), chartCenterX, chartCenterY + 4, { align: 'center' });
+      pdf.text(String(overall), chartCenterX, chartCenterY + 3, { align: 'center' });
       
-      // Attribute labels around chart
-      pdf.setFontSize(7);
-      pdf.setFont('helvetica', 'bold');
+      // Labels around chart - positioned better
+      pdf.setFontSize(6);
       ATTRIBUTES.forEach((attr, i) => {
         const angle = angleStep * i - Math.PI / 2;
-        const labelRadius = chartRadius + 14;
-        const labelX = chartCenterX + labelRadius * Math.cos(angle);
-        const labelY = chartCenterY + labelRadius * Math.sin(angle);
+        const labelR = chartRadius + 8;
+        let lx = chartCenterX + labelR * Math.cos(angle);
+        let ly = chartCenterY + labelR * Math.sin(angle);
         const score = scores[attr.id]?.score || 0;
+        const rgb = hexToRgb(attr.color);
         
-        // Use attribute color
-        const attrHex = attr.color.replace('#', '');
-        const attrR = parseInt(attrHex.substr(0, 2), 16);
-        const attrG = parseInt(attrHex.substr(2, 2), 16);
-        const attrB = parseInt(attrHex.substr(4, 2), 16);
-        pdf.setTextColor(attrR, attrG, attrB);
-        pdf.text(`${attr.name}`, labelX, labelY - 2, { align: 'center' });
-        pdf.setTextColor(brandBlack[0], brandBlack[1], brandBlack[2]);
+        // Adjust positions for better readability
+        let align = 'center';
+        if (i === 0) { ly -= 2; } // Top
+        else if (i === 4) { ly += 4; } // Bottom
+        else if (i < 4) { lx += 3; align = 'left'; } // Right side
+        else { lx -= 3; align = 'right'; } // Left side
+        
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(rgb[0], rgb[1], rgb[2]);
+        pdf.text(attr.name, lx, ly, { align });
         pdf.setFont('helvetica', 'normal');
-        pdf.text(`${score}`, labelX, labelY + 3, { align: 'center' });
-        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(brandBlack[0], brandBlack[1], brandBlack[2]);
+        pdf.text(String(score), lx, ly + 3.5, { align });
       });
       
-      y = chartCenterY + chartRadius + 22;
-
-      // Score Grid (compact)
-      addHeading('ATTRIBUTE SCORES');
-      const scoreGridY = y;
-      const colWidth = contentWidth / 4;
+      y = 95;
       
+      // Score Grid - 8 columns
+      pdf.setFillColor(lightGray[0], lightGray[1], lightGray[2]);
+      pdf.roundedRect(margin, y, contentWidth, 22, 2, 2, 'F');
+      
+      const colW = contentWidth / 8;
       ATTRIBUTES.forEach((attr, i) => {
-        const col = i % 4;
-        const row = Math.floor(i / 4);
-        const xPos = margin + (col * colWidth);
-        const yPos = scoreGridY + (row * 18);
-        
+        const x = margin + (i * colW) + colW / 2;
         const score = scores[attr.id]?.score || 0;
-        const attrHex = attr.color.replace('#', '');
-        const attrR = parseInt(attrHex.substr(0, 2), 16);
-        const attrG = parseInt(attrHex.substr(2, 2), 16);
-        const attrB = parseInt(attrHex.substr(4, 2), 16);
+        const rgb = hexToRgb(attr.color);
         
-        // Score with color
-        pdf.setFontSize(16);
+        pdf.setFontSize(14);
         pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(attrR, attrG, attrB);
-        pdf.text(String(score), xPos, yPos + 5);
+        pdf.setTextColor(rgb[0], rgb[1], rgb[2]);
+        pdf.text(String(score), x, y + 10, { align: 'center' });
         
-        // Attribute name
-        pdf.setFontSize(7);
+        pdf.setFontSize(5);
         pdf.setTextColor(brandGray[0], brandGray[1], brandGray[2]);
-        pdf.text(attr.name.toUpperCase(), xPos, yPos + 11);
+        pdf.text(attr.name.toUpperCase(), x, y + 16, { align: 'center' });
       });
       
-      y = scoreGridY + 40;
-
+      y += 30;
+      
       // Executive Summary
       addHeading('EXECUTIVE SUMMARY');
-      addText(`${project.brandName} achieved an overall Brand Consciousness Score of ${overall}/100, placing them in the "${stage.name}" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in ${sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in ${sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.`);
-      addSpace(3);
+      addText(`${project.brandName} achieved an overall Brand Consciousness Score of ${overall}/100, placing them in the "${stage.name}" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in ${sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in ${sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.`, 9);
+      y += 3;
 
-      // Attribute Analysis
+      // ========== ATTRIBUTE ANALYSIS ==========
       addHeading('ATTRIBUTE ANALYSIS');
+      
       ATTRIBUTES.forEach(attr => {
         const score = scores[attr.id]?.score || 0;
-        const attrHex = attr.color.replace('#', '');
-        const attrR = parseInt(attrHex.substr(0, 2), 16);
-        const attrG = parseInt(attrHex.substr(2, 2), 16);
-        const attrB = parseInt(attrHex.substr(4, 2), 16);
+        const rgb = hexToRgb(attr.color);
+        const findings = scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description;
+        const opportunity = scores[attr.id]?.opportunity;
         
-        if (y > 250) { pdf.addPage(); y = margin; }
+        // Check if we need a page break
+        const estHeight = 15 + (findings ? Math.ceil(findings.length / 100) * 5 : 5) + (opportunity ? 8 : 0);
+        checkPageBreak(estHeight);
         
-        // Colored bar
-        pdf.setFillColor(attrR, attrG, attrB);
-        pdf.rect(margin, y - 2, 2, 10, 'F');
+        // Attribute header with colored left bar
+        pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+        pdf.rect(margin, y, 2, 8, 'F');
         
         pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(attrR, attrG, attrB);
-        pdf.text(`${attr.name}`, margin + 5, y + 3);
+        pdf.setTextColor(rgb[0], rgb[1], rgb[2]);
+        pdf.text(attr.name, margin + 5, y + 5);
+        
         pdf.setTextColor(brandGray[0], brandGray[1], brandGray[2]);
-        pdf.text(`${score}/100`, margin + 35, y + 3);
-        y += 8;
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`${score}/100`, margin + 40, y + 5);
+        y += 10;
         
-        const findings = scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description;
-        addText(findings, 9);
-        
-        if (scores[attr.id]?.opportunity) {
-          pdf.setTextColor(5, 150, 105);
-          addText(`→ ${scores[attr.id].opportunity}`, 9, false, [5, 150, 105]);
+        // Findings
+        if (findings) {
+          addText(findings, 8, false, brandBlack);
         }
-        addSpace(2);
+        
+        // Opportunity
+        if (opportunity) {
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'italic');
+          pdf.setTextColor(5, 150, 105);
+          const oppLines = pdf.splitTextToSize('> ' + opportunity, contentWidth);
+          oppLines.forEach(line => {
+            checkPageBreak(5);
+            pdf.text(line, margin, y);
+            y += 4;
+          });
+          y += 1;
+        }
+        
+        y += 4;
       });
 
-      // Recommendations
+      // ========== RECOMMENDATIONS ==========
+      checkPageBreak(60);
       addHeading('TOP RECOMMENDATIONS');
+      
       recommendations.slice(0, 6).forEach((r, i) => {
-        if (y > 260) { pdf.addPage(); y = margin; }
+        checkPageBreak(25);
         
         // Number badge
         pdf.setFillColor(brandRed[0], brandRed[1], brandRed[2]);
-        pdf.circle(margin + 4, y + 2, 4, 'F');
+        pdf.circle(margin + 4, y + 3, 4, 'F');
         pdf.setFontSize(8);
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(255, 255, 255);
-        pdf.text(String(i + 1), margin + 4, y + 4, { align: 'center' });
+        pdf.text(String(i + 1), margin + 4, y + 5, { align: 'center' });
         
+        // Title
         pdf.setTextColor(brandBlack[0], brandBlack[1], brandBlack[2]);
         pdf.setFontSize(10);
-        pdf.text(r.title, margin + 12, y + 4);
-        y += 7;
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(r.title, margin + 12, y + 5);
+        y += 9;
         
-        addText(`${r.description} ${r.impact}`, 9);
+        // Description
+        pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(8);
+        const descLines = pdf.splitTextToSize(r.description + ' ' + r.impact, contentWidth - 10);
+        descLines.forEach(line => {
+          pdf.text(line, margin, y);
+          y += 4;
+        });
+        
+        // Impacts
+        pdf.setFontSize(7);
         pdf.setTextColor(brandGray[0], brandGray[1], brandGray[2]);
         pdf.text(`Impacts: ${r.attributes.slice(0, 3).join(', ')}`, margin, y);
-        y += 6;
+        y += 7;
       });
-      addSpace(3);
 
-      // What We Evaluated
+      // ========== METHODOLOGY ==========
+      checkPageBreak(30);
       addHeading('METHODOLOGY');
-      addText(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, 9);
+      addText(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, 8);
 
       // Footer on each page
       const pageCount = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
-        pdf.setFontSize(8);
+        pdf.setFontSize(7);
         pdf.setTextColor(156, 163, 175);
-        pdf.text(`Conscious Compass by Antenna Group | Page ${i} of ${pageCount}`, pageWidth / 2, 290, { align: 'center' });
+        pdf.text(`Conscious Compass by Antenna Group | Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
       }
 
       pdf.save(`${project.brandName.replace(/\s+/g, '_')}_Conscious_Compass_Report.pdf`);
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error('PDF generation error:', e); 
+    }
     finally { setIsGeneratingPdf(false); }
   };
 
