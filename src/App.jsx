@@ -388,7 +388,7 @@ function compressImage(dataUrl, maxSizeMB = 4) {
   });
 }
 
-async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 1) {
+async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0) {
   const content = [];
   
   // Add primary image if provided
@@ -3065,9 +3065,13 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                           {r.rubricVersion || '2.3'}
                         </td>
                         <td className="p-2 text-center whitespace-nowrap">
-                          <button onClick={() => handleDelete(r.id)} className="text-red-500 hover:text-red-700">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {profile?.is_admin ? (
+                            <button onClick={() => handleDelete(r.id)} className="text-red-500 hover:text-red-700">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <span className="text-[#D9D6D0]">—</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -3481,6 +3485,7 @@ Based on this data, provide thought leadership insights in this JSON format:
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 2500,
+          temperature: 0,
           messages: [{ role: 'user', content: prompt }],
         }),
       });
@@ -3548,20 +3553,23 @@ Based on this data, provide thought leadership insights in this JSON format:
       {/* Score Distribution Visualization */}
       <div className="card p-6">
         <h3 className="font-semibold text-[#1A1A1A] mb-4">Portfolio Maturity Distribution</h3>
-        <div className="flex items-end gap-3 h-40 mb-4">
-          {portfolioStats.scoreDistribution.map((bucket, idx) => (
-            <div key={idx} className="flex-1 flex flex-col items-center">
-              <div className="text-sm font-medium text-[#1A1A1A] mb-2">{bucket.count}</div>
-              <div 
-                className="w-full rounded-t-lg transition-all duration-500"
-                style={{ 
-                  backgroundColor: bucket.color,
-                  height: `${bucket.count > 0 ? Math.max((bucket.count / maxCount) * 100, 10) : 5}%`,
-                  opacity: bucket.count > 0 ? 1 : 0.3
-                }}
-              />
-            </div>
-          ))}
+        <div className="flex items-end gap-3 mb-4" style={{ height: '160px' }}>
+          {portfolioStats.scoreDistribution.map((bucket, idx) => {
+            const barHeight = bucket.count > 0 ? Math.max((bucket.count / maxCount) * 140, 16) : 8;
+            return (
+              <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full">
+                <div className="text-sm font-medium text-[#1A1A1A] mb-2">{bucket.count}</div>
+                <div 
+                  className="w-full rounded-t-lg transition-all duration-500"
+                  style={{ 
+                    backgroundColor: bucket.color,
+                    height: `${barHeight}px`,
+                    opacity: bucket.count > 0 ? 1 : 0.3
+                  }}
+                />
+              </div>
+            );
+          })}
         </div>
         <div className="flex gap-3">
           {portfolioStats.scoreDistribution.map((bucket, idx) => (
