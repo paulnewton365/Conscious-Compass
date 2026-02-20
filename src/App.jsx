@@ -766,7 +766,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.11.2
+        Version 2.12.0
       </div>
     </div>
   );
@@ -1699,6 +1699,21 @@ Write in flowing prose with specific observations from the content provided. End
   const isComplete = assessmentData.status === 'complete';
   const hasMinimumContent = inputs.linkedinAbout || inputs.linkedinPosts || inputs.xContent || inputs.youtubeContent || inputs.instagramContent;
 
+  // Accordion state
+  const [expanded, setExpanded] = useState({ linkedin: true, x: false, instagram: false, other: false, reputation: false });
+  const toggleSection = (section) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
+
+  // Status badges for auto-check
+  const autoCheckStatus = {
+    youtube: !!inputs.youtubeContent?.includes('[Auto-checked]'),
+    wikipedia: !!inputs.wikipediaContent?.includes('[Auto-checked]'),
+    reddit: !!inputs.redditContent?.includes('[Auto-checked]'),
+    glassdoor: !!inputs.glassdoorContent?.includes('[Auto-checked]'),
+    nextdoor: !!inputs.nextdoorContent?.includes('[Auto-checked]'),
+    wipo: !!inputs.wipoContent?.includes('[Auto-checked]'),
+  };
+  const autoCheckCount = Object.values(autoCheckStatus).filter(Boolean).length;
+
   // Completion tracking
   const completionItems = [
     { label: 'LinkedIn', done: !!(inputs.linkedinAbout || inputs.linkedinPosts) },
@@ -1706,6 +1721,22 @@ Write in flowing prose with specific observations from the content provided. End
     { label: 'Other Platforms', done: !!(inputs.youtubeContent || inputs.wikipediaContent || inputs.redditContent) },
     { label: 'Analysis', done: isComplete },
   ];
+
+  // Accordion Header Component
+  const AccordionHeader = ({ title, icon: Icon, isOpen, onClick, badge, hasContent }) => (
+    <button 
+      onClick={onClick}
+      className={`w-full flex items-center justify-between p-4 rounded-lg transition-colors ${isOpen ? 'bg-[#F0EEEA]' : 'bg-white hover:bg-[#F8F7F5]'} border border-[#E8E6E1]`}
+    >
+      <div className="flex items-center gap-3">
+        <Icon className="w-5 h-5 text-[#666666]" />
+        <span className="font-medium text-[#1A1A1A]">{title}</span>
+        {badge && <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">{badge}</span>}
+        {hasContent && <Check className="w-4 h-4 text-[#059669]" />}
+      </div>
+      <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+    </button>
+  );
 
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
@@ -1721,254 +1752,250 @@ Write in flowing prose with specific observations from the content provided. End
 
       <CompletionIndicator items={completionItems} />
 
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-        <p className="text-xs text-amber-800">
-          <strong>Tip:</strong> Copy and paste content directly from each platform. Use Auto-Check for YouTube, Wikipedia, Reddit, and Glassdoor.
-        </p>
+      {/* Auto-Check Section */}
+      <div className="card p-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-[#1A1A1A]">Quick Auto-Check</h3>
+            <p className="text-xs text-[#666666]">Auto-fill YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor & WIPO</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {autoCheckCount > 0 && (
+              <span className="text-xs text-[#059669] font-medium">{autoCheckCount}/6 checked</span>
+            )}
+            <button 
+              onClick={runAutoCheck} 
+              disabled={isAutoChecking}
+              className="btn-primary text-sm py-2 px-4 flex items-center gap-2"
+            >
+              {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Checking...</> : <><Sparkles className="w-4 h-4" /> Auto-Check</>}
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Screenshot Upload */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Social Media Screenshots (up to 4)</h3>
-        <p className="text-sm text-[#666666] mb-4">Upload screenshots from social profiles for visual analysis.</p>
-        
-        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
-        
-        <div className="grid grid-cols-4 gap-3 mb-4">
-          {images.map((img, index) => (
-            <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-24 object-cover rounded-lg border border-[#D9D6D0]" />
-              <button onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow hover:bg-gray-100">
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
+      {/* Screenshots - Compact */}
+      <div className="card p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-[#1A1A1A]">Screenshots</h3>
+          <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
           {images.length < 4 && (
-            <button onClick={() => fileInputRef.current?.click()}
-              className="h-24 border-2 border-dashed border-[#8B5CF6] rounded-lg flex flex-col items-center justify-center gap-1 hover:bg-[#8B5CF6]/5 transition-colors">
-              {isCompressing ? <Loader2 className="w-5 h-5 text-[#8B5CF6] animate-spin" /> : <><Upload className="w-5 h-5 text-[#8B5CF6]" /><span className="text-xs text-[#8B5CF6]">Add</span></>}
+            <button onClick={() => fileInputRef.current?.click()} className="text-xs text-[#8B5CF6] hover:underline flex items-center gap-1">
+              {isCompressing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Upload className="w-3 h-3" /> Add</>}
             </button>
           )}
         </div>
-      </div>
-
-      {/* LinkedIn Inputs */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-          <ExternalLink className="w-5 h-5" /> LinkedIn Content
-        </h3>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">LinkedIn Company URL</label>
-            <div className="flex gap-2">
-              <input type="url" value={inputs.linkedinUrl} onChange={(e) => updateInput('linkedinUrl', e.target.value)}
-                placeholder="https://linkedin.com/company/..." className="flex-1 px-4 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
-              {inputs.linkedinUrl && (
-                <a href={inputs.linkedinUrl} target="_blank" rel="noopener noreferrer" 
-                   className="px-3 py-2 bg-[#0A66C2] text-white rounded-lg text-sm hover:bg-[#004182] transition-colors flex items-center gap-1">
-                  <ExternalLink className="w-4 h-4" /> Open
-                </a>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">About Section</label>
-            <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
-              placeholder="Go to their LinkedIn 'About' tab and paste the company description here..." className="w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Recent Posts (include engagement metrics)</label>
-            <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
-              placeholder="Copy 5-10 recent posts. Include the post text and engagement (e.g., '245 likes, 32 comments, 15 reposts')..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Articles (if any)</label>
-            <textarea value={inputs.linkedinArticles} onChange={(e) => updateInput('linkedinArticles', e.target.value)}
-              placeholder="List any LinkedIn articles: titles, brief summary, engagement..." className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-          </div>
-        </div>
-      </div>
-
-      {/* X (Twitter) Input */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-          <ExternalLink className="w-5 h-5" /> X (Twitter) Content
-        </h3>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">X Profile URL</label>
-            <div className="flex gap-2">
-              <input type="url" value={inputs.xUrl} onChange={(e) => updateInput('xUrl', e.target.value)}
-                placeholder="https://x.com/..." className="flex-1 px-4 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
-              {inputs.xUrl && (
-                <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" 
-                   className="px-3 py-2 bg-[#1A1A1A] text-white rounded-lg text-sm hover:bg-[#333333] transition-colors flex items-center gap-1">
-                  <ExternalLink className="w-4 h-4" /> Open
-                </a>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Profile & Recent Tweets</label>
-            <textarea value={inputs.xContent} onChange={(e) => updateInput('xContent', e.target.value)}
-              placeholder="Paste their X bio, follower count, and 5-10 recent tweets with engagement metrics..." className="w-full h-28 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-          </div>
-        </div>
-      </div>
-
-      {/* Instagram Input with Image Upload */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-          <Image className="w-5 h-5" /> Instagram Content
-        </h3>
-        <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
-          placeholder="Paste their Instagram bio, follower count, describe recent posts (types of content, engagement levels, visual themes)..." className="w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm mb-4" />
-        
-        <p className="text-sm text-[#666666] mb-3">Upload Instagram screenshots for visual analysis (up to 4 images)</p>
-        <input type="file" ref={instagramFileInputRef} onChange={handleInstagramImageUpload} accept="image/*" multiple className="hidden" />
-        
-        {instagramImages.length > 0 && (
-          <div className="grid grid-cols-4 gap-3 mb-4">
-            {instagramImages.map((img, idx) => (
-              <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-[#D9D6D0]">
-                <img src={img} alt={`Instagram ${idx + 1}`} className="w-full h-full object-cover" />
-                <button onClick={() => removeInstagramImage(idx)} className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600">
-                  <X className="w-4 h-4" />
-                </button>
+        {images.length > 0 ? (
+          <div className="flex gap-2">
+            {images.map((img, index) => (
+              <div key={index} className="relative w-16 h-16">
+                <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-full object-cover rounded border border-[#D9D6D0]" />
+                <button onClick={() => removeImage(index)} className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs">×</button>
               </div>
             ))}
           </div>
-        )}
-        
-        {instagramImages.length < 4 && (
-          <button onClick={() => instagramFileInputRef.current?.click()} 
-            className="w-full h-20 border-2 border-dashed border-[#E53935] rounded-lg flex items-center justify-center gap-2 hover:bg-[#E53935]/5 transition-colors">
-            <Upload className="w-5 h-5 text-[#E53935]" />
-            <span className="text-sm text-[#E53935] font-medium">Add Instagram Screenshots ({4 - instagramImages.length} remaining)</span>
-          </button>
+        ) : (
+          <p className="text-xs text-[#999999]">No screenshots added</p>
         )}
       </div>
 
-      {/* YouTube Input */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-          <ExternalLink className="w-5 h-5" /> YouTube Content
-        </h3>
-        
-        <div className="mb-4">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={inputs.hasYouTube} onChange={(e) => updateInput('hasYouTube', e.target.checked)}
-              className="w-5 h-5 rounded border-gray-300 text-[#E53935] focus:ring-[#E53935]" />
-            <span className="text-sm text-[#1A1A1A]">This brand has a YouTube channel</span>
-          </label>
-        </div>
-
-        {inputs.hasYouTube && (
-          <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
-            placeholder="Describe: subscriber count, number of videos, recent video titles and view counts, content themes, posting frequency..." className="w-full h-28 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-        )}
-      </div>
-
-      {/* Reddit and Wikipedia */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-          <ExternalLink className="w-5 h-5" /> Reddit and Wikipedia Presence
-        </h3>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Reddit Mentions</label>
-            <textarea value={inputs.redditContent} onChange={(e) => updateInput('redditContent', e.target.value)}
-              placeholder="Search Reddit for the brand name. Note any subreddits where they're discussed, sentiment of discussions, any notable threads..." className="w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+      {/* LinkedIn Section - Expanded by default */}
+      <div className="mb-3">
+        <AccordionHeader 
+          title="LinkedIn" 
+          icon={ExternalLink} 
+          isOpen={expanded.linkedin} 
+          onClick={() => toggleSection('linkedin')}
+          hasContent={!!(inputs.linkedinAbout || inputs.linkedinPosts)}
+        />
+        {expanded.linkedin && (
+          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <div className="flex gap-2">
+              <input type="url" value={inputs.linkedinUrl} onChange={(e) => updateInput('linkedinUrl', e.target.value)}
+                placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
+              {inputs.linkedinUrl && (
+                <a href={inputs.linkedinUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#0A66C2] text-white rounded-lg text-xs hover:bg-[#004182] flex items-center gap-1">
+                  <ExternalLink className="w-3 h-3" /> Open
+                </a>
+              )}
+            </div>
+            <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
+              placeholder="Paste the 'About' section..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
+              placeholder="Paste 5-10 recent posts with engagement metrics..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Wikipedia Page</label>
-            <textarea value={inputs.wikipediaContent} onChange={(e) => updateInput('wikipediaContent', e.target.value)}
-              placeholder="Does this brand have a Wikipedia page? If yes, paste key details or describe its completeness. If no, note that." className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+        )}
+      </div>
+
+      {/* X/Twitter Section */}
+      <div className="mb-3">
+        <AccordionHeader 
+          title="X (Twitter)" 
+          icon={ExternalLink} 
+          isOpen={expanded.x} 
+          onClick={() => toggleSection('x')}
+          hasContent={!!inputs.xContent}
+        />
+        {expanded.x && (
+          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <div className="flex gap-2">
+              <input type="url" value={inputs.xUrl} onChange={(e) => updateInput('xUrl', e.target.value)}
+                placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
+              {inputs.xUrl && (
+                <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#1A1A1A] text-white rounded-lg text-xs hover:bg-[#333] flex items-center gap-1">
+                  <ExternalLink className="w-3 h-3" /> Open
+                </a>
+              )}
+            </div>
+            <textarea value={inputs.xContent} onChange={(e) => updateInput('xContent', e.target.value)}
+              placeholder="Bio, follower count, 5-10 recent tweets with engagement..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Glassdoor - impacts Reflective score */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-          <ExternalLink className="w-5 h-5" /> Glassdoor Reviews
-          <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">Impacts Reflective Score</span>
-        </h3>
-        <p className="text-sm text-[#666666] mb-3">Visit <a href="https://glassdoor.com" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">glassdoor.com</a> and search for the company</p>
-        <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
-          placeholder="Glassdoor rating (out of 5), CEO approval, key themes from reviews (culture, leadership, work-life balance), number of reviews, pros/cons patterns..." className="w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+      {/* Instagram Section */}
+      <div className="mb-3">
+        <AccordionHeader 
+          title="Instagram" 
+          icon={Image} 
+          isOpen={expanded.instagram} 
+          onClick={() => toggleSection('instagram')}
+          hasContent={!!(inputs.instagramContent || instagramImages.length > 0)}
+        />
+        {expanded.instagram && (
+          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
+              placeholder="Bio, follower count, content themes, engagement levels..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            <input type="file" ref={instagramFileInputRef} onChange={handleInstagramImageUpload} accept="image/*" multiple className="hidden" />
+            <div className="flex items-center gap-2">
+              {instagramImages.map((img, idx) => (
+                <div key={idx} className="relative w-12 h-12">
+                  <img src={img} alt={`IG ${idx + 1}`} className="w-full h-full object-cover rounded border" />
+                  <button onClick={() => removeInstagramImage(idx)} className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs">×</button>
+                </div>
+              ))}
+              {instagramImages.length < 4 && (
+                <button onClick={() => instagramFileInputRef.current?.click()} className="w-12 h-12 border-2 border-dashed border-[#E53935] rounded flex items-center justify-center hover:bg-[#E53935]/5">
+                  <Upload className="w-4 h-4 text-[#E53935]" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Nextdoor - impacts Aware score */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-          <ExternalLink className="w-5 h-5" /> Nextdoor Presence
-          <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Impacts Aware Score</span>
-        </h3>
-        <p className="text-sm text-[#666666] mb-3">Visit <a href="https://nextdoor.com" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">nextdoor.com</a> to check community presence (most relevant for B2C/local businesses)</p>
-        <textarea value={inputs.nextdoorContent} onChange={(e) => updateInput('nextdoorContent', e.target.value)}
-          placeholder="Is the brand active on Nextdoor? Community discussions, recommendations, local reputation, customer testimonials... (Note 'Not applicable' for pure B2B brands)" className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+      {/* Other Platforms (YouTube, Reddit, Wikipedia) */}
+      <div className="mb-3">
+        <AccordionHeader 
+          title="Other Platforms" 
+          icon={Globe} 
+          isOpen={expanded.other} 
+          onClick={() => toggleSection('other')}
+          hasContent={!!(inputs.youtubeContent || inputs.redditContent || inputs.wikipediaContent)}
+        />
+        {expanded.other && (
+          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#666666]">YouTube</label>
+                {autoCheckStatus.youtube && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+              </div>
+              <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
+                placeholder="Subscriber count, video count, content themes, posting frequency..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#666666]">Wikipedia</label>
+                {autoCheckStatus.wikipedia && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+              </div>
+              <textarea value={inputs.wikipediaContent} onChange={(e) => updateInput('wikipediaContent', e.target.value)}
+                placeholder="Does the brand have a Wikipedia page? Key details..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#666666]">Reddit</label>
+                {autoCheckStatus.reddit && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+              </div>
+              <textarea value={inputs.redditContent} onChange={(e) => updateInput('redditContent', e.target.value)}
+                placeholder="Subreddits, sentiment, notable discussions..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* WIPO Trademark - impacts Intentional score */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-          <ExternalLink className="w-5 h-5" /> WIPO Trademark Search
-          <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">Impacts Intentional Score</span>
-        </h3>
-        <p className="text-sm text-[#666666] mb-3">Visit <a href="https://branddb.wipo.int/en/similarname" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">branddb.wipo.int</a> to search for trademark registrations</p>
-        <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
-          placeholder="Search the brand name in WIPO's Brand Database. Note: registered trademarks, jurisdictions covered, any similar/conflicting marks, trademark status..." className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+      {/* Reputation Section (Glassdoor, Nextdoor, WIPO) */}
+      <div className="mb-4">
+        <AccordionHeader 
+          title="Reputation & Trust Signals" 
+          icon={Shield} 
+          isOpen={expanded.reputation} 
+          onClick={() => toggleSection('reputation')}
+          badge="Score Impact"
+          hasContent={!!(inputs.glassdoorContent || inputs.nextdoorContent || inputs.wipoContent)}
+        />
+        {expanded.reputation && (
+          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#666666]">Glassdoor <span className="text-purple-600">(→ Reflective)</span></label>
+                {autoCheckStatus.glassdoor && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+              </div>
+              <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
+                placeholder="Rating, CEO approval, culture themes, review patterns..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#666666]">Nextdoor <span className="text-green-600">(→ Aware)</span></label>
+                {autoCheckStatus.nextdoor && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+              </div>
+              <textarea value={inputs.nextdoorContent} onChange={(e) => updateInput('nextdoorContent', e.target.value)}
+                placeholder="Community presence, local reputation... (N/A for pure B2B)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#666666]">WIPO Trademark <span className="text-blue-600">(→ Intentional)</span></label>
+                {autoCheckStatus.wipo && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+              </div>
+              <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
+                placeholder="Trademark registrations, jurisdictions, conflicts..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Assessor Observations */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
-        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the analysis and final report.</p>
+      {/* Observations - Simplified */}
+      <div className="card p-4 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Notes</h3>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about their social media presence..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
+          placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
       </div>
 
+      {/* Analysis Button & Results */}
       {!isComplete && (
-        <button onClick={runAnalysis} disabled={isProcessing || !hasMinimumContent} className="btn-primary flex items-center gap-2 mb-6">
-          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> {hasMinimumContent ? 'Run Social Analysis' : 'Add Content First'}</>}
+        <button onClick={runAnalysis} disabled={isProcessing || !hasMinimumContent} className="btn-primary w-full flex items-center justify-center gap-2 mb-4">
+          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> Run Social Analysis</>}
         </button>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
 
       {isComplete && (
-        <div className="card p-5 mb-4">
+        <div className="card p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
-            </h3>
-            <button 
-              onClick={() => {
-                runAnalysis();
-                if (onClearScores) onClearScores();
-              }} 
-              disabled={isProcessing || !hasMinimumContent} 
-              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
+            <span className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
+              <Check className="w-4 h-4 text-[#8B5CF6]" /> Analysis Complete
+            </span>
+            <button onClick={() => { runAnalysis(); if (onClearScores) onClearScores(); }} disabled={isProcessing} className="text-xs text-[#8B5CF6] hover:underline flex items-center gap-1">
+              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />} Regenerate
             </button>
           </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#F0EEEA] rounded-lg p-3 max-h-64 overflow-y-auto">
+            <pre className="text-xs text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
+      <div className="flex items-center justify-between pt-4 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={onNext} disabled={!isComplete} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -2963,71 +2990,73 @@ Return the JSON scores in this exact format:
         </div>
       </div>
 
-      {/* Executive Summary */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">EXECUTIVE SUMMARY</h3>
-        <p className="text-[#333333] leading-relaxed">
-          {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
-        </p>
-      </div>
-
-      {/* Spider Chart */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4 text-center">Brand Consciousness Profile</h3>
-        <SpiderChart scores={scores} size={450} />
-      </div>
-
-      {/* Score Summary */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">SCORE SUMMARY</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {ATTRIBUTES.map(attr => (
-            <div key={attr.id} className="text-center p-3 bg-[#F0EEEA] rounded-lg">
-              <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-              <div className="text-sm text-[#333333]">{attr.name}</div>
+      {/* Hero Section - Score & Chart Side by Side */}
+      <div className="card p-6 mb-6">
+        <div className="grid md:grid-cols-2 gap-6 items-center">
+          {/* Left: Score & Summary */}
+          <div>
+            <div className="flex items-start gap-4 mb-4">
+              <div className="text-center">
+                <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold" style={{ backgroundColor: stage.color }}>
+                  {overall}
+                </div>
+                <div className="text-xs text-[#666666] mt-1">out of 100</div>
+              </div>
+              <div className="flex-1">
+                <div className="text-lg font-bold text-[#1A1A1A] mb-1">{stage.name}</div>
+                <p className="text-sm text-[#666666] leading-relaxed">{stage.description}</p>
+              </div>
             </div>
-          ))}
+            <div className="border-t border-[#E8E6E1] pt-4">
+              <p className="text-sm text-[#333333] leading-relaxed">
+                <strong>{project.brandName}</strong> demonstrates strength in <span className="text-[#059669] font-medium">{sortedAttrs.slice(-2).map(a => a.name).join(' and ')}</span>, with opportunities to grow in <span className="text-[#E53935] font-medium">{sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}</span>.
+              </p>
+            </div>
+          </div>
+          
+          {/* Right: Spider Chart */}
+          <div className="flex justify-center">
+            <SpiderChart scores={scores} size={320} />
+          </div>
         </div>
+      </div>
+
+      {/* Score Grid - Compact */}
+      <div className="grid grid-cols-4 md:grid-cols-8 gap-2 mb-6">
+        {ATTRIBUTES.map(attr => (
+          <div key={attr.id} className="card p-3 text-center">
+            <div className="text-xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
+            <div className="text-[10px] text-[#666666] uppercase tracking-wide">{attr.name}</div>
+          </div>
+        ))}
       </div>
 
       {/* Maturity Continuum */}
       <MaturityContinuum score={overall} />
 
-      {/* Maturity Stage Context */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">MATURITY STAGE CONTEXT</h3>
-        <p className="text-[#333333] leading-relaxed">
-          With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
-        </p>
-      </div>
-
       {/* Attribute Analysis - Collapsible */}
-      <div className="mt-8 mb-8">
+      <div className="mt-6 mb-6">
         <button 
           onClick={() => toggleSection('attributes')} 
-          className="w-full flex items-center justify-between text-xl font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+          className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
         >
           <span>ATTRIBUTE ANALYSIS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.attributes ? 'rotate-180' : ''}`} />
         </button>
         {expandedSections.attributes && (
-          <div className="space-y-4 animate-fade-in">
+          <div className="grid md:grid-cols-2 gap-3 animate-fade-in">
             {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="card p-4 md:p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center text-white font-bold text-base md:text-lg flex-shrink-0" style={{ backgroundColor: attr.color }}>
-                      {scores[attr.id]?.score || 0}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-[#1A1A1A] text-sm md:text-base">{attr.name}</h4>
-                      <p className="text-xs md:text-sm text-[#666666]">{attr.fullName}</p>
-                    </div>
+              <div key={attr.id} className="card p-4 border-l-4" style={{ borderLeftColor: attr.color }}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
+                  <div>
+                    <h4 className="font-semibold text-[#1A1A1A] text-sm">{attr.name}</h4>
+                    <p className="text-xs text-[#666666]">{attr.fullName}</p>
                   </div>
                 </div>
-                <p className="text-xs md:text-sm text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+                <p className="text-xs text-[#333333] leading-relaxed">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
                 {scores[attr.id]?.opportunity && (
-                  <p className="text-xs md:text-sm text-[#E53935] italic">{scores[attr.id].opportunity}</p>
+                  <p className="text-xs text-[#E53935] mt-2 italic">→ {scores[attr.id].opportunity}</p>
                 )}
               </div>
             ))}
@@ -3039,34 +3068,45 @@ Return the JSON scores in this exact format:
       <div className="mb-6">
         <button 
           onClick={() => toggleSection('recommendations')} 
-          className="w-full flex items-center justify-between text-xl font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+          className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
         >
-          <span>INTEGRATED MARKETING RECOMMENDATIONS</span>
+          <span>RECOMMENDATIONS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.recommendations ? 'rotate-180' : ''}`} />
         </button>
         {expandedSections.recommendations && (
           <div className="animate-fade-in">
-            <p className="text-[#666666] mb-4 text-sm md:text-base">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
-            <div className="space-y-4">
-              {recommendations.map((r, i) => (
-                <div key={i} className="card p-4 md:p-5">
-                  <div className="flex items-start gap-3 md:gap-4">
-                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-xs md:text-sm flex-shrink-0">{i + 1}</div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-[#1A1A1A] mb-2 text-sm md:text-base">{r.title}</h4>
-                      <p className="text-xs md:text-sm text-[#333333] leading-relaxed mb-2">
-                        {r.description} {r.impact}
-                      </p>
-                      <div className="flex flex-wrap gap-1 md:gap-2">
-                        {r.attributes.map((attr, j) => (
-                          <span key={j} className="text-xs px-2 py-0.5 md:py-1 bg-[#E53935]/10 text-[#E53935] rounded-full font-medium">{attr}</span>
-                        ))}
-                      </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              {recommendations.slice(0, 6).map((r, i) => (
+                <div key={i} className="card p-4 flex gap-3">
+                  <div className="w-6 h-6 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-[#1A1A1A] text-sm mb-1">{r.title}</h4>
+                    <p className="text-xs text-[#666666] leading-relaxed line-clamp-2">{r.description}</p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {r.attributes.slice(0, 3).map((attr, j) => (
+                        <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E53935]/10 text-[#E53935] rounded-full">{attr}</span>
+                      ))}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+            {recommendations.length > 6 && (
+              <details className="mt-3">
+                <summary className="text-sm text-[#E53935] cursor-pointer hover:underline">View {recommendations.length - 6} more recommendations</summary>
+                <div className="grid md:grid-cols-2 gap-3 mt-3">
+                  {recommendations.slice(6).map((r, i) => (
+                    <div key={i + 6} className="card p-4 flex gap-3">
+                      <div className="w-6 h-6 rounded-full bg-[#E53935]/20 text-[#E53935] flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 7}</div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-[#1A1A1A] text-sm mb-1">{r.title}</h4>
+                        <p className="text-xs text-[#666666] leading-relaxed line-clamp-2">{r.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
         )}
       </div>
@@ -3175,6 +3215,7 @@ Return the JSON scores in this exact format:
 // Compass Results Page - Summary grid of all assessments
 function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateResults, profile, user }) {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [expandedRows, setExpandedRows] = useState([]);
   const [manualEntry, setManualEntry] = useState({
     brandName: '',
     businessModel: 'b2b',
@@ -3182,6 +3223,10 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
     totalScore: 50,
     scores: { AWAKE: 50, AWARE: 50, REFLECTIVE: 50, ATTENTIVE: 50, COGENT: 50, SENTIENT: 50, VISIONARY: 50, INTENTIONAL: 50 },
   });
+
+  const toggleRow = (id) => {
+    setExpandedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]);
+  };
 
   const industries = INDUSTRIES;
 
@@ -3298,77 +3343,83 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
             </button>
           </div>
         ) : (
-          <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-[#F0EEEA] border-b border-[#D9D6D0]">
-                  <tr>
-                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Brand</th>
-                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Model</th>
-                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Industry</th>
-                    <th className="text-center p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Score</th>
-                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Maturity</th>
-                    {['AWK', 'AWR', 'REF', 'ATT', 'COG', 'SEN', 'VIS', 'INT'].map(attr => (
-                      <th key={attr} className="text-center p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">{attr}</th>
-                    ))}
-                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Assessor</th>
-                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Date</th>
-                    <th className="text-left p-2 font-semibold text-[#1A1A1A] whitespace-nowrap">Ver</th>
-                    <th className="text-center p-2 font-semibold text-[#1A1A1A] whitespace-nowrap"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map((r, i) => {
-                    const stage = MATURITY_STAGES.find(s => s.name === r.maturityLevel) || MATURITY_STAGES[0];
-                    return (
-                      <tr key={r.id || i} className="border-b border-[#E8E6E1] hover:bg-[#F0EEEA]/50">
-                        <td className="p-2 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium text-[#1A1A1A]">{r.brandName}</span>
-                            {r.isManual && (
-                              <span className="text-[10px] px-1 py-0.5 bg-yellow-100 text-yellow-700 rounded">M</span>
-                            )}
+          <div className="space-y-2">
+            {results.map((r, i) => {
+              const stage = MATURITY_STAGES.find(s => s.name === r.maturityLevel) || MATURITY_STAGES[0];
+              const isExpanded = expandedRows.includes(r.id || i);
+              return (
+                <div key={r.id || i} className="card overflow-hidden">
+                  {/* Main Row */}
+                  <div 
+                    className="flex items-center gap-4 p-4 cursor-pointer hover:bg-[#F8F7F5] transition-colors"
+                    onClick={() => toggleRow(r.id || i)}
+                  >
+                    {/* Brand & Score */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-[#1A1A1A] truncate">{r.brandName}</span>
+                        {r.isManual && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">Manual</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-[#666666] mt-0.5">
+                        <span>{r.businessModel?.toUpperCase()}</span>
+                        <span>•</span>
+                        <span className="truncate">{r.industry}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Score Badge */}
+                    <div className="flex items-center gap-3">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold" style={{ color: stage.color }}>{r.totalScore}</div>
+                        <div className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: `${stage.color}15`, color: stage.color }}>
+                          {r.maturityLevel}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Date & Actions */}
+                    <div className="flex items-center gap-3 text-xs text-[#666666]">
+                      <span className="hidden sm:inline">
+                        {r.savedAt ? new Date(r.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : '-'}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </div>
+                  </div>
+                  
+                  {/* Expanded Details */}
+                  {isExpanded && (
+                    <div className="border-t border-[#E8E6E1] bg-[#F8F7F5] p-4 animate-fade-in">
+                      {/* Attribute Scores Grid */}
+                      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 mb-4">
+                        {ATTRIBUTES.map(attr => (
+                          <div key={attr.id} className="text-center p-2 bg-white rounded-lg">
+                            <div className="text-lg font-bold" style={{ color: attr.color }}>{r.scores?.[attr.id] || 0}</div>
+                            <div className="text-[10px] text-[#666666] truncate">{attr.name}</div>
                           </div>
-                        </td>
-                        <td className="p-2 text-[#666666] whitespace-nowrap">{r.businessModel?.toUpperCase()}</td>
-                        <td className="p-2 text-[#666666] whitespace-nowrap max-w-[80px] truncate" title={r.industry}>{r.industry}</td>
-                        <td className="p-2 text-center whitespace-nowrap">
-                          <span className="font-bold" style={{ color: stage.color }}>{r.totalScore}</span>
-                        </td>
-                        <td className="p-2 whitespace-nowrap">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>
-                            {r.maturityLevel}
-                          </span>
-                        </td>
-                        {['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL'].map(attr => (
-                          <td key={attr} className="p-2 text-center text-[#666666] whitespace-nowrap">
-                            {r.scores?.[attr] || 0}
-                          </td>
                         ))}
-                        <td className="p-2 text-[#666666] whitespace-nowrap max-w-[100px] truncate" title={r.assessorName || 'Paul Newton'}>
-                          {r.assessorName || 'Paul Newton'}
-                        </td>
-                        <td className="p-2 text-[#666666] whitespace-nowrap">
-                          {r.savedAt ? new Date(r.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
-                        </td>
-                        <td className="p-2 text-[#666666] whitespace-nowrap">
-                          {r.rubricVersion || '2.3'}
-                        </td>
-                        <td className="p-2 text-center whitespace-nowrap">
-                          {profile?.is_admin ? (
-                            <button onClick={() => handleDelete(r.id)} className="text-red-500 hover:text-red-700">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          ) : (
-                            <span className="text-[#D9D6D0]">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                      
+                      {/* Meta Info */}
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#666666]">
+                        <span><strong>Assessor:</strong> {r.assessorName || 'Unknown'}</span>
+                        <span><strong>Version:</strong> {r.rubricVersion || '2.3'}</span>
+                        <span><strong>Date:</strong> {r.savedAt ? new Date(r.savedAt).toLocaleDateString() : '-'}</span>
+                        {profile?.is_admin && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} 
+                            className="text-red-500 hover:text-red-700 flex items-center gap-1 ml-auto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
