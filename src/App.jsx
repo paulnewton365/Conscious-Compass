@@ -792,7 +792,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.12
+        Version 2.12.13
       </div>
     </div>
   );
@@ -2433,11 +2433,11 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     
     // Simulate progress stages
     const progressStages = [
-      { progress: 10, stage: 'Analyzing website assessment...' },
-      { progress: 25, stage: 'Evaluating social media presence...' },
-      { progress: 40, stage: 'Processing AI reputation data...' },
-      { progress: 55, stage: 'Reviewing earned media coverage...' },
-      { progress: 70, stage: 'Calculating attribute scores...' },
+      { progress: 10, stage: 'Absorbing website data...' },
+      { progress: 25, stage: 'Absorbing social media data...' },
+      { progress: 40, stage: 'Absorbing AI reputation data...' },
+      { progress: 55, stage: 'Absorbing earned media data...' },
+      { progress: 70, stage: 'Scoring performance across 8 attributes...' },
       { progress: 85, stage: 'Generating recommendations...' },
       { progress: 95, stage: 'Finalizing report...' },
     ];
@@ -2643,40 +2643,55 @@ Return the JSON scores in this exact format:
 
         <div className="card p-6 md:p-8 text-center mb-6">
           {isScoring ? (
-            <>
-              <Loader2 className="w-16 h-16 text-[#E53935] mx-auto mb-4 animate-spin" />
+            <div className="max-w-lg mx-auto">
+              <Loader2 className="w-16 h-16 text-[#E53935] mx-auto mb-6 animate-spin" />
               <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Generating Report...</h3>
-              <p className="text-[#666666] mb-4">{scoringStage}</p>
+              <p className="text-[#666666] mb-6">{scoringStage}</p>
               
               {/* Progress bar */}
-              <div className="w-full max-w-md mx-auto bg-[#E8E6E1] rounded-full h-3 mb-4">
+              <div className="w-full bg-[#E8E6E1] rounded-full h-3 mb-2">
                 <div 
                   className="bg-[#E53935] h-3 rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${scoringProgress}%` }}
                 />
               </div>
-              <p className="text-sm text-[#666666]">{scoringProgress}% complete</p>
+              <p className="text-sm text-[#666666] mb-8">{scoringProgress}% complete</p>
               
-              {/* Progress stages */}
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-[#666666]">
-                <div className={`flex items-center gap-1 ${scoringProgress >= 10 ? 'text-[#E53935]' : ''}`}>
-                  {scoringProgress >= 25 ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
-                  Website
+              {/* Progress steps - centered */}
+              <div className="space-y-3">
+                {/* Data Collection */}
+                <div className="flex items-center justify-center gap-6 text-sm">
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 25 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                    {scoringProgress >= 25 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    <span>Website</span>
+                  </div>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 40 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                    {scoringProgress >= 40 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    <span>Social</span>
+                  </div>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 55 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                    {scoringProgress >= 55 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    <span>AI Rep</span>
+                  </div>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 70 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                    {scoringProgress >= 70 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    <span>Earned</span>
+                  </div>
                 </div>
-                <div className={`flex items-center gap-1 ${scoringProgress >= 25 ? 'text-[#E53935]' : ''}`}>
-                  {scoringProgress >= 40 ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
-                  Social
-                </div>
-                <div className={`flex items-center gap-1 ${scoringProgress >= 40 ? 'text-[#E53935]' : ''}`}>
-                  {scoringProgress >= 55 ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
-                  AI Rep
-                </div>
-                <div className={`flex items-center gap-1 ${scoringProgress >= 55 ? 'text-[#E53935]' : ''}`}>
-                  {scoringProgress >= 70 ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
-                  Earned
+                
+                {/* Processing */}
+                <div className="flex items-center justify-center gap-6 text-sm">
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 85 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                    {scoringProgress >= 85 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    <span>Scoring</span>
+                  </div>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 95 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                    {scoringProgress >= 95 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    <span>Recommendations</span>
+                  </div>
                 </div>
               </div>
-            </>
+            </div>
           ) : (
             <>
               <Compass className="w-16 h-16 text-[#E53935] mx-auto mb-4" />
@@ -2881,7 +2896,7 @@ Return the JSON scores in this exact format:
             logging: false,
           });
           const imgData = canvas.toDataURL('image/png');
-          const imgWidth = 90;
+          const imgWidth = 140;
           const imgHeight = (canvas.height * imgWidth) / canvas.width;
           
           // Center the chart
