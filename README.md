@@ -4,7 +4,7 @@
 
 A comprehensive React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-2.12.6-blue)
+![Version](https://img.shields.io/badge/version-2.12.7-blue)
 ![Rubric](https://img.shields.io/badge/rubric-v2.4-green)
 
 ---
@@ -33,18 +33,6 @@ A comprehensive React-based tool for evaluating brands across eight consciousnes
 5. **Earned Media** — Press coverage analysis from past 3 months
 6. **Report Generation** — Comprehensive scoring with recommendations
 
-### 🔧 Key Capabilities
-
-- **Evidence-Based Auto-Check** — AI research for YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor
-- **Reddit Answers Integration** — Check AI search visibility and brand perception
-- **Technical Performance Audit** — PageSpeed scores (manual entry from Google)
-- **Weighted Scoring** — 70/30 split for ATTENTIVE, 80/20 for COGENT
-- **Spider Chart Visualization** — Visual representation of all 8 attributes
-- **Maturity Continuum** — 6-stage progression from Dormant to Transcendent
-- **Multiple Export Formats** — PDF, DOCX, CSV
-- **Time-Based Tracking** — Save multiple assessments per brand to track improvement
-- **Supabase Backend** — Cloud storage, authentication, team workspace
-
 ---
 
 ## Quick Start
@@ -55,17 +43,7 @@ A comprehensive React-based tool for evaluating brands across eight consciousnes
 npm install
 ```
 
-### 2. Configure API Key
-
-Create a `.env` file in the project root:
-
-```env
-VITE_ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
-```
-
-Get your API key from [console.anthropic.com](https://console.anthropic.com)
-
-### 3. Run Development Server
+### 2. Run Development Server
 
 ```bash
 npm run dev
@@ -75,22 +53,54 @@ Open [http://localhost:5173](http://localhost:5173)
 
 ---
 
-## Deployment
+## Deployment to Vercel (Secure API Key)
 
-### Vercel (Recommended)
+The API key is stored **server-side only** using a Vercel serverless function. This is the secure approach - the key is never exposed to the browser.
 
-1. Push to GitHub
-2. Import project in [Vercel](https://vercel.com)
-3. Add environment variable:
-   - **Name:** `VITE_ANTHROPIC_API_KEY`
-   - **Value:** Your Anthropic API key
-4. Deploy
+### Step-by-Step:
 
-### Environment Variables
+1. **Push to GitHub** (the `/api/claude.js` serverless function is already included)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_ANTHROPIC_API_KEY` | Yes | Anthropic Claude API key |
+2. **Import project in [Vercel](https://vercel.com)**
+
+3. **Add Environment Variable:**
+   - Go to: **Settings** → **Environment Variables**
+   - Add:
+     | Name | Value |
+     |------|-------|
+     | `ANTHROPIC_API_KEY` | `sk-ant-api03-your-key-here` |
+   
+   ⚠️ **Important:** Use `ANTHROPIC_API_KEY` (without `VITE_` prefix) - this keeps it secure on the server
+
+4. **Deploy** - Vercel will automatically detect the `/api/claude.js` serverless function
+
+5. **Done!** Users won't need to enter an API key - it's handled securely on the server
+
+### How It Works
+
+```
+Browser → /api/claude (Vercel serverless) → Anthropic API
+                ↑
+         API key stored here (server-side only)
+```
+
+The frontend calls `/api/claude` which proxies requests to Anthropic. The API key never reaches the browser.
+
+---
+
+## Local Development (Optional)
+
+For local development, you have two options:
+
+### Option A: Use the API Key Input (Default)
+Just enter your API key in the app's setup page.
+
+### Option B: Environment Variable
+Create a `.env` file:
+```
+VITE_ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
+```
+Note: `VITE_` prefix is OK for localhost but **never use it in production**.
 
 ---
 
@@ -119,20 +129,6 @@ Open [http://localhost:5173](http://localhost:5173)
 | **Nextdoor** | Community presence (→ Aware score) |
 | **WIPO** | Trademark registrations (→ Intentional score) |
 
-### AI Reputation Assessment
-
-Query three AI systems with a standard prompt about the brand:
-- Claude (Anthropic)
-- Gemini (Google)
-- ChatGPT (OpenAI)
-
-Synthesize responses to understand AI perception and identify knowledge gaps.
-
-### Earned Media Assessment
-
-- Paste 3 months of press coverage
-- AI analyzes sentiment, message penetration, share of voice
-
 ---
 
 ## Scoring Methodology
@@ -140,11 +136,11 @@ Synthesize responses to understand AI perception and identify knowledge gaps.
 ### Weighted Scoring (v2.11+)
 
 **ATTENTIVE Score:**
-- 70% qualitative assessment (design, UX, brand consistency)
-- 30% technical metrics (PageSpeed scores)
+- 70% qualitative assessment
+- 30% technical metrics (PageSpeed)
 
 **COGENT Score:**
-- 80% qualitative assessment (messaging clarity, content strategy)
+- 80% qualitative assessment
 - 20% technical SEO score
 
 ### Maturity Stages
@@ -168,7 +164,7 @@ Synthesize responses to understand AI perception and identify knowledge gaps.
 - **Charts:** Custom SVG spider chart
 - **Export:** jsPDF, docx
 - **Backend:** Supabase (PostgreSQL, Auth)
-- **AI:** Anthropic Claude API
+- **AI:** Anthropic Claude API (via serverless proxy)
 
 ---
 
@@ -176,6 +172,8 @@ Synthesize responses to understand AI perception and identify knowledge gaps.
 
 ```
 conscious-compass/
+├── api/
+│   └── claude.js        # Vercel serverless function (secure API proxy)
 ├── src/
 │   ├── App.jsx          # Main application
 │   ├── lib/
@@ -195,31 +193,14 @@ conscious-compass/
 
 | Version | Key Changes |
 |---------|-------------|
+| 2.12.7 | Secure serverless API proxy (no VITE_ prefix needed) |
 | 2.12.x | Environment variable API key, improved verify links, Reddit Answers |
 | 2.11.x | Weighted scoring, Phase 1-3 UI improvements, manual tech audit |
 | 2.10.x | Evidence-based scoring with citations, technical audit integration |
 | 2.9.x | Supabase backend, assessor tracking, insights view |
-| 2.8.x | Onboarding tour, comparison view, mobile optimization |
-| 2.7.x | Streamlined 6-step workflow, integrated scoring |
-
----
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make changes
-4. Test thoroughly
-5. Submit a pull request
 
 ---
 
 ## License
 
 © 2025-2026 Antenna Group. All rights reserved.
-
----
-
-## Support
-
-For issues or questions, contact the Antenna Group development team.

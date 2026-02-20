@@ -24,7 +24,9 @@ import {
   removeAdmin
 } from './lib/supabase';
 
-const DEFAULT_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || '';
+// Use 'PROXY' to route through serverless function (secure, API key on server)
+// Or set VITE_ANTHROPIC_API_KEY for local development with direct API calls
+const DEFAULT_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || 'PROXY';
 
 // Auth Page Component (Login/Signup)
 function AuthPage({ onAuthSuccess }) {
@@ -417,27 +419,50 @@ async function callClaude(prompt, apiKey, primaryImage = null, additionalImages 
   
   content.push({ type: 'text', text: prompt });
   
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 6000,
-      temperature: temperature,
-      messages: [{ role: 'user', content }]
-    })
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || `API error: ${response.status}`);
+  // Use serverless function (secure) or direct API call (local dev with client key)
+  const useProxy = !apiKey || apiKey === 'PROXY';
+  
+  if (useProxy) {
+    // Production: Use Vercel serverless function (API key stored server-side)
+    const response = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 6000,
+        messages: [{ role: 'user', content }]
+      })
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `API error: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.content[0].text;
+  } else {
+    // Local development: Direct API call with client-provided key
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 6000,
+        temperature: temperature,
+        messages: [{ role: 'user', content }]
+      })
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error?.message || `API error: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.content[0].text;
   }
-  const data = await response.json();
-  return data.content[0].text;
 }
 
 // Spider Chart Component
@@ -766,7 +791,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.6
+        Version 2.12.7
       </div>
     </div>
   );
