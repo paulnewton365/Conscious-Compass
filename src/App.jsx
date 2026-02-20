@@ -468,10 +468,10 @@ async function callClaude(prompt, apiKey, primaryImage = null, additionalImages 
 
 // Spider Chart Component
 function SpiderChart({ scores, size = 400 }) {
-  const padding = 80; // Extra padding for labels
+  const padding = 70; // Padding for labels
   const viewBoxSize = size + padding * 2;
   const center = viewBoxSize / 2;
-  const radius = size * 0.35; // Slightly smaller to give more room
+  const radius = size * 0.40; // Larger radius for bigger chart
   const attrs = ATTRIBUTES;
   const angleStep = (2 * Math.PI) / attrs.length;
   
@@ -497,7 +497,7 @@ function SpiderChart({ scores, size = 400 }) {
   const pathD = dataPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
 
   return (
-    <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} className="spider-chart w-full max-w-lg mx-auto" style={{ overflow: 'visible' }}>
+    <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} className="spider-chart mx-auto" style={{ overflow: 'visible', width: size, height: size }}>
       {/* Grid circles */}
       {gridLevels.map(level => {
         const r = (level / 100) * radius;
@@ -532,7 +532,7 @@ function SpiderChart({ scores, size = 400 }) {
       {/* Labels */}
       {attrs.map((attr, i) => {
         const angle = angleStep * i - Math.PI / 2;
-        const labelRadius = radius + 40;
+        const labelRadius = radius + 35;
         const x = center + labelRadius * Math.cos(angle);
         const y = center + labelRadius * Math.sin(angle);
         return (
@@ -792,7 +792,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.15
+        Version 2.12.18
       </div>
     </div>
   );
@@ -3320,9 +3320,9 @@ Return the JSON scores in this exact format:
 
       {/* Hero Section - Score & Chart Side by Side */}
       <div className="card p-6 mb-6">
-        <div className="grid md:grid-cols-5 gap-6 items-center">
-          {/* Left: Score & Summary - 2 columns */}
-          <div className="md:col-span-2">
+        <div className="grid md:grid-cols-2 gap-8 items-center">
+          {/* Left: Score & Summary */}
+          <div>
             <div className="flex items-start gap-4 mb-4">
               <div className="text-center">
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold" style={{ backgroundColor: stage.color }}>
@@ -3342,10 +3342,10 @@ Return the JSON scores in this exact format:
             </div>
           </div>
           
-          {/* Right: Spider Chart - 3 columns */}
-          <div className="md:col-span-3 flex justify-center">
+          {/* Right: Spider Chart */}
+          <div className="flex justify-center overflow-visible">
             <div ref={chartRef}>
-              <SpiderChart scores={scores} size={500} />
+              <SpiderChart scores={scores} size={420} />
             </div>
           </div>
         </div>
