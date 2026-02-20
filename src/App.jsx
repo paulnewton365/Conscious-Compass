@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS } from './data/rubric';
 import { getAllRecommendations, formatBudget } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Lock, Share2, Link, Copy, LogOut, Shield, UserCheck, UserX, Mail, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle } from 'lucide-react';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType } from 'docx';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import { 
@@ -791,7 +791,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.7
+        Version 2.12.8
       </div>
     </div>
   );
@@ -2796,7 +2796,12 @@ Return the JSON scores in this exact format:
       const contentWidth = pageWidth - (margin * 2);
       let y = margin;
 
-      const addText = (text, fontSize = 10, isBold = false, color = [26, 31, 46]) => {
+      // Brand colors
+      const brandRed = [229, 57, 53];
+      const brandBlack = [26, 26, 26];
+      const brandGray = [102, 102, 102];
+
+      const addText = (text, fontSize = 10, isBold = false, color = brandBlack) => {
         pdf.setFontSize(fontSize);
         pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
         pdf.setTextColor(color[0], color[1], color[2]);
@@ -2811,171 +2816,262 @@ Return the JSON scores in this exact format:
 
       const addHeading = (text) => {
         y += 5;
-        addText(text, 14, true, [229, 57, 53]);
-        y += 2;
+        if (y > 250) { pdf.addPage(); y = margin; }
+        pdf.setFillColor(brandRed[0], brandRed[1], brandRed[2]);
+        pdf.rect(margin, y - 4, 3, 12, 'F');
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(brandBlack[0], brandBlack[1], brandBlack[2]);
+        pdf.text(text, margin + 6, y + 4);
+        y += 12;
       };
 
       const addSpace = (space = 5) => { y += space; };
 
-      // Title
+      // Header with brand styling
+      pdf.setFillColor(brandRed[0], brandRed[1], brandRed[2]);
+      pdf.rect(0, 0, pageWidth, 35, 'F');
+      
       pdf.setFontSize(24);
       pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(26, 31, 46);
-      pdf.text(project.brandName, margin, y);
-      y += 10;
-      
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Conscious Compass Assessment Report', margin, y);
-      y += 7;
-      
-      pdf.setFontSize(10);
-      pdf.setTextColor(107, 114, 128);
-      pdf.text(`Assessment Date: ${project.date || new Date().toLocaleDateString()} | Industry: ${industryName} | Model: ${project.businessModel.toUpperCase()}`, margin, y);
-      y += 10;
-
-      // Overall Score Box
-      pdf.setFillColor(229, 57, 53);
-      pdf.roundedRect(margin, y, 50, 20, 3, 3, 'F');
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(20);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(`${overall}/100`, margin + 10, y + 13);
+      pdf.text(project.brandName, margin, 18);
       
-      pdf.setTextColor(26, 31, 46);
-      pdf.setFontSize(12);
-      pdf.text(`${stage.name}`, margin + 55, y + 8);
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Conscious Compass Assessment Report', margin, 26);
+      
+      pdf.setFontSize(9);
+      pdf.text(`${project.date || new Date().toLocaleDateString()} | ${industryName} | ${project.businessModel.toUpperCase()}`, margin, 32);
+      
+      y = 45;
+
+      // Overall Score Box with maturity color
+      const stageHex = stage.color.replace('#', '');
+      const stageR = parseInt(stageHex.substr(0, 2), 16);
+      const stageG = parseInt(stageHex.substr(2, 2), 16);
+      const stageB = parseInt(stageHex.substr(4, 2), 16);
+      
+      pdf.setFillColor(stageR, stageG, stageB);
+      pdf.roundedRect(margin, y, 40, 25, 3, 3, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(22);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${overall}`, margin + 12, y + 15);
+      pdf.setFontSize(8);
+      pdf.text('/100', margin + 26, y + 15);
+      
+      pdf.setTextColor(brandBlack[0], brandBlack[1], brandBlack[2]);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(stage.name, margin + 48, y + 10);
       pdf.setFontSize(9);
       pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(107, 114, 128);
-      const stageDesc = pdf.splitTextToSize(stage.description, contentWidth - 60);
-      pdf.text(stageDesc, margin + 55, y + 14);
-      y += 30;
+      pdf.setTextColor(brandGray[0], brandGray[1], brandGray[2]);
+      const stageDesc = pdf.splitTextToSize(stage.description, contentWidth - 55);
+      pdf.text(stageDesc, margin + 48, y + 16);
+      y += 32;
 
-      // Executive Summary
-      addHeading('EXECUTIVE SUMMARY');
-      addText(`${project.brandName} achieved an overall Brand Consciousness Score of ${overall}/100, placing them in the "${stage.name}" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in ${sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in ${sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.`);
-      addSpace(5);
+      // Strengths & Opportunities mini summary
+      pdf.setFontSize(9);
+      pdf.setTextColor(5, 150, 105);
+      pdf.text(`Strengths: ${sortedAttrs.slice(-2).map(a => a.name).join(', ')}`, margin, y);
+      pdf.setTextColor(220, 38, 38);
+      pdf.text(`Opportunities: ${sortedAttrs.slice(0, 2).map(a => a.name).join(', ')}`, margin + 85, y);
+      y += 8;
 
-      // Score Summary
-      addHeading('SCORE SUMMARY');
-      ATTRIBUTES.forEach(attr => {
-        const score = scores[attr.id]?.score || 0;
-        addText(`${attr.name} (${attr.fullName}): ${score}/100`, 10, false);
-      });
-      addSpace(5);
-
-      // Spider Chart
+      // Spider Chart Section
       addHeading('BRAND CONSCIOUSNESS PROFILE');
       
-      // Draw spider chart
       const chartCenterX = pageWidth / 2;
-      const chartCenterY = y + 45;
-      const chartRadius = 35;
+      const chartCenterY = y + 50;
+      const chartRadius = 40;
       const numAttrs = ATTRIBUTES.length;
       const angleStep = (2 * Math.PI) / numAttrs;
       
-      // Draw grid circles
-      pdf.setDrawColor(220, 220, 220);
-      pdf.setLineWidth(0.3);
-      [0.2, 0.4, 0.6, 0.8, 1.0].forEach(level => {
-        const r = chartRadius * level;
+      // Draw grid circles with labels
+      pdf.setDrawColor(230, 230, 230);
+      pdf.setLineWidth(0.2);
+      [20, 40, 60, 80, 100].forEach((level, idx) => {
+        const r = chartRadius * (level / 100);
         pdf.circle(chartCenterX, chartCenterY, r, 'S');
+        if (idx % 2 === 0) {
+          pdf.setFontSize(6);
+          pdf.setTextColor(180, 180, 180);
+          pdf.text(String(level), chartCenterX + 1, chartCenterY - r + 2);
+        }
       });
       
       // Draw axis lines
-      pdf.setDrawColor(220, 220, 220);
       ATTRIBUTES.forEach((attr, i) => {
         const angle = angleStep * i - Math.PI / 2;
         const x2 = chartCenterX + chartRadius * Math.cos(angle);
         const y2 = chartCenterY + chartRadius * Math.sin(angle);
+        pdf.setDrawColor(230, 230, 230);
         pdf.line(chartCenterX, chartCenterY, x2, y2);
       });
       
-      // Calculate data points
+      // Calculate and draw data polygon
       const points = ATTRIBUTES.map((attr, i) => {
         const score = scores[attr.id]?.score || 0;
         const angle = angleStep * i - Math.PI / 2;
         const r = (score / 100) * chartRadius;
-        return {
-          x: chartCenterX + r * Math.cos(angle),
-          y: chartCenterY + r * Math.sin(angle)
-        };
+        return { x: chartCenterX + r * Math.cos(angle), y: chartCenterY + r * Math.sin(angle) };
       });
       
-      // Draw filled polygon using triangle fan (light peach fill)
-      pdf.setFillColor(252, 220, 210);
+      // Fill polygon
+      pdf.setFillColor(229, 57, 53, 0.15);
       for (let i = 0; i < points.length; i++) {
         const p1 = points[i];
         const p2 = points[(i + 1) % points.length];
+        pdf.setFillColor(252, 220, 210);
         pdf.triangle(chartCenterX, chartCenterY, p1.x, p1.y, p2.x, p2.y, 'F');
       }
       
-      // Draw polygon outline
-      pdf.setDrawColor(229, 57, 53);
-      pdf.setLineWidth(1.2);
+      // Outline polygon
+      pdf.setDrawColor(brandRed[0], brandRed[1], brandRed[2]);
+      pdf.setLineWidth(1.5);
       for (let i = 0; i < points.length; i++) {
         const p1 = points[i];
         const p2 = points[(i + 1) % points.length];
         pdf.line(p1.x, p1.y, p2.x, p2.y);
       }
       
-      // Draw data points
-      pdf.setFillColor(229, 57, 53);
-      points.forEach(p => {
-        pdf.circle(p.x, p.y, 1.5, 'F');
-      });
+      // Data points
+      pdf.setFillColor(brandRed[0], brandRed[1], brandRed[2]);
+      points.forEach(p => pdf.circle(p.x, p.y, 2, 'F'));
       
-      // Draw labels with scores
+      // Center score
+      pdf.setFillColor(255, 255, 255);
+      pdf.circle(chartCenterX, chartCenterY, 12, 'F');
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(brandRed[0], brandRed[1], brandRed[2]);
+      pdf.text(String(overall), chartCenterX, chartCenterY + 4, { align: 'center' });
+      
+      // Attribute labels around chart
       pdf.setFontSize(7);
       pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(26, 31, 46);
       ATTRIBUTES.forEach((attr, i) => {
         const angle = angleStep * i - Math.PI / 2;
-        const labelRadius = chartRadius + 10;
+        const labelRadius = chartRadius + 14;
         const labelX = chartCenterX + labelRadius * Math.cos(angle);
-        const labelY = chartCenterY + labelRadius * Math.sin(angle) + 1;
+        const labelY = chartCenterY + labelRadius * Math.sin(angle);
         const score = scores[attr.id]?.score || 0;
-        pdf.text(`${attr.name} (${score})`, labelX, labelY, { align: 'center' });
+        
+        // Use attribute color
+        const attrHex = attr.color.replace('#', '');
+        const attrR = parseInt(attrHex.substr(0, 2), 16);
+        const attrG = parseInt(attrHex.substr(2, 2), 16);
+        const attrB = parseInt(attrHex.substr(4, 2), 16);
+        pdf.setTextColor(attrR, attrG, attrB);
+        pdf.text(`${attr.name}`, labelX, labelY - 2, { align: 'center' });
+        pdf.setTextColor(brandBlack[0], brandBlack[1], brandBlack[2]);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`${score}`, labelX, labelY + 3, { align: 'center' });
+        pdf.setFont('helvetica', 'bold');
       });
       
-      y = chartCenterY + chartRadius + 18;
-      addSpace(5);
+      y = chartCenterY + chartRadius + 22;
+
+      // Score Grid (compact)
+      addHeading('ATTRIBUTE SCORES');
+      const scoreGridY = y;
+      const colWidth = contentWidth / 4;
+      
+      ATTRIBUTES.forEach((attr, i) => {
+        const col = i % 4;
+        const row = Math.floor(i / 4);
+        const xPos = margin + (col * colWidth);
+        const yPos = scoreGridY + (row * 18);
+        
+        const score = scores[attr.id]?.score || 0;
+        const attrHex = attr.color.replace('#', '');
+        const attrR = parseInt(attrHex.substr(0, 2), 16);
+        const attrG = parseInt(attrHex.substr(2, 2), 16);
+        const attrB = parseInt(attrHex.substr(4, 2), 16);
+        
+        // Score with color
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(attrR, attrG, attrB);
+        pdf.text(String(score), xPos, yPos + 5);
+        
+        // Attribute name
+        pdf.setFontSize(7);
+        pdf.setTextColor(brandGray[0], brandGray[1], brandGray[2]);
+        pdf.text(attr.name.toUpperCase(), xPos, yPos + 11);
+      });
+      
+      y = scoreGridY + 40;
+
+      // Executive Summary
+      addHeading('EXECUTIVE SUMMARY');
+      addText(`${project.brandName} achieved an overall Brand Consciousness Score of ${overall}/100, placing them in the "${stage.name}" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in ${sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in ${sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.`);
+      addSpace(3);
 
       // Attribute Analysis
       addHeading('ATTRIBUTE ANALYSIS');
       ATTRIBUTES.forEach(attr => {
-        addText(`${attr.name}: ${scores[attr.id]?.score || 0}/100`, 11, true);
+        const score = scores[attr.id]?.score || 0;
+        const attrHex = attr.color.replace('#', '');
+        const attrR = parseInt(attrHex.substr(0, 2), 16);
+        const attrG = parseInt(attrHex.substr(2, 2), 16);
+        const attrB = parseInt(attrHex.substr(4, 2), 16);
+        
+        if (y > 250) { pdf.addPage(); y = margin; }
+        
+        // Colored bar
+        pdf.setFillColor(attrR, attrG, attrB);
+        pdf.rect(margin, y - 2, 2, 10, 'F');
+        
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(attrR, attrG, attrB);
+        pdf.text(`${attr.name}`, margin + 5, y + 3);
+        pdf.setTextColor(brandGray[0], brandGray[1], brandGray[2]);
+        pdf.text(`${score}/100`, margin + 35, y + 3);
+        y += 8;
+        
         const findings = scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description;
         addText(findings, 9);
+        
         if (scores[attr.id]?.opportunity) {
-          addText(scores[attr.id].opportunity, 9, false, [229, 57, 53]); // Teal color for opportunity
+          pdf.setTextColor(5, 150, 105);
+          addText(`→ ${scores[attr.id].opportunity}`, 9, false, [5, 150, 105]);
         }
-        addSpace(3);
+        addSpace(2);
       });
 
-      // Maturity Stage Context
-      addHeading('MATURITY STAGE CONTEXT');
-      addText(`With a score of ${overall}/100, ${project.brandName} is positioned in the "${stage.name}" stage of brand consciousness maturity. ${stage.description}. Brands at this stage typically demonstrate ${overall < 40 ? 'foundational elements but significant room for strategic development' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence' : overall < 80 ? 'strong brand awareness with potential to become industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position'}. The path forward involves targeted investment in the lowest-scoring attributes.`);
-      addSpace(5);
-
       // Recommendations
-      addHeading('INTEGRATED MARKETING RECOMMENDATIONS');
-      recommendations.forEach((r, i) => {
-        addText(`${i + 1}. ${r.title}`, 10, true);
-        addText(`${r.description} ${r.impact} (${r.attributes.join(', ')})`, 9);
-        addSpace(2);
+      addHeading('TOP RECOMMENDATIONS');
+      recommendations.slice(0, 6).forEach((r, i) => {
+        if (y > 260) { pdf.addPage(); y = margin; }
+        
+        // Number badge
+        pdf.setFillColor(brandRed[0], brandRed[1], brandRed[2]);
+        pdf.circle(margin + 4, y + 2, 4, 'F');
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(255, 255, 255);
+        pdf.text(String(i + 1), margin + 4, y + 4, { align: 'center' });
+        
+        pdf.setTextColor(brandBlack[0], brandBlack[1], brandBlack[2]);
+        pdf.setFontSize(10);
+        pdf.text(r.title, margin + 12, y + 4);
+        y += 7;
+        
+        addText(`${r.description} ${r.impact}`, 9);
+        pdf.setFontSize(8);
+        pdf.setTextColor(brandGray[0], brandGray[1], brandGray[2]);
+        pdf.text(`Impacts: ${r.attributes.slice(0, 3).join(', ')}`, margin, y);
+        y += 6;
       });
       addSpace(3);
 
-      // Conclusions
-      addHeading('CONCLUSIONS');
-      addText(`${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position. The journey toward greater brand consciousness is ongoing, and ${project.brandName} is well positioned to become a more consequential presence in the ${industryName.toLowerCase()} industry.`);
-      addSpace(5);
-
       // What We Evaluated
-      addHeading('WHAT WE EVALUATED');
-      addText(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, 9);
+      addHeading('METHODOLOGY');
+      addText(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, 9);
 
       // Footer on each page
       const pageCount = pdf.internal.getNumberOfPages();
@@ -2983,7 +3079,7 @@ Return the JSON scores in this exact format:
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.setTextColor(156, 163, 175);
-        pdf.text(`Antenna Group | Conscious Compass Assessment | Page ${i} of ${pageCount}`, pageWidth / 2, 290, { align: 'center' });
+        pdf.text(`Conscious Compass by Antenna Group | Page ${i} of ${pageCount}`, pageWidth / 2, 290, { align: 'center' });
       }
 
       pdf.save(`${project.brandName.replace(/\s+/g, '_')}_Conscious_Compass_Report.pdf`);
@@ -2994,61 +3090,221 @@ Return the JSON scores in this exact format:
   const generateDocx = async () => {
     setIsGenerating(true);
     try {
+      // Color helper - convert hex to DOCX color format (without #)
+      const hexColor = (hex) => hex.replace('#', '');
+      
       const doc = new Document({
-        styles: { default: { document: { run: { font: 'Arial', size: 24 } } } },
+        styles: {
+          default: {
+            document: { run: { font: 'Arial', size: 22 } },
+            heading1: { run: { font: 'Arial', size: 48, bold: true, color: '1A1A1A' } },
+            heading2: { run: { font: 'Arial', size: 28, bold: true, color: 'E53935' } },
+          }
+        },
         sections: [{
-          properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+          properties: { 
+            page: { 
+              size: { width: 12240, height: 15840 }, 
+              margin: { top: 1080, right: 1080, bottom: 1080, left: 1080 } 
+            } 
+          },
           children: [
-            // Title
-            new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `${project.brandName}`, bold: true })] }),
-            new Paragraph({ children: [new TextRun({ text: 'Conscious Compass Assessment Report', size: 28 })] }),
-            new Paragraph({ children: [new TextRun({ text: `Assessment Date: ${project.date || new Date().toLocaleDateString()} | Industry: ${industryName} | Model: ${project.businessModel.toUpperCase()}`, italics: true })] }),
+            // Title Section
+            new Paragraph({ 
+              heading: HeadingLevel.HEADING_1, 
+              spacing: { after: 100 },
+              children: [new TextRun({ text: project.brandName, bold: true, size: 56 })] 
+            }),
+            new Paragraph({ 
+              spacing: { after: 100 },
+              children: [new TextRun({ text: 'Conscious Compass Assessment Report', size: 28, color: '666666' })] 
+            }),
+            new Paragraph({ 
+              spacing: { after: 400 },
+              children: [new TextRun({ text: `${project.date || new Date().toLocaleDateString()} | ${industryName} | ${project.businessModel.toUpperCase()}`, size: 20, italics: true, color: '999999' })] 
+            }),
+            
+            // Score Summary Box
+            new Paragraph({
+              spacing: { after: 200 },
+              children: [
+                new TextRun({ text: `Overall Score: `, size: 28, bold: true }),
+                new TextRun({ text: `${overall}/100`, size: 36, bold: true, color: hexColor(stage.color) }),
+                new TextRun({ text: ` — ${stage.name}`, size: 28, bold: true }),
+              ]
+            }),
+            new Paragraph({
+              spacing: { after: 400 },
+              children: [new TextRun({ text: stage.description, size: 22, italics: true, color: '666666' })]
+            }),
+            
+            // Strengths & Opportunities
+            new Paragraph({
+              spacing: { after: 100 },
+              children: [
+                new TextRun({ text: '✓ Strengths: ', size: 22, bold: true, color: '059669' }),
+                new TextRun({ text: sortedAttrs.slice(-2).map(a => a.name).join(', '), size: 22, color: '059669' }),
+              ]
+            }),
+            new Paragraph({
+              spacing: { after: 400 },
+              children: [
+                new TextRun({ text: '↑ Opportunities: ', size: 22, bold: true, color: 'DC2626' }),
+                new TextRun({ text: sortedAttrs.slice(0, 2).map(a => a.name).join(', '), size: 22, color: 'DC2626' }),
+              ]
+            }),
+            
+            // Score Table
+            new Paragraph({ 
+              heading: HeadingLevel.HEADING_2, 
+              spacing: { before: 400, after: 200 },
+              children: [new TextRun({ text: 'ATTRIBUTE SCORES', color: 'E53935' })] 
+            }),
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [
+                // Header row
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      width: { size: 50, type: WidthType.PERCENTAGE },
+                      shading: { fill: 'F0EEEA', type: ShadingType.CLEAR },
+                      children: [new Paragraph({ children: [new TextRun({ text: 'Attribute', bold: true, size: 20 })] })],
+                    }),
+                    new TableCell({
+                      width: { size: 25, type: WidthType.PERCENTAGE },
+                      shading: { fill: 'F0EEEA', type: ShadingType.CLEAR },
+                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Score', bold: true, size: 20 })] })],
+                    }),
+                    new TableCell({
+                      width: { size: 25, type: WidthType.PERCENTAGE },
+                      shading: { fill: 'F0EEEA', type: ShadingType.CLEAR },
+                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Status', bold: true, size: 20 })] })],
+                    }),
+                  ],
+                }),
+                // Data rows
+                ...ATTRIBUTES.map(attr => {
+                  const score = scores[attr.id]?.score || 0;
+                  const status = score >= 70 ? 'Strong' : score >= 50 ? 'Developing' : 'Needs Focus';
+                  const statusColor = score >= 70 ? '059669' : score >= 50 ? 'D97706' : 'DC2626';
+                  return new TableRow({
+                    children: [
+                      new TableCell({
+                        children: [new Paragraph({ 
+                          children: [
+                            new TextRun({ text: attr.name, bold: true, size: 20, color: hexColor(attr.color) }),
+                            new TextRun({ text: ` (${attr.fullName})`, size: 18, color: '666666' }),
+                          ] 
+                        })],
+                      }),
+                      new TableCell({
+                        children: [new Paragraph({ 
+                          alignment: AlignmentType.CENTER,
+                          children: [new TextRun({ text: `${score}`, bold: true, size: 24, color: hexColor(attr.color) })] 
+                        })],
+                      }),
+                      new TableCell({
+                        children: [new Paragraph({ 
+                          alignment: AlignmentType.CENTER,
+                          children: [new TextRun({ text: status, size: 18, color: statusColor })] 
+                        })],
+                      }),
+                    ],
+                  });
+                }),
+              ],
+            }),
             new Paragraph({ children: [new TextRun('')] }),
             
             // Executive Summary
-            new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('EXECUTIVE SUMMARY')] }),
-            new Paragraph({ children: [new TextRun(`${project.brandName} achieved an overall Brand Consciousness Score of ${overall}/100, placing them in the "${stage.name}" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes: Awake, Aware, Reflective, Attentive, Cogent, Sentient, Visionary, and Intentional. Key strengths emerged in ${sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in ${sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.`)] }),
-            new Paragraph({ children: [new TextRun('')] }),
-            
-            // Score Summary
-            new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('SCORE SUMMARY')] }),
-            new Paragraph({ children: [new TextRun({ text: `Overall Score: ${overall}/100`, bold: true })] }),
-            new Paragraph({ children: [new TextRun('')] }),
-            ...ATTRIBUTES.map(attr => new Paragraph({ children: [new TextRun(`${attr.name} (${attr.fullName}): ${scores[attr.id]?.score || 0}/100`)] })),
-            new Paragraph({ children: [new TextRun('')] }),
+            new Paragraph({ 
+              heading: HeadingLevel.HEADING_2, 
+              spacing: { before: 400, after: 200 },
+              children: [new TextRun({ text: 'EXECUTIVE SUMMARY', color: 'E53935' })] 
+            }),
+            new Paragraph({ 
+              spacing: { after: 300 },
+              children: [new TextRun({ text: `${project.brandName} achieved an overall Brand Consciousness Score of ${overall}/100, placing them in the "${stage.name}" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes: Awake, Aware, Reflective, Attentive, Cogent, Sentient, Visionary, and Intentional. Key strengths emerged in ${sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in ${sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.`, size: 22 })] 
+            }),
             
             // Attribute Analysis
-            new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('ATTRIBUTE ANALYSIS')] }),
-            ...ATTRIBUTES.flatMap(attr => [
-              new Paragraph({ children: [new TextRun({ text: `${attr.name}: ${scores[attr.id]?.score || 0}/100`, bold: true })] }),
-              new Paragraph({ children: [new TextRun(scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description)] }),
-              ...(scores[attr.id]?.opportunity ? [new Paragraph({ children: [new TextRun({ text: scores[attr.id].opportunity, italics: true, color: '0D9488' })] })] : []),
-              new Paragraph({ children: [new TextRun('')] }),
-            ]),
-            
-            // Maturity Stage Context
-            new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('MATURITY STAGE CONTEXT')] }),
-            new Paragraph({ children: [new TextRun(`With a score of ${overall}/100, ${project.brandName} is positioned in the "${stage.name}" stage of brand consciousness maturity. ${stage.description}. Brands at this stage typically demonstrate ${overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes to create a more balanced and powerful brand presence.`)] }),
-            new Paragraph({ children: [new TextRun('')] }),
+            new Paragraph({ 
+              heading: HeadingLevel.HEADING_2, 
+              spacing: { before: 400, after: 200 },
+              children: [new TextRun({ text: 'ATTRIBUTE ANALYSIS', color: 'E53935' })] 
+            }),
+            ...ATTRIBUTES.flatMap(attr => {
+              const score = scores[attr.id]?.score || 0;
+              return [
+                new Paragraph({ 
+                  spacing: { before: 200 },
+                  border: { left: { color: hexColor(attr.color), size: 24, style: BorderStyle.SINGLE, space: 10 } },
+                  children: [
+                    new TextRun({ text: `${attr.name}: `, bold: true, size: 24, color: hexColor(attr.color) }),
+                    new TextRun({ text: `${score}/100`, bold: true, size: 24 }),
+                  ] 
+                }),
+                new Paragraph({ 
+                  spacing: { after: 100 },
+                  children: [new TextRun({ text: scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description, size: 20 })] 
+                }),
+                ...(scores[attr.id]?.opportunity ? [new Paragraph({ 
+                  spacing: { after: 200 },
+                  children: [new TextRun({ text: `→ ${scores[attr.id].opportunity}`, italics: true, size: 20, color: '059669' })] 
+                })] : []),
+              ];
+            }),
             
             // Recommendations
-            new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('INTEGRATED MARKETING RECOMMENDATIONS')] }),
-            new Paragraph({ children: [new TextRun({ text: 'Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:', italics: true })] }),
-            new Paragraph({ children: [new TextRun('')] }),
-            ...recommendations.flatMap((r, i) => [
-              new Paragraph({ children: [new TextRun({ text: `${i + 1}. ${r.title}`, bold: true })] }),
-              new Paragraph({ children: [new TextRun(`${r.description} ${r.impact} (${r.attributes.join(', ')})`)] }),
-              new Paragraph({ children: [new TextRun('')] }),
+            new Paragraph({ 
+              heading: HeadingLevel.HEADING_2, 
+              pageBreakBefore: true,
+              spacing: { after: 200 },
+              children: [new TextRun({ text: 'TOP RECOMMENDATIONS', color: 'E53935' })] 
+            }),
+            ...recommendations.slice(0, 6).flatMap((r, i) => [
+              new Paragraph({ 
+                spacing: { before: 200 },
+                children: [
+                  new TextRun({ text: `${i + 1}. `, bold: true, size: 24, color: 'E53935' }),
+                  new TextRun({ text: r.title, bold: true, size: 24 }),
+                ] 
+              }),
+              new Paragraph({ 
+                spacing: { after: 100 },
+                children: [new TextRun({ text: `${r.description} ${r.impact}`, size: 20 })] 
+              }),
+              new Paragraph({ 
+                spacing: { after: 200 },
+                children: [new TextRun({ text: `Impacts: ${r.attributes.join(', ')}`, size: 18, italics: true, color: '666666' })] 
+              }),
             ]),
             
-            // Conclusions
-            new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('CONCLUSIONS')] }),
-            new Paragraph({ children: [new TextRun(`${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, ${project.brandName} is well positioned to become a more consequential presence in the ${industryName.toLowerCase()} industry.`)] }),
+            // Methodology
+            new Paragraph({ 
+              heading: HeadingLevel.HEADING_2, 
+              spacing: { before: 400, after: 200 },
+              children: [new TextRun({ text: 'METHODOLOGY', color: 'E53935' })] 
+            }),
+            new Paragraph({ 
+              children: [new TextRun({ text: `This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, size: 20 })] 
+            }),
             new Paragraph({ children: [new TextRun('')] }),
             
-            // What We Evaluated
-            new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('WHAT WE EVALUATED')] }),
-            new Paragraph({ children: [new TextRun(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`)] }),
+            // Note about spider chart
+            new Paragraph({ 
+              spacing: { before: 300 },
+              shading: { fill: 'F0EEEA', type: ShadingType.CLEAR },
+              children: [new TextRun({ text: '📊 Note: For the visual Brand Consciousness Profile (spider chart), please refer to the PDF export or the web report.', size: 18, italics: true, color: '666666' })] 
+            }),
+            
+            // Footer
+            new Paragraph({ 
+              spacing: { before: 600 },
+              alignment: AlignmentType.CENTER,
+              children: [new TextRun({ text: '© Antenna Group | Conscious Compass Assessment', size: 18, color: '999999' })] 
+            }),
           ]
         }]
       });
