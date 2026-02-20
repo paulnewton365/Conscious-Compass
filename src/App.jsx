@@ -729,7 +729,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.9.2
+        Version 2.9.3
       </div>
     </div>
   );
@@ -3372,39 +3372,102 @@ function InsightsView({ results, industryBenchmarks, industries }) {
     setLoading(true);
     setError(null);
     
+    // Build sector-specific data
+    const sectorData = {};
+    results.forEach(r => {
+      const sector = r.industry || 'other';
+      if (!sectorData[sector]) {
+        sectorData[sector] = { brands: [], scores: [], attrTotals: {} };
+        ATTRIBUTES.forEach(a => sectorData[sector].attrTotals[a.id] = 0);
+      }
+      sectorData[sector].brands.push(r.brandName);
+      sectorData[sector].scores.push(r.totalScore);
+      ATTRIBUTES.forEach(a => {
+        sectorData[sector].attrTotals[a.id] += (r.scores?.[a.id] || 0);
+      });
+    });
+    
+    const sectorSummaries = Object.entries(sectorData).map(([sector, data]) => {
+      const avgScore = Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length);
+      const attrAvgs = {};
+      ATTRIBUTES.forEach(a => {
+        attrAvgs[a.id] = Math.round(data.attrTotals[a.id] / data.brands.length);
+      });
+      const sortedAttrs = Object.entries(attrAvgs).sort((a, b) => b[1] - a[1]);
+      return {
+        sector,
+        brandCount: data.brands.length,
+        avgScore,
+        strongestAttr: sortedAttrs[0],
+        weakestAttr: sortedAttrs[sortedAttrs.length - 1],
+        brands: data.brands,
+      };
+    });
+    
     try {
-      const prompt = `Analyze this portfolio of ${results.length} brand assessments and provide strategic insights.
+      const prompt = `You are analyzing Brand Consciousness assessment data to identify thought leadership opportunities and storytelling angles. Brand Consciousness is a framework with 8 attributes that transform fragmented marketing into synchronized strategy for "consequential brands" in the Age of Adoption.
 
-PORTFOLIO DATA:
-- Average Score: ${portfolioStats.avgScore}/100
-- Strongest Attribute (avg): ${portfolioStats.strongestAttr[0]} (${portfolioStats.strongestAttr[1]})
-- Weakest Attribute (avg): ${portfolioStats.weakestAttr[0]} (${portfolioStats.weakestAttr[1]})
+THE 8 ATTRIBUTES OF BRAND CONSCIOUSNESS:
+- AWAKE: Influence & Narrative Leadership - shaping industry conversations through thought leadership
+- AWARE: Trust Building & Audience Understanding - building authentic connections through listening
+- REFLECTIVE: Authenticity & Reputation Management - grounded in clear brand strategy
+- ATTENTIVE: Experience Quality & Excellence - prioritizing quality at every touchpoint
+- COGENT: Strategic Intelligence & Data-Driven Marketing - transforming data into measurable action
+- SENTIENT: Creative Differentiation & Emotional Connection - forging emotional resonance
+- VISIONARY: Future Vision & Audience Benefit - inspiring perspectives that shape industry
+- INTENTIONAL: Credibility & Organizational Confidence - confident, substantive interactions
+
+PORTFOLIO DATA (${results.length} brands assessed):
+- Overall Average Score: ${portfolioStats.avgScore}/100
 - Maturity Distribution: ${JSON.stringify(portfolioStats.maturityDistribution)}
-- Industry Breakdown: ${JSON.stringify(portfolioStats.industryBreakdown)}
+
+ATTRIBUTE AVERAGES ACROSS ALL BRANDS:
+${Object.entries(portfolioStats.attrAverages).map(([k, v]) => `- ${k}: ${v}/100`).join('\n')}
+
+SECTOR-BY-SECTOR BREAKDOWN:
+${sectorSummaries.map(s => `
+${s.sector.toUpperCase()} (${s.brandCount} brand${s.brandCount > 1 ? 's' : ''}):
+  - Average Score: ${s.avgScore}
+  - Strongest: ${s.strongestAttr[0]} (${s.strongestAttr[1]})
+  - Weakest: ${s.weakestAttr[0]} (${s.weakestAttr[1]})
+  - Brands: ${s.brands.join(', ')}`).join('\n')}
 
 TOP PERFORMERS:
-${portfolioStats.topPerformers.map(b => `- ${b.brandName}: ${b.totalScore} (${b.maturityLevel})`).join('\n')}
+${portfolioStats.topPerformers.map(b => `- ${b.brandName} (${b.industry}): ${b.totalScore} - ${b.maturityLevel}`).join('\n')}
 
-BRANDS NEEDING ATTENTION:
-${portfolioStats.bottomPerformers.map(b => `- ${b.brandName}: ${b.totalScore} (${b.maturityLevel})`).join('\n')}
+BRANDS WITH GROWTH POTENTIAL:
+${portfolioStats.bottomPerformers.map(b => `- ${b.brandName} (${b.industry}): ${b.totalScore} - ${b.maturityLevel}`).join('\n')}
 
-ATTRIBUTE AVERAGES:
-${Object.entries(portfolioStats.attrAverages).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
-
-Provide insights in this JSON format:
+Based on this data, provide thought leadership insights in this JSON format:
 {
-  "headline": "One compelling headline summarizing the portfolio state (max 10 words)",
-  "summary": "2-3 sentence executive summary of portfolio health",
-  "keyFindings": [
-    {"title": "Finding title", "description": "Brief description", "type": "strength|weakness|opportunity"},
-    ...3-4 more findings
+  "narrativeHeadline": "A compelling headline that captures the main story this data tells (max 12 words)",
+  "executiveSummary": "2-3 sentences describing the overall state of brand consciousness across these sectors - what's the big picture story?",
+  "sectorStories": [
+    {
+      "sector": "sector name",
+      "narrative": "2-3 sentences telling the story of this sector - where are brands excelling, where are they struggling, what does this mean for the industry?",
+      "consciousnessGap": "Which consciousness attribute represents the biggest opportunity and why?",
+      "thoughtLeadershipAngle": "A specific thought leadership theme or article topic that could resonate with this sector"
+    }
   ],
-  "recommendations": [
-    {"priority": "high|medium", "action": "Specific action to take", "impact": "Expected impact"},
-    ...2-3 more recommendations
+  "crossSectorPatterns": [
+    {
+      "pattern": "Name of the pattern observed",
+      "insight": "2 sentences explaining this pattern across multiple sectors and its implications"
+    }
   ],
-  "industryInsight": "One insight about industry patterns or comparisons",
-  "opportunityScore": 75
+  "consciousnessOpportunities": [
+    {
+      "attribute": "ATTRIBUTE_NAME",
+      "observation": "What the data shows about this attribute across the portfolio",
+      "whyItMatters": "Why this matters in the Age of Adoption / for consequential brands"
+    }
+  ],
+  "thoughtLeadershipThemes": [
+    "Theme 1: A potential article or POV topic based on the data",
+    "Theme 2: Another angle for thought leadership content",
+    "Theme 3: A third perspective worth exploring"
+  ]
 }`;
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -3417,7 +3480,7 @@ Provide insights in this JSON format:
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1500,
+          max_tokens: 2500,
           messages: [{ role: 'user', content: prompt }],
         }),
       });
@@ -3621,61 +3684,102 @@ Provide insights in this JSON format:
 
         {aiInsights && (
           <div className="space-y-6">
-            {/* Headline & Summary */}
-            <div className="p-4 bg-gradient-to-r from-[#6366F1]/10 to-[#A78BFA]/10 rounded-xl border border-[#6366F1]/20">
-              <h4 className="text-xl font-bold text-[#1A1A1A] mb-2">{aiInsights.headline}</h4>
-              <p className="text-[#666666]">{aiInsights.summary}</p>
+            {/* Narrative Headline & Summary */}
+            <div className="p-5 bg-gradient-to-r from-[#6366F1]/10 to-[#A78BFA]/10 rounded-xl border border-[#6366F1]/20">
+              <h4 className="text-xl font-bold text-[#1A1A1A] mb-2">{aiInsights.narrativeHeadline}</h4>
+              <p className="text-[#666666]">{aiInsights.executiveSummary}</p>
             </div>
 
-            {/* Key Findings */}
-            <div>
-              <h4 className="font-medium text-[#1A1A1A] mb-3">Key Findings</h4>
-              <div className="grid md:grid-cols-2 gap-3">
-                {aiInsights.keyFindings?.map((finding, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`p-4 rounded-lg border-l-4 ${
-                      finding.type === 'strength' ? 'bg-green-50 border-[#059669]' :
-                      finding.type === 'weakness' ? 'bg-amber-50 border-[#F59E0B]' :
-                      'bg-blue-50 border-[#6366F1]'
-                    }`}
-                  >
-                    <div className="font-medium text-[#1A1A1A] text-sm">{finding.title}</div>
-                    <div className="text-xs text-[#666666] mt-1">{finding.description}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Recommendations */}
-            <div>
-              <h4 className="font-medium text-[#1A1A1A] mb-3">Strategic Recommendations</h4>
-              <div className="space-y-3">
-                {aiInsights.recommendations?.map((rec, idx) => (
-                  <div key={idx} className="flex gap-3 p-4 bg-[#F0EEEA] rounded-lg">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      rec.priority === 'high' ? 'bg-[#E11D48] text-white' : 'bg-[#6366F1] text-white'
-                    }`}>
-                      {idx + 1}
+            {/* Sector Stories */}
+            {aiInsights.sectorStories?.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-[#059669]" /> Sector Stories
+                </h4>
+                <div className="space-y-4">
+                  {aiInsights.sectorStories.map((story, idx) => (
+                    <div key={idx} className="card p-5 border-l-4 border-[#059669]">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-bold text-[#059669] uppercase tracking-wide">{story.sector}</span>
+                      </div>
+                      <p className="text-sm text-[#1A1A1A] mb-3">{story.narrative}</p>
+                      <div className="grid md:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 bg-[#F0EEEA] rounded-lg">
+                          <div className="font-medium text-[#666666] mb-1">Consciousness Gap</div>
+                          <div className="text-[#1A1A1A]">{story.consciousnessGap}</div>
+                        </div>
+                        <div className="p-3 bg-[#E8FF00]/20 rounded-lg">
+                          <div className="font-medium text-[#666666] mb-1">💡 Thought Leadership Angle</div>
+                          <div className="text-[#1A1A1A] font-medium">{story.thoughtLeadershipAngle}</div>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-medium text-[#1A1A1A] text-sm">{rec.action}</div>
-                      <div className="text-xs text-[#666666] mt-1">Impact: {rec.impact}</div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Industry Insight */}
-            {aiInsights.industryInsight && (
-              <div className="p-4 bg-[#F0EEEA] rounded-lg">
-                <div className="flex items-start gap-2">
-                  <Lightbulb className="w-5 h-5 text-[#F59E0B] flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-medium text-[#1A1A1A] text-sm">Industry Insight</div>
-                    <div className="text-sm text-[#666666] mt-1">{aiInsights.industryInsight}</div>
-                  </div>
+            {/* Cross-Sector Patterns */}
+            {aiInsights.crossSectorPatterns?.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-[#6366F1]" /> Cross-Sector Patterns
+                </h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {aiInsights.crossSectorPatterns.map((pattern, idx) => (
+                    <div key={idx} className="p-4 bg-[#6366F1]/5 rounded-lg border border-[#6366F1]/20">
+                      <div className="font-medium text-[#6366F1] text-sm mb-2">{pattern.pattern}</div>
+                      <div className="text-xs text-[#666666]">{pattern.insight}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Consciousness Opportunities */}
+            {aiInsights.consciousnessOpportunities?.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+                  <Compass className="w-5 h-5 text-[#F59E0B]" /> Consciousness Opportunities
+                </h4>
+                <div className="space-y-3">
+                  {aiInsights.consciousnessOpportunities.map((opp, idx) => {
+                    const attr = ATTRIBUTES.find(a => a.id === opp.attribute);
+                    return (
+                      <div key={idx} className="flex gap-4 p-4 bg-white rounded-lg border border-[#E8E6E1]">
+                        <div 
+                          className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold"
+                          style={{ backgroundColor: attr?.color || '#666' }}
+                        >
+                          {opp.attribute?.substring(0, 3)}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-[#1A1A1A] text-sm">{attr?.name || opp.attribute}</div>
+                          <div className="text-xs text-[#666666] mt-1">{opp.observation}</div>
+                          <div className="text-xs text-[#059669] mt-2 font-medium">↳ {opp.whyItMatters}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Thought Leadership Themes */}
+            {aiInsights.thoughtLeadershipThemes?.length > 0 && (
+              <div className="p-5 bg-[#1A1A1A] rounded-xl text-white">
+                <h4 className="font-semibold mb-4 flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5 text-[#E8FF00]" /> Thought Leadership Themes
+                </h4>
+                <div className="space-y-3">
+                  {aiInsights.thoughtLeadershipThemes.map((theme, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-[#E8FF00] text-[#1A1A1A] flex items-center justify-center flex-shrink-0 text-sm font-bold">
+                        {idx + 1}
+                      </div>
+                      <div className="text-sm text-[#E8E6E1]">{theme}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
