@@ -766,7 +766,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.11.0
+        Version 2.11.1
       </div>
     </div>
   );
@@ -844,22 +844,29 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
     setError(null);
 
     try {
-      // Use Google PageSpeed Insights API (free, no auth required)
-      const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(websiteUrl)}&category=performance&category=accessibility&category=best-practices&category=seo`;
-      
-      const response = await fetch(apiUrl);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch PageSpeed data. The website may be blocking analysis or the URL may be incorrect.');
+      // Ensure URL has protocol
+      let fullUrl = websiteUrl.trim();
+      if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+        fullUrl = 'https://' + fullUrl;
       }
 
+      // Use Google PageSpeed Insights API (free, no auth required)
+      const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(fullUrl)}&category=performance&category=accessibility&category=best-practices&category=seo`;
+      
+      const response = await fetch(apiUrl);
       const data = await response.json();
       
+      if (!response.ok) {
+        // Extract error message from Google's response
+        const errorMsg = data?.error?.message || 'Failed to analyze website';
+        throw new Error(errorMsg);
+      }
+
       const lighthouse = data.lighthouseResult;
       const categories = lighthouse?.categories || {};
       
       const audit = {
-        url: websiteUrl,
+        url: fullUrl,
         fetchedAt: new Date().toISOString(),
         scores: {
           performance: Math.round((categories.performance?.score || 0) * 100),
@@ -880,7 +887,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       setTechAudit(audit);
       setAssessmentData({ ...assessmentData, techAudit: audit });
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to run technical audit');
     } finally {
       setIsRunning(false);
     }
