@@ -904,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.24
+        Version 2.12.25
       </div>
     </div>
   );
@@ -1396,8 +1396,8 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
     { label: 'Analysis', done: isComplete },
   ];
 
-  // Required checks before proceeding
-  const canProceed = isComplete && !!assessmentData.autoAssessContent && !!seoAssessment;
+  // Required checks before proceeding - ALL items mandatory
+  const canProceed = isComplete && !!assessmentData.autoAssessContent && !!seoAssessment && images.length > 0 && !!pagesReviewed;
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
@@ -1407,6 +1407,14 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
     }
     if (!seoAssessment) {
       setProceedError('Please complete the SEO Visibility Assessment before proceeding.');
+      return;
+    }
+    if (images.length === 0) {
+      setProceedError('Please upload at least one screenshot of the website before proceeding.');
+      return;
+    }
+    if (!pagesReviewed) {
+      setProceedError('Please list the pages you reviewed before proceeding.');
       return;
     }
     if (!isComplete) {
@@ -2000,17 +2008,35 @@ Write in flowing prose with specific observations from the content provided. End
   const completionItems = [
     { label: 'LinkedIn', done: !!(inputs.linkedinAbout || inputs.linkedinPosts) },
     { label: 'X/Twitter', done: !!inputs.xContent },
+    { label: 'Wikipedia', done: !!inputs.wikipediaContent },
     { label: 'Reddit Answers', done: !!inputs.redditAnswersContent },
+    { label: 'WIPO', done: !!inputs.wipoContent },
     { label: 'Analysis', done: isComplete },
   ];
 
-  // Required checks before proceeding
-  const canProceed = isComplete && !!inputs.redditAnswersContent;
+  // Required checks before proceeding - ALL items mandatory
+  const canProceed = isComplete && !!inputs.redditAnswersContent && !!inputs.wikipediaContent && !!inputs.wipoContent && !!(inputs.linkedinAbout || inputs.linkedinPosts) && !!inputs.xContent;
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
+    if (!(inputs.linkedinAbout || inputs.linkedinPosts)) {
+      setProceedError('Please add LinkedIn information before proceeding.');
+      return;
+    }
+    if (!inputs.xContent) {
+      setProceedError('Please add X/Twitter information before proceeding.');
+      return;
+    }
+    if (!inputs.wikipediaContent) {
+      setProceedError('Please check Wikipedia presence before proceeding.');
+      return;
+    }
     if (!inputs.redditAnswersContent) {
       setProceedError('Please complete the Reddit Answers check before proceeding. This is required to assess AI search visibility.');
+      return;
+    }
+    if (!inputs.wipoContent) {
+      setProceedError('Please check WIPO trademark registration before proceeding.');
       return;
     }
     if (!isComplete) {
@@ -2356,7 +2382,7 @@ Write in flowing prose with specific observations from the content provided. End
 // AI Reputation Page
 function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [responses, setResponses] = useState(assessmentData.responses || { claude: '', gemini: '', chatgpt: '' });
-  const [manualInput, setManualInput] = useState({ gemini: assessmentData.geminiManual || '', chatgpt: assessmentData.chatgptManual || '' });
+  const [manualInput, setManualInput] = useState({ claude: assessmentData.claudeManual || '', gemini: assessmentData.geminiManual || '', chatgpt: assessmentData.chatgptManual || '' });
   const [isProcessing, setIsProcessing] = useState({});
   const [error, setError] = useState(null);
 
@@ -2415,6 +2441,31 @@ Write in flowing prose.`;
     { label: 'ChatGPT', done: !!manualInput.chatgpt },
     { label: 'Synthesis', done: isComplete },
   ];
+
+  // Required checks before proceeding - ALL items mandatory
+  const canProceed = isComplete && !!manualInput.claude && !!manualInput.gemini && !!manualInput.chatgpt;
+  const [proceedError, setProceedError] = useState(null);
+
+  const handleProceed = () => {
+    if (!manualInput.claude) {
+      setProceedError('Please add Claude\'s response before proceeding.');
+      return;
+    }
+    if (!manualInput.gemini) {
+      setProceedError('Please add Gemini\'s response before proceeding.');
+      return;
+    }
+    if (!manualInput.chatgpt) {
+      setProceedError('Please add ChatGPT\'s response before proceeding.');
+      return;
+    }
+    if (!isComplete) {
+      setProceedError('Please run the AI Reputation Synthesis before proceeding.');
+      return;
+    }
+    setProceedError(null);
+    onNext();
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
@@ -2519,9 +2570,16 @@ Write in flowing prose.`;
         </div>
       )}
 
+      {proceedError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          {proceedError}
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={onNext} disabled={!isComplete} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
+        <button onClick={handleProceed} className={`btn-primary flex items-center gap-2 ${!canProceed ? 'opacity-60' : ''}`}>Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
     </div>
   );
@@ -2631,13 +2689,17 @@ Write in flowing prose with specific examples. End with priority recommendations
     { label: 'Analysis', done: isComplete },
   ];
 
-  // Required checks before proceeding
-  const canProceed = isComplete && !!assessmentData.autoAssessContent;
+  // Required checks before proceeding - ALL items mandatory
+  const canProceed = isComplete && !!assessmentData.autoAssessContent && !!coveragePaste;
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
     if (!assessmentData.autoAssessContent) {
       setProceedError('Please complete the Auto-Assess Earned Media Performance check before proceeding.');
+      return;
+    }
+    if (!coveragePaste) {
+      setProceedError('Please add media coverage information before proceeding.');
       return;
     }
     if (!isComplete) {
