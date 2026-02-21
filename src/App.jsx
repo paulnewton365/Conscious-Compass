@@ -904,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.27
+        Version 2.12.28
       </div>
     </div>
   );
@@ -3084,6 +3084,36 @@ Return the JSON scores in this exact format:
     finally { setIsScoring(false); }
   };
 
+  // Calculate scores early for hooks (before any returns)
+  const validScoreEntries = scores ? Object.entries(scores)
+    .filter(([key, val]) => val && typeof val.score === 'number') : [];
+  
+  const calculatedOverall = validScoreEntries.length > 0 
+    ? Math.round(validScoreEntries.reduce((a, [, v]) => a + v.score, 0) / 8)
+    : 0;
+
+  // Animate score counting up on page load - must be before any returns
+  useEffect(() => {
+    if (calculatedOverall > 0) {
+      const duration = 1200;
+      const steps = 40;
+      const increment = calculatedOverall / steps;
+      let current = 0;
+      
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= calculatedOverall) {
+          setAnimatedScore(calculatedOverall);
+          clearInterval(timer);
+        } else {
+          setAnimatedScore(Math.round(current));
+        }
+      }, duration / steps);
+      
+      return () => clearInterval(timer);
+    }
+  }, [calculatedOverall]);
+
   // Validate scores has actual data
   const hasValidScores = scores && Object.keys(scores).length > 0 && 
     ATTRIBUTES.some(attr => scores[attr.id]?.score !== undefined);
@@ -3185,16 +3215,11 @@ Return the JSON scores in this exact format:
     );
   }
 
-  const validScores = Object.entries(scores)
-    .filter(([key, val]) => val && typeof val.score === 'number');
-  
   // Debug logging
   console.log('ReportPage render - scores:', scores);
-  console.log('ReportPage render - validScores count:', validScores.length);
+  console.log('ReportPage render - validScores count:', validScoreEntries.length);
   
-  const overall = validScores.length > 0 
-    ? Math.round(validScores.reduce((a, [, v]) => a + v.score, 0) / 8)
-    : 0;
+  const overall = calculatedOverall;
   
   // Safety check - if overall is 0 or NaN, show error
   if (!overall || isNaN(overall)) {
@@ -3222,28 +3247,6 @@ Return the JSON scores in this exact format:
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
   const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
-  
-  // Animate score counting up on page load
-  useEffect(() => {
-    if (overall > 0) {
-      const duration = 1200;
-      const steps = 40;
-      const increment = overall / steps;
-      let current = 0;
-      
-      const timer = setInterval(() => {
-        current += increment;
-        if (current >= overall) {
-          setAnimatedScore(overall);
-          clearInterval(timer);
-        } else {
-          setAnimatedScore(Math.round(current));
-        }
-      }, duration / steps);
-      
-      return () => clearInterval(timer);
-    }
-  }, [overall]);
   
   // Generate 12 recommendations from lowest scoring attributes
   const recommendations = [];
