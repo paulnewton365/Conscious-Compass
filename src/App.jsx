@@ -904,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.21
+        Version 2.12.24
       </div>
     </div>
   );
@@ -1089,6 +1089,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
 function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isAutoAssessing, setIsAutoAssessing] = useState(false);
   const [error, setError] = useState(null);
   const [images, setImages] = useState(assessmentData.images || []);
   const [pagesReviewed, setPagesReviewed] = useState(assessmentData.pagesReviewed || '');
@@ -1098,6 +1099,66 @@ function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project,
   // SEO Visibility State (simplified)
   const [seoAssessment, setSeoAssessment] = useState(assessmentData.seoAssessment || '');
   const [isAssessingSeo, setIsAssessingSeo] = useState(false);
+
+  const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
+
+  // Auto-assess website
+  const runAutoAssess = async () => {
+    setIsAutoAssessing(true);
+    setError(null);
+    try {
+      const prompt = `You are a senior brand strategist and UX analyst with deep expertise in digital brand presence, content strategy, and audience experience design. Your task is to conduct a comprehensive website assessment for ${project.brandName}, operating in the ${industryName} sector. The website URL is ${project.websiteUrl}.
+
+Begin by thoroughly reviewing the website — its pages, navigation, content, imagery, and overall design — before making any evaluations. Every finding must be grounded in direct observation from the website itself. Do not speculate, infer from industry norms, or assume capabilities or intentions that are not evidenced by what is actually present on the site.
+
+Step 1: Audience & Intent Identification
+Before scoring any dimension, identify who this website is actually built for based solely on its content, language, navigation structure, and calls to action. Name the distinct audience segments the site appears to be addressing. This audience identification will serve as the evaluative lens for all subsequent dimensions.
+
+Step 2: Primary Message, Mission & Vision
+Based exclusively on the language, headlines, copy, and content present on the site, extract and articulate: the brand's primary message (what it leads with), its apparent mission (what it exists to do), and its vision (where it is pointing). If any of these are ambiguous, absent, or contradictory across pages, flag this as a finding rather than filling the gap with assumption.
+
+Step 3: Dimensional Assessment
+Evaluate the website across each of the following dimensions. For each, provide a qualitative assessment grounded in specific observations, a performance score from 1–10 with clear rationale, and 1–2 actionable recommendations.
+
+1. Information Architecture
+Assess the logic, clarity, and depth of the site's navigational structure. Does the hierarchy reflect the priorities of the audiences identified in Step 1? Are key sections easy to locate? Is there evidence of user journeys being intentionally designed, or does the structure feel arbitrary or internally driven?
+
+2. Design System
+Evaluate the consistency and coherence of the visual design language — including typography, color palette, spacing, component design, and iconography. Is a defined design system being applied consistently across pages, or are there visible inconsistencies that undermine professionalism and brand cohesion?
+
+3. Layout & Composition
+Assess how individual pages are structured visually. Does the layout guide attention effectively? Is hierarchy established through scale, contrast, and spacing? Does the composition reflect intentional design decisions or a templated, generic approach?
+
+4. Content Strategy & Quality
+Evaluate the depth, clarity, relevance, and voice of written content across the site. Is the content tailored to the audiences identified, or does it read as generic? Is it specific and substantive, or does it rely on vague, buzzword-heavy language? Assess whether content earns credibility or merely claims it.
+
+5. User Experience (UX)
+Assess the overall ease and quality of interacting with the site. Consider page load indicators, interactive elements, form design, mobile responsiveness signals, error handling, and accessibility cues where observable. Does the site remove friction or introduce it?
+
+6. Data Visualization
+Evaluate the use of charts, graphs, infographics, statistics, and other data presentations where present. Are they clear, accurate, and purposeful? Do they reinforce key messages or feel decorative? If data visualization is absent where it would clearly serve the audience, note this as a gap.
+
+7. Use of Imagery
+Assess the quality, relevance, and strategic use of photography, illustration, and visual media. Does imagery reflect the brand's identity and resonate with its identified audiences, or does it rely on generic stock photography? Is there a coherent visual narrative, or is imagery applied inconsistently?
+
+8. Audience Optimization
+Synthesize observations from all prior dimensions to render a verdict on how well the site serves the audiences identified in Step 1. Does the site demonstrate a genuine understanding of those audiences — their needs, language, and decision-making context — or does it prioritize internal messaging over external relevance?
+
+Step 4: Brand Strength Assessment
+Drawing on everything observed across the site — message clarity, design quality, content credibility, audience alignment, and overall execution — provide a holistic assessment of brand strength as expressed through this digital presence. Is the brand coming across as confident, differentiated, and credible? Or does the site reveal gaps between what the brand claims and what it actually demonstrates? Be specific about where brand strength is evident and where it breaks down.
+
+Tone instruction: Be direct and critical where the evidence warrants it. Do not soften findings out of diplomacy. If the site has weak content, inconsistent design, or fails its audiences, name it plainly and explain the consequence. Every assessment must be evidence-based — cite specific pages, sections, copy, or design elements to support your conclusions. Where something cannot be observed directly, do not comment on it.
+
+Conclude with an Overall Website Brand Score (1–10), a 2–3 sentence executive summary of the site's brand effectiveness, and the single most important improvement priority that would have the greatest impact on brand strength and audience experience.`;
+
+      const result = await callClaude(prompt, apiKey);
+      setAssessmentData({ ...assessmentData, autoAssessContent: result });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsAutoAssessing(false);
+    }
+  };
 
   const runSeoAssessment = async () => {
     if (!apiKey) {
@@ -1222,6 +1283,8 @@ SCREENSHOTS PROVIDED: ${images.length} image(s) showing key pages
 
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
 
+${assessmentData.autoAssessContent ? `AUTO-ASSESS WEBSITE ANALYSIS (previously generated - integrate these findings):\n${assessmentData.autoAssessContent}\n` : ''}
+
 ${seoAssessment ? `SEO VISIBILITY ASSESSMENT (previously generated):\n${seoAssessment}\n` : ''}
 
 ${assessmentData.techAudit && (assessmentData.techAudit.scores.performance !== '' || assessmentData.techAudit.scores.accessibility !== '') ? `TECHNICAL PERFORMANCE AUDIT (PageSpeed):
@@ -1326,12 +1389,33 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 
   // Completion tracking
   const completionItems = [
+    { label: 'Auto-Assess', done: !!assessmentData.autoAssessContent },
+    { label: 'SEO Check', done: !!seoAssessment },
     { label: 'Screenshots', done: images.length > 0 },
     { label: 'Pages Listed', done: !!pagesReviewed },
-    { label: 'Tech Audit', done: !!assessmentData.techAudit },
-    { label: 'SEO Check', done: !!seoAssessment },
     { label: 'Analysis', done: isComplete },
   ];
+
+  // Required checks before proceeding
+  const canProceed = isComplete && !!assessmentData.autoAssessContent && !!seoAssessment;
+  const [proceedError, setProceedError] = useState(null);
+
+  const handleProceed = () => {
+    if (!assessmentData.autoAssessContent) {
+      setProceedError('Please complete the Auto-Assess Website check before proceeding.');
+      return;
+    }
+    if (!seoAssessment) {
+      setProceedError('Please complete the SEO Visibility Assessment before proceeding.');
+      return;
+    }
+    if (!isComplete) {
+      setProceedError('Please run the Website Analysis before proceeding.');
+      return;
+    }
+    setProceedError(null);
+    onNext();
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
@@ -1346,6 +1430,40 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       <CompletionIndicator items={completionItems} />
+
+      {/* Auto-Assess Website */}
+      <div className="card p-5 mb-4 border-l-4 border-[#E53935]">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#E53935]" />
+              Auto-Assess Website
+            </h3>
+            <p className="text-xs text-[#666666]">
+              AI-powered comprehensive analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization.
+            </p>
+          </div>
+          <button 
+            onClick={runAutoAssess} 
+            disabled={isAutoAssessing} 
+            className="btn-secondary text-sm py-2 px-4 flex items-center gap-2 flex-shrink-0"
+          >
+            {isAutoAssessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Assessing...</> : <><Bot className="w-4 h-4" /> Auto-Assess</>}
+          </button>
+        </div>
+        
+        {assessmentData.autoAssessContent && (
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Check className="w-4 h-4 text-[#10B981]" />
+              <span className="text-sm font-medium text-[#1A1A1A]">Website Assessment Complete</span>
+            </div>
+            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-80 overflow-y-auto">
+              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Pages Reviewed */}
       <div className="card p-5 mb-4">
@@ -1531,9 +1649,16 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         </div>
       )}
 
+      {proceedError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          {proceedError}
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={onNext} disabled={!isComplete} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
+        <button onClick={handleProceed} className={`btn-primary flex items-center gap-2 ${!canProceed ? 'opacity-60' : ''}`}>Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
     </div>
   );
@@ -1875,9 +2000,26 @@ Write in flowing prose with specific observations from the content provided. End
   const completionItems = [
     { label: 'LinkedIn', done: !!(inputs.linkedinAbout || inputs.linkedinPosts) },
     { label: 'X/Twitter', done: !!inputs.xContent },
-    { label: 'Other Platforms', done: !!(inputs.youtubeContent || inputs.wikipediaContent || inputs.redditContent || inputs.redditAnswersContent) },
+    { label: 'Reddit Answers', done: !!inputs.redditAnswersContent },
     { label: 'Analysis', done: isComplete },
   ];
+
+  // Required checks before proceeding
+  const canProceed = isComplete && !!inputs.redditAnswersContent;
+  const [proceedError, setProceedError] = useState(null);
+
+  const handleProceed = () => {
+    if (!inputs.redditAnswersContent) {
+      setProceedError('Please complete the Reddit Answers check before proceeding. This is required to assess AI search visibility.');
+      return;
+    }
+    if (!isComplete) {
+      setProceedError('Please run the Social Media Analysis before proceeding.');
+      return;
+    }
+    setProceedError(null);
+    onNext();
+  };
 
   // Accordion Header Component
   const AccordionHeader = ({ title, icon: Icon, isOpen, onClick, badge, hasContent }) => (
@@ -2196,9 +2338,16 @@ Write in flowing prose with specific observations from the content provided. End
         </div>
       )}
 
+      {proceedError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          {proceedError}
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-4 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={onNext} disabled={!isComplete} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
+        <button onClick={handleProceed} className={`btn-primary flex items-center gap-2 ${!canProceed ? 'opacity-60' : ''}`}>Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
     </div>
   );
@@ -2381,8 +2530,56 @@ Write in flowing prose.`;
 // Earned Media Assessment with paste field
 function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isAutoAssessing, setIsAutoAssessing] = useState(false);
   const [error, setError] = useState(null);
   const [coveragePaste, setCoveragePaste] = useState(assessmentData.coveragePaste || '');
+
+  const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
+
+  // Auto-assess earned media performance
+  const runAutoAssess = async () => {
+    setIsAutoAssessing(true);
+    setError(null);
+    try {
+      const prompt = `You are a senior brand intelligence analyst specializing in earned media evaluation. Your task is to conduct a comprehensive earned media performance assessment for ${project.brandName}, operating in the ${industryName} sector.
+
+Using any available information about this brand's media presence — including news articles, press mentions, analyst commentary, podcast appearances, awards, influencer coverage, and third-party reviews — evaluate performance across the following dimensions:
+
+1. Coverage Quality
+Assess the caliber and credibility of outlets and sources covering the brand. Are mentions appearing in authoritative, respected publications or primarily low-tier aggregators? Is coverage substantive (featured stories, interviews, deep analysis) or superficial (brief mentions, press release reposts)?
+
+2. Reach & Amplification
+Estimate the breadth and scale of earned media exposure. Which channels are generating the most coverage — digital news, print, broadcast, podcasts, social amplification of press? Is coverage geographically and demographically reaching the markets that matter for this brand?
+
+3. Sentiment Analysis
+Characterize the overall tone of coverage as positive, neutral, or negative. Identify recurring positive themes and any persistent negative narratives or reputational risks surfacing in third-party coverage.
+
+4. Share of Voice
+Compare the brand's earned media presence against its primary competitors. Is the brand driving the conversation in its category, keeping pace, or being outpaced? Where does the brand appear to be winning or losing mindshare?
+
+5. Message Consistency
+Evaluate whether earned media coverage accurately and consistently reflects the brand's intended positioning, values, and key messages. Are journalists, analysts, and influencers echoing the brand's narrative, or is a different story taking hold externally?
+
+6. Industry Influence & Thought Leadership
+Assess the degree to which the brand is shaping broader industry conversation. Is the brand cited as a reference point, a category innovator, or a thought leader? Are executives, spokespeople, or brand content being quoted, referenced, or credited in industry discourse?
+
+7. Audience Relevance
+Based on your knowledge of the brand's likely customer base and market positioning, evaluate how well earned media coverage is reaching and resonating with the audiences that matter most. Are the outlets, creators, and voices generating coverage trusted and consumed by the right people? Is coverage appearing in the channels where those audiences are most active?
+
+For each dimension, provide: a qualitative assessment, a performance score from 1–10 with rationale, specific examples or evidence where possible, and 1–2 actionable recommendations to improve performance.
+
+Tone instruction: Be direct and critical where the evidence warrants it. Do not soften assessments out of diplomacy — if coverage is thin, sentiment is problematic, or the brand is losing share of voice to competitors, say so clearly and explain why it matters. Honest diagnosis is more valuable than a favorable framing.
+
+Conclude with an Overall Earned Media Health Score (1–10), a 2–3 sentence executive summary of the brand's earned media standing, and the single most important strategic priority for earned media improvement in the next 90 days.`;
+
+      const result = await callClaude(prompt, apiKey);
+      setAssessmentData({ ...assessmentData, autoAssessContent: result });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsAutoAssessing(false);
+    }
+  };
 
   const runAnalysis = async () => {
     setIsProcessing(true);
@@ -2394,6 +2591,8 @@ USER-PROVIDED COVERAGE (last 3 months):
 ${coveragePaste || 'No coverage provided by user'}
 
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS TO CONSIDER:\n${assessmentData.observations}` : ''}
+
+${assessmentData.autoAssessContent ? `AUTO-ASSESS EARNED MEDIA ANALYSIS (previously generated - integrate these findings):\n${assessmentData.autoAssessContent}\n` : ''}
 
 Please also search for any additional earned media coverage for ${project.brandName} from the last 3 months including:
 - News articles and press mentions
@@ -2427,9 +2626,27 @@ Write in flowing prose with specific examples. End with priority recommendations
 
   // Completion tracking
   const completionItems = [
+    { label: 'Auto-Assess', done: !!assessmentData.autoAssessContent },
     { label: 'Coverage Added', done: !!coveragePaste },
     { label: 'Analysis', done: isComplete },
   ];
+
+  // Required checks before proceeding
+  const canProceed = isComplete && !!assessmentData.autoAssessContent;
+  const [proceedError, setProceedError] = useState(null);
+
+  const handleProceed = () => {
+    if (!assessmentData.autoAssessContent) {
+      setProceedError('Please complete the Auto-Assess Earned Media Performance check before proceeding.');
+      return;
+    }
+    if (!isComplete) {
+      setProceedError('Please run the Earned Media Analysis before proceeding.');
+      return;
+    }
+    setProceedError(null);
+    onNext();
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
@@ -2464,6 +2681,40 @@ Example:
 ..."
           className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
         />
+      </div>
+
+      {/* Auto-Assess Earned Media Performance */}
+      <div className="card p-5 mb-4 border-l-4 border-[#10B981]">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#10B981]" />
+              Auto-Assess Earned Media Performance
+            </h3>
+            <p className="text-xs text-[#666666]">
+              AI-powered comprehensive analysis across 7 dimensions: Coverage Quality, Reach, Sentiment, Share of Voice, Message Consistency, Thought Leadership, and Audience Relevance.
+            </p>
+          </div>
+          <button 
+            onClick={runAutoAssess} 
+            disabled={isAutoAssessing} 
+            className="btn-secondary text-sm py-2 px-4 flex items-center gap-2 flex-shrink-0"
+          >
+            {isAutoAssessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Assessing...</> : <><Bot className="w-4 h-4" /> Auto-Assess</>}
+          </button>
+        </div>
+        
+        {assessmentData.autoAssessContent && (
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Check className="w-4 h-4 text-[#10B981]" />
+              <span className="text-sm font-medium text-[#1A1A1A]">Performance Assessment Complete</span>
+            </div>
+            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-80 overflow-y-auto">
+              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Assessor Observations - before analysis button */}
@@ -2505,9 +2756,16 @@ Example:
         </div>
       )}
 
+      {proceedError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          {proceedError}
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={onNext} disabled={!isComplete} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
+        <button onClick={handleProceed} className={`btn-primary flex items-center gap-2 ${!canProceed ? 'opacity-60' : ''}`}>Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
     </div>
   );
