@@ -904,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.20
+        Version 2.12.21
       </div>
     </div>
   );
@@ -2527,6 +2527,7 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     conclusions: true,
     evaluated: false,
   });
+  const [animatedScore, setAnimatedScore] = useState(0);
   const chartRef = useRef(null);
 
   const toggleSection = (section) => {
@@ -2845,6 +2846,28 @@ Return the JSON scores in this exact format:
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
   const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
+  
+  // Animate score counting up on page load
+  useEffect(() => {
+    if (overall > 0) {
+      const duration = 1200;
+      const steps = 40;
+      const increment = overall / steps;
+      let current = 0;
+      
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= overall) {
+          setAnimatedScore(overall);
+          clearInterval(timer);
+        } else {
+          setAnimatedScore(Math.round(current));
+        }
+      }, duration / steps);
+      
+      return () => clearInterval(timer);
+    }
+  }, [overall]);
   
   // Generate 12 recommendations from lowest scoring attributes
   const recommendations = [];
@@ -3438,7 +3461,7 @@ Return the JSON scores in this exact format:
             <div className="flex items-start gap-4 mb-4">
               <div className="text-center">
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold" style={{ backgroundColor: stage.color }}>
-                  {overall}
+                  {animatedScore}
                 </div>
                 <div className="text-xs text-[#666666] mt-1">out of 100</div>
               </div>
