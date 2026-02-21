@@ -904,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.26
+        Version 2.12.27
       </div>
     </div>
   );
@@ -3059,14 +3059,23 @@ Return the JSON scores in this exact format:
       if (match) {
         try {
           const parsed = JSON.parse(match[0]);
-          setScores(parsed);
+          // Validate parsed data has expected structure
+          const hasAtLeastOneScore = ATTRIBUTES.some(attr => 
+            parsed[attr.id] && typeof parsed[attr.id].score === 'number'
+          );
+          if (hasAtLeastOneScore) {
+            setScores(parsed);
+          } else {
+            setScoringError('AI response was missing score data. Please try again.');
+            console.error('Parsed but missing scores:', parsed);
+          }
         } catch (parseErr) {
           setScoringError('Failed to parse AI response. Please try again.');
-          console.error('JSON parse error:', parseErr, 'Raw match:', match[0]);
+          console.error('JSON parse error:', parseErr, 'Raw match:', match[0].substring(0, 500));
         }
       } else {
         setScoringError('AI response did not contain valid scoring data. Please try again.');
-        console.error('No JSON match found in result:', result);
+        console.error('No JSON match found in result:', result.substring(0, 500));
       }
     } catch (e) { 
       clearInterval(progressInterval);
@@ -3075,8 +3084,12 @@ Return the JSON scores in this exact format:
     finally { setIsScoring(false); }
   };
 
+  // Validate scores has actual data
+  const hasValidScores = scores && Object.keys(scores).length > 0 && 
+    ATTRIBUTES.some(attr => scores[attr.id]?.score !== undefined);
+
   // If no scores yet, show scoring prompt
-  if (!scores) {
+  if (!hasValidScores) {
     return (
       <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
         <div className="flex items-start gap-4 mb-8">
@@ -3175,9 +3188,35 @@ Return the JSON scores in this exact format:
   const validScores = Object.entries(scores)
     .filter(([key, val]) => val && typeof val.score === 'number');
   
+  // Debug logging
+  console.log('ReportPage render - scores:', scores);
+  console.log('ReportPage render - validScores count:', validScores.length);
+  
   const overall = validScores.length > 0 
     ? Math.round(validScores.reduce((a, [, v]) => a + v.score, 0) / 8)
     : 0;
+  
+  // Safety check - if overall is 0 or NaN, show error
+  if (!overall || isNaN(overall)) {
+    return (
+      <div className="max-w-4xl mx-auto p-8">
+        <div className="card p-6 text-center">
+          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">Report Generation Issue</h3>
+          <p className="text-[#666666] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
+          <button onClick={() => setScores(null)} className="btn-primary">
+            Try Again
+          </button>
+          <details className="mt-4 text-left text-xs text-[#999999]">
+            <summary className="cursor-pointer">Debug Info</summary>
+            <pre className="mt-2 p-2 bg-[#F0EEEA] rounded overflow-auto max-h-40">
+              {JSON.stringify(scores, null, 2)}
+            </pre>
+          </details>
+        </div>
+      </div>
+    );
+  }
   
   const stage = getMaturityStage(overall);
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
