@@ -904,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.25
+        Version 2.12.26
       </div>
     </div>
   );
@@ -2349,17 +2349,21 @@ Write in flowing prose with specific observations from the content provided. End
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
 
       {isComplete && (
-        <div className="card p-4 mb-4">
+        <div className="card p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
-              <Check className="w-4 h-4 text-[#8B5CF6]" /> Analysis Complete
-            </span>
-            <button onClick={() => { runAnalysis(); if (onClearScores) onClearScores(); }} disabled={isProcessing} className="text-xs text-[#8B5CF6] hover:underline flex items-center gap-1">
-              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />} Regenerate
+            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
+            </h3>
+            <button 
+              onClick={() => { runAnalysis(); if (onClearScores) onClearScores(); }} 
+              disabled={isProcessing} 
+              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+            >
+              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-3 max-h-64 overflow-y-auto">
-            <pre className="text-xs text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
@@ -3052,7 +3056,18 @@ Return the JSON scores in this exact format:
       setScoringProgress(100);
       setScoringStage('Complete!');
       const match = result.match(/\{[\s\S]*\}/);
-      if (match) setScores(JSON.parse(match[0]));
+      if (match) {
+        try {
+          const parsed = JSON.parse(match[0]);
+          setScores(parsed);
+        } catch (parseErr) {
+          setScoringError('Failed to parse AI response. Please try again.');
+          console.error('JSON parse error:', parseErr, 'Raw match:', match[0]);
+        }
+      } else {
+        setScoringError('AI response did not contain valid scoring data. Please try again.');
+        console.error('No JSON match found in result:', result);
+      }
     } catch (e) { 
       clearInterval(progressInterval);
       setScoringError(e.message); 
@@ -3157,11 +3172,13 @@ Return the JSON scores in this exact format:
     );
   }
 
-  const overall = Math.round(
-    Object.entries(scores)
-      .filter(([key, val]) => val && typeof val.score === 'number')
-      .reduce((a, [, v]) => a + v.score, 0) / 8
-  );
+  const validScores = Object.entries(scores)
+    .filter(([key, val]) => val && typeof val.score === 'number');
+  
+  const overall = validScores.length > 0 
+    ? Math.round(validScores.reduce((a, [, v]) => a + v.score, 0) / 8)
+    : 0;
+  
   const stage = getMaturityStage(overall);
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
