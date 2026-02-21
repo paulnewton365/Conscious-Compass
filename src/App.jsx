@@ -560,42 +560,154 @@ function SpiderChart({ scores, size = 400 }) {
 // Maturity Continuum Visual
 function MaturityContinuum({ score }) {
   const stage = getMaturityStage(score);
-  const percentage = score;
+  const [isVisible, setIsVisible] = useState(false);
+  const [animatedScore, setAnimatedScore] = useState(0);
+  const containerRef = useRef(null);
+  
+  // Scroll-triggered animation
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isVisible) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+    
+    return () => observer.disconnect();
+  }, [isVisible]);
+  
+  // Animate score counting up
+  useEffect(() => {
+    if (isVisible) {
+      const duration = 1500;
+      const steps = 60;
+      const increment = score / steps;
+      let current = 0;
+      
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= score) {
+          setAnimatedScore(score);
+          clearInterval(timer);
+        } else {
+          setAnimatedScore(Math.round(current));
+        }
+      }, duration / steps);
+      
+      return () => clearInterval(timer);
+    }
+  }, [isVisible, score]);
+  
+  const progressWidth = isVisible ? score : 0;
   
   return (
-    <div className="card p-6">
-      <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Brand Consciousness Maturity</h3>
+    <div ref={containerRef} className="card p-6 overflow-hidden">
+      <h3 className="text-lg font-semibold text-[#1A1A1A] mb-6">Brand Consciousness Maturity</h3>
       
-      {/* Scale */}
-      <div className="relative mb-16">
-        <div className="h-4 rounded-full maturity-scale" />
+      {/* Progress Track */}
+      <div className="relative mb-4">
+        {/* Background track with stage colors */}
+        <div className="h-3 rounded-full overflow-hidden flex">
+          {MATURITY_STAGES.map(s => (
+            <div 
+              key={s.id} 
+              className="h-full"
+              style={{ 
+                width: `${s.max - s.min + 1}%`,
+                backgroundColor: s.color,
+                opacity: 0.25
+              }} 
+            />
+          ))}
+        </div>
         
-        {/* Marker */}
+        {/* Animated progress fill */}
         <div 
-          className="absolute top-0 transform -translate-x-1/2 transition-all duration-1000"
-          style={{ left: `${percentage}%` }}
+          className="absolute top-0 left-0 h-3 rounded-full transition-all ease-out"
+          style={{ 
+            width: `${progressWidth}%`,
+            background: `linear-gradient(90deg, ${MATURITY_STAGES.map(s => s.color).join(', ')})`,
+            backgroundSize: '100vw 100%',
+            transitionDuration: '1.5s'
+          }}
+        />
+        
+        {/* Score marker */}
+        <div 
+          className="absolute top-0 h-3 transition-all ease-out"
+          style={{ 
+            left: `${progressWidth}%`,
+            transitionDuration: '1.5s'
+          }}
         >
-          <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-[#1A1A1A] -mt-2" />
-          <div className="absolute top-6 left-1/2 transform -translate-x-1/2 bg-[#1A1A1A] text-white px-3 py-1 rounded-lg text-sm font-bold whitespace-nowrap">
-            {score}/100
-          </div>
+          <div 
+            className="absolute -top-1 -right-1 w-5 h-5 rounded-full border-3 border-white shadow-lg"
+            style={{ backgroundColor: stage.color }}
+          />
         </div>
       </div>
       
-      {/* Stage Labels */}
-      <div className="flex justify-between text-xs text-[#666666] mb-4">
-        {MATURITY_STAGES.map(s => (
-          <div key={s.id} className="text-center" style={{ width: `${(s.max - s.min + 1)}%` }}>
-            <div className="w-2 h-2 rounded-full mx-auto mb-1" style={{ backgroundColor: s.color }} />
-            <span className={stage.id === s.id ? 'font-bold text-[#1A1A1A]' : ''}>{s.name}</span>
-          </div>
-        ))}
+      {/* Score display */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="text-sm text-[#666666]">Progress</div>
+        <div className="flex items-baseline gap-1">
+          <span className="text-3xl font-bold" style={{ color: stage.color }}>{animatedScore}</span>
+          <span className="text-lg text-[#999999]">/100</span>
+        </div>
       </div>
       
-      {/* Current Stage Description */}
-      <div className="bg-[#F0EEEA] rounded-lg p-4 text-center">
-        <div className="text-2xl font-bold mb-1" style={{ color: stage.color }}>{stage.name}</div>
-        <p className="text-sm text-[#333333]">{stage.description}</p>
+      {/* Stage milestones */}
+      <div className="relative mb-6">
+        <div className="flex justify-between">
+          {MATURITY_STAGES.map((s, i) => {
+            const isReached = score >= s.min;
+            const isCurrent = stage.id === s.id;
+            return (
+              <div 
+                key={s.id} 
+                className={`flex flex-col items-center transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+                style={{ transitionDelay: `${i * 100 + 500}ms`, width: `${100/6}%` }}
+              >
+                <div 
+                  className={`w-4 h-4 rounded-full border-2 mb-2 transition-all duration-300 ${isReached ? 'scale-110' : 'scale-100'}`}
+                  style={{ 
+                    backgroundColor: isReached ? s.color : 'transparent',
+                    borderColor: s.color
+                  }}
+                />
+                <span className={`text-xs text-center leading-tight ${isCurrent ? 'font-bold text-[#1A1A1A]' : 'text-[#666666]'}`}>
+                  {s.name}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Current stage card */}
+      <div 
+        className={`rounded-xl p-5 text-center transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+        style={{ 
+          backgroundColor: `${stage.color}15`,
+          borderLeft: `4px solid ${stage.color}`,
+          transitionDelay: '800ms'
+        }}
+      >
+        <div className="text-xl font-bold mb-1" style={{ color: stage.color }}>{stage.name}</div>
+        <p className="text-sm text-[#333333] mb-3">{stage.description}</p>
+        
+        {/* Progress to next stage */}
+        {score < 100 && (
+          <div className="text-xs text-[#666666]">
+            <span className="font-medium" style={{ color: stage.color }}>{Math.min(100, MATURITY_STAGES.find(s => s.min > score)?.min || 100) - score} points</span> to next level
+          </div>
+        )}
       </div>
     </div>
   );
@@ -792,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.19
+        Version 2.12.20
       </div>
     </div>
   );
