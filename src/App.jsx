@@ -764,10 +764,10 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
           </button>
           
           {/* User Menu */}
-          <div className="ml-2 pl-3 border-l border-[#D9D6D0] flex items-center gap-2">
+          <div className="ml-2 pl-3 border-l border-[#D9D6D0] flex items-center gap-3">
             {profile?.is_admin && (
-              <button onClick={onAdmin} className="flex items-center gap-1 text-sm text-[#E53935] hover:text-[#C62828] transition-colors" title="User Management">
-                <Shield className="w-4 h-4" />
+              <button onClick={onAdmin} className="flex items-center gap-1.5 text-sm text-[#E53935] hover:text-[#C62828] transition-colors font-medium">
+                <Shield className="w-4 h-4" /> Admin
               </button>
             )}
             <span className="text-xs text-[#666666] max-w-[120px] truncate" title={user?.email}>
@@ -921,7 +921,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.32
+        Version 2.12.33
       </div>
     </div>
   );
@@ -6336,6 +6336,7 @@ export default function App() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { data: profileData } = await getProfile(session.user.id);
+        console.log('Profile loaded:', profileData); // Debug
         if (profileData?.is_approved) {
           setUser(session.user);
           setProfile(profileData);
