@@ -904,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.30
+        Version 2.12.31
       </div>
     </div>
   );
@@ -2837,7 +2837,7 @@ Example:
   );
 }
 // Report Page
-function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onShare, onPrev }) {
+function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onPrev }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isScoring, setIsScoring] = useState(false);
@@ -3322,6 +3322,191 @@ Return the JSON scores in this exact format:
     ? `Website analysis covered ${assessments.website.pagesReviewed}, examining brand positioning, messaging and storytelling, information architecture, UI design, user experience, accessibility, and AI search readability.`
     : 'Website analysis examined homepage and key pages for brand positioning, messaging, information architecture, UI/UX design, accessibility compliance, and AI search readability.';
 
+  // Copy Report Text to clipboard
+  const copyReportText = () => {
+    const divider = '═'.repeat(60);
+    const subDivider = '─'.repeat(40);
+    
+    // Build attribute scores text
+    const attrScoresText = ATTRIBUTES.map(attr => {
+      const score = scores[attr.id]?.score || 0;
+      return `  ${attr.name}: ${score}/100`;
+    }).join('\n');
+    
+    // Build strengths and opportunities
+    const strengths = sortedAttrs.slice(-3).reverse().map(a => `  • ${a.name} (${a.score}/100)`).join('\n');
+    const opportunities = sortedAttrs.slice(0, 3).map(a => `  • ${a.name} (${a.score}/100)`).join('\n');
+    
+    // Build recommendations text
+    const recsText = recommendations.slice(0, 6).map((rec, i) => 
+      `  ${i + 1}. ${rec.title}\n     Impact: ${rec.attr} (+${rec.impact} points)\n     ${rec.description}`
+    ).join('\n\n');
+
+    let reportText = `
+${divider}
+CONSCIOUS COMPASS ASSESSMENT REPORT
+${divider}
+
+Brand: ${project.brandName}
+Industry: ${industryName}
+Website: ${project.websiteUrl}
+Business Model: ${project.businessModel.toUpperCase()}
+Date: ${new Date().toLocaleDateString()}
+
+${divider}
+OVERALL SCORE: ${overall}/100
+Maturity Stage: ${stage.name}
+${divider}
+
+${subDivider}
+ATTRIBUTE SCORES
+${subDivider}
+${attrScoresText}
+
+${subDivider}
+KEY STRENGTHS
+${subDivider}
+${strengths}
+
+${subDivider}
+GROWTH OPPORTUNITIES
+${subDivider}
+${opportunities}
+
+${subDivider}
+TOP RECOMMENDATIONS
+${subDivider}
+${recsText}
+
+${divider}
+ASSESSMENT READOUTS
+${divider}
+`;
+
+    // Add Website Assessment
+    if (assessments.website?.autoAssessContent || assessments.website?.seoAssessment || assessments.website?.content) {
+      reportText += `
+${subDivider}
+WEBSITE ASSESSMENT
+${subDivider}
+`;
+      if (assessments.website?.autoAssessContent) {
+        reportText += `
+[Auto-Assess Analysis]
+${assessments.website.autoAssessContent}
+`;
+      }
+      if (assessments.website?.seoAssessment) {
+        reportText += `
+[SEO Visibility Assessment]
+${assessments.website.seoAssessment}
+`;
+      }
+      if (assessments.website?.content) {
+        reportText += `
+[Full Website Analysis]
+${assessments.website.content}
+`;
+      }
+    }
+
+    // Add Social Media Assessment
+    if (assessments.social?.redditAnswersContent || assessments.social?.content) {
+      reportText += `
+${subDivider}
+SOCIAL MEDIA ASSESSMENT
+${subDivider}
+`;
+      if (assessments.social?.redditAnswersContent) {
+        reportText += `
+[Reddit Answers - AI Search Visibility]
+${assessments.social.redditAnswersContent}
+`;
+      }
+      if (assessments.social?.content) {
+        reportText += `
+[Full Social Media Analysis]
+${assessments.social.content}
+`;
+      }
+    }
+
+    // Add AI Reputation Assessment
+    if (assessments.aiReputation?.claudeManual || assessments.aiReputation?.geminiManual || assessments.aiReputation?.chatgptManual || assessments.aiReputation?.content) {
+      reportText += `
+${subDivider}
+AI REPUTATION ASSESSMENT
+${subDivider}
+`;
+      if (assessments.aiReputation?.claudeManual) {
+        reportText += `
+[Claude Response]
+${assessments.aiReputation.claudeManual}
+`;
+      }
+      if (assessments.aiReputation?.geminiManual) {
+        reportText += `
+[Gemini Response]
+${assessments.aiReputation.geminiManual}
+`;
+      }
+      if (assessments.aiReputation?.chatgptManual) {
+        reportText += `
+[ChatGPT Response]
+${assessments.aiReputation.chatgptManual}
+`;
+      }
+      if (assessments.aiReputation?.content) {
+        reportText += `
+[AI Reputation Synthesis]
+${assessments.aiReputation.content}
+`;
+      }
+    }
+
+    // Add Earned Media Assessment
+    if (assessments.earnedMedia?.autoAssessContent || assessments.earnedMedia?.content) {
+      reportText += `
+${subDivider}
+EARNED MEDIA ASSESSMENT
+${subDivider}
+`;
+      if (assessments.earnedMedia?.autoAssessContent) {
+        reportText += `
+[Auto-Assess Earned Media Performance]
+${assessments.earnedMedia.autoAssessContent}
+`;
+      }
+      if (assessments.earnedMedia?.content) {
+        reportText += `
+[Full Earned Media Analysis]
+${assessments.earnedMedia.content}
+`;
+      }
+    }
+
+    reportText += `
+${divider}
+METHODOLOGY
+${divider}
+${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice.
+
+Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.4
+`;
+
+    navigator.clipboard.writeText(reportText.trim()).then(() => {
+      alert('Report copied to clipboard!');
+    }).catch(() => {
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement('textarea');
+      textArea.value = reportText.trim();
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('Report copied to clipboard!');
+    });
+  };
 
   const generatePdf = async () => {
     setIsGeneratingPdf(true);
@@ -3824,7 +4009,7 @@ Return the JSON scores in this exact format:
           <p className="text-[#666666]">Conscious Compass Assessment Report | {industryName}</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={onShare} className="btn-secondary flex items-center gap-2"><Share2 className="w-4 h-4" /> Share</button>
+          <button onClick={copyReportText} className="btn-secondary flex items-center gap-2"><Copy className="w-4 h-4" /> Copy Report</button>
           <button onClick={onSave} className="btn-secondary flex items-center gap-2"><Save className="w-4 h-4" /> Save</button>
           <button onClick={generatePdf} disabled={isGeneratingPdf} className="btn-primary flex items-center gap-2">
             {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF
@@ -6544,7 +6729,7 @@ export default function App() {
       {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
       {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
       {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
-      {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onShare={() => handleShare({ project, scores, assessments })} onPrev={() => setCurrentStep(5)} />}
+      {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} />}
     </div>
   );
 }
