@@ -392,6 +392,15 @@ function compressImage(dataUrl, maxSizeMB = 4) {
 }
 
 async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0) {
+  // Add standard instructions for consistency
+  const enhancedPrompt = `${prompt}
+
+IMPORTANT FORMATTING RULES:
+- Base all assessments on specific, observable evidence. Cite concrete examples.
+- Be consistent and repeatable in your analysis approach.
+- Do NOT use em-dashes (—) anywhere in your response. Use commas, semicolons, colons, or separate sentences instead.
+- Do NOT use en-dashes (–) for ranges. Use "to" instead (e.g., "50 to 60" not "50–60").`;
+
   const content = [];
   
   // Add primary image if provided
@@ -418,10 +427,12 @@ async function callClaude(prompt, apiKey, primaryImage = null, additionalImages 
     }
   }
   
-  content.push({ type: 'text', text: prompt });
+  content.push({ type: 'text', text: enhancedPrompt });
   
   // Use serverless function (secure) or direct API call (local dev with client key)
   const useProxy = !apiKey || apiKey === 'PROXY';
+  
+  let result;
   
   if (useProxy) {
     // Production: Use Vercel serverless function (API key stored server-side)
@@ -431,6 +442,7 @@ async function callClaude(prompt, apiKey, primaryImage = null, additionalImages 
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 6000,
+        temperature: 0,
         messages: [{ role: 'user', content }]
       })
     });
@@ -439,7 +451,7 @@ async function callClaude(prompt, apiKey, primaryImage = null, additionalImages 
       throw new Error(err.error || `API error: ${response.status}`);
     }
     const data = await response.json();
-    return data.content[0].text;
+    result = data.content[0].text;
   } else {
     // Local development: Direct API call with client-provided key
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -453,7 +465,7 @@ async function callClaude(prompt, apiKey, primaryImage = null, additionalImages 
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 6000,
-        temperature: temperature,
+        temperature: 0,
         messages: [{ role: 'user', content }]
       })
     });
@@ -462,8 +474,13 @@ async function callClaude(prompt, apiKey, primaryImage = null, additionalImages 
       throw new Error(err.error?.message || `API error: ${response.status}`);
     }
     const data = await response.json();
-    return data.content[0].text;
+    result = data.content[0].text;
   }
+  
+  // Post-process to remove any em-dashes or en-dashes that slipped through
+  result = result.replace(/—/g, ', ').replace(/–/g, ' to ');
+  
+  return result;
 }
 
 // Spider Chart Component
@@ -904,7 +921,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.31
+        Version 2.12.32
       </div>
     </div>
   );
@@ -1006,7 +1023,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
   };
 
   const getScoreLabel = (score) => {
-    if (score === '' || score === undefined) return '—';
+    if (score === '' || score === undefined) return '-';
     if (score >= 90) return 'Good';
     if (score >= 50) return 'Needs Work';
     return 'Poor';
@@ -1059,7 +1076,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
               max="100"
               value={techAudit.scores[item.key] ?? ''}
               onChange={(e) => updateScore(item.key, e.target.value)}
-              placeholder="—"
+              placeholder="-"
               className="w-full text-center text-2xl font-bold py-2 border border-[#D9D6D0] rounded-lg bg-white focus:ring-2 focus:ring-[#E53935] focus:border-transparent"
               style={{ color: getScoreColor(techAudit.scores[item.key]) }}
             />
@@ -1109,7 +1126,7 @@ function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project,
     try {
       const prompt = `You are a senior brand strategist and UX analyst with deep expertise in digital brand presence, content strategy, and audience experience design. Your task is to conduct a comprehensive website assessment for ${project.brandName}, operating in the ${industryName} sector. The website URL is ${project.websiteUrl}.
 
-Begin by thoroughly reviewing the website — its pages, navigation, content, imagery, and overall design — before making any evaluations. Every finding must be grounded in direct observation from the website itself. Do not speculate, infer from industry norms, or assume capabilities or intentions that are not evidenced by what is actually present on the site.
+Begin by thoroughly reviewing the website, including its pages, navigation, content, imagery, and overall design, before making any evaluations. Every finding must be grounded in direct observation from the website itself. Do not speculate, infer from industry norms, or assume capabilities or intentions that are not evidenced by what is actually present on the site.
 
 Step 1: Audience & Intent Identification
 Before scoring any dimension, identify who this website is actually built for based solely on its content, language, navigation structure, and calls to action. Name the distinct audience segments the site appears to be addressing. This audience identification will serve as the evaluative lens for all subsequent dimensions.
@@ -1118,13 +1135,13 @@ Step 2: Primary Message, Mission & Vision
 Based exclusively on the language, headlines, copy, and content present on the site, extract and articulate: the brand's primary message (what it leads with), its apparent mission (what it exists to do), and its vision (where it is pointing). If any of these are ambiguous, absent, or contradictory across pages, flag this as a finding rather than filling the gap with assumption.
 
 Step 3: Dimensional Assessment
-Evaluate the website across each of the following dimensions. For each, provide a qualitative assessment grounded in specific observations, a performance score from 1–10 with clear rationale, and 1–2 actionable recommendations.
+Evaluate the website across each of the following dimensions. For each, provide a qualitative assessment grounded in specific observations, a performance score from 1 to 10 with clear rationale, and 1 to 2 actionable recommendations.
 
 1. Information Architecture
 Assess the logic, clarity, and depth of the site's navigational structure. Does the hierarchy reflect the priorities of the audiences identified in Step 1? Are key sections easy to locate? Is there evidence of user journeys being intentionally designed, or does the structure feel arbitrary or internally driven?
 
 2. Design System
-Evaluate the consistency and coherence of the visual design language — including typography, color palette, spacing, component design, and iconography. Is a defined design system being applied consistently across pages, or are there visible inconsistencies that undermine professionalism and brand cohesion?
+Evaluate the consistency and coherence of the visual design language, including typography, color palette, spacing, component design, and iconography. Is a defined design system being applied consistently across pages, or are there visible inconsistencies that undermine professionalism and brand cohesion?
 
 3. Layout & Composition
 Assess how individual pages are structured visually. Does the layout guide attention effectively? Is hierarchy established through scale, contrast, and spacing? Does the composition reflect intentional design decisions or a templated, generic approach?
@@ -1142,14 +1159,14 @@ Evaluate the use of charts, graphs, infographics, statistics, and other data pre
 Assess the quality, relevance, and strategic use of photography, illustration, and visual media. Does imagery reflect the brand's identity and resonate with its identified audiences, or does it rely on generic stock photography? Is there a coherent visual narrative, or is imagery applied inconsistently?
 
 8. Audience Optimization
-Synthesize observations from all prior dimensions to render a verdict on how well the site serves the audiences identified in Step 1. Does the site demonstrate a genuine understanding of those audiences — their needs, language, and decision-making context — or does it prioritize internal messaging over external relevance?
+Synthesize observations from all prior dimensions to render a verdict on how well the site serves the audiences identified in Step 1. Does the site demonstrate a genuine understanding of those audiences, their needs, language, and decision-making context, or does it prioritize internal messaging over external relevance?
 
 Step 4: Brand Strength Assessment
-Drawing on everything observed across the site — message clarity, design quality, content credibility, audience alignment, and overall execution — provide a holistic assessment of brand strength as expressed through this digital presence. Is the brand coming across as confident, differentiated, and credible? Or does the site reveal gaps between what the brand claims and what it actually demonstrates? Be specific about where brand strength is evident and where it breaks down.
+Drawing on everything observed across the site, including message clarity, design quality, content credibility, audience alignment, and overall execution, provide a holistic assessment of brand strength as expressed through this digital presence. Is the brand coming across as confident, differentiated, and credible? Or does the site reveal gaps between what the brand claims and what it actually demonstrates? Be specific about where brand strength is evident and where it breaks down.
 
-Tone instruction: Be direct and critical where the evidence warrants it. Do not soften findings out of diplomacy. If the site has weak content, inconsistent design, or fails its audiences, name it plainly and explain the consequence. Every assessment must be evidence-based — cite specific pages, sections, copy, or design elements to support your conclusions. Where something cannot be observed directly, do not comment on it.
+Tone instruction: Be direct and critical where the evidence warrants it. Do not soften findings out of diplomacy. If the site has weak content, inconsistent design, or fails its audiences, name it plainly and explain the consequence. Every assessment must be evidence-based; cite specific pages, sections, copy, or design elements to support your conclusions. Where something cannot be observed directly, do not comment on it.
 
-Conclude with an Overall Website Brand Score (1–10), a 2–3 sentence executive summary of the site's brand effectiveness, and the single most important improvement priority that would have the greatest impact on brand strength and audience experience.`;
+Conclude with an Overall Website Brand Score (1 to 10), a 2 to 3 sentence executive summary of the site's brand effectiveness, and the single most important improvement priority that would have the greatest impact on brand strength and audience experience.`;
 
       const result = await callClaude(prompt, apiKey);
       setAssessmentData({ ...assessmentData, autoAssessContent: result });
@@ -2605,13 +2622,13 @@ function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     try {
       const prompt = `You are a senior brand intelligence analyst specializing in earned media evaluation. Your task is to conduct a comprehensive earned media performance assessment for ${project.brandName}, operating in the ${industryName} sector.
 
-Using any available information about this brand's media presence — including news articles, press mentions, analyst commentary, podcast appearances, awards, influencer coverage, and third-party reviews — evaluate performance across the following dimensions:
+Using any available information about this brand's media presence, including news articles, press mentions, analyst commentary, podcast appearances, awards, influencer coverage, and third-party reviews, evaluate performance across the following dimensions:
 
 1. Coverage Quality
 Assess the caliber and credibility of outlets and sources covering the brand. Are mentions appearing in authoritative, respected publications or primarily low-tier aggregators? Is coverage substantive (featured stories, interviews, deep analysis) or superficial (brief mentions, press release reposts)?
 
 2. Reach & Amplification
-Estimate the breadth and scale of earned media exposure. Which channels are generating the most coverage — digital news, print, broadcast, podcasts, social amplification of press? Is coverage geographically and demographically reaching the markets that matter for this brand?
+Estimate the breadth and scale of earned media exposure. Which channels are generating the most coverage: digital news, print, broadcast, podcasts, social amplification of press? Is coverage geographically and demographically reaching the markets that matter for this brand?
 
 3. Sentiment Analysis
 Characterize the overall tone of coverage as positive, neutral, or negative. Identify recurring positive themes and any persistent negative narratives or reputational risks surfacing in third-party coverage.
@@ -2628,11 +2645,11 @@ Assess the degree to which the brand is shaping broader industry conversation. I
 7. Audience Relevance
 Based on your knowledge of the brand's likely customer base and market positioning, evaluate how well earned media coverage is reaching and resonating with the audiences that matter most. Are the outlets, creators, and voices generating coverage trusted and consumed by the right people? Is coverage appearing in the channels where those audiences are most active?
 
-For each dimension, provide: a qualitative assessment, a performance score from 1–10 with rationale, specific examples or evidence where possible, and 1–2 actionable recommendations to improve performance.
+For each dimension, provide: a qualitative assessment, a performance score from 1 to 10 with rationale, specific examples or evidence where possible, and 1 to 2 actionable recommendations to improve performance.
 
-Tone instruction: Be direct and critical where the evidence warrants it. Do not soften assessments out of diplomacy — if coverage is thin, sentiment is problematic, or the brand is losing share of voice to competitors, say so clearly and explain why it matters. Honest diagnosis is more valuable than a favorable framing.
+Tone instruction: Be direct and critical where the evidence warrants it. Do not soften assessments out of diplomacy. If coverage is thin, sentiment is problematic, or the brand is losing share of voice to competitors, say so clearly and explain why it matters. Honest diagnosis is more valuable than a favorable framing.
 
-Conclude with an Overall Earned Media Health Score (1–10), a 2–3 sentence executive summary of the brand's earned media standing, and the single most important strategic priority for earned media improvement in the next 90 days.`;
+Conclude with an Overall Earned Media Health Score (1 to 10), a 2 to 3 sentence executive summary of the brand's earned media standing, and the single most important strategic priority for earned media improvement in the next 90 days.`;
 
       const result = await callClaude(prompt, apiKey);
       setAssessmentData({ ...assessmentData, autoAssessContent: result });
@@ -3643,7 +3660,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
         pdf.setFontSize(12);
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(0, 0, 0);
-        pdf.text(`${attr.name} — ${score}/100`, margin, y);
+        pdf.text(`${attr.name}: ${score}/100`, margin, y);
         y += 6;
 
         // Findings
@@ -3815,7 +3832,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
               children: [
                 new TextRun({ text: `Overall Score: `, size: 28, bold: true }),
                 new TextRun({ text: `${overall}/100`, size: 36, bold: true, color: hexColor(stage.color) }),
-                new TextRun({ text: ` — ${stage.name}`, size: 28, bold: true }),
+                new TextRun({ text: ` - ${stage.name}`, size: 28, bold: true }),
               ]
             }),
             new Paragraph({
