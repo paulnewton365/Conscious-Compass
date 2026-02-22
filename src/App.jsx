@@ -906,22 +906,58 @@ function ProgressSteps({ currentStep, steps, assessments }) {
 
 // Welcome Page
 function WelcomePage({ onStart }) {
+  const [animate, setAnimate] = useState(false);
+  
+  useEffect(() => {
+    // Trigger animation after mount
+    const timer = setTimeout(() => setAnimate(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-8 relative">
-      <div className="max-w-3xl text-center animate-fade-in">
-        <h1 className="text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight">
-          Consequential brands are conscious brands.
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-8 relative overflow-hidden">
+      <div className="max-w-3xl text-center">
+        {/* Headline - appears first */}
+        <h1 
+          className={`text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight transition-all duration-1000 ease-out ${
+            animate 
+              ? 'opacity-100 translate-y-0' 
+              : 'opacity-0 translate-y-8'
+          }`}
+        >
+          <span className="block">Consequential brands</span>
+          <span className="block">are conscious brands.</span>
         </h1>
-        <p className="text-xl text-[#333333] mb-8 leading-relaxed max-w-2xl mx-auto">
+        
+        {/* Subtitle - appears second */}
+        <p 
+          className={`text-xl text-[#333333] mb-8 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
+            animate 
+              ? 'opacity-100 translate-y-0 delay-300' 
+              : 'opacity-0 translate-y-6'
+          }`}
+          style={{ transitionDelay: animate ? '300ms' : '0ms' }}
+        >
           They don't just show up, they stand out. They don't follow trends; they shape narratives. 
           The Conscious Compass explores your brand's impact across 8 essential attributes.
         </p>
-        <button onClick={onStart} className="btn-primary btn-arrow text-lg px-8 py-4">
-          Start Assessment
-        </button>
+        
+        {/* Button - appears third */}
+        <div 
+          className={`transition-all duration-700 ease-out ${
+            animate 
+              ? 'opacity-100 translate-y-0' 
+              : 'opacity-0 translate-y-4'
+          }`}
+          style={{ transitionDelay: animate ? '600ms' : '0ms' }}
+        >
+          <button onClick={onStart} className="btn-primary btn-arrow text-lg px-8 py-4">
+            Start Assessment
+          </button>
+        </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.33
+        Version 2.12.34
       </div>
     </div>
   );
