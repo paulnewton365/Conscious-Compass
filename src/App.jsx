@@ -904,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.28
+        Version 2.12.29
       </div>
     </div>
   );
@@ -2850,6 +2850,11 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     services: true,
     conclusions: true,
     evaluated: false,
+    readouts: false,
+    readoutWebsite: false,
+    readoutSocial: false,
+    readoutAI: false,
+    readoutEarned: false,
   });
   const [animatedScore, setAnimatedScore] = useState(0);
   const chartRef = useRef(null);
@@ -4045,6 +4050,200 @@ Return the JSON scores in this exact format:
             <p className="text-sm md:text-base text-[#333333] leading-relaxed">
               This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
+          </div>
+        )}
+      </div>
+
+      {/* Assessment Readouts - Collapsible */}
+      <div className="mb-8">
+        <button 
+          onClick={() => toggleSection('readouts')} 
+          className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+        >
+          <span>ASSESSMENT READOUTS</span>
+          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.readouts ? 'rotate-180' : ''}`} />
+        </button>
+        {expandedSections.readouts && (
+          <div className="space-y-3 animate-fade-in">
+            {/* Website Assessment Readout */}
+            <div className="card overflow-hidden">
+              <button 
+                onClick={() => toggleSection('readoutWebsite')} 
+                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#E53935]/10 rounded-lg flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-[#E53935]" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-medium text-[#1A1A1A]">Website Assessment</h4>
+                    <p className="text-xs text-[#666666]">Auto-assess, SEO visibility, and full analysis</p>
+                  </div>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutWebsite ? 'rotate-180' : ''}`} />
+              </button>
+              {expandedSections.readoutWebsite && (
+                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
+                  {assessments.website?.autoAssessContent && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#E53935] mb-2">Auto-Assess Analysis</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.website.autoAssessContent}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {assessments.website?.seoAssessment && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#E53935] mb-2">SEO Visibility Assessment</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.website.seoAssessment}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {assessments.website?.content && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#E53935] mb-2">Full Website Analysis</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.website.content}</pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Social Media Assessment Readout */}
+            <div className="card overflow-hidden">
+              <button 
+                onClick={() => toggleSection('readoutSocial')} 
+                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#8B5CF6]/10 rounded-lg flex items-center justify-center">
+                    <Users className="w-5 h-5 text-[#8B5CF6]" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-medium text-[#1A1A1A]">Social Media Assessment</h4>
+                    <p className="text-xs text-[#666666]">Platform analysis and Reddit Answers AI visibility</p>
+                  </div>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutSocial ? 'rotate-180' : ''}`} />
+              </button>
+              {expandedSections.readoutSocial && (
+                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
+                  {assessments.social?.redditAnswersContent && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Reddit Answers (AI Search Visibility)</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.social.redditAnswersContent}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {assessments.social?.content && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Full Social Media Analysis</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.social.content}</pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* AI Reputation Assessment Readout */}
+            <div className="card overflow-hidden">
+              <button 
+                onClick={() => toggleSection('readoutAI')} 
+                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#3B82F6]/10 rounded-lg flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-[#3B82F6]" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-medium text-[#1A1A1A]">AI Reputation Assessment</h4>
+                    <p className="text-xs text-[#666666]">Claude, Gemini, ChatGPT perception synthesis</p>
+                  </div>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutAI ? 'rotate-180' : ''}`} />
+              </button>
+              {expandedSections.readoutAI && (
+                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
+                  {assessments.aiReputation?.claudeManual && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#3B82F6] mb-2">Claude Response</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-48 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.claudeManual}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {assessments.aiReputation?.geminiManual && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#3B82F6] mb-2">Gemini Response</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-48 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.geminiManual}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {assessments.aiReputation?.chatgptManual && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#3B82F6] mb-2">ChatGPT Response</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-48 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.chatgptManual}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {assessments.aiReputation?.content && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#3B82F6] mb-2">AI Reputation Synthesis</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Earned Media Assessment Readout */}
+            <div className="card overflow-hidden">
+              <button 
+                onClick={() => toggleSection('readoutEarned')} 
+                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#10B981]/10 rounded-lg flex items-center justify-center">
+                    <Newspaper className="w-5 h-5 text-[#10B981]" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-medium text-[#1A1A1A]">Earned Media Assessment</h4>
+                    <p className="text-xs text-[#666666]">Auto-assess performance and coverage analysis</p>
+                  </div>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutEarned ? 'rotate-180' : ''}`} />
+              </button>
+              {expandedSections.readoutEarned && (
+                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
+                  {assessments.earned?.autoAssessContent && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#10B981] mb-2">Auto-Assess Earned Media Performance</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earned.autoAssessContent}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {assessments.earned?.content && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#10B981] mb-2">Full Earned Media Analysis</h5>
+                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earned.content}</pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
