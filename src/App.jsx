@@ -904,7 +904,7 @@ function WelcomePage({ onStart }) {
         </button>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.29
+        Version 2.12.30
       </div>
     </div>
   );
@@ -4225,19 +4225,19 @@ Return the JSON scores in this exact format:
               </button>
               {expandedSections.readoutEarned && (
                 <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
-                  {assessments.earned?.autoAssessContent && (
+                  {assessments.earnedMedia?.autoAssessContent && (
                     <div>
                       <h5 className="text-sm font-medium text-[#10B981] mb-2">Auto-Assess Earned Media Performance</h5>
                       <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earned.autoAssessContent}</pre>
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earnedMedia.autoAssessContent}</pre>
                       </div>
                     </div>
                   )}
-                  {assessments.earned?.content && (
+                  {assessments.earnedMedia?.content && (
                     <div>
                       <h5 className="text-sm font-medium text-[#10B981] mb-2">Full Earned Media Analysis</h5>
                       <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earned.content}</pre>
+                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earnedMedia.content}</pre>
                       </div>
                     </div>
                   )}
