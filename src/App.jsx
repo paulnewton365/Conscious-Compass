@@ -503,7 +503,7 @@ function SpiderChart({ scores, size = 400, animate = true }) {
       return;
     }
     
-    const duration = 2000; // 2 seconds
+    const duration = 3000; // 3 seconds
     const startTime = Date.now();
     
     const animationFrame = () => {
@@ -1002,7 +1002,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.35
+        Version 2.12.36
       </div>
     </div>
   );
@@ -3198,8 +3198,8 @@ Return the JSON scores in this exact format:
   // Animate score counting up on page load - must be before any returns
   useEffect(() => {
     if (calculatedOverall > 0) {
-      const duration = 1200;
-      const steps = 40;
+      const duration = 3000; // 3 seconds to match spider chart
+      const steps = 60;
       const increment = calculatedOverall / steps;
       let current = 0;
       
