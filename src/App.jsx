@@ -1041,7 +1041,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.44
+        Version 2.12.45
       </div>
     </div>
   );
@@ -2683,40 +2683,40 @@ function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, 
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
 
   // Comprehensive AI Brand Perception Prompt
-  const aiPerceptionPrompt = `You are being asked to share what you know about a brand based entirely on what is present in your training data. This is not a research task — do not search the web or retrieve real-time information. The goal is to understand what knowledge, impressions, and associations you have formed about this brand through your training alone.
+  const aiPerceptionPrompt = `You are simulating what a potential customer, partner, or investor would discover when researching a brand online. Please search for and gather current information about this brand to provide a comprehensive assessment.
 
 The brand is ${project.brandName}, operating in the ${industryName} sector.
 
-Answer each section below as fully as the evidence in your training allows. If your knowledge on any point is thin, partial, or absent, say so directly — a candid gap is more valuable than a confident fabrication. Do not fill silences with reasonable assumptions or industry generalisations. Only report what you actually know.
+Research this brand thoroughly and answer each section below based on what you find. If information on any point is limited or unavailable online, say so directly — identifying gaps in a brand's digital presence is valuable insight.
 
 1. Brand Understanding
-What does this brand do? Describe its core offering, the problem it solves, and the market it operates in. How well-defined and coherent is your understanding of what this brand actually is?
+What does this brand do? Describe its core offering, the problem it solves, and the market it operates in. How clearly does the brand communicate what it actually is?
 
 2. Purpose & Mission
-What does this brand exist to do beyond its commercial function? Is there a stated or clearly implied mission, cause, or reason for being that goes beyond making money? If you have encountered articulations of purpose from this brand, describe them. If not, say so.
+What does this brand exist to do beyond its commercial function? Is there a stated or clearly implied mission, cause, or reason for being that goes beyond making money? What purpose statements or values content can you find?
 
 3. How They Work
-What do you know about how this brand operates — its model, method, approach, or process? This might include how it delivers its product or service, how it goes to market, how it treats clients or customers, or what makes its way of working distinctive. Report only what you have encountered, not what would be typical for this type of business.
+What can you discover about how this brand operates — its model, method, approach, or process? This might include how it delivers its product or service, how it goes to market, how it treats clients or customers, or what makes its way of working distinctive.
 
 4. Personality & Voice
-Based on any brand communications, content, or coverage you have encountered, how would you characterise this brand's personality? How does it express itself — its tone, style, and manner of engagement? Be specific about what informed this impression. If you have no basis for a characterisation, say so.
+Based on their website, social media, content, and any coverage you find, how would you characterise this brand's personality? How does it express itself — its tone, style, and manner of engagement? Be specific about what sources informed this impression.
 
 5. Values
-What values does this brand appear to hold or actively promote? Are these values demonstrated through observable actions and decisions, or do they appear to exist primarily as stated claims? Where you have encountered evidence of values in action, describe it.
+What values does this brand appear to hold or actively promote? Are these values demonstrated through observable actions and decisions, or do they appear to exist primarily as stated claims? Where you find evidence of values in action, describe it.
 
 6. Reputation
-What is this brand's reputation as it appears in your training data? Consider how it is perceived by clients, peers, industry commentators, employees, and the wider public where relevant. Is the reputation broadly consistent, or are there tensions or contradictions? Report the reputation you have encountered — positive, negative, or mixed — without editorialising.
+What is this brand's reputation based on what you can find online? Consider reviews, testimonials, press coverage, social media sentiment, employee reviews (Glassdoor), and industry commentary. Is the reputation broadly consistent, or are there tensions or contradictions? Report what you find — positive, negative, or mixed.
 
 7. Authenticity
-Based on the totality of what you know, does this brand come across as authentic — meaning that its stated identity, values, and purpose appear to be consistent with how it actually behaves and is perceived externally? Where you see alignment, describe it. Where you see gaps between claim and reality, name them plainly.
+Based on everything you've found, does this brand come across as authentic — meaning that its stated identity, values, and purpose appear to be consistent with how it actually behaves and is perceived externally? Where you see alignment, describe it. Where you see gaps between claim and reality, name them plainly.
 
 8. Credibility
-How credible is this brand in its field? Is it regarded as knowledgeable, trustworthy, and authoritative by those who encounter it? Is its credibility well-established, emerging, contested, or absent from your training data? If credibility signals exist — awards, citations, peer recognition, track record — describe what you have encountered.
+How credible is this brand in its field? Is it regarded as knowledgeable, trustworthy, and authoritative? Look for credibility signals — awards, certifications, client logos, case studies, thought leadership, media coverage, peer recognition, track record — and describe what you find.
 
-9. Presence & Familiarity
-How prominent is this brand in your training data overall? Is it a brand you know well, partially, or barely at all? Does your knowledge feel broad and multi-sourced, or narrow and potentially one-sided? Being honest about the depth and quality of your knowledge here is as important as the content of it.
+9. Digital Presence & Findability
+How easy was it to find information about this brand? Is their digital footprint strong or weak? Are they present across multiple channels (website, LinkedIn, news, reviews) or hard to research? This reflects what a prospect would experience when doing due diligence.
 
-Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis of how this brand registers in your training data: what it stands for, how it is regarded, and where the limits of your knowledge lie. Then provide an AI Visibility Score from 1–10 reflecting how well-represented and clearly understood this brand is based on your training alone, with a brief rationale for the score.`;
+Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis of how this brand appears to someone researching them online: what they stand for, how they are regarded, and any gaps or concerns a prospect might notice. Then provide an AI Discoverability Score from 1–10 reflecting how well-represented and clearly understood this brand is in online search, with a brief rationale for the score.`;
 
   const copyPrompt = async () => {
     try {
@@ -2814,7 +2814,7 @@ Write in flowing prose.`;
         </div>
         <div>
           <h2 className="text-xl font-bold text-[#1A1A1A]">AI Reputation Assessment</h2>
-          <p className="text-sm text-[#666666]">How AI systems describe {project.brandName}</p>
+          <p className="text-sm text-[#666666]">What prospects discover when researching {project.brandName}</p>
         </div>
       </div>
 
@@ -2824,8 +2824,8 @@ Write in flowing prose.`;
       <div className="card p-4 mb-4 border-l-4 border-[#3B82F6]">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">AI Brand Perception Prompt</h3>
-            <p className="text-xs text-[#666666]">Copy this prompt and paste it into each AI assistant below</p>
+            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">AI Brand Research Prompt</h3>
+            <p className="text-xs text-[#666666]">Simulates what a prospect would discover when researching this brand</p>
           </div>
           <button 
             onClick={copyPrompt}
