@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS } from './data/rubric';
 import { getAllRecommendations, formatBudget } from './data/serviceMapping';
-import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Lock, Share2, Link, Copy, LogOut, Shield, UserCheck, UserX, Mail, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle } from 'lucide-react';
+import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Lock, Share2, Link, Copy, LogOut, Shield, UserCheck, UserX, Mail, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType } from 'docx';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
@@ -1002,7 +1002,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.38
+        Version 2.12.39
       </div>
     </div>
   );
@@ -1830,6 +1830,8 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     glassdoorContent: assessmentData.glassdoorContent || '',
     nextdoorContent: assessmentData.nextdoorContent || '',
     wipoContent: assessmentData.wipoContent || '',
+    influencerContent: assessmentData.influencerContent || '',
+    paidMediaContent: assessmentData.paidMediaContent || '',
   });
   const [images, setImages] = useState(assessmentData.socialImages || []);
   const [instagramImages, setInstagramImages] = useState(assessmentData.instagramImages || []);
@@ -2087,6 +2089,12 @@ ${inputs.nextdoorContent || '[Not reviewed - Nextdoor presence impacts audience 
 === WIPO TRADEMARK STATUS ===
 ${inputs.wipoContent || '[Not checked - Trademark registration impacts brand professionalism and Intentional score]'}
 
+=== INFLUENCER & CREATOR PARTNERSHIPS ===
+${inputs.influencerContent || '[Not assessed - Check for #ad #sponsored content, brand ambassadors, creator collaborations]'}
+
+=== PAID MEDIA PRESENCE ===
+${inputs.paidMediaContent || '[Not checked - Review Meta Ad Library, Google Ads Transparency, LinkedIn Ad Library for active campaigns]'}
+
 ${images.length > 0 ? `\n${images.length} screenshot(s) of social media pages have been provided for visual reference.` : ''}
 
 ${assessmentData.observations ? `\nASSESSOR OBSERVATIONS TO CONSIDER:\n${assessmentData.observations}` : ''}
@@ -2113,9 +2121,13 @@ Based on the content provided above, deliver a comprehensive social media and re
 
 9. Trademark Protection (WIPO): Is the brand name properly protected? Are there any conflicts or risks?
 
-10. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
+10. Influencer & Creator Strategy: Analyze any influencer, creator, or ambassador partnerships. Are partnerships strategic and aligned with brand positioning? Is there evidence of thought leader collaborations vs. purely lifestyle influencers? How does this impact credibility (AWAKE, AWARE, SENTIENT)?
 
-11. AI/Search Visibility: How does their social presence impact discoverability in AI search engines?
+11. Paid Media Presence: Based on ad library findings, assess paid media investment signals. What creative themes dominate? Is messaging consistent with organic content? Does ad volume suggest serious market investment (COGENT, INTENTIONAL)? Is creative distinctive or generic (SENTIENT)?
+
+12. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
+
+13. AI/Search Visibility: How does their social presence impact discoverability in AI search engines?
 
 Write in flowing prose with specific observations from the content provided. End with key strengths and priority improvements.`;
 
@@ -2133,7 +2145,7 @@ Write in flowing prose with specific observations from the content provided. End
   const hasMinimumContent = inputs.linkedinAbout || inputs.linkedinPosts || inputs.xContent || inputs.youtubeContent || inputs.instagramContent;
 
   // Accordion state
-  const [expanded, setExpanded] = useState({ linkedin: true, x: false, instagram: false, other: false, reputation: false });
+  const [expanded, setExpanded] = useState({ linkedin: true, x: false, instagram: false, other: false, influencer: false, paidMedia: false, reputation: false });
   const toggleSection = (section) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
   // Status badges for auto-check (5 platforms - WIPO is manual only)
@@ -2480,6 +2492,92 @@ Write in flowing prose with specific observations from the content provided. End
                 placeholder={`Trademark status for ${project.brandName}: registrations found, jurisdictions covered, any similar/conflicting marks, protection status...`}
                 className="w-full h-16 px-3 py-2 border border-blue-300 rounded-lg bg-white resize-none text-sm" />
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Influencer & Creator Partnerships */}
+      <div className="mb-3">
+        <AccordionHeader 
+          title="Influencer & Creator Partnerships" 
+          icon={Users} 
+          isOpen={expanded.influencer} 
+          onClick={() => toggleSection('influencer')}
+          hasContent={!!inputs.influencerContent}
+        />
+        {expanded.influencer && (
+          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <p className="text-xs text-[#666666] mb-2">
+              Document evidence of influencer, creator, or ambassador partnerships. Check social feeds for #ad #sponsored #partner tags, brand ambassador pages on website, and creator mentions.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
+                 className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
+                <span>IG Hashtag</span> <ExternalLink className="w-3 h-3" />
+              </a>
+              <a href={`https://www.tiktok.com/search?q=${encodeURIComponent(project.brandName + ' sponsored')}`} target="_blank" rel="noopener noreferrer" 
+                 className="px-2 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-1">
+                <span>TikTok</span> <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <textarea value={inputs.influencerContent} onChange={(e) => updateInput('influencerContent', e.target.value)}
+              placeholder="Document influencer/creator partnerships observed:
+
+• Brand ambassadors: Who? What platforms? How prominent?
+• Sponsored content: #ad or #partner posts found? Quality?
+• Creator collaborations: YouTube sponsorships, podcast integrations?
+• User-generated content: Are creators organically mentioning the brand?
+• Partnership strategy: Industry thought leaders or lifestyle influencers?
+• N/A if no influencer activity observed..." 
+              className="w-full h-32 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+          </div>
+        )}
+      </div>
+
+      {/* Paid Media Presence */}
+      <div className="mb-4">
+        <AccordionHeader 
+          title="Paid Media Presence" 
+          icon={Target} 
+          isOpen={expanded.paidMedia} 
+          onClick={() => toggleSection('paidMedia')}
+          hasContent={!!inputs.paidMediaContent}
+        />
+        {expanded.paidMedia && (
+          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <p className="text-xs text-[#666666] mb-2">
+              Check advertising transparency libraries to assess paid media investment and creative quality. All major platforms now require ad transparency.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <a href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q=${encodeURIComponent(project.brandName)}&search_type=keyword_unordered`} target="_blank" rel="noopener noreferrer" 
+                 className="px-2 py-1.5 bg-[#1877F2] text-white text-xs font-medium rounded-lg hover:bg-[#166FE5] transition-colors flex items-center justify-center gap-1">
+                <span>Meta Ad Library</span> <ExternalLink className="w-3 h-3" />
+              </a>
+              <a href={`https://adstransparency.google.com/?region=anywhere&domain=${project.websiteUrl?.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}`} target="_blank" rel="noopener noreferrer" 
+                 className="px-2 py-1.5 bg-[#4285F4] text-white text-xs font-medium rounded-lg hover:bg-[#3367D6] transition-colors flex items-center justify-center gap-1">
+                <span>Google Ads</span> <ExternalLink className="w-3 h-3" />
+              </a>
+              <a href={`https://www.linkedin.com/ad-library/search?accountOwner=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
+                 className="px-2 py-1.5 bg-[#0A66C2] text-white text-xs font-medium rounded-lg hover:bg-[#004182] transition-colors flex items-center justify-center gap-1">
+                <span>LinkedIn Ads</span> <ExternalLink className="w-3 h-3" />
+              </a>
+              <a href={`https://library.tiktok.com/ads?region=all&adv_name=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
+                 className="px-2 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-1">
+                <span>TikTok Ads</span> <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <textarea value={inputs.paidMediaContent} onChange={(e) => updateInput('paidMediaContent', e.target.value)}
+              placeholder="Document paid media presence from ad libraries:
+
+• Meta (FB/IG): Active ads? How many? Creative themes? Target signals?
+• Google Ads: Search/display ads running? Volume?
+• LinkedIn: B2B advertising? Sponsored content?
+• TikTok: Video ads? Creative quality?
+• Creative quality: Distinctive or generic? Consistent with brand?
+• Messaging: What value props are they paying to promote?
+• Sponsorships: Podcast, event, or sports sponsorships visible?
+• N/A if no paid media found..." 
+              className="w-full h-32 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         )}
       </div>
@@ -3098,6 +3196,8 @@ ${assessments.social.content}
 ${assessments.social.observations ? `Assessor Notes: ${assessments.social.observations}` : ''}
 Employee Advocacy: ${assessments.social.employeeAdvocacy || 'Not assessed'}
 Awards & Recognition: ${assessments.social.awardsRecognition || 'Not noted'}
+Influencer Partnerships: ${assessments.social.influencerContent || 'Not assessed'}
+Paid Media Presence: ${assessments.social.paidMediaContent || 'Not checked'}
 Glassdoor: ${assessments.social.glassdoorContent || 'Not reviewed'}
 Nextdoor: ${assessments.social.nextdoorContent || 'Not reviewed'}
 WIPO Trademark: ${assessments.social.wipoContent || 'Not checked'}
@@ -3162,6 +3262,8 @@ OTHER SCORING FACTORS:
 - Nextdoor presence impacts AWARE score (audience connection and community trust)
 - WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
 - Core Web Vitals (LCP, CLS, TBT) indicate user experience quality - factor into the technical portion of ATTENTIVE
+- Influencer partnerships impact multiple scores: strategic thought leader partnerships boost AWAKE, audience-aligned creators boost AWARE, creative quality impacts SENTIENT
+- Paid media presence signals investment and intentionality: ad volume and consistency impact INTENTIONAL, creative quality impacts SENTIENT, targeting sophistication impacts COGENT and AWARE
 
 SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 - AWAKE: Executive Visibility, PR & Media Relations, Thought Leadership Content
@@ -6487,7 +6589,7 @@ export default function App() {
   });
   const [assessments, setAssessments] = useState({
     website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-    social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', employeeAdvocacy: '', awardsRecognition: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+    social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', employeeAdvocacy: '', awardsRecognition: '', influencerContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
     aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
     earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
   });
@@ -6631,7 +6733,7 @@ export default function App() {
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-        social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', employeeAdvocacy: '', awardsRecognition: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+        social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', employeeAdvocacy: '', awardsRecognition: '', influencerContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
         aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
         earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
       });
