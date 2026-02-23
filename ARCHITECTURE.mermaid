@@ -1,0 +1,75 @@
+```mermaid
+flowchart TB
+    subgraph User["👤 User"]
+        Browser["Browser"]
+    end
+
+    subgraph Vercel["Vercel Platform"]
+        subgraph Frontend["React Frontend"]
+            App["App.jsx<br/>(7000+ lines)"]
+            Rubric["rubric.js<br/>Framework v2.6"]
+            ServiceMap["serviceMapping.js"]
+        end
+        
+        subgraph Serverless["Serverless Function"]
+            APIProxy["/api/claude.js<br/>API Proxy"]
+        end
+    end
+
+    subgraph External["External Services"]
+        Anthropic["Anthropic Claude API<br/>claude-sonnet-4"]
+        
+        subgraph Supabase["Supabase"]
+            Auth["Authentication"]
+            DB[(PostgreSQL)]
+        end
+    end
+
+    subgraph AdLibraries["Ad Transparency Libraries<br/>(User visits manually)"]
+        Meta["Meta Ad Library"]
+        Google["Google Ads"]
+        LinkedIn["LinkedIn Ads"]
+        TikTok["TikTok Ads"]
+    end
+
+    subgraph AIReputation["AI Platforms<br/>(User tests manually)"]
+        Claude["Claude.ai"]
+        Gemini["Gemini"]
+        ChatGPT["ChatGPT"]
+    end
+
+    %% Main flow
+    Browser <-->|"React App"| App
+    App --> Rubric
+    App --> ServiceMap
+    
+    %% API flow
+    App -->|"POST /api/claude<br/>(assessment data)"| APIProxy
+    APIProxy -->|"API Key<br/>(server-side)"| Anthropic
+    Anthropic -->|"AI Analysis<br/>& Scoring"| APIProxy
+    APIProxy -->|"Results"| App
+
+    %% Auth flow
+    App <-->|"Login/Signup"| Auth
+    Auth <-->|"Session"| DB
+
+    %% Data flow
+    App <-->|"Save/Load<br/>Assessments"| DB
+
+    %% Manual inputs
+    AdLibraries -.->|"User pastes<br/>findings"| Browser
+    AIReputation -.->|"User pastes<br/>responses"| Browser
+
+    %% Styling
+    classDef frontend fill:#3B82F6,color:#fff
+    classDef serverless fill:#10B981,color:#fff
+    classDef external fill:#8B5CF6,color:#fff
+    classDef manual fill:#F59E0B,color:#fff
+    classDef user fill:#E53935,color:#fff
+
+    class App,Rubric,ServiceMap frontend
+    class APIProxy serverless
+    class Anthropic,Auth,DB external
+    class Meta,Google,LinkedIn,TikTok,Claude,Gemini,ChatGPT manual
+    class Browser user
+```

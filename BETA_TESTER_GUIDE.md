@@ -166,4 +166,4 @@ Thank you for being a beta tester!
 
 ---
 
-*Conscious Compass v2.12.43 | Framework v2.6 | Antenna Group*
+*Conscious Compass v2.12.44 | Framework v2.6 | Antenna Group*

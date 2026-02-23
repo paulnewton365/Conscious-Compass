@@ -1,10 +1,10 @@
 # Conscious Compass
 
-**Brand Consciousness Assessment Framework v2.12.43** by Antenna Group
+**Brand Consciousness Assessment Framework v2.12.44** by Antenna Group
 
 A comprehensive React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis of publicly available information.
 
-![Version](https://img.shields.io/badge/version-2.12.43-blue)
+![Version](https://img.shields.io/badge/version-2.12.44-blue)
 ![Rubric](https://img.shields.io/badge/rubric-v2.6-green)
 ![Status](https://img.shields.io/badge/status-beta-orange)
 
@@ -272,7 +272,7 @@ conscious-compass/
 
 | Version | Key Changes |
 |---------|-------------|
-| **2.12.43** | Compass Results search and filters |
+| **2.12.44** | Compass Results search and filters |
 | **2.12.42** | Production cleanup, error boundary, removed debug logs |
 | **2.12.41** | Recommendation benefits displayed prominently |
 | **2.12.40** | Influencer & Paid Media recommendations added to rubric |

@@ -1041,7 +1041,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.43
+        Version 2.12.44
       </div>
     </div>
   );
@@ -2678,16 +2678,62 @@ function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, 
   const [manualInput, setManualInput] = useState({ claude: assessmentData.claudeManual || '', gemini: assessmentData.geminiManual || '', chatgpt: assessmentData.chatgptManual || '' });
   const [isProcessing, setIsProcessing] = useState({});
   const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
 
-  const standardQuery = `Please describe ${project.brandName}, what they do, why they do it and how they do it, and provide an overview of their reputation and credibility. Do they have any red flags or are there any risks working with them?`;
+  const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
 
-  const queryClaude = async () => {
-    setIsProcessing(p => ({ ...p, claude: true }));
+  // Comprehensive AI Brand Perception Prompt
+  const aiPerceptionPrompt = `You are being asked to share what you know about a brand based entirely on what is present in your training data. This is not a research task — do not search the web or retrieve real-time information. The goal is to understand what knowledge, impressions, and associations you have formed about this brand through your training alone.
+
+The brand is ${project.brandName}, operating in the ${industryName} sector.
+
+Answer each section below as fully as the evidence in your training allows. If your knowledge on any point is thin, partial, or absent, say so directly — a candid gap is more valuable than a confident fabrication. Do not fill silences with reasonable assumptions or industry generalisations. Only report what you actually know.
+
+1. Brand Understanding
+What does this brand do? Describe its core offering, the problem it solves, and the market it operates in. How well-defined and coherent is your understanding of what this brand actually is?
+
+2. Purpose & Mission
+What does this brand exist to do beyond its commercial function? Is there a stated or clearly implied mission, cause, or reason for being that goes beyond making money? If you have encountered articulations of purpose from this brand, describe them. If not, say so.
+
+3. How They Work
+What do you know about how this brand operates — its model, method, approach, or process? This might include how it delivers its product or service, how it goes to market, how it treats clients or customers, or what makes its way of working distinctive. Report only what you have encountered, not what would be typical for this type of business.
+
+4. Personality & Voice
+Based on any brand communications, content, or coverage you have encountered, how would you characterise this brand's personality? How does it express itself — its tone, style, and manner of engagement? Be specific about what informed this impression. If you have no basis for a characterisation, say so.
+
+5. Values
+What values does this brand appear to hold or actively promote? Are these values demonstrated through observable actions and decisions, or do they appear to exist primarily as stated claims? Where you have encountered evidence of values in action, describe it.
+
+6. Reputation
+What is this brand's reputation as it appears in your training data? Consider how it is perceived by clients, peers, industry commentators, employees, and the wider public where relevant. Is the reputation broadly consistent, or are there tensions or contradictions? Report the reputation you have encountered — positive, negative, or mixed — without editorialising.
+
+7. Authenticity
+Based on the totality of what you know, does this brand come across as authentic — meaning that its stated identity, values, and purpose appear to be consistent with how it actually behaves and is perceived externally? Where you see alignment, describe it. Where you see gaps between claim and reality, name them plainly.
+
+8. Credibility
+How credible is this brand in its field? Is it regarded as knowledgeable, trustworthy, and authoritative by those who encounter it? Is its credibility well-established, emerging, contested, or absent from your training data? If credibility signals exist — awards, citations, peer recognition, track record — describe what you have encountered.
+
+9. Presence & Familiarity
+How prominent is this brand in your training data overall? Is it a brand you know well, partially, or barely at all? Does your knowledge feel broad and multi-sourced, or narrow and potentially one-sided? Being honest about the depth and quality of your knowledge here is as important as the content of it.
+
+Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis of how this brand registers in your training data: what it stands for, how it is regarded, and where the limits of your knowledge lie. Then provide an AI Visibility Score from 1–10 reflecting how well-represented and clearly understood this brand is based on your training alone, with a brief rationale for the score.`;
+
+  const copyPrompt = async () => {
     try {
-      const result = await callClaude(standardQuery, apiKey);
-      setResponses(r => ({ ...r, claude: result }));
-    } catch (e) { setError(e.message); }
-    finally { setIsProcessing(p => ({ ...p, claude: false })); }
+      await navigator.clipboard.writeText(aiPerceptionPrompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Fallback for browsers without clipboard API
+      const textarea = document.createElement('textarea');
+      textarea.value = aiPerceptionPrompt;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const hasAllResponses = manualInput.claude && manualInput.gemini && manualInput.chatgpt;
@@ -2774,9 +2820,30 @@ Write in flowing prose.`;
 
       <CompletionIndicator items={completionItems} />
 
-      <div className="bg-[#F0EEEA] rounded-lg p-3 mb-4">
-        <p className="text-xs text-[#666666] mb-1">Ask each AI:</p>
-        <p className="text-[#1A1A1A] italic text-sm">"{standardQuery}"</p>
+      {/* AI Brand Perception Prompt */}
+      <div className="card p-4 mb-4 border-l-4 border-[#3B82F6]">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">AI Brand Perception Prompt</h3>
+            <p className="text-xs text-[#666666]">Copy this prompt and paste it into each AI assistant below</p>
+          </div>
+          <button 
+            onClick={copyPrompt}
+            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+              copied 
+                ? 'bg-green-100 text-green-700' 
+                : 'bg-[#3B82F6] text-white hover:bg-[#2563EB]'
+            }`}
+          >
+            {copied ? <><Check className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy Prompt</>}
+          </button>
+        </div>
+        <div className="bg-[#F8F7F5] rounded-lg p-3 max-h-48 overflow-y-auto">
+          <pre className="text-xs text-[#333333] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 500)}...</pre>
+        </div>
+        <p className="text-xs text-[#999999] mt-2">
+          Prompt customized for <strong>{project.brandName}</strong> in the <strong>{industryName}</strong> sector
+        </p>
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
@@ -2784,14 +2851,24 @@ Write in flowing prose.`;
       <div className="space-y-3 mb-4">
         {/* Claude */}
         <div className={`card p-4 ${manualInput.claude ? 'bg-[#F0EEEA]' : ''}`}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.claude ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
-              {manualInput.claude ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.claude ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
+                {manualInput.claude ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+              </div>
+              <div>
+                <h4 className="font-medium">Claude (Anthropic)</h4>
+                <p className="text-sm text-[#666666]">Paste response from claude.ai</p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-medium">Claude (Anthropic)</h4>
-              <p className="text-sm text-[#666666]">Paste response from claude.ai</p>
-            </div>
+            <a 
+              href="https://claude.ai/new" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-[#D97706] text-white text-xs font-medium rounded-lg hover:bg-[#B45309] transition-colors flex items-center gap-1"
+            >
+              Open Claude <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
           <textarea value={manualInput.claude || ''} onChange={(e) => setManualInput(m => ({ ...m, claude: e.target.value }))}
             placeholder="Paste Claude's response here..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm bg-white" />
@@ -2799,14 +2876,24 @@ Write in flowing prose.`;
 
         {/* Gemini */}
         <div className={`card p-4 ${manualInput.gemini ? 'bg-[#F0EEEA]' : ''}`}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.gemini ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
-              {manualInput.gemini ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.gemini ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
+                {manualInput.gemini ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+              </div>
+              <div>
+                <h4 className="font-medium">Gemini (Google)</h4>
+                <p className="text-sm text-[#666666]">Paste response from gemini.google.com</p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-medium">Gemini (Google)</h4>
-              <p className="text-sm text-[#666666]">Paste response from gemini.google.com</p>
-            </div>
+            <a 
+              href="https://gemini.google.com/app" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-[#4285F4] text-white text-xs font-medium rounded-lg hover:bg-[#3367D6] transition-colors flex items-center gap-1"
+            >
+              Open Gemini <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
           <textarea value={manualInput.gemini} onChange={(e) => setManualInput(m => ({ ...m, gemini: e.target.value }))}
             placeholder="Paste Gemini's response here..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm bg-white" />
@@ -2814,14 +2901,24 @@ Write in flowing prose.`;
 
         {/* ChatGPT */}
         <div className={`card p-4 ${manualInput.chatgpt ? 'bg-[#F0EEEA]' : ''}`}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.chatgpt ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
-              {manualInput.chatgpt ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.chatgpt ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
+                {manualInput.chatgpt ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+              </div>
+              <div>
+                <h4 className="font-medium">ChatGPT (OpenAI)</h4>
+                <p className="text-sm text-[#666666]">Paste response from chatgpt.com</p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-medium">ChatGPT (OpenAI)</h4>
-              <p className="text-sm text-[#666666]">Paste response from chatgpt.com</p>
-            </div>
+            <a 
+              href="https://chatgpt.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-[#10A37F] text-white text-xs font-medium rounded-lg hover:bg-[#0D8A6A] transition-colors flex items-center gap-1"
+            >
+              Open ChatGPT <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
           <textarea value={manualInput.chatgpt} onChange={(e) => setManualInput(m => ({ ...m, chatgpt: e.target.value }))}
             placeholder="Paste ChatGPT's response here..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm bg-white" />

@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conscious Compass Architecture</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FAF9F7;
+            padding: 40px;
+            min-height: 100vh;
+        }
+        h1 { 
+            text-align: center; 
+            color: #1A1A1A; 
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 14px;
+        }
+        .diagram {
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .layer {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .box {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            text-align: center;
+            min-width: 160px;
+        }
+        .box h3 {
+            font-size: 14px;
+            color: #1A1A1A;
+            margin-bottom: 8px;
+        }
+        .box p {
+            font-size: 11px;
+            color: #666;
+            line-height: 1.4;
+        }
+        .box.user { border-top: 4px solid #E53935; }
+        .box.frontend { border-top: 4px solid #3B82F6; }
+        .box.serverless { border-top: 4px solid #10B981; }
+        .box.external { border-top: 4px solid #8B5CF6; }
+        .box.manual { border-top: 4px solid #F59E0B; }
+        
+        .group {
+            background: #F0EEEA;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .group-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .arrow-down {
+            text-align: center;
+            color: #999;
+            font-size: 24px;
+            margin: 16px 0;
+        }
+        
+        .flow-section {
+            margin-top: 48px;
+            padding-top: 32px;
+            border-top: 1px solid #E8E6E1;
+        }
+        .flow-section h2 {
+            font-size: 18px;
+            color: #1A1A1A;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .flow-steps {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .flow-step {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            width: 140px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        .flow-step::after {
+            content: '→';
+            position: absolute;
+            right: -14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+            font-size: 18px;
+        }
+        .flow-step:last-child::after { display: none; }
+        .flow-step .num {
+            width: 24px;
+            height: 24px;
+            background: #E53935;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 0 auto 8px;
+        }
+        .flow-step h4 {
+            font-size: 12px;
+            color: #1A1A1A;
+            margin-bottom: 4px;
+        }
+        .flow-step p {
+            font-size: 10px;
+            color: #666;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+        .legend-dot.user { background: #E53935; }
+        .legend-dot.frontend { background: #3B82F6; }
+        .legend-dot.serverless { background: #10B981; }
+        .legend-dot.external { background: #8B5CF6; }
+        .legend-dot.manual { background: #F59E0B; }
+
+        .tables {
+            margin-top: 48px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        th {
+            background: #1A1A1A;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #E8E6E1;
+            font-size: 12px;
+            color: #333;
+        }
+        tr:last-child td { border-bottom: none; }
+        code {
+            background: #F0EEEA;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Conscious Compass Architecture</h1>
+    <p class="subtitle">v2.12.44 • Framework v2.6 • Antenna Group</p>
+
+    <div class="diagram">
+        <!-- User Layer -->
+        <div class="layer">
+            <div class="box user">
+                <h3>👤 User (Browser)</h3>
+                <p>React SPA<br/>Assessment workflow</p>
+            </div>
+        </div>
+
+        <div class="arrow-down">↓ ↑</div>
+
+        <!-- Vercel Layer -->
+        <div class="group">
+            <div class="group-title">Vercel Platform</div>
+            <div class="layer">
+                <div class="box frontend">
+                    <h3>React Frontend</h3>
+                    <p>App.jsx (7000+ lines)<br/>Vite • Tailwind CSS</p>
+                </div>
+                <div class="box frontend">
+                    <h3>Framework v2.6</h3>
+                    <p>rubric.js<br/>8 attributes • signals</p>
+                </div>
+                <div class="box frontend">
+                    <h3>Service Mapping</h3>
+                    <p>serviceMapping.js<br/>31 services</p>
+                </div>
+                <div class="box serverless">
+                    <h3>API Proxy</h3>
+                    <p>/api/claude.js<br/>Serverless function</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down">↓ ↑</div>
+
+        <!-- External Services -->
+        <div class="group">
+            <div class="group-title">External Services</div>
+            <div class="layer">
+                <div class="box external">
+                    <h3>Anthropic Claude</h3>
+                    <p>claude-sonnet-4<br/>AI analysis & scoring</p>
+                </div>
+                <div class="box external">
+                    <h3>Supabase Auth</h3>
+                    <p>User authentication<br/>Session management</p>
+                </div>
+                <div class="box external">
+                    <h3>Supabase DB</h3>
+                    <p>PostgreSQL + RLS<br/>Assessments & results</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down">⋯</div>
+
+        <!-- Manual Inputs -->
+        <div class="group">
+            <div class="group-title">Manual Data Sources (User Visits & Pastes)</div>
+            <div class="layer">
+                <div class="box manual">
+                    <h3>Ad Libraries</h3>
+                    <p>Meta • Google<br/>LinkedIn • TikTok</p>
+                </div>
+                <div class="box manual">
+                    <h3>AI Platforms</h3>
+                    <p>Claude • Gemini<br/>ChatGPT</p>
+                </div>
+                <div class="box manual">
+                    <h3>Reputation</h3>
+                    <p>Glassdoor • WIPO<br/>Wikipedia • Reddit</p>
+                </div>
+                <div class="box manual">
+                    <h3>PageSpeed</h3>
+                    <p>Google PageSpeed<br/>Insights (manual)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+            <div class="legend-item"><div class="legend-dot user"></div> User Interface</div>
+            <div class="legend-item"><div class="legend-dot frontend"></div> Frontend (React)</div>
+            <div class="legend-item"><div class="legend-dot serverless"></div> Serverless API</div>
+            <div class="legend-item"><div class="legend-dot external"></div> External Services</div>
+            <div class="legend-item"><div class="legend-dot manual"></div> Manual Inputs</div>
+        </div>
+
+        <!-- Data Flow -->
+        <div class="flow-section">
+            <h2>Assessment Data Flow</h2>
+            <div class="flow-steps">
+                <div class="flow-step">
+                    <div class="num">1</div>
+                    <h4>Input</h4>
+                    <p>User enters brand data, screenshots</p>
+                </div>
+                <div class="flow-step">
+                    <div class="num">2</div>
+                    <h4>Auto-Assess</h4>
+                    <p>AI analyzes website & media</p>
+                </div>
+                <div class="flow-step">
+                    <div class="num">3</div>
+                    <h4>Score</h4>
+                    <p>Claude scores 8 attributes</p>
+                </div>
+                <div class="flow-step">
+                    <div class="num">4</div>
+                    <h4>Recommend</h4>
+                    <p>Map scores to services</p>
+                </div>
+                <div class="flow-step">
+                    <div class="num">5</div>
+                    <h4>Report</h4>
+                    <p>Generate PDF/DOCX</p>
+                </div>
+                <div class="flow-step">
+                    <div class="num">6</div>
+                    <h4>Save</h4>
+                    <p>Store in Supabase</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tables -->
+        <div class="tables">
+            <table>
+                <tr><th colspan="2">Database Tables (Supabase)</th></tr>
+                <tr><td><code>profiles</code></td><td>User accounts, approval status, admin flag</td></tr>
+                <tr><td><code>saved_assessments</code></td><td>Full assessment data (JSONB)</td></tr>
+                <tr><td><code>compass_results</code></td><td>Scores, maturity, assessor attribution</td></tr>
+            </table>
+            <table>
+                <tr><th colspan="2">API Endpoints</th></tr>
+                <tr><td><code>POST /api/claude</code></td><td>Proxy to Anthropic (key server-side)</td></tr>
+                <tr><td><code>Supabase REST</code></td><td>Auth, CRUD via JS client</td></tr>
+            </table>
+            <table>
+                <tr><th colspan="2">Environment Variables</th></tr>
+                <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Server-only (no VITE_ prefix)</td></tr>
+                <tr><td><code>VITE_SUPABASE_URL</code></td><td>Supabase project URL</td></tr>
+                <tr><td><code>VITE_SUPABASE_ANON_KEY</code></td><td>Supabase anon key</td></tr>
+            </table>
+            <table>
+                <tr><th colspan="2">Client-Side Exports</th></tr>
+                <tr><td><code>jsPDF</code></td><td>PDF generation with spider chart</td></tr>
+                <tr><td><code>docx</code></td><td>Word document generation</td></tr>
+                <tr><td><code>Clipboard API</code></td><td>Copy report text</td></tr>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
