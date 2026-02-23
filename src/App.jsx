@@ -1002,7 +1002,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.36
+        Version 2.12.38
       </div>
     </div>
   );
@@ -1192,6 +1192,7 @@ function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project,
   const [images, setImages] = useState(assessmentData.images || []);
   const [pagesReviewed, setPagesReviewed] = useState(assessmentData.pagesReviewed || '');
   const [websiteContent, setWebsiteContent] = useState(assessmentData.websiteContent || '');
+  const [credentialsContent, setCredentialsContent] = useState(assessmentData.credentialsContent || '');
   const fileInputRef = useRef(null);
   
   // SEO Visibility State (simplified)
@@ -1242,7 +1243,26 @@ Assess the quality, relevance, and strategic use of photography, illustration, a
 8. Audience Optimization
 Synthesize observations from all prior dimensions to render a verdict on how well the site serves the audiences identified in Step 1. Does the site demonstrate a genuine understanding of those audiences, their needs, language, and decision-making context, or does it prioritize internal messaging over external relevance?
 
-Step 4: Brand Strength Assessment
+Step 4: Brand Consciousness Attribute Mapping
+Based on your website observations, provide specific evidence relevant to each of these 8 brand consciousness attributes:
+
+AWAKE (Narrative Leadership): Does the website show evidence of thought leadership, original perspectives, or industry-shaping content? Are there research reports, frameworks, or positions that establish narrative authority?
+
+AWARE (Audience Understanding): Does the site demonstrate deep knowledge of its audiences? Are there feedback mechanisms, community elements, or content that shows genuine listening and trust-building?
+
+REFLECTIVE (Brand Authenticity): Is there alignment between brand claims and demonstrated evidence? Are employees, culture, and leadership visible? Does the site feel authentic or corporate?
+
+ATTENTIVE (Experience Excellence): Is the experience consistent, polished, and error-free? Does quality extend across all pages and elements? Are there accessibility considerations?
+
+COGENT (Strategic Intelligence): Is there evidence of data-driven thinking? SEO optimization? Structured content? Conversion paths? Measurement infrastructure?
+
+SENTIENT (Emotional Connection): Does the site create emotional resonance? Is the creative distinctive? Does it inspire action beyond rational consideration?
+
+VISIONARY (Meaningful Purpose): Is there a clear purpose beyond profit? Does the brand point toward something meaningful? Are stakeholder benefits articulated?
+
+INTENTIONAL (Substance & Confidence): Does the site project confidence through decisive positioning? Is leadership visible? Are claims substantiated? Is professionalism consistent?
+
+Step 5: Brand Strength Assessment
 Drawing on everything observed across the site, including message clarity, design quality, content credibility, audience alignment, and overall execution, provide a holistic assessment of brand strength as expressed through this digital presence. Is the brand coming across as confident, differentiated, and credible? Or does the site reveal gaps between what the brand claims and what it actually demonstrates? Be specific about where brand strength is evident and where it breaks down.
 
 Tone instruction: Be direct and critical where the evidence warrants it. Do not soften findings out of diplomacy. If the site has weak content, inconsistent design, or fails its audiences, name it plainly and explain the consequence. Every assessment must be evidence-based; cite specific pages, sections, copy, or design elements to support your conclusions. Where something cannot be observed directly, do not comment on it.
@@ -1274,6 +1294,7 @@ INDUSTRY: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
 
 ${websiteContent ? `WEBSITE CONTENT PROVIDED:\n${websiteContent}\n` : ''}
 ${pagesReviewed ? `PAGES REVIEWED: ${pagesReviewed}\n` : ''}
+${credentialsContent ? `RECOGNITION & CREDENTIALS: ${credentialsContent}\n` : ''}
 
 Provide a comprehensive SEO visibility assessment:
 
@@ -1377,6 +1398,8 @@ ${pagesReviewed || 'Homepage and key pages (see screenshots)'}
 WEBSITE CONTENT PROVIDED BY ASSESSOR:
 ${websiteContent || '[No additional content pasted - analyze based on screenshots]'}
 
+${credentialsContent ? `RECOGNITION & CREDENTIALS OBSERVED:\n${credentialsContent}\n` : ''}
+
 SCREENSHOTS PROVIDED: ${images.length} image(s) showing key pages
 
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
@@ -1474,6 +1497,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         images, 
         pagesReviewed, 
         websiteContent,
+        credentialsContent,
         seoAssessment // Preserve SEO assessment
       });
     } catch (err) {
@@ -1581,6 +1605,18 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ ...assessmentData, pagesReviewed: e.target.value }); }}
           placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact"
           className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
+        />
+      </div>
+
+      {/* Recognition & Credentials */}
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Recognition & Credentials (Optional)</h3>
+        <p className="text-sm text-[#666666] mb-3">Note any awards, certifications, memberships, speaking engagements, or industry recognition visible on the website.</p>
+        <textarea 
+          value={credentialsContent} 
+          onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ ...assessmentData, credentialsContent: e.target.value }); }}
+          placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor..."
+          className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none"
         />
       </div>
 
@@ -1781,6 +1817,8 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     linkedinAbout: assessmentData.linkedinAbout || '',
     linkedinPosts: assessmentData.linkedinPosts || '',
     linkedinArticles: assessmentData.linkedinArticles || '',
+    employeeAdvocacy: assessmentData.employeeAdvocacy || '',
+    awardsRecognition: assessmentData.awardsRecognition || '',
     xUrl: assessmentData.xUrl || '',
     xContent: assessmentData.xContent || '',
     instagramContent: assessmentData.instagramContent || '',
@@ -2015,6 +2053,12 @@ ${inputs.linkedinPosts || '[Not provided]'}
 Articles:
 ${inputs.linkedinArticles || '[Not provided]'}
 
+Employee Advocacy:
+${inputs.employeeAdvocacy || '[Not assessed - look for evidence of employees sharing brand content]'}
+
+Awards & Recognition:
+${inputs.awardsRecognition || '[Not provided - note any awards, certifications, or industry recognition visible]'}
+
 === X (TWITTER) DATA ===
 ${inputs.xContent || '[Not provided]'}
 
@@ -2049,7 +2093,7 @@ ${assessmentData.observations ? `\nASSESSOR OBSERVATIONS TO CONSIDER:\n${assessm
 
 Based on the content provided above, deliver a comprehensive social media and reputation assessment:
 
-1. LinkedIn Presence: Analyze the About section messaging, post content quality, engagement rates (benchmark: 2-4% is good), thought leadership positioning, and content mix
+1. LinkedIn Presence: Analyze the About section messaging, post content quality, engagement rates (benchmark: 2-4% is good), thought leadership positioning, content mix, and employee advocacy signals
 
 2. X/Twitter Presence: Evaluate voice/tone, content strategy, engagement levels, and brand consistency
 
@@ -2251,6 +2295,16 @@ Write in flowing prose with specific observations from the content provided. End
               <label className="text-xs font-medium text-[#666666] mb-1 block">Recent Posts & Engagement</label>
               <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
                 placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[#666666] mb-1 block">Employee Advocacy (Optional)</label>
+              <textarea value={inputs.employeeAdvocacy} onChange={(e) => updateInput('employeeAdvocacy', e.target.value)}
+                placeholder="Are employees sharing brand content? Note executives or team members actively posting about the company, engagement on employee posts, company hashtag usage..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[#666666] mb-1 block">Awards & Recognition (Optional)</label>
+              <textarea value={inputs.awardsRecognition} onChange={(e) => updateInput('awardsRecognition', e.target.value)}
+                placeholder="Industry awards, certifications, rankings, or recognition mentioned in posts or profile (e.g., Best Places to Work, Inc. 5000, industry awards...)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -2728,6 +2782,25 @@ Based on your knowledge of the brand's likely customer base and market positioni
 
 For each dimension, provide: a qualitative assessment, a performance score from 1 to 10 with rationale, specific examples or evidence where possible, and 1 to 2 actionable recommendations to improve performance.
 
+8. Brand Consciousness Attribute Mapping
+Based on your earned media observations, provide specific evidence relevant to each of these 8 brand consciousness attributes:
+
+AWAKE (Narrative Leadership): Is the brand shaping industry discourse or just participating? Are they cited as thought leaders? Do competitors respond to their positions? Are they keynoting major events?
+
+AWARE (Audience Understanding): Does coverage indicate the brand understands its audiences? Are they building trust systematically? Is there evidence of community engagement or customer advocacy in media?
+
+REFLECTIVE (Brand Authenticity): Does external coverage align with brand claims? Are there authenticity signals (employee advocacy, leadership visibility) or red flags (disconnect between claims and reality)?
+
+ATTENTIVE (Experience Excellence): Does coverage mention quality, consistency, or attention to detail? Are there complaints about experience or praise for excellence?
+
+COGENT (Strategic Intelligence): Is there evidence of data-driven approaches in coverage? Are they cited for research, insights, or strategic thinking?
+
+SENTIENT (Emotional Connection): Does coverage indicate emotional resonance with audiences? Are there passionate advocates or community enthusiasm visible in media?
+
+VISIONARY (Meaningful Purpose): Does coverage reference purpose, mission, or meaningful impact beyond profit? Are they associated with positive change or societal benefit?
+
+INTENTIONAL (Substance & Confidence): Does the brand show up with authority in coverage? Are executives visible and quotable? Is positioning clear and confident?
+
 Tone instruction: Be direct and critical where the evidence warrants it. Do not soften assessments out of diplomacy. If coverage is thin, sentiment is problematic, or the brand is losing share of voice to competitors, say so clearly and explain why it matters. Honest diagnosis is more valuable than a favorable framing.
 
 Conclude with an Overall Earned Media Health Score (1 to 10), a 2 to 3 sentence executive summary of the brand's earned media standing, and the single most important strategic priority for earned media improvement in the next 90 days.`;
@@ -2842,9 +2915,15 @@ Example:
 - TechCrunch (Jan 15, 2026): 'Company X Raises $50M' - Featured as lead story
 - Forbes (Jan 8, 2026): CEO quoted on industry trends
 - Industry Podcast (Dec 20, 2025): 30-min interview with CTO
+- SXSW 2025: Keynote presentation on AI trends
+- Gartner Cool Vendor 2025: Named in category report
+- Inc. 5000 (2025): Ranked #234 fastest growing
 ..."
-          className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
+          className="w-full h-28 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
         />
+        <p className="text-xs text-[#666666] mt-2">
+          Include: news articles, podcast appearances, conference keynotes, analyst mentions, awards announcements, industry rankings
+        </p>
       </div>
 
       {/* Auto-Assess Earned Media Performance */}
@@ -2992,7 +3071,7 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     }, 800);
 
     try {
-      const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v2.4.
+      const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v2.5.
 
 ASSESSMENT DATA COLLECTED:
 
@@ -3001,6 +3080,7 @@ ${assessments.website.content}
 ${assessments.website.observations ? `Assessor Notes: ${assessments.website.observations}` : ''}
 Pages Reviewed: ${assessments.website.pagesReviewed || 'Not specified'}
 Additional Content: ${assessments.website.websiteContent || 'None'}
+Recognition & Credentials: ${assessments.website.credentialsContent || 'None noted'}
 
 SEO VISIBILITY ASSESSMENT:
 ${assessments.website.seoAssessment || 'SEO visibility not assessed'}
@@ -3016,6 +3096,8 @@ Technical SEO Score: ${assessments.website.techAudit.scores.seo !== '' ? assessm
 SOCIAL MEDIA ASSESSMENT:
 ${assessments.social.content}
 ${assessments.social.observations ? `Assessor Notes: ${assessments.social.observations}` : ''}
+Employee Advocacy: ${assessments.social.employeeAdvocacy || 'Not assessed'}
+Awards & Recognition: ${assessments.social.awardsRecognition || 'Not noted'}
 Glassdoor: ${assessments.social.glassdoorContent || 'Not reviewed'}
 Nextdoor: ${assessments.social.nextdoorContent || 'Not reviewed'}
 WIPO Trademark: ${assessments.social.wipoContent || 'Not checked'}
@@ -3028,24 +3110,32 @@ EARNED MEDIA ASSESSMENT:
 ${assessments.earnedMedia.content}
 ${assessments.earnedMedia.observations ? `Assessor Notes: ${assessments.earnedMedia.observations}` : ''}
 
-SCORING RUBRIC v2.4 - Score each attribute 0-100 based on these criteria:
-${ATTRIBUTES.map(a => `${a.id} (${a.fullName}): ${a.description}`).join('\n')}
+SCORING RUBRIC v2.5 - Score each attribute 0-100 by answering these fundamental questions:
+
+${ATTRIBUTES.map(a => `${a.id} (${a.fullName})
+FUNDAMENTAL QUESTION: ${a.question}
+${a.description}
+STRONG SIGNALS (70-100): ${a.signals.strong.join('; ')}
+MODERATE SIGNALS (40-69): ${a.signals.moderate.join('; ')}
+WEAK SIGNALS (0-39): ${a.signals.weak.join('; ')}`).join('\n\n')}
 
 SCORE RANGE DEFINITIONS (use these anchors for consistency):
-- 0-25 (Pre-Foundational): Significant gaps, minimal evidence of the attribute
-- 26-39 (Foundational): Basic presence but major improvements needed
-- 40-55 (Establishing): Moderate capability with clear room for growth
-- 56-69 (Differentiating): Above average, showing intentional effort
-- 70-84 (Leading): Strong performance, industry-competitive
-- 85-100 (Transforming): Exceptional, category-defining excellence
+- 0-25 (Pre-Foundational): Cannot answer the fundamental question positively. Significant gaps, minimal evidence.
+- 26-39 (Foundational): Weak answer to fundamental question. Basic presence but major improvements needed.
+- 40-55 (Establishing): Partial answer to fundamental question. Moderate capability with clear room for growth.
+- 56-69 (Differentiating): Good answer to fundamental question. Above average, showing intentional effort.
+- 70-84 (Leading): Strong answer to fundamental question. Industry-competitive performance.
+- 85-100 (Transforming): Exceptional answer to fundamental question. Category-defining excellence.
 
 CRITICAL SCORING REQUIREMENTS:
-1. EVIDENCE-BASED: Every score MUST be justified by specific, observable evidence from the assessment data
-2. CITE SOURCES: Reference the exact source of evidence (e.g., "Website About page states...", "LinkedIn post from [date]...", "Forbes article mentioned...")
-3. RECENCY MATTERS: Weight recent evidence (last 3 months) more heavily than older content
-4. CONFIDENCE LEVEL: Indicate confidence based on quantity and quality of evidence available
-5. IDENTIFY GAPS: List specific missing elements that would improve the score
-6. CONSISTENCY: The same evidence patterns should always produce the same score range (±3 points)
+1. ANSWER THE QUESTION: Each score must directly answer the attribute's fundamental question with evidence
+2. EVIDENCE-BASED: Every score MUST be justified by specific, observable evidence from the assessment data
+3. CITE SOURCES: Reference the exact source of evidence (e.g., "Website About page states...", "LinkedIn post from [date]...", "Forbes article mentioned...")
+4. SIGNAL MATCHING: Compare observed evidence against the strong/moderate/weak signals for each attribute
+5. RECENCY MATTERS: Weight recent evidence (last 3 months) more heavily than older content
+6. CONFIDENCE LEVEL: Indicate confidence based on quantity and quality of evidence available
+7. IDENTIFY GAPS: List specific missing elements that would improve the score
+8. CONSISTENCY: The same evidence patterns should always produce the same score range (plus or minus 3 points)
 
 EVIDENCE STRENGTH GUIDELINES:
 - Tier 1 (Strong): Major publications, verified awards, clear data/metrics, official certifications
@@ -3589,7 +3679,7 @@ METHODOLOGY
 ${divider}
 ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice.
 
-Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.4
+Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.5
 `;
 
     navigator.clipboard.writeText(reportText.trim()).then(() => {
@@ -3850,7 +3940,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
 
       // ========== METHODOLOGY ==========
       addSection('METHODOLOGY');
-      addParagraph(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`);
+      addParagraph(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.5, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`);
 
       // ========== FOOTER ==========
       const pageCount = pdf.internal.getNumberOfPages();
@@ -4071,7 +4161,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
               children: [new TextRun({ text: 'METHODOLOGY', color: 'E53935' })] 
             }),
             new Paragraph({ 
-              children: [new TextRun({ text: `This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, size: 20 })] 
+              children: [new TextRun({ text: `This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.5, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, size: 20 })] 
             }),
             new Paragraph({ children: [new TextRun('')] }),
             
@@ -4331,7 +4421,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
         {expandedSections.evaluated && (
           <div className="card p-4 md:p-6 animate-fade-in">
             <p className="text-sm md:text-base text-[#333333] leading-relaxed">
-              This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.4, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
+              This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.5, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
           </div>
         )}
@@ -4613,7 +4703,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       servicesRecommended: [],
       isManual: true,
       assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
-      rubricVersion: '2.4',
+      rubricVersion: '2.5',
     };
     
     // Save to Supabase
@@ -6372,7 +6462,7 @@ function SharedReportView({ report, onClose }) {
         {/* Footer */}
         <div className="text-center pt-8 border-t border-[#D9D6D0]">
           <p className="text-sm text-[#9CA3AF]">
-            This report was generated using Antenna Group's Brand Consciousness Framework v2.4
+            This report was generated using Antenna Group's Brand Consciousness Framework v2.5
           </p>
           <p className="text-xs text-[#9CA3AF] mt-2">
             Shared on {report.sharedAt ? new Date(report.sharedAt).toLocaleDateString() : 'Unknown date'}
@@ -6396,8 +6486,8 @@ export default function App() {
     businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0]
   });
   const [assessments, setAssessments] = useState({
-    website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '', techAudit: null },
-    social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+    website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
+    social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', employeeAdvocacy: '', awardsRecognition: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
     aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
     earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
   });
@@ -6540,8 +6630,8 @@ export default function App() {
       setShowSavedPage(false);
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
       setAssessments({
-        website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', seoAssessment: '', techAudit: null },
-        social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+        website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
+        social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', employeeAdvocacy: '', awardsRecognition: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
         aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
         earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
       });
@@ -6600,7 +6690,7 @@ export default function App() {
           servicesRecommended: serviceRecs.slice(0, 6).map(r => r.service?.name || '').filter(Boolean),
           isManual: false,
           assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
-          rubricVersion: '2.4',
+          rubricVersion: '2.5',
         };
         
         await saveCompassResult(resultData);
