@@ -1041,7 +1041,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.45
+        Version 2.12.46
       </div>
     </div>
   );
@@ -2547,7 +2547,11 @@ Write in flowing prose with specific observations from the content provided. End
         {expanded.influencer && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
             <p className="text-xs text-[#666666] mb-2">
-              Document evidence of influencer, creator, or ambassador partnerships. Check social feeds for #ad #sponsored #partner tags, brand ambassador pages on website, and creator mentions.
+              {project.businessModel === 'b2b' 
+                ? 'For B2B, focus on INDUSTRY EXPERT partnerships, analyst relationships, and thought leader collaborations. Consumer influencers are less relevant.'
+                : project.businessModel === 'b2c'
+                ? 'Check social feeds for #ad #sponsored #partner tags, brand ambassador pages, creator mentions, and UGC campaigns.'
+                : 'Document both industry expert partnerships (B2B) and consumer creator collaborations (B2C).'}
             </p>
             <div className="grid grid-cols-2 gap-2 mb-3">
               <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
@@ -2555,19 +2559,28 @@ Write in flowing prose with specific observations from the content provided. End
                 <span>IG Hashtag</span> <ExternalLink className="w-3 h-3" />
               </a>
               <a href={`https://www.tiktok.com/search?q=${encodeURIComponent(project.brandName + ' sponsored')}`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-1">
-                <span>TikTok</span> <ExternalLink className="w-3 h-3" />
+                 className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : 'bg-black hover:bg-gray-800'}`}>
+                <span>TikTok{project.businessModel === 'b2b' ? ' (optional)' : ''}</span> <ExternalLink className="w-3 h-3" />
               </a>
             </div>
             <textarea value={inputs.influencerContent} onChange={(e) => updateInput('influencerContent', e.target.value)}
-              placeholder="Document influencer/creator partnerships observed:
+              placeholder={project.businessModel === 'b2b' 
+                ? `Document influencer/thought leader partnerships observed:
+
+• Industry analysts: Relationships with Gartner, Forrester, IDC, etc.?
+• Thought leaders: Co-authored content, podcast appearances together?
+• Conference speakers: Sponsored speakers or joint presentations?
+• LinkedIn influencers: Industry voices promoting the brand?
+• Employee thought leadership: Executives with strong personal brands?
+• N/A if no industry partnerships observed...`
+                : `Document influencer/creator partnerships observed:
 
 • Brand ambassadors: Who? What platforms? How prominent?
 • Sponsored content: #ad or #partner posts found? Quality?
 • Creator collaborations: YouTube sponsorships, podcast integrations?
 • User-generated content: Are creators organically mentioning the brand?
-• Partnership strategy: Industry thought leaders or lifestyle influencers?
-• N/A if no influencer activity observed..." 
+• Partnership strategy: Lifestyle influencers or niche creators?
+• N/A if no influencer activity observed...`} 
               className="w-full h-32 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         )}
@@ -2585,7 +2598,11 @@ Write in flowing prose with specific observations from the content provided. End
         {expanded.paidMedia && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
             <p className="text-xs text-[#666666] mb-2">
-              Check advertising transparency libraries to assess paid media investment and creative quality. All major platforms now require ad transparency.
+              {project.businessModel === 'b2b'
+                ? 'For B2B, LinkedIn Ads and Google Search are typically most important. Check Meta and TikTok for awareness campaigns if relevant.'
+                : project.businessModel === 'b2c'
+                ? 'Check all consumer platforms - Meta (FB/IG), TikTok, Google, and YouTube are typically high priority.'
+                : 'Check both B2B channels (LinkedIn, Google Search) and consumer channels (Meta, TikTok) for hybrid brands.'}
             </p>
             <div className="grid grid-cols-2 gap-2 mb-3">
               <a href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q=${encodeURIComponent(project.brandName)}&search_type=keyword_unordered`} target="_blank" rel="noopener noreferrer" 
@@ -2597,25 +2614,34 @@ Write in flowing prose with specific observations from the content provided. End
                 <span>Google Ads</span> <ExternalLink className="w-3 h-3" />
               </a>
               <a href={`https://www.linkedin.com/ad-library/search?accountOwner=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-[#0A66C2] text-white text-xs font-medium rounded-lg hover:bg-[#004182] transition-colors flex items-center justify-center gap-1">
-                <span>LinkedIn Ads</span> <ExternalLink className="w-3 h-3" />
+                 className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#0A66C2] hover:bg-[#004182] ring-2 ring-[#0A66C2] ring-offset-1' : 'bg-[#0A66C2] hover:bg-[#004182]'}`}>
+                <span>LinkedIn Ads{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
               </a>
               <a href={`https://library.tiktok.com/ads?region=all&adv_name=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-1">
-                <span>TikTok Ads</span> <ExternalLink className="w-3 h-3" />
+                 className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : project.businessModel === 'b2c' ? 'bg-black hover:bg-gray-800 ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-gray-800'}`}>
+                <span>TikTok Ads{project.businessModel === 'b2b' ? ' (optional)' : project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
               </a>
             </div>
             <textarea value={inputs.paidMediaContent} onChange={(e) => updateInput('paidMediaContent', e.target.value)}
-              placeholder="Document paid media presence from ad libraries:
+              placeholder={project.businessModel === 'b2b'
+                ? `Document paid media presence from ad libraries:
+
+• LinkedIn (PRIORITY): Sponsored content? InMail campaigns? Lead gen ads?
+• Google Ads: Search ads for key terms? Display/remarketing?
+• Meta (FB/IG): Brand awareness campaigns? Retargeting?
+• Trade publication sponsorships or programmatic placements?
+• Conference/webinar sponsorships advertised?
+• Messaging: What pain points or solutions are they promoting?
+• N/A if no paid media found...`
+                : `Document paid media presence from ad libraries:
 
 • Meta (FB/IG): Active ads? How many? Creative themes? Target signals?
-• Google Ads: Search/display ads running? Volume?
-• LinkedIn: B2B advertising? Sponsored content?
-• TikTok: Video ads? Creative quality?
+• TikTok: Video ads? Spark ads? Creative quality?
+• Google Ads: Search/display/YouTube ads running? Volume?
 • Creative quality: Distinctive or generic? Consistent with brand?
 • Messaging: What value props are they paying to promote?
 • Sponsorships: Podcast, event, or sports sponsorships visible?
-• N/A if no paid media found..." 
+• N/A if no paid media found...`} 
               className="w-full h-32 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         )}
@@ -3400,6 +3426,56 @@ OTHER SCORING FACTORS:
 - Core Web Vitals (LCP, CLS, TBT) indicate user experience quality - factor into the technical portion of ATTENTIVE
 - Influencer partnerships impact multiple scores: strategic thought leader partnerships boost AWAKE, audience-aligned creators boost AWARE, creative quality impacts SENTIENT
 - Paid media presence signals investment and intentionality: ad volume and consistency impact INTENTIONAL, creative quality impacts SENTIENT, targeting sophistication impacts COGENT and AWARE
+
+BUSINESS MODEL WEIGHTING (${project.businessModel.toUpperCase()}):
+${project.businessModel === 'b2b' ? `
+B2B SCORING ADJUSTMENTS:
+- LinkedIn is the PRIMARY social platform - weight LinkedIn presence and engagement 3x more than other social channels
+- TikTok presence should be MINIMALLY weighted (unless targeting younger B2B buyers like startup founders)
+- Instagram is secondary - useful for employer brand and culture, but not a primary lead channel
+- Influencer partnerships should focus on INDUSTRY EXPERTS and THOUGHT LEADERS, not consumer influencers
+- Earned media in TRADE PUBLICATIONS and INDUSTRY PRESS matters more than mainstream media
+- Long-form content (whitepapers, case studies, webinars) signals stronger than short-form social content
+- Employee advocacy on LinkedIn is a strong signal for REFLECTIVE and AWARE
+- Nextdoor presence is typically NOT RELEVANT - do not penalize for absence
+- Conference speaking and podcast appearances weight heavily for AWAKE
+- Client logos and case studies are critical for INTENTIONAL and COGENT
+` : project.businessModel === 'b2c' ? `
+B2C SCORING ADJUSTMENTS:
+- Weight ALL consumer social platforms (Instagram, TikTok, YouTube, X) according to target audience demographics
+- TikTok is HIGHLY RELEVANT for brands targeting audiences under 40
+- Influencer partnerships with CONSUMER CREATORS are highly relevant signals
+- Paid media across Meta, TikTok, and Google indicates market investment
+- Nextdoor presence is RELEVANT for local/community brands - factor into AWARE
+- User-generated content and community engagement are strong signals
+- Consumer reviews and sentiment across platforms matter greatly
+- Mainstream media coverage may matter more than trade press
+- Instagram visual brand consistency is critical for SENTIENT
+` : `
+B2B2C / HYBRID SCORING ADJUSTMENTS:
+- Weight LinkedIn heavily for B2B relationships but also assess consumer channels
+- Both trade press AND mainstream media coverage matter
+- Influencer strategy should show DUAL APPROACH: industry experts + consumer creators
+- TikTok relevance depends on whether consumer audience skews younger
+- Employee advocacy matters for B2B credibility
+- Consumer reviews and B2B testimonials both contribute to REFLECTIVE
+- Website should serve BOTH audiences - look for clear audience pathways
+`}
+
+CHANNEL RELEVANCE BY BUSINESS MODEL:
+| Channel | B2B Weight | B2C Weight | B2B2C Weight |
+| LinkedIn | Critical (5x) | Secondary (1x) | Important (3x) |
+| TikTok | Low (0.5x) | High for <40 (3x) | Moderate (1.5x) |
+| Instagram | Low (1x) | High (3x) | Moderate (2x) |
+| YouTube | Moderate (2x) | High (3x) | High (2.5x) |
+| X/Twitter | Moderate (2x) | Moderate (2x) | Moderate (2x) |
+| Trade Press | Critical (3x) | Low (0.5x) | Moderate (2x) |
+| Mainstream Media | Low (1x) | High (3x) | Moderate (2x) |
+| Nextdoor | Ignore (0x) | Relevant (2x) | Low (0.5x) |
+| Industry Events | High (3x) | Low (0.5x) | Moderate (2x) |
+| Consumer Reviews | Low (0.5x) | Critical (3x) | Moderate (2x) |
+
+Apply these weights when evaluating evidence. Missing presence on LOW-weight channels should not significantly penalize scores.
 
 SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 - AWAKE: Executive Visibility, PR & Media Relations, Thought Leadership Content
