@@ -484,7 +484,10 @@ IMPORTANT FORMATTING RULES:
 }
 
 // Spider Chart Component
-function SpiderChart({ scores, size = 400 }) {
+function SpiderChart({ scores, size = 400, animate = true }) {
+  const [animatedScores, setAnimatedScores] = useState({});
+  const [animationProgress, setAnimationProgress] = useState(0);
+  
   const padding = 70; // Padding for labels
   const viewBoxSize = size + padding * 2;
   const center = viewBoxSize / 2;
@@ -492,9 +495,51 @@ function SpiderChart({ scores, size = 400 }) {
   const attrs = ATTRIBUTES;
   const angleStep = (2 * Math.PI) / attrs.length;
   
-  // Calculate overall score (filter to only include attribute scores, not justification)
-  const overall = scores ? Math.round(
-    Object.entries(scores)
+  // Animation effect
+  useEffect(() => {
+    if (!animate || !scores) {
+      setAnimatedScores(scores || {});
+      setAnimationProgress(1);
+      return;
+    }
+    
+    const duration = 2000; // 2 seconds
+    const startTime = Date.now();
+    
+    const animationFrame = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Ease-out cubic for smooth deceleration
+      const eased = 1 - Math.pow(1 - progress, 3);
+      
+      setAnimationProgress(eased);
+      
+      // Interpolate each score
+      const interpolated = {};
+      attrs.forEach(attr => {
+        const targetScore = scores[attr.id]?.score || 0;
+        interpolated[attr.id] = {
+          ...scores[attr.id],
+          score: Math.round(targetScore * eased)
+        };
+      });
+      setAnimatedScores(interpolated);
+      
+      if (progress < 1) {
+        requestAnimationFrame(animationFrame);
+      }
+    };
+    
+    requestAnimationFrame(animationFrame);
+  }, [scores, animate]);
+  
+  // Use animated scores for rendering
+  const displayScores = animate ? animatedScores : scores;
+  
+  // Calculate overall score
+  const overall = displayScores ? Math.round(
+    Object.entries(displayScores)
       .filter(([key, val]) => val && typeof val.score === 'number')
       .reduce((a, [, v]) => a + v.score, 0) / 8
   ) : 0;
@@ -510,7 +555,7 @@ function SpiderChart({ scores, size = 400 }) {
 
   const gridLevels = [20, 40, 60, 80, 100];
   
-  const dataPoints = attrs.map((attr, i) => getPoint(i, scores[attr.id]?.score || 0));
+  const dataPoints = attrs.map((attr, i) => getPoint(i, displayScores[attr.id]?.score || 0));
   const pathD = dataPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
 
   return (
@@ -566,7 +611,7 @@ function SpiderChart({ scores, size = 400 }) {
         return (
           <text key={`score-${attr.id}`} x={point.x} y={point.y - 14} textAnchor="middle" 
                 className="text-xs font-bold fill-[#9E9D24]">
-            {scores[attr.id]?.score || 0}
+            {displayScores[attr.id]?.score || 0}
           </text>
         );
       })}
@@ -957,7 +1002,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.34
+        Version 2.12.35
       </div>
     </div>
   );
@@ -6233,7 +6278,7 @@ function SharedReportView({ report, onClose }) {
         {/* Spider Chart */}
         <div className="card p-6 mb-8">
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4 text-center">Brand Consciousness Profile</h3>
-          <SpiderChart scores={scores} size={450} />
+          <SpiderChart scores={scores} size={450} animate={false} />
         </div>
 
         {/* Executive Summary */}
