@@ -368,7 +368,7 @@ const INDUSTRIES = [
 ];
 
 // Compress image to max size for Claude API (5MB limit, we target 4MB)
-function compressImage(dataUrl, maxSizeMB = 4) {
+function compressImage(dataUrl, maxSizeMB = 3.5) {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
     
@@ -378,8 +378,8 @@ function compressImage(dataUrl, maxSizeMB = 4) {
         let width = img.width;
         let height = img.height;
         
-        // Scale down large images first
-        const maxDimension = 1800;
+        // More aggressive initial scaling - 1400px max dimension
+        const maxDimension = 1400;
         if (width > maxDimension || height > maxDimension) {
           const scale = maxDimension / Math.max(width, height);
           width = Math.round(width * scale);
@@ -394,26 +394,37 @@ function compressImage(dataUrl, maxSizeMB = 4) {
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Convert to JPEG with quality reduction
-        let quality = 0.85;
+        // Start with moderate quality
+        let quality = 0.75;
         let result = canvas.toDataURL('image/jpeg', quality);
         const maxBytes = maxSizeMB * 1024 * 1024;
         
         // Reduce quality if still too big
-        while (result.length * 0.75 > maxBytes && quality > 0.4) {
+        while (result.length * 0.75 > maxBytes && quality > 0.3) {
           quality -= 0.1;
           result = canvas.toDataURL('image/jpeg', quality);
         }
         
-        // If still too big, reduce dimensions more
-        if (result.length * 0.75 > maxBytes) {
-          const smallerScale = 0.7;
-          canvas.width = Math.round(width * smallerScale);
-          canvas.height = Math.round(height * smallerScale);
+        // If still too big, progressively reduce dimensions
+        let dimensionScale = 0.8;
+        while (result.length * 0.75 > maxBytes && dimensionScale > 0.3) {
+          canvas.width = Math.round(width * dimensionScale);
+          canvas.height = Math.round(height * dimensionScale);
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          result = canvas.toDataURL('image/jpeg', 0.7);
+          result = canvas.toDataURL('image/jpeg', 0.6);
+          dimensionScale -= 0.1;
+        }
+        
+        // Final safety - if somehow still too big, go very small
+        if (result.length * 0.75 > maxBytes) {
+          canvas.width = Math.round(width * 0.25);
+          canvas.height = Math.round(height * 0.25);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          result = canvas.toDataURL('image/jpeg', 0.5);
         }
         
         resolve(result);
@@ -1430,13 +1441,8 @@ Keep the assessment concise but insightful. Focus on qualitative analysis since 
         const reader = new FileReader();
         reader.onloadend = () => {
           const dataUrl = reader.result;
-          const fileSizeMB = file.size / (1024 * 1024);
-          
-          if (fileSizeMB > 4) {
-            compressImage(dataUrl, 4).then(resolve).catch(() => resolve(dataUrl));
-          } else {
-            resolve(dataUrl);
-          }
+          // Always compress to ensure we stay under 5MB API limit
+          compressImage(dataUrl, 3.5).then(resolve).catch(() => resolve(dataUrl));
         };
         reader.readAsDataURL(file);
       });
@@ -2060,12 +2066,8 @@ Format each section with clear headers. Be explicit about what is verified vs. w
         const reader = new FileReader();
         reader.onloadend = () => {
           const dataUrl = reader.result;
-          const fileSizeMB = file.size / (1024 * 1024);
-          if (fileSizeMB > 4) {
-            compressImage(dataUrl, 4).then(resolve).catch(() => resolve(dataUrl));
-          } else {
-            resolve(dataUrl);
-          }
+          // Always compress to ensure we stay under 5MB API limit
+          compressImage(dataUrl, 3.5).then(resolve).catch(() => resolve(dataUrl));
         };
         reader.readAsDataURL(file);
       });
@@ -2102,12 +2104,8 @@ Format each section with clear headers. Be explicit about what is verified vs. w
         const reader = new FileReader();
         reader.onloadend = () => {
           const dataUrl = reader.result;
-          const fileSizeMB = file.size / (1024 * 1024);
-          if (fileSizeMB > 4) {
-            compressImage(dataUrl, 4).then(resolve).catch(() => resolve(dataUrl));
-          } else {
-            resolve(dataUrl);
-          }
+          // Always compress to ensure we stay under 5MB API limit
+          compressImage(dataUrl, 3.5).then(resolve).catch(() => resolve(dataUrl));
         };
         reader.readAsDataURL(file);
       });
