@@ -1041,7 +1041,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.46
+        Version 2.12.47
       </div>
     </div>
   );
@@ -1237,8 +1237,39 @@ function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project,
   // SEO Visibility State (simplified)
   const [seoAssessment, setSeoAssessment] = useState(assessmentData.seoAssessment || '');
   const [isAssessingSeo, setIsAssessingSeo] = useState(false);
+  const [isAssessingCredentials, setIsAssessingCredentials] = useState(false);
 
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
+
+  // Auto-assess credentials and recognition
+  const runCredentialsAssess = async () => {
+    setIsAssessingCredentials(true);
+    setError(null);
+    try {
+      const prompt = `Search for awards, certifications, memberships, speaking engagements, and industry recognition for ${project.brandName} (${project.websiteUrl}).
+
+Look for:
+1. Industry awards (e.g., Inc. 5000, Deloitte Fast 500, industry-specific awards)
+2. Certifications (e.g., ISO, SOC 2, B Corp, industry certifications)
+3. Professional memberships (e.g., trade associations, councils, chambers)
+4. Speaking engagements (e.g., conference keynotes, panel appearances, TEDx)
+5. Media recognition (e.g., Forbes lists, analyst mentions, "best of" rankings)
+6. Client logos or notable partnerships visible on their website
+7. Case study awards or recognition
+8. Executive thought leadership recognition (e.g., Forbes Council, industry advisory boards)
+
+Search both their website and external sources. Report ONLY what you find with evidence. If you cannot find recognition in a category, say "None found" for that category.
+
+Format your response as a concise bulleted list grouped by category. Include dates/years where available.`;
+
+      const result = await callClaude(prompt, apiKey);
+      setCredentialsContent(result);
+      setAssessmentData({ ...assessmentData, credentialsContent: result });
+    } catch (e) { 
+      setError('Failed to search credentials: ' + e.message); 
+    }
+    finally { setIsAssessingCredentials(false); }
+  };
 
   // Auto-assess website
   const runAutoAssess = async () => {
@@ -1649,14 +1680,30 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 
       {/* Recognition & Credentials */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Recognition & Credentials (Optional)</h3>
-        <p className="text-sm text-[#666666] mb-3">Note any awards, certifications, memberships, speaking engagements, or industry recognition visible on the website.</p>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-medium text-[#1A1A1A]">Recognition & Credentials (Optional)</h3>
+          <button 
+            onClick={runCredentialsAssess} 
+            disabled={isAssessingCredentials || !project.brandName}
+            className="px-3 py-1.5 bg-[#8B5CF6] text-white text-xs font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {isAssessingCredentials ? (
+              <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</>
+            ) : (
+              <><Sparkles className="w-3 h-3" /> Auto-Search</>
+            )}
+          </button>
+        </div>
+        <p className="text-sm text-[#666666] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
         <textarea 
           value={credentialsContent} 
           onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ ...assessmentData, credentialsContent: e.target.value }); }}
           placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor..."
-          className="w-full h-20 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none"
+          className={`w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none ${credentialsContent ? 'bg-[#F0EEEA]' : ''}`}
         />
+        {credentialsContent && (
+          <p className="text-xs text-[#059669] mt-1">✓ Recognition data captured</p>
+        )}
       </div>
 
       {/* Screenshots */}
