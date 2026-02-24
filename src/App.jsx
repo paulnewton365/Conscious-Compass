@@ -1052,7 +1052,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.47
+        Version 2.12.50
       </div>
     </div>
   );
@@ -2337,28 +2337,45 @@ Write in flowing prose with specific observations from the content provided. End
         </div>
       </div>
 
-      {/* Screenshots - Compact */}
-      <div className="card p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-[#1A1A1A]">Screenshots</h3>
-          <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
+      {/* Screenshots - Matching Website Style */}
+      <div className="card p-5 mb-4">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2 flex items-center gap-2">
+          <Image className="w-5 h-5" /> Social Media Screenshots (up to 4)
+        </h3>
+        <p className="text-sm text-[#666666] mb-4">Upload screenshots of key social profiles for visual analysis.</p>
+        
+        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
+        
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          {images.map((img, index) => (
+            <div key={index} className="relative">
+              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#D9D6D0]" />
+              <button onClick={() => removeImage(index)}
+                className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100">
+                <X className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-2 left-2 bg-[#1A1A1A] text-white text-xs px-2 py-1 rounded">
+                {index + 1}
+              </div>
+            </div>
+          ))}
+          
           {images.length < 4 && (
-            <button onClick={() => fileInputRef.current?.click()} className="text-xs text-[#8B5CF6] hover:underline flex items-center gap-1">
-              {isCompressing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Upload className="w-3 h-3" /> Add</>}
+            <button onClick={() => fileInputRef.current?.click()}
+              className="h-40 border-2 border-dashed border-[#E53935] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#E53935]/5 transition-colors">
+              {isCompressing ? (
+                <><Loader2 className="w-6 h-6 text-[#E53935] animate-spin" /><span className="text-sm text-[#E53935]">Compressing...</span></>
+              ) : (
+                <><Upload className="w-6 h-6 text-[#E53935]" /><span className="text-sm text-[#E53935] font-medium">Add Screenshot</span><span className="text-xs text-[#666666]">{4 - images.length} remaining</span></>
+              )}
             </button>
           )}
         </div>
-        {images.length > 0 ? (
-          <div className="flex gap-2">
-            {images.map((img, index) => (
-              <div key={index} className="relative w-16 h-16">
-                <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-full object-cover rounded border border-[#D9D6D0]" />
-                <button onClick={() => removeImage(index)} className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs">×</button>
-              </div>
-            ))}
+        
+        {images.length > 0 && (
+          <div className="text-sm text-green-600">
+            {images.length} screenshot(s) ready for analysis
           </div>
-        ) : (
-          <p className="text-xs text-[#999999]">No screenshots added</p>
         )}
       </div>
 
@@ -2391,16 +2408,6 @@ Write in flowing prose with specific observations from the content provided. End
               <label className="text-xs font-medium text-[#666666] mb-1 block">Recent Posts & Engagement</label>
               <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
                 placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[#666666] mb-1 block">Employee Advocacy (Optional)</label>
-              <textarea value={inputs.employeeAdvocacy} onChange={(e) => updateInput('employeeAdvocacy', e.target.value)}
-                placeholder="Are employees sharing brand content? Note executives or team members actively posting about the company, engagement on employee posts, company hashtag usage..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[#666666] mb-1 block">Awards & Recognition (Optional)</label>
-              <textarea value={inputs.awardsRecognition} onChange={(e) => updateInput('awardsRecognition', e.target.value)}
-                placeholder="Industry awards, certifications, rankings, or recognition mentioned in posts or profile (e.g., Best Places to Work, Inc. 5000, industry awards...)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -2650,19 +2657,19 @@ Write in flowing prose with specific observations from the content provided. End
                 : 'Check both B2B channels (LinkedIn, Google Search) and consumer channels (Meta, TikTok) for hybrid brands.'}
             </p>
             <div className="grid grid-cols-2 gap-2 mb-3">
-              <a href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q=${encodeURIComponent(project.brandName)}&search_type=keyword_unordered`} target="_blank" rel="noopener noreferrer" 
+              <a href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q="${encodeURIComponent(project.brandName)}"&search_type=keyword_exact_phrase`} target="_blank" rel="noopener noreferrer" 
                  className="px-2 py-1.5 bg-[#1877F2] text-white text-xs font-medium rounded-lg hover:bg-[#166FE5] transition-colors flex items-center justify-center gap-1">
                 <span>Meta Ad Library</span> <ExternalLink className="w-3 h-3" />
               </a>
-              <a href={`https://adstransparency.google.com/?region=anywhere&domain=${project.websiteUrl?.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}`} target="_blank" rel="noopener noreferrer" 
+              <a href={`https://adstransparency.google.com/?region=anywhere&text="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
                  className="px-2 py-1.5 bg-[#4285F4] text-white text-xs font-medium rounded-lg hover:bg-[#3367D6] transition-colors flex items-center justify-center gap-1">
                 <span>Google Ads</span> <ExternalLink className="w-3 h-3" />
               </a>
-              <a href={`https://www.linkedin.com/ad-library/search?accountOwner=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
+              <a href={`https://www.linkedin.com/ad-library/search?accountOwner="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
                  className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#0A66C2] hover:bg-[#004182] ring-2 ring-[#0A66C2] ring-offset-1' : 'bg-[#0A66C2] hover:bg-[#004182]'}`}>
                 <span>LinkedIn Ads{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
               </a>
-              <a href={`https://library.tiktok.com/ads?region=all&adv_name=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
+              <a href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
                  className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : project.businessModel === 'b2c' ? 'bg-black hover:bg-gray-800 ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-gray-800'}`}>
                 <span>TikTok Ads{project.businessModel === 'b2b' ? ' (optional)' : project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
               </a>
@@ -4707,8 +4714,13 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
                         </div>
                       </div>
                       <p className="text-xs text-[#666666] leading-relaxed mb-2">{r.description}</p>
-                      <div className="bg-[#F0EEEA] rounded-lg p-2">
+                      <div className="bg-[#F0EEEA] rounded-lg p-2 mb-2">
                         <p className="text-xs text-[#333333] leading-relaxed"><span className="font-medium text-[#E53935]">Benefit:</span> {r.impact}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {r.attributes.slice(0, 3).map((attr, j) => (
+                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E53935]/10 text-[#E53935] rounded-full">{attr}</span>
+                        ))}
                       </div>
                     </div>
                   ))}
