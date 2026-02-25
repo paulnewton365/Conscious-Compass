@@ -107,7 +107,7 @@ Include coverage from the last 3 months:
 
 ## Scoring Methodology
 
-### Framework v2.6
+### Framework v2.7
 
 Each attribute score directly answers its fundamental question using observable signals:
 
@@ -238,7 +238,7 @@ conscious-compass/
 ├── src/
 │   ├── App.jsx             # Main application (7000+ lines)
 │   ├── data/
-│   │   ├── rubric.js       # Framework v2.6 definitions
+│   │   ├── rubric.js       # Framework v2.7 definitions
 │   │   └── serviceMapping.js
 │   ├── lib/
 │   │   └── supabase.js     # Database functions
@@ -328,7 +328,7 @@ For issues or feedback:
 │                            VERCEL PLATFORM                                   │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  FRONTEND (React + Vite)                                             │   │
-│  │  • App.jsx (7000+ lines)     • rubric.js (Framework v2.6)           │   │
+│  │  • App.jsx (7000+ lines)     • rubric.js (Framework v2.7)           │   │
 │  │  • Tailwind CSS              • serviceMapping.js (31 services)       │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
