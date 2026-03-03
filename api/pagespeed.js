@@ -21,7 +21,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=accessibility&category=best-practices&category=seo&strategy=desktop`;
+    // Build API URL with optional API key for higher rate limits
+    const apiKey = process.env.GOOGLE_PAGESPEED_API_KEY;
+    let apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=accessibility&category=best-practices&category=seo&strategy=desktop`;
+    
+    if (apiKey) {
+      apiUrl += `&key=${apiKey}`;
+    }
     
     const response = await fetch(apiUrl);
     const data = await response.json();
