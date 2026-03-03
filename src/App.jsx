@@ -1134,6 +1134,24 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
+  // Helper function to get color based on PageSpeed score
+  const getScoreColor = (score) => {
+    if (score === '' || score === undefined || score === null) return '#666666';
+    const num = parseInt(score);
+    if (num >= 90) return '#059669'; // Green - Good
+    if (num >= 50) return '#D97706'; // Amber - Needs Improvement
+    return '#DC2626'; // Red - Poor
+  };
+
+  // Helper function to get label based on PageSpeed score
+  const getScoreLabel = (score) => {
+    if (score === '' || score === undefined || score === null) return '';
+    const num = parseInt(score);
+    if (num >= 90) return 'Good';
+    if (num >= 50) return 'Needs Work';
+    return 'Poor';
+  };
+
   const updateScore = (field, value) => {
     const numValue = value === '' ? '' : Math.min(100, Math.max(0, parseInt(value) || 0));
     const updated = {

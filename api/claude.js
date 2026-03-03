@@ -15,7 +15,30 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, model, max_tokens, temperature, system } = req.body;
+    const { messages, model, max_tokens, temperature, system, prompt, useWebSearch } = req.body;
+
+    // Support simple prompt syntax (converts to messages format)
+    const finalMessages = messages || [{ role: 'user', content: prompt }];
+
+    // Build request body
+    const requestBody = {
+      model: model || 'claude-sonnet-4-20250514',
+      max_tokens: max_tokens || 4096,
+      temperature: temperature ?? 0,
+      messages: finalMessages,
+      ...(system && { system }),
+    };
+
+    // Add web search tool if requested
+    if (useWebSearch) {
+      requestBody.tools = [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 5
+        }
+      ];
+    }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -24,13 +47,7 @@ export default async function handler(req, res) {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: model || 'claude-sonnet-4-20250514',
-        max_tokens: max_tokens || 4096,
-        temperature: temperature ?? 0,
-        messages,
-        ...(system && { system }),
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -41,6 +58,15 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
+    
+    // Extract text from response (handles both regular and tool-use responses)
+    if (data.content && Array.isArray(data.content)) {
+      const textBlocks = data.content.filter(block => block.type === 'text');
+      if (textBlocks.length > 0) {
+        data.text = textBlocks.map(b => b.text).join('\n');
+      }
+    }
+    
     return res.status(200).json(data);
     
   } catch (error) {
