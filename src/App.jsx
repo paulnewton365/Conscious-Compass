@@ -1174,38 +1174,35 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
     
     try {
       const url = websiteUrl.startsWith('http') ? websiteUrl : 'https://' + websiteUrl;
-      const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=accessibility&category=best-practices&category=seo&strategy=desktop`;
       
-      const response = await fetch(apiUrl);
+      // Use server-side proxy to avoid CORS issues
+      const response = await fetch(`/api/pagespeed?url=${encodeURIComponent(url)}`);
+      const data = await response.json();
       
-      if (!response.ok) {
-        throw new Error('PageSpeed API request failed');
+      if (data.error) {
+        throw new Error(data.error);
       }
       
-      const data = await response.json();
-      const categories = data.lighthouseResult?.categories;
-      
-      if (categories) {
-        const scores = {
-          performance: Math.round((categories.performance?.score || 0) * 100),
-          accessibility: Math.round((categories.accessibility?.score || 0) * 100),
-          bestPractices: Math.round((categories['best-practices']?.score || 0) * 100),
-          seo: Math.round((categories.seo?.score || 0) * 100),
-        };
-        
+      if (data.scores) {
         const updated = {
-          scores,
-          metrics: data.lighthouseResult?.audits || {},
-          fetchedAt: new Date().toISOString(),
+          scores: data.scores,
+          metrics: {},
+          fetchedAt: data.fetchedAt || new Date().toISOString(),
         };
         
         setTechAudit(updated);
         setAssessmentData({ ...assessmentData, techAudit: updated });
       } else {
-        throw new Error('Invalid response from PageSpeed API');
+        throw new Error('Could not analyze this website');
       }
     } catch (err) {
-      setFetchError(err.message || 'Failed to fetch PageSpeed scores');
+      let errorMsg = err.message || 'Failed to fetch PageSpeed scores';
+      if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+        errorMsg = 'Network error - check your connection and try again';
+      } else if (errorMsg.includes('quota') || errorMsg.includes('limit') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
+        errorMsg = 'API rate limit reached - please wait a minute and try again';
+      }
+      setFetchError(errorMsg);
     } finally {
       setIsFetching(false);
     }
