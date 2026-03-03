@@ -1052,7 +1052,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.51
+        Version 2.12.53
       </div>
     </div>
   );
@@ -1125,12 +1125,14 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext }) {
   );
 }
 
-// Technical Performance Audit Component (Manual Entry)
+// Technical Performance Audit Component (Manual Entry + Auto-Fetch)
 function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }) {
   const [techAudit, setTechAudit] = useState(assessmentData.techAudit || {
     scores: { performance: '', accessibility: '', bestPractices: '', seo: '' },
     metrics: {}
   });
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
 
   const updateScore = (field, value) => {
     const numValue = value === '' ? '' : Math.min(100, Math.max(0, parseInt(value) || 0));
@@ -1146,20 +1148,50 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
     setAssessmentData({ ...assessmentData, techAudit: hasScores ? updated : null });
   };
 
-  const getScoreColor = (score) => {
-    if (score === '' || score === undefined) return '#D9D6D0';
-    if (score >= 90) return '#059669';
-    if (score >= 50) return '#F59E0B';
-    return '#E11D48';
+  const fetchPageSpeedScores = async () => {
+    if (!websiteUrl) return;
+    
+    setIsFetching(true);
+    setFetchError(null);
+    
+    try {
+      const url = websiteUrl.startsWith('http') ? websiteUrl : 'https://' + websiteUrl;
+      const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&category=accessibility&category=best-practices&category=seo&strategy=desktop`;
+      
+      const response = await fetch(apiUrl);
+      
+      if (!response.ok) {
+        throw new Error('PageSpeed API request failed');
+      }
+      
+      const data = await response.json();
+      const categories = data.lighthouseResult?.categories;
+      
+      if (categories) {
+        const scores = {
+          performance: Math.round((categories.performance?.score || 0) * 100),
+          accessibility: Math.round((categories.accessibility?.score || 0) * 100),
+          bestPractices: Math.round((categories['best-practices']?.score || 0) * 100),
+          seo: Math.round((categories.seo?.score || 0) * 100),
+        };
+        
+        const updated = {
+          scores,
+          metrics: data.lighthouseResult?.audits || {},
+          fetchedAt: new Date().toISOString(),
+        };
+        
+        setTechAudit(updated);
+        setAssessmentData({ ...assessmentData, techAudit: updated });
+      } else {
+        throw new Error('Invalid response from PageSpeed API');
+      }
+    } catch (err) {
+      setFetchError(err.message || 'Failed to fetch PageSpeed scores');
+    } finally {
+      setIsFetching(false);
+    }
   };
-
-  const getScoreLabel = (score) => {
-    if (score === '' || score === undefined) return '-';
-    if (score >= 90) return 'Good';
-    if (score >= 50) return 'Needs Work';
-    return 'Poor';
-  };
-
   // Generate PageSpeed URL for the website (desktop analysis)
   const pageSpeedUrl = websiteUrl 
     ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(websiteUrl.startsWith('http') ? websiteUrl : 'https://' + websiteUrl)}&form_factor=desktop`
@@ -1174,23 +1206,40 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
           <h3 className="text-sm font-medium text-[#1A1A1A]">Technical Performance Audit</h3>
           <p className="text-xs text-[#666666]">PageSpeed scores impact ATTENTIVE & COGENT</p>
         </div>
-        {pageSpeedUrl && (
-          <a 
-            href={pageSpeedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
+        <div className="flex gap-2">
+          <button
+            onClick={fetchPageSpeedScores}
+            disabled={isFetching || !websiteUrl}
+            className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1"
           >
-            <ExternalLink className="w-3 h-3" /> Open PageSpeed
-          </a>
-        )}
+            {isFetching ? <><Loader2 className="w-3 h-3 animate-spin" /> Fetching...</> : <><Sparkles className="w-3 h-3" /> Auto-Fetch</>}
+          </button>
+          {pageSpeedUrl && (
+            <a 
+              href={pageSpeedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
+            >
+              <ExternalLink className="w-3 h-3" /> Manual
+            </a>
+          )}
+        </div>
       </div>
 
-      <div className="bg-[#F0EEEA] rounded-lg p-3 mb-4">
-        <p className="text-xs text-[#666666]">
-          Click "Open PageSpeed" above, wait for the analysis, then enter the 4 scores below.
-        </p>
-      </div>
+      {fetchError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-xs text-red-700">
+          {fetchError} — Try the Manual button instead.
+        </div>
+      )}
+
+      {!fetchError && (
+        <div className="bg-[#F0EEEA] rounded-lg p-3 mb-4">
+          <p className="text-xs text-[#666666]">
+            Click "Auto-Fetch" to get scores automatically, or "Manual" to verify on Google PageSpeed.
+          </p>
+        </div>
+      )}
 
       {/* Score Input Grid */}
       <div className="grid grid-cols-4 gap-3">
@@ -1903,6 +1952,7 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAutoChecking, setIsAutoChecking] = useState(false);
+  const [isSearchingWipo, setIsSearchingWipo] = useState(false);
   const [error, setError] = useState(null);
   const [inputs, setInputs] = useState({
     linkedinUrl: assessmentData.linkedinUrl || '',
@@ -1935,69 +1985,66 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     setAssessmentData({ ...assessmentData, [key]: value });
   };
 
-  // Auto-check YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor (NOT WIPO - manual only)
+  // Auto-check YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor
   const runAutoCheck = async () => {
     setIsAutoChecking(true);
     setError(null);
     try {
-      const prompt = `You are researching ${project.brandName}'s presence across multiple platforms.
+      const prompt = `Search for ${project.brandName}'s presence across multiple platforms.
 
 Website: ${project.websiteUrl}
 Industry: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
 
-CRITICAL INSTRUCTION: Only report what you can verify from your training data. If you are uncertain or don't have evidence, state "NEEDS MANUAL VERIFICATION" for that item. Do NOT speculate or guess. Every claim must be evidence-based.
-
-ABSOLUTE RULE: NEVER provide ANY numbers including:
-- Subscriber counts (not even "estimated" or "approximately")
-- Follower counts
-- View counts
-- Video counts
-- Rating numbers
-- Review counts
-- Any other metrics
-These CANNOT be known from training data as they change constantly. Always say "Verify at [platform]" instead.
+Please search the web for current information about this brand on each platform below.
 
 1. YOUTUBE PRESENCE:
-- EXISTENCE: Does ${project.brandName} have an official YouTube channel? (Confirmed Yes / Confirmed No / Unknown - needs verification)
-- CHANNEL NAME/URL: Only if you are certain of the exact channel name. Otherwise "Unknown - verify at youtube.com"
-- CONTENT THEMES: What topics/types of content? (Only if you have evidence from training data)
-- POSTING PATTERN: Regular, sporadic, or inactive? (Only if evidence exists)
-- SUBSCRIBERS/VIEWS: DO NOT PROVIDE - state "Verify metrics at YouTube"
+Search for ${project.brandName}'s YouTube channel. Report:
+- EXISTENCE: Does the brand have an official YouTube channel?
+- CHANNEL URL: The exact channel URL if found
+- CONTENT: What type of content do they publish?
+- ACTIVITY: Recent upload dates, posting frequency
+- Note: User will verify exact subscriber/view counts manually
 
 2. WIKIPEDIA PRESENCE:
-- EXISTENCE: Does ${project.brandName} have a Wikipedia page? (Confirmed Yes / Confirmed No / Unknown)
-- PAGE URL: Only if certain (e.g., en.wikipedia.org/wiki/CompanyName)
-- CONTENT SUMMARY: Brief factual summary if page exists
-- SENTIMENT: Neutral/positive/controversial tone?
-- ACCOMPLISHMENTS: Awards, milestones mentioned?
-- CRITICISM SECTION: Any controversies documented?
-- NAME CONFLICT: Another entity with similar name competing for this page?
-- PAGE QUALITY: Stub/developing/comprehensive?
+Search Wikipedia for ${project.brandName}. Report:
+- EXISTENCE: Is there a Wikipedia page for this brand?
+- PAGE URL: The exact Wikipedia URL if found
+- SUMMARY: Key information from the Wikipedia page
+- NOTABLE FACTS: Awards, milestones, founding date, key figures
+- Any controversies or criticism sections noted
 
 3. REDDIT PRESENCE:
-- OFFICIAL SUBREDDIT: r/name if exists, otherwise "None found"
-- INDUSTRY DISCUSSIONS: Which subreddits discuss them?
-- SENTIMENT: Positive/negative/mixed/neutral (only with evidence)
-- COMMON THEMES: What do people discuss?
-- NOTE: User will manually check Reddit Answers (reddit.com/answers/) separately
-- If uncertain, state "Limited presence - verify manually"
+Search Reddit for discussions about ${project.brandName}. Report:
+- SUBREDDITS: Any official subreddit or communities discussing them
+- SENTIMENT: What is the general sentiment in discussions?
+- COMMON TOPICS: What do people discuss about this brand?
+- NOTABLE THREADS: Any significant discussions found
 
 4. GLASSDOOR PRESENCE:
-- EXISTENCE: Profile exists? (Yes/No/Unknown)
-- REVIEW THEMES: Culture, leadership, work-life balance themes (qualitative only)
-- RATING: DO NOT PROVIDE - state "Verify rating at glassdoor.com"
-- CEO REPUTATION: Any mentions? (qualitative only)
+Search for ${project.brandName} on Glassdoor. Report:
+- EXISTENCE: Is there a Glassdoor profile?
+- REVIEW THEMES: Common themes in employee reviews (culture, leadership, etc.)
+- Note: User will verify exact rating numbers manually at glassdoor.com
 
-5. NEXTDOOR PRESENCE:
-- RELEVANCE: Is Nextdoor relevant? (B2C/local = yes, B2B = typically no)
-- PRESENCE: Business profile exists?
-- COMMUNITY SENTIMENT: What do locals say? (qualitative only)
-- SENTIMENT: What do local communities say about them?
-- If B2B or not applicable, state "Not applicable for B2B brands - skip"
+5. NEXTDOOR PRESENCE (if B2C/local brand):
+- Is Nextdoor relevant for this brand type?
+- Any business presence or community mentions?
+- Note: Skip if clearly a B2B brand
 
-Format each section with clear headers. Be explicit about what is verified vs. what needs manual verification.`;
+Format each section with clear headers. Be specific about what you found vs. what needs manual verification.`;
 
-      const result = await callClaude(prompt, apiKey);
+      const response = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          useWebSearch: true
+        })
+      });
+
+      if (!response.ok) throw new Error('Auto-check failed');
+      const data = await response.json();
+      const result = data.content?.[0]?.text || data.text || '';
       
       // Parse the response and update the relevant fields
       const sections = result.split(/(?=\d\.\s*(?:YOUTUBE|WIKIPEDIA|REDDIT|GLASSDOOR|NEXTDOOR))/i);
@@ -2024,25 +2071,73 @@ Format each section with clear headers. Be explicit about what is verified vs. w
 
       // Update the fields with auto-check results
       if (youtubeInfo && !inputs.youtubeContent) {
-        updateInput('youtubeContent', `[Auto-checked] ${youtubeInfo}`);
+        updateInput('youtubeContent', `[Auto-searched] ${youtubeInfo}`);
       }
       if (wikiInfo && !inputs.wikipediaContent) {
-        updateInput('wikipediaContent', `[Auto-checked] ${wikiInfo}`);
+        updateInput('wikipediaContent', `[Auto-searched] ${wikiInfo}`);
       }
       if (redditInfo && !inputs.redditContent) {
-        updateInput('redditContent', `[Auto-checked] ${redditInfo}`);
+        updateInput('redditContent', `[Auto-searched] ${redditInfo}`);
       }
       if (glassdoorInfo && !inputs.glassdoorContent) {
-        updateInput('glassdoorContent', `[Auto-checked] ${glassdoorInfo}`);
+        updateInput('glassdoorContent', `[Auto-searched] ${glassdoorInfo}`);
       }
       if (nextdoorInfo && !inputs.nextdoorContent) {
-        updateInput('nextdoorContent', `[Auto-checked] ${nextdoorInfo}`);
+        updateInput('nextdoorContent', `[Auto-searched] ${nextdoorInfo}`);
       }
 
     } catch (err) {
       setError('Auto-check failed: ' + err.message);
     } finally {
       setIsAutoChecking(false);
+    }
+  };
+
+  // WIPO Trademark Auto-Search using Claude web search
+  const runWipoSearch = async () => {
+    setIsSearchingWipo(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `Search for trademark registrations for "${project.brandName}".
+
+Look for:
+1. WIPO Global Brand Database registrations (branddb.wipo.int)
+2. USPTO trademark registrations (for US)
+3. EUIPO trademark registrations (for EU)
+4. Any other national trademark registrations
+
+For each registration found, note:
+- Registration number
+- Jurisdictions/countries covered
+- Nice classification(s)
+- Status (registered, pending, expired)
+- Owner name
+
+Also check for:
+- Any similar/conflicting marks
+- Name disputes or opposition proceedings
+- Protection coverage gaps
+
+Format as a concise summary. If no trademark registrations are found, state that clearly.`,
+          useWebSearch: true
+        })
+      });
+
+      if (!response.ok) throw new Error('Search failed');
+      const data = await response.json();
+      const result = data.content?.[0]?.text || data.text || '';
+      
+      if (result) {
+        updateInput('wipoContent', `[Auto-searched] ${result}`);
+      }
+    } catch (err) {
+      setError('WIPO search failed - please search manually');
+    } finally {
+      setIsSearchingWipo(false);
     }
   };
 
@@ -2234,11 +2329,11 @@ Write in flowing prose with specific observations from the content provided. End
 
   // Status badges for auto-check (5 platforms - WIPO is manual only)
   const autoCheckStatus = {
-    youtube: !!inputs.youtubeContent?.includes('[Auto-checked]'),
-    wikipedia: !!inputs.wikipediaContent?.includes('[Auto-checked]'),
-    reddit: !!inputs.redditContent?.includes('[Auto-checked]'),
-    glassdoor: !!inputs.glassdoorContent?.includes('[Auto-checked]'),
-    nextdoor: !!inputs.nextdoorContent?.includes('[Auto-checked]'),
+    youtube: !!inputs.youtubeContent?.includes('[Auto-searched]'),
+    wikipedia: !!inputs.wikipediaContent?.includes('[Auto-searched]'),
+    reddit: !!inputs.redditContent?.includes('[Auto-searched]'),
+    glassdoor: !!inputs.glassdoorContent?.includes('[Auto-searched]'),
+    nextdoor: !!inputs.nextdoorContent?.includes('[Auto-searched]'),
   };
   const autoCheckCount = Object.values(autoCheckStatus).filter(Boolean).length;
 
@@ -2319,19 +2414,19 @@ Write in flowing prose with specific observations from the content provided. End
       <div className="card p-4 mb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A]">Quick Auto-Check</h3>
+            <h3 className="text-sm font-medium text-[#1A1A1A]">Quick Auto-Search</h3>
             <p className="text-xs text-[#666666]">Evidence-based check: YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor</p>
           </div>
           <div className="flex items-center gap-3">
             {autoCheckCount > 0 && (
-              <span className="text-xs text-[#059669] font-medium">{autoCheckCount}/5 checked</span>
+              <span className="text-xs text-[#059669] font-medium">{autoCheckCount}/5 searched</span>
             )}
             <button 
               onClick={runAutoCheck} 
               disabled={isAutoChecking}
               className="btn-primary text-sm py-2 px-4 flex items-center gap-2"
             >
-              {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Checking...</> : <><Sparkles className="w-4 h-4" /> Auto-Check</>}
+              {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Searching...</> : <><Sparkles className="w-4 h-4" /> Auto-Search</>}
             </button>
           </div>
         </div>
@@ -2471,7 +2566,7 @@ Write in flowing prose with specific observations from the content provided. End
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#666666]">YouTube</label>
                 <div className="flex items-center gap-2">
-                  {autoCheckStatus.youtube && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                  {autoCheckStatus.youtube && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
                   <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
                      className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-medium rounded hover:bg-red-200 transition-colors flex items-center gap-1">
                     Verify <ExternalLink className="w-2.5 h-2.5" />
@@ -2485,7 +2580,7 @@ Write in flowing prose with specific observations from the content provided. End
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#666666]">Wikipedia</label>
                 <div className="flex items-center gap-2">
-                  {autoCheckStatus.wikipedia && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                  {autoCheckStatus.wikipedia && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
                   <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
                      className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium rounded hover:bg-gray-200 transition-colors flex items-center gap-1">
                     Verify <ExternalLink className="w-2.5 h-2.5" />
@@ -2499,7 +2594,7 @@ Write in flowing prose with specific observations from the content provided. End
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#666666]">Reddit Discussions</label>
                 <div className="flex items-center gap-2">
-                  {autoCheckStatus.reddit && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                  {autoCheckStatus.reddit && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
                   <a href={`https://www.reddit.com/search/?q=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
                      className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium rounded hover:bg-orange-200 transition-colors flex items-center gap-1">
                     Verify <ExternalLink className="w-2.5 h-2.5" />
@@ -2517,11 +2612,24 @@ Write in flowing prose with specific observations from the content provided. End
                   Open Reddit Answers <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
-              <p className="text-xs text-orange-700 mb-2">
-                <strong>Recommended prompt:</strong> "What does {project.brandName} do? What is {project.brandName}'s reputation? How does {project.brandName} contribute to sustainability, social justice, or the future of humanity?"
-              </p>
+              <div className="bg-white border border-orange-200 rounded-lg p-3 mb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs text-[#333333] leading-relaxed flex-1">
+                    What do people on Reddit actually think of <strong>{project.brandName}</strong>? I want honest community perception, not their marketing. Specifically: What do they do? Are they credible — do actions match messaging? What's their reputation and reach across Reddit communities? Are their values seen as genuine or performative? And what's the perception of their environmental and social impact — positive, negative, or indifferent?
+                  </p>
+                  <button
+                    onClick={() => {
+                      const prompt = `What do people on Reddit actually think of ${project.brandName}? I want honest community perception, not their marketing. Specifically: What do they do? Are they credible — do actions match messaging? What's their reputation and reach across Reddit communities? Are their values seen as genuine or performative? And what's the perception of their environmental and social impact — positive, negative, or indifferent?`;
+                      navigator.clipboard.writeText(prompt);
+                    }}
+                    className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded hover:bg-orange-200 transition-colors flex items-center gap-1 flex-shrink-0"
+                  >
+                    <Copy className="w-3 h-3" /> Copy
+                  </button>
+                </div>
+              </div>
               <textarea value={inputs.redditAnswersContent} onChange={(e) => updateInput('redditAnswersContent', e.target.value)}
-                placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation, credibility, sustainability efforts, social impact, and contribution to humanity...`} 
+                placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation, credibility, and community perception...`} 
                 className="w-full h-24 px-3 py-2 border border-orange-300 rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
@@ -2544,7 +2652,7 @@ Write in flowing prose with specific observations from the content provided. End
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#666666]">Glassdoor <span className="text-purple-600">(→ Reflective)</span></label>
                 <div className="flex items-center gap-2">
-                  {autoCheckStatus.glassdoor && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                  {autoCheckStatus.glassdoor && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
                   <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
                      className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium rounded hover:bg-purple-200 transition-colors flex items-center gap-1">
                     Verify <ExternalLink className="w-2.5 h-2.5" />
@@ -2558,7 +2666,7 @@ Write in flowing prose with specific observations from the content provided. End
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#666666]">Nextdoor <span className="text-green-600">(→ Aware)</span></label>
                 <div className="flex items-center gap-2">
-                  {autoCheckStatus.nextdoor && <span className="text-[10px] text-[#059669]">Auto-checked ✓</span>}
+                  {autoCheckStatus.nextdoor && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
                   <a href="https://nextdoor.com/find-business/" target="_blank" rel="noopener noreferrer" 
                      className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-medium rounded hover:bg-green-200 transition-colors flex items-center gap-1">
                     Verify <ExternalLink className="w-2.5 h-2.5" />
@@ -2571,17 +2679,26 @@ Write in flowing prose with specific observations from the content provided. End
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-medium text-blue-800">WIPO Trademark <span className="font-normal">(→ Intentional)</span></label>
-                <a href="https://branddb.wipo.int/en/similarname" target="_blank" rel="noopener noreferrer" 
-                   className="px-3 py-1 bg-[#0067B9] text-white text-xs font-medium rounded-lg hover:bg-[#005299] transition-colors flex items-center gap-1">
-                  Search WIPO <ExternalLink className="w-3 h-3" />
-                </a>
+                <div className="flex gap-2">
+                  <button
+                    onClick={runWipoSearch}
+                    disabled={isSearchingWipo || !project.brandName}
+                    className="px-3 py-1 bg-[#8B5CF6] text-white text-xs font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {isSearchingWipo ? <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</> : <><Sparkles className="w-3 h-3" /> Auto-Search</>}
+                  </button>
+                  <a href="https://branddb.wipo.int/en/similarname" target="_blank" rel="noopener noreferrer" 
+                     className="px-3 py-1 bg-[#0067B9] text-white text-xs font-medium rounded-lg hover:bg-[#005299] transition-colors flex items-center gap-1">
+                    Manual <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
-              <p className="text-xs text-blue-700 mb-2">
-                <strong>Search for:</strong> "{project.brandName}" - Check trademark registrations, jurisdictions, and any conflicting marks.
-              </p>
+              {inputs.wipoContent?.includes('[Auto-searched]') && (
+                <p className="text-xs text-green-600 mb-2">✓ Trademark data auto-searched</p>
+              )}
               <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
                 placeholder={`Trademark status for ${project.brandName}: registrations found, jurisdictions covered, any similar/conflicting marks, protection status...`}
-                className="w-full h-16 px-3 py-2 border border-blue-300 rounded-lg bg-white resize-none text-sm" />
+                className={`w-full h-20 px-3 py-2 border border-blue-300 rounded-lg bg-white resize-none text-sm ${inputs.wipoContent ? 'bg-blue-50' : ''}`} />
             </div>
           </div>
         )}
@@ -2755,6 +2872,7 @@ function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, 
   const [responses, setResponses] = useState(assessmentData.responses || { claude: '', gemini: '', chatgpt: '' });
   const [manualInput, setManualInput] = useState({ claude: assessmentData.claudeManual || '', gemini: assessmentData.geminiManual || '', chatgpt: assessmentData.chatgptManual || '' });
   const [isProcessing, setIsProcessing] = useState({});
+  const [isAutoRunningClaude, setIsAutoRunningClaude] = useState(false);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -2811,6 +2929,35 @@ Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis o
       document.body.removeChild(textarea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Auto-run Claude with web search
+  const runClaudeAuto = async () => {
+    setIsAutoRunningClaude(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: aiPerceptionPrompt,
+          useWebSearch: true
+        })
+      });
+
+      if (!response.ok) throw new Error('Auto-run failed');
+      const data = await response.json();
+      const result = data.content?.[0]?.text || data.text || '';
+      
+      if (result) {
+        setManualInput(prev => ({ ...prev, claude: result }));
+        setAssessmentData({ ...assessmentData, claudeManual: result });
+      }
+    } catch (err) {
+      setError('Auto-run failed - please copy the prompt and run manually');
+    } finally {
+      setIsAutoRunningClaude(false);
     }
   };
 
@@ -2936,20 +3083,29 @@ Write in flowing prose.`;
               </div>
               <div>
                 <h4 className="font-medium">Claude (Anthropic)</h4>
-                <p className="text-sm text-[#666666]">Paste response from claude.ai</p>
+                <p className="text-sm text-[#666666]">Auto-run or paste response</p>
               </div>
             </div>
-            <a 
-              href="https://claude.ai/new" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 bg-[#D97706] text-white text-xs font-medium rounded-lg hover:bg-[#B45309] transition-colors flex items-center gap-1"
-            >
-              Open Claude <ExternalLink className="w-3 h-3" />
-            </a>
+            <div className="flex gap-2">
+              <button 
+                onClick={runClaudeAuto}
+                disabled={isAutoRunningClaude}
+                className="px-3 py-1.5 bg-[#8B5CF6] text-white text-xs font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-1 disabled:opacity-50"
+              >
+                {isAutoRunningClaude ? <><Loader2 className="w-3 h-3 animate-spin" /> Running...</> : <><Sparkles className="w-3 h-3" /> Auto-Run</>}
+              </button>
+              <a 
+                href="https://claude.ai/new" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-[#D97706] text-white text-xs font-medium rounded-lg hover:bg-[#B45309] transition-colors flex items-center gap-1"
+              >
+                Manual <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
           </div>
           <textarea value={manualInput.claude || ''} onChange={(e) => setManualInput(m => ({ ...m, claude: e.target.value }))}
-            placeholder="Paste Claude's response here..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm bg-white" />
+            placeholder="Paste Claude's response here..." className={`w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm ${manualInput.claude ? 'bg-[#F0EEEA]' : 'bg-white'}`} />
         </div>
 
         {/* Gemini */}
@@ -4582,9 +4738,11 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
         <div className="flex gap-3">
           <button onClick={copyReportText} className="btn-secondary flex items-center gap-2"><Copy className="w-4 h-4" /> Copy Report</button>
           <button onClick={onSave} className="btn-secondary flex items-center gap-2"><Save className="w-4 h-4" /> Save</button>
+          {/* PDF export temporarily disabled - redesign in progress
           <button onClick={generatePdf} disabled={isGeneratingPdf} className="btn-primary flex items-center gap-2">
             {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF
           </button>
+          */}
           {/* DOCX export temporarily disabled
           <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-2">
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} DOCX
@@ -6728,7 +6886,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl font-bold text-[#1A1A1A]">Saved Assessments</h2>
-          <p className="text-[#666666]">Up to 15 assessments stored locally in your browser</p>
+          <p className="text-[#666666]">Your assessments are stored securely in the cloud</p>
         </div>
         <div className="flex gap-2">
           <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
@@ -6744,7 +6902,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       {/* Info Card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <p className="text-sm text-blue-800">
-          <strong>Sharing tip:</strong> Assessments are stored in your browser only. To share with others, use the <strong>Export</strong> button to download a JSON file, or <strong>Share</strong> to copy a link they can view.
+          <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup file.
         </p>
       </div>
 
@@ -6812,7 +6970,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       )}
 
       <p className="text-center text-sm text-[#9CA3AF] mt-8">
-        {assessments.length}/15 assessment slots used
+        {assessments.length} assessment{assessments.length !== 1 ? 's' : ''} saved
       </p>
     </div>
   );
