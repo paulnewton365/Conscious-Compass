@@ -1052,7 +1052,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.53
+        Version 2.12.55
       </div>
     </div>
   );
@@ -2099,6 +2099,44 @@ Format each section with clear headers. Be specific about what you found vs. wha
       }
       if (nextdoorInfo && !inputs.nextdoorContent) {
         updateInput('nextdoorContent', `[Auto-searched] ${nextdoorInfo}`);
+      }
+
+      // Also fetch data from Google APIs for enhanced accuracy
+      try {
+        // YouTube Data API - get exact channel stats
+        const ytResponse = await fetch(`/api/youtube?query=${encodeURIComponent(project.brandName)}`);
+        const ytData = await ytResponse.json();
+        if (ytData.found && !inputs.youtubeContent?.includes('[API Data]')) {
+          const ytStats = `[API Data] Channel: ${ytData.channelTitle}
+Subscribers: ${ytData.subscriberCount?.toLocaleString() || 'Hidden'}
+Videos: ${ytData.videoCount?.toLocaleString() || 0}
+Total Views: ${ytData.viewCount?.toLocaleString() || 0}
+URL: ${ytData.channelUrl}
+${ytData.description ? `\nDescription: ${ytData.description.slice(0, 300)}...` : ''}
+
+${youtubeInfo ? `\n[AI Analysis]\n${youtubeInfo}` : ''}`;
+          updateInput('youtubeContent', ytStats);
+        }
+
+        // Knowledge Graph API - check entity status
+        const kgResponse = await fetch(`/api/knowledge-graph?query=${encodeURIComponent(project.brandName)}`);
+        const kgData = await kgResponse.json();
+        if (kgData.found && kgData.bestMatch) {
+          const kgInfo = `[Knowledge Graph] Entity Status: ${kgData.knowledgeGraphSignal}
+${kgData.bestMatch.name ? `Name: ${kgData.bestMatch.name}` : ''}
+${kgData.bestMatch.type?.length ? `Type: ${kgData.bestMatch.type.join(', ')}` : ''}
+${kgData.bestMatch.description ? `Description: ${kgData.bestMatch.description}` : ''}
+${kgData.bestMatch.url ? `Wikipedia: ${kgData.bestMatch.url}` : ''}`;
+          
+          // Append to Wikipedia field if not already there
+          if (!inputs.wikipediaContent?.includes('[Knowledge Graph]')) {
+            const existingWiki = inputs.wikipediaContent || wikiInfo || '';
+            updateInput('wikipediaContent', `${kgInfo}\n\n${existingWiki}`);
+          }
+        }
+      } catch (apiErr) {
+        console.log('Google API enhancement failed (non-critical):', apiErr.message);
+        // Non-critical - the Claude search results are still available
       }
 
     } catch (err) {
@@ -3228,10 +3266,51 @@ Write in flowing prose.`;
 function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAutoAssessing, setIsAutoAssessing] = useState(false);
+  const [isSearchingNews, setIsSearchingNews] = useState(false);
   const [error, setError] = useState(null);
   const [coveragePaste, setCoveragePaste] = useState(assessmentData.coveragePaste || '');
+  const [newsResults, setNewsResults] = useState(assessmentData.newsResults || null);
 
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
+
+  // Search for recent news using Google Custom Search API
+  const searchNews = async () => {
+    setIsSearchingNews(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/search?query=${encodeURIComponent(project.brandName)}&type=news`);
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setNewsResults(data);
+      setAssessmentData({ ...assessmentData, newsResults: data });
+      
+      // Format news results for the coverage paste field
+      if (data.results && data.results.length > 0) {
+        const newsText = data.results.map((r, i) => 
+          `${i + 1}. ${r.title}\n   Source: ${r.source}\n   ${r.snippet}\n   URL: ${r.link}`
+        ).join('\n\n');
+        
+        const formattedNews = `[Auto-searched ${new Date().toLocaleDateString()}] Recent news coverage for ${project.brandName}:\n\n${newsText}`;
+        
+        if (!coveragePaste) {
+          setCoveragePaste(formattedNews);
+          setAssessmentData({ ...assessmentData, coveragePaste: formattedNews, newsResults: data });
+        } else if (!coveragePaste.includes('[Auto-searched')) {
+          const combined = `${formattedNews}\n\n---\n\n${coveragePaste}`;
+          setCoveragePaste(combined);
+          setAssessmentData({ ...assessmentData, coveragePaste: combined, newsResults: data });
+        }
+      }
+    } catch (err) {
+      setError('News search failed: ' + err.message);
+    } finally {
+      setIsSearchingNews(false);
+    }
+  };
 
   // Auto-assess earned media performance
   const runAutoAssess = async () => {
@@ -3384,11 +3463,24 @@ Write in flowing prose with specific examples. End with priority recommendations
 
       {/* Coverage Paste Field */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Media Coverage (Last 3 Months)</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-medium text-[#1A1A1A]">Media Coverage (Last 3 Months)</h3>
+          <button 
+            onClick={searchNews} 
+            disabled={isSearchingNews}
+            className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
+          >
+            {isSearchingNews ? <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</> : <><Search className="w-3 h-3" /> Search News</>}
+          </button>
+        </div>
         <p className="text-sm text-[#666666] mb-4">
-          Paste any press coverage, news articles, mentions, or media clips from the last 3 months. 
-          Include headlines, publication names, dates, and key quotes if available.
+          Click "Search News" to auto-find recent coverage, or paste press coverage, news articles, and media clips manually.
         </p>
+        {newsResults && newsResults.results?.length > 0 && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+            <p className="text-xs text-green-700">✓ Found {newsResults.results.length} recent news articles</p>
+          </div>
+        )}
         <textarea 
           value={coveragePaste} 
           onChange={(e) => setCoveragePaste(e.target.value)}
