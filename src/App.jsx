@@ -1052,7 +1052,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.58
+        Version 2.12.60
       </div>
     </div>
   );
@@ -1564,26 +1564,39 @@ Based on the screenshots and content provided, deliver a comprehensive website a
    - Is there a consistent brand voice across pages?
    - CRITICAL: Compare brand presentation across screenshots - is the brand identity cohesive?
 
-2. MESSAGING AND STORYTELLING
+2. BRAND ARCHITECTURE & HIERARCHY
+   - Identify the brand architecture model used:
+     * SINGLE BRAND: One unified brand identity across all offerings
+     * HOUSE OF BRANDS: Multiple distinct brands with little connection to parent
+     * ENDORSED STRUCTURE: Sub-brands endorsed by master brand (e.g., "X by Company")
+     * SUB-BRAND STRUCTURE: Extensions clearly tied to master brand (e.g., "Company X")
+     * UNCLEAR/INCONSISTENT: No discernible structure or confusing hierarchy
+   - How clearly is the relationship between parent brand, sub-brands, and products communicated?
+   - Are naming conventions consistent and logical?
+   - Is there visual hierarchy that clarifies brand/product relationships?
+   - Does the architecture support or confuse audience understanding?
+   - CRITICAL: Note any confusion between what is the brand vs. products vs. services vs. sub-brands
+
+3. MESSAGING AND STORYTELLING
    - Analyze the headline/hero messaging effectiveness
    - Is there a compelling narrative arc across the site?
    - Does the content create emotional resonance?
    - How well does the messaging speak to the target audience?
 
-3. CONTENT QUALITY AND CONSISTENCY
+4. CONTENT QUALITY AND CONSISTENCY
    - Evaluate the quality and depth of written content
    - Is content benefit-focused or feature-focused?
    - Is there consistency in tone, style, and messaging across pages?
    - Are there content gaps or areas that need strengthening?
 
-4. INFORMATION ARCHITECTURE
+5. INFORMATION ARCHITECTURE
    - How logical and intuitive is the site structure?
    - Is content organized in a way that matches user mental models?
    - Are related pages properly linked and grouped?
    - How easy is it to find key information (pricing, contact, services)?
    - Is there clear hierarchy from primary to secondary to tertiary content?
 
-5. USER INTERFACE (UI) DESIGN & VISUAL CONSISTENCY
+6. USER INTERFACE (UI) DESIGN & VISUAL CONSISTENCY
    - How professional, modern, and polished is the interface?
    - CRITICAL: Evaluate design consistency across all screenshots - are colors, fonts, spacing, and visual treatments consistent page-to-page?
    - Are interactive elements (buttons, forms, links) styled consistently throughout?
@@ -1593,14 +1606,14 @@ Based on the screenshots and content provided, deliver a comprehensive website a
    - Is the design responsive and mobile-friendly (if visible)?
    - Note any inconsistencies in: color palette, button styles, heading treatments, spacing patterns, or visual language
 
-6. USER EXPERIENCE (UX) AND NAVIGATION
+7. USER EXPERIENCE (UX) AND NAVIGATION
    - How intuitive is the navigation structure?
    - Is the visual hierarchy clear and effective?
    - Are calls-to-action prominent, compelling, and well-placed?
    - How well does the site guide users toward conversion?
    - Are there any friction points or confusing elements?
 
-7. ACCESSIBILITY (WCAG 2.1 Level AA Compliance)
+8. ACCESSIBILITY (WCAG 2.1 Level AA Compliance)
    - Estimate the percentage of WCAG 2.1 Level AA compliance based on visible elements (0-100%)
    - Is there sufficient color contrast between text and backgrounds (4.5:1 for normal text, 3:1 for large text)?
    - Are fonts legible and appropriately sized (minimum 16px for body text)?
@@ -1612,7 +1625,7 @@ Based on the screenshots and content provided, deliver a comprehensive website a
    - Would keyboard-only navigation likely work (focus states, tab order)?
    - Provide a specific accessibility compliance percentage estimate and explain your reasoning
 
-8. SEO & SEARCH VISIBILITY
+9. SEO & SEARCH VISIBILITY
    - Based on visible content structure, how well-optimized is this site for search?
    - Are key brand messages and value propositions likely to rank for relevant keywords?
    - Is content structured for discoverability (headings, meta-likely content)?
@@ -1624,10 +1637,11 @@ ${seoAssessment ? `   - INTEGRATE the SEO Visibility Assessment findings above i
 Write in flowing prose with specific observations. Be concrete about what you see in the screenshots. Compare elements across different pages to identify consistency or inconsistency.
 
 End with:
+- BRAND ARCHITECTURE TYPE: Identify which model (Single Brand, House of Brands, Endorsed, Sub-brand, or Unclear) with brief explanation
 - DESIGN CONSISTENCY RATING (1-10): Rate overall visual consistency across pages with brief explanation
 ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, rate how well the site is positioned for search visibility' : ''}
 - 3-5 KEY STRENGTHS (what the website does well)
-- 3-5 PRIORITY IMPROVEMENTS (specific, actionable recommendations)`;
+- 3-5 PRIORITY IMPROVEMENTS (specific, actionable recommendations including brand architecture if unclear)`;
 
       const result = await callClaude(prompt, apiKey, images[0], images.slice(1));
       setAssessmentData({ 
@@ -1983,11 +1997,9 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     instagramContent: assessmentData.instagramContent || '',
     youtubeContent: assessmentData.youtubeContent || '',
     hasYouTube: assessmentData.hasYouTube ?? true,
-    redditContent: assessmentData.redditContent || '',
     redditAnswersContent: assessmentData.redditAnswersContent || '',
     wikipediaContent: assessmentData.wikipediaContent || '',
     glassdoorContent: assessmentData.glassdoorContent || '',
-    nextdoorContent: assessmentData.nextdoorContent || '',
     wipoContent: assessmentData.wipoContent || '',
     hashtagContent: assessmentData.hashtagContent || '',
     paidMediaContent: assessmentData.paidMediaContent || '',
@@ -2310,21 +2322,17 @@ ${instagramImages.length > 0 ? `\n${instagramImages.length} Instagram screenshot
 
 === YOUTUBE DATA ===
 ${inputs.hasYouTube ? (inputs.youtubeContent || '[User indicated they have YouTube but no content provided]') : '[Brand does not have a YouTube channel]'}
-
-=== REDDIT PRESENCE ===
-${inputs.redditContent || '[Not provided - please note any Reddit mentions or discussions about ' + project.brandName + ']'}
+${inputs.youtubeContent?.includes('[API Data]') ? '\nNote: YouTube data above includes verified API data (subscriber count, video count, views, third-party coverage).' : ''}
 
 === REDDIT ANSWERS (AI Search Visibility) ===
 ${inputs.redditAnswersContent || '[Not checked - Reddit Answers shows how AI perceives brand reputation]'}
 
-=== WIKIPEDIA PRESENCE ===
+=== WIKIPEDIA & KNOWLEDGE GRAPH ===
 ${inputs.wikipediaContent || '[Not provided - please note if ' + project.brandName + ' has a Wikipedia page]'}
+${inputs.wikipediaContent?.includes('[Knowledge Graph]') ? '\nNote: Knowledge Graph data above shows Google entity recognition status.' : ''}
 
 === GLASSDOOR (Employer Reputation) ===
 ${inputs.glassdoorContent || '[Not reviewed - Glassdoor reviews impact brand self-awareness and Reflective score]'}
-
-=== NEXTDOOR (Community Reputation) ===
-${inputs.nextdoorContent || '[Not reviewed - Nextdoor presence impacts audience connection and Aware score]'}
 
 === WIPO TRADEMARK STATUS ===
 ${inputs.wipoContent || '[Not checked - Trademark registration impacts brand professionalism and Intentional score]'}
@@ -2347,27 +2355,23 @@ Based on the content provided above, deliver a comprehensive social media and re
 
 3. Instagram Presence: Assess visual brand consistency, content themes, engagement, and audience connection
 
-4. YouTube Presence: ${inputs.hasYouTube ? 'Assess channel content strategy, video topics, and recommendations for improvement' : 'The brand does not have YouTube - provide recommendation on whether they should based on their industry and audience'}
+4. YouTube Presence: ${inputs.hasYouTube ? 'Assess channel content strategy, subscriber tier, video count, third-party coverage, and recommendations for improvement. If API data is provided, use the verified metrics.' : 'The brand does not have YouTube - provide recommendation on whether they should based on their industry and audience'}
 
-5. Reddit Presence: What subreddits mention this brand? What is the sentiment? How does user-generated content affect their reputation?
+5. Reddit Answers (AI Search): Analyze how Reddit's AI summarizes the brand. This indicates how AI search engines perceive brand reputation, credibility, and trust. This is a critical signal for COGENT scoring.
 
-6. Reddit Answers (AI Search): If provided, analyze how Reddit's AI summarizes the brand. This indicates how AI search engines perceive brand reputation, credibility, and trust.
+6. Wikipedia & Knowledge Graph: Does the brand have a Wikipedia page? Is it recognized as a Google Knowledge Graph entity? How does this impact their credibility and AI search visibility?
 
-7. Wikipedia Presence: Does the brand have a Wikipedia page? How does this impact their credibility and AI search visibility?
+7. Glassdoor & Employer Reputation: Analyze employee reviews, ratings, and sentiment. How self-aware is the brand about its culture and reputation?
 
-8. Glassdoor & Employer Reputation: Analyze employee reviews, ratings, and sentiment. How self-aware is the brand about its culture and reputation?
+8. Trademark Protection (WIPO): Is the brand name properly protected? Are there any conflicts or risks?
 
-9. Community Presence (Nextdoor): For B2C brands, how does the local community perceive them? What do recommendations and discussions reveal?
+9. Hashtag Strategy: Evaluate branded hashtag usage and effectiveness across platforms. Is there a clear hashtag strategy? Are customers adopting branded hashtags? How does this impact discoverability?
 
-10. Trademark Protection (WIPO): Is the brand name properly protected? Are there any conflicts or risks?
+10. Paid Media Presence: Based on ad library findings, assess paid media investment signals. What creative themes dominate? Is messaging consistent with organic content? Does ad volume suggest serious market investment (COGENT, INTENTIONAL)? Is creative distinctive or generic (SENTIENT)?
 
-11. Hashtag Strategy: Evaluate branded hashtag usage and effectiveness across platforms. Is there a clear hashtag strategy? Are customers adopting branded hashtags? How does this impact discoverability?
+11. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
 
-12. Paid Media Presence: Based on ad library findings, assess paid media investment signals. What creative themes dominate? Is messaging consistent with organic content? Does ad volume suggest serious market investment (COGENT, INTENTIONAL)? Is creative distinctive or generic (SENTIENT)?
-
-13. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
-
-14. AI/Search Visibility: How does their social presence impact discoverability in AI search engines?
+12. AI/Search Visibility: How does their social presence impact discoverability in AI search engines? Consider YouTube third-party coverage, Knowledge Graph status, and Reddit Answers perception.
 
 Write in flowing prose with specific observations from the content provided. End with key strengths and priority improvements.`;
 
@@ -2388,13 +2392,11 @@ Write in flowing prose with specific observations from the content provided. End
   const [expanded, setExpanded] = useState({ linkedin: true, x: false, instagram: false, other: false, hashtag: false, paidMedia: false, reputation: false });
   const toggleSection = (section) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
-  // Status badges for auto-check (5 platforms - WIPO is manual only)
+  // Status badges for auto-check
   const autoCheckStatus = {
-    youtube: !!inputs.youtubeContent?.includes('[Auto-searched]'),
-    wikipedia: !!inputs.wikipediaContent?.includes('[Auto-searched]'),
-    reddit: !!inputs.redditContent?.includes('[Auto-searched]'),
+    youtube: !!inputs.youtubeContent?.includes('[API Data]') || !!inputs.youtubeContent?.includes('[Auto-searched]'),
+    wikipedia: !!inputs.wikipediaContent?.includes('[Knowledge Graph]') || !!inputs.wikipediaContent?.includes('[Auto-searched]'),
     glassdoor: !!inputs.glassdoorContent?.includes('[Auto-searched]'),
-    nextdoor: !!inputs.nextdoorContent?.includes('[Auto-searched]'),
   };
   const autoCheckCount = Object.values(autoCheckStatus).filter(Boolean).length;
 
@@ -2640,7 +2642,7 @@ Write in flowing prose with specific observations from the content provided. End
           icon={Globe} 
           isOpen={expanded.other} 
           onClick={() => toggleSection('other')}
-          hasContent={!!(inputs.youtubeContent || inputs.redditContent || inputs.redditAnswersContent || inputs.wikipediaContent)}
+          hasContent={!!(inputs.youtubeContent || inputs.redditAnswersContent || inputs.wikipediaContent)}
         />
         {expanded.other && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
@@ -2671,20 +2673,6 @@ Write in flowing prose with specific observations from the content provided. End
               </div>
               <textarea value={inputs.wikipediaContent} onChange={(e) => updateInput('wikipediaContent', e.target.value)}
                 placeholder="Does the brand have a Wikipedia page? Key details..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#666666]">Reddit Discussions</label>
-                <div className="flex items-center gap-2">
-                  {autoCheckStatus.reddit && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
-                  <a href={`https://www.reddit.com/search/?q=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                     className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium rounded hover:bg-orange-200 transition-colors flex items-center gap-1">
-                    Verify <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-              </div>
-              <textarea value={inputs.redditContent} onChange={(e) => updateInput('redditContent', e.target.value)}
-                placeholder="Subreddits, sentiment, notable discussions..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
@@ -2718,7 +2706,7 @@ Write in flowing prose with specific observations from the content provided. End
         )}
       </div>
 
-      {/* Reputation Section (Glassdoor, Nextdoor, WIPO) */}
+      {/* Reputation Section (Glassdoor, WIPO) */}
       <div className="mb-4">
         <AccordionHeader 
           title="Reputation & Trust Signals" 
@@ -2726,7 +2714,7 @@ Write in flowing prose with specific observations from the content provided. End
           isOpen={expanded.reputation} 
           onClick={() => toggleSection('reputation')}
           badge="Score Impact"
-          hasContent={!!(inputs.glassdoorContent || inputs.nextdoorContent || inputs.wipoContent)}
+          hasContent={!!(inputs.glassdoorContent || inputs.wipoContent)}
         />
         {expanded.reputation && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
@@ -2743,20 +2731,6 @@ Write in flowing prose with specific observations from the content provided. End
               </div>
               <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
                 placeholder="Rating (out of 5), CEO approval %, # of reviews, culture themes, pros/cons patterns..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#666666]">Nextdoor <span className="text-green-600">(→ Aware)</span></label>
-                <div className="flex items-center gap-2">
-                  {autoCheckStatus.nextdoor && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
-                  <a href="https://nextdoor.com/find-business/" target="_blank" rel="noopener noreferrer" 
-                     className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-medium rounded hover:bg-green-200 transition-colors flex items-center gap-1">
-                    Verify <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-              </div>
-              <textarea value={inputs.nextdoorContent} onChange={(e) => updateInput('nextdoorContent', e.target.value)}
-                placeholder="Business profile, recommendations count, community sentiment... (N/A for pure B2B)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
@@ -3616,7 +3590,7 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     }, 800);
 
     try {
-      const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v2.7.
+      const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v2.8.
 
 ASSESSMENT DATA COLLECTED:
 
@@ -3646,8 +3620,9 @@ Awards & Recognition: ${assessments.social.awardsRecognition || 'Not noted'}
 Hashtag Strategy: ${assessments.social.hashtagContent || 'Not assessed'}
 Paid Media Presence: ${assessments.social.paidMediaContent || 'Not checked'}
 Glassdoor: ${assessments.social.glassdoorContent || 'Not reviewed'}
-Nextdoor: ${assessments.social.nextdoorContent || 'Not reviewed'}
 WIPO Trademark: ${assessments.social.wipoContent || 'Not checked'}
+YouTube API Data: ${assessments.social.youtubeContent?.includes('[API Data]') ? 'Verified metrics included' : 'Manual entry only'}
+Knowledge Graph Status: ${assessments.social.wikipediaContent?.includes('[Knowledge Graph]') ? 'Entity data included' : 'Manual entry only'}
 
 AI REPUTATION ASSESSMENT:
 ${assessments.aiReputation.content}
@@ -3706,9 +3681,11 @@ If Technical Audit was not run, score based on qualitative assessment alone but 
 
 OTHER SCORING FACTORS:
 - Glassdoor reviews impact REFLECTIVE score (brand self-awareness and reputation)
-- Nextdoor presence impacts AWARE score (audience connection and community trust)
 - WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
 - Core Web Vitals (LCP, CLS, TBT) indicate user experience quality - factor into the technical portion of ATTENTIVE
+- YouTube API data (if available) provides verified metrics: subscriber tier, video count, third-party coverage impacts AWAKE (influence) and AWARE (audience reach)
+- Knowledge Graph entity status impacts COGENT (AI search visibility) and INTENTIONAL (brand credibility)
+- Reddit Answers perception directly impacts COGENT score (how AI systems perceive and describe the brand)
 - Influencer partnerships impact multiple scores: strategic thought leader partnerships boost AWAKE, audience-aligned creators boost AWARE, creative quality impacts SENTIENT
 - Paid media presence signals investment and intentionality: ad volume and consistency impact INTENTIONAL, creative quality impacts SENTIENT, targeting sophistication impacts COGENT and AWARE
 
@@ -3722,7 +3699,8 @@ B2B SCORING ADJUSTMENTS:
 - Earned media in TRADE PUBLICATIONS and INDUSTRY PRESS matters more than mainstream media
 - Long-form content (whitepapers, case studies, webinars) signals stronger than short-form social content
 - Employee advocacy on LinkedIn is a strong signal for REFLECTIVE and AWARE
-- Nextdoor presence is typically NOT RELEVANT - do not penalize for absence
+- YouTube third-party coverage by industry channels signals strong thought leadership (AWAKE)
+- Knowledge Graph entity recognition signals established credibility (INTENTIONAL, COGENT)
 - Conference speaking and podcast appearances weight heavily for AWAKE
 - Client logos and case studies are critical for INTENTIONAL and COGENT
 ` : project.businessModel === 'b2c' ? `
@@ -3731,11 +3709,11 @@ B2C SCORING ADJUSTMENTS:
 - TikTok is HIGHLY RELEVANT for brands targeting audiences under 40
 - Influencer partnerships with CONSUMER CREATORS are highly relevant signals
 - Paid media across Meta, TikTok, and Google indicates market investment
-- Nextdoor presence is RELEVANT for local/community brands - factor into AWARE
 - User-generated content and community engagement are strong signals
 - Consumer reviews and sentiment across platforms matter greatly
 - Mainstream media coverage may matter more than trade press
 - Instagram visual brand consistency is critical for SENTIENT
+- YouTube subscriber tier and third-party coverage indicates audience reach (AWARE)
 ` : `
 B2B2C / HYBRID SCORING ADJUSTMENTS:
 - Weight LinkedIn heavily for B2B relationships but also assess consumer channels
@@ -3756,7 +3734,7 @@ CHANNEL RELEVANCE BY BUSINESS MODEL:
 | X/Twitter | Moderate (2x) | Moderate (2x) | Moderate (2x) |
 | Trade Press | Critical (3x) | Low (0.5x) | Moderate (2x) |
 | Mainstream Media | Low (1x) | High (3x) | Moderate (2x) |
-| Nextdoor | Ignore (0x) | Relevant (2x) | Low (0.5x) |
+| Reddit Answers | High (3x) | High (3x) | High (3x) |
 | Industry Events | High (3x) | Low (0.5x) | Moderate (2x) |
 | Consumer Reviews | Low (0.5x) | Critical (3x) | Moderate (2x) |
 
@@ -4089,7 +4067,7 @@ Return the JSON scores in this exact format:
   if (assessments.social?.xContent) evaluatedInputs.push('X (Twitter) content and voice');
   if (assessments.social?.instagramContent) evaluatedInputs.push('Instagram presence and visual brand');
   if (assessments.social?.youtubeContent) evaluatedInputs.push('YouTube channel and video content');
-  if (assessments.social?.redditContent) evaluatedInputs.push('Reddit community mentions and sentiment');
+  if (assessments.social?.redditAnswersContent) evaluatedInputs.push('Reddit Answers AI search visibility check');
   if (assessments.social?.redditAnswersContent) evaluatedInputs.push('Reddit Answers AI search visibility');
   if (assessments.social?.wikipediaContent) evaluatedInputs.push('Wikipedia presence and credibility signals');
   if (assessments.social?.socialImages?.length > 0) evaluatedInputs.push(`${assessments.social.socialImages.length} social media screenshot(s)`);
@@ -4276,7 +4254,7 @@ METHODOLOGY
 ${divider}
 ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice.
 
-Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.7
+Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.8
 `;
 
     navigator.clipboard.writeText(reportText.trim()).then(() => {
@@ -4549,7 +4527,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
 
       // ========== METHODOLOGY ==========
       addSection('METHODOLOGY');
-      addParagraph(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.7, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`);
+      addParagraph(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.8, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`);
 
       // ========== FOOTER ==========
       const pageCount = pdf.internal.getNumberOfPages();
@@ -4777,7 +4755,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
               children: [new TextRun({ text: 'METHODOLOGY', color: 'E53935' })] 
             }),
             new Paragraph({ 
-              children: [new TextRun({ text: `This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.7, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, size: 20 })] 
+              children: [new TextRun({ text: `This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.8, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, size: 20 })] 
             }),
             new Paragraph({ children: [new TextRun('')] }),
             
@@ -5054,7 +5032,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v2.
         {expandedSections.evaluated && (
           <div className="card p-4 md:p-6 animate-fade-in">
             <p className="text-sm md:text-base text-[#333333] leading-relaxed">
-              This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.7, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
+              This assessment was conducted using Antenna Group's Brand Consciousness Framework v2.8, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
           </div>
         )}
@@ -6888,7 +6866,7 @@ function AssessmentStatusIndicator({ assessments }) {
     }
     if (type === 'social') {
       const fields = [assessment.linkedinAbout, assessment.linkedinPosts, assessment.xContent, 
-                      assessment.instagramContent, assessment.youtubeContent, assessment.redditContent,
+                      assessment.instagramContent, assessment.youtubeContent, assessment.redditAnswersContent,
                       assessment.wikipediaContent, assessment.glassdoorContent];
       const filled = fields.filter(Boolean).length;
       if (assessment.content && filled >= 3) return 'complete';
@@ -7223,7 +7201,7 @@ function SharedReportView({ report, onClose }) {
         {/* Footer */}
         <div className="text-center pt-8 border-t border-[#D9D6D0]">
           <p className="text-sm text-[#9CA3AF]">
-            This report was generated using Antenna Group's Brand Consciousness Framework v2.7
+            This report was generated using Antenna Group's Brand Consciousness Framework v2.8
           </p>
           <p className="text-xs text-[#9CA3AF] mt-2">
             Shared on {report.sharedAt ? new Date(report.sharedAt).toLocaleDateString() : 'Unknown date'}
@@ -7248,7 +7226,7 @@ function AppContent() {
   });
   const [assessments, setAssessments] = useState({
     website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-    social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+    social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
     aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
     earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
   });
@@ -7391,7 +7369,7 @@ function AppContent() {
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-        social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+        social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
         aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
         earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
       });

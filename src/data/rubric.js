@@ -1,4 +1,4 @@
-// Brand Consciousness Assessment Framework v2.7
+// Brand Consciousness Assessment Framework v2.8
 
 export const MATURITY_STAGES = [
   { id: 'pre-foundational', name: 'Pre-Foundational', min: 0, max: 25, color: '#94A3B8', description: 'Requires fundamental development across most attributes. Significant gaps exist in basic brand presence and identity. The brand is largely invisible or incoherent to its audiences.' },
@@ -47,12 +47,12 @@ export const ATTRIBUTES = [
     name: 'Reflective',
     fullName: 'Brand Authenticity & Self-Awareness',
     question: 'Do you have an authentic brand?',
-    description: 'Reflective brands exhibit alignment between what they claim and what they demonstrate. Their external brand expression reflects genuine internal culture, mission, and values. Evidence includes: consistent brand expression across every touchpoint, clear brand strategy (mission, vision, purpose, promise, values, personality), tone of voice consistent regardless of channel, and Glassdoor reviews that align with external brand promises.',
+    description: 'Reflective brands exhibit alignment between what they claim and what they demonstrate. Their external brand expression reflects genuine internal culture, mission, and values. Evidence includes: consistent brand expression across every touchpoint, clear brand strategy (mission, vision, purpose, promise, values, personality), tone of voice consistent regardless of channel, clear brand architecture (single brand, house of brands, endorsed, or sub-brand structure), and Glassdoor reviews that align with external brand promises.',
     color: '#FBBF24',
     signals: {
-      strong: ['Employee advocacy programs with authentic participation', 'Leadership publicly visible and aligned with brand values', 'Third-party validation of cultural claims', 'Consistent tone and visual identity across all channels', 'Transparent acknowledgment of challenges or evolution'],
-      moderate: ['Brand guidelines being followed consistently', 'Some employee social presence', 'Culture referenced in marketing with some evidence', 'Visual consistency across main channels'],
-      weak: ['Disconnect between marketing claims and Glassdoor reviews', 'Inconsistent visual identity across channels', 'Leadership invisible or misaligned with brand positioning', 'No evidence of genuine internal culture'],
+      strong: ['Employee advocacy programs with authentic participation', 'Leadership publicly visible and aligned with brand values', 'Third-party validation of cultural claims', 'Consistent tone and visual identity across all channels', 'Transparent acknowledgment of challenges or evolution', 'Clear brand architecture with logical hierarchy between brands, sub-brands, and products'],
+      moderate: ['Brand guidelines being followed consistently', 'Some employee social presence', 'Culture referenced in marketing with some evidence', 'Visual consistency across main channels', 'Brand architecture present but not consistently applied'],
+      weak: ['Disconnect between marketing claims and Glassdoor reviews', 'Inconsistent visual identity across channels', 'Leadership invisible or misaligned with brand positioning', 'No evidence of genuine internal culture', 'Confusing brand/product hierarchy with unclear relationships between entities'],
     },
   },
   {
@@ -112,12 +112,12 @@ export const ATTRIBUTES = [
     name: 'Intentional',
     fullName: 'Credibility & Professional Presence',
     question: 'Do you have the substance and presence to be taken seriously?',
-    description: 'Intentional brands project credibility through substantive positioning and professional execution. They signal competence, reliability, and market seriousness through visible evidence of capability. Evidence includes: trademark protection (WIPO registration), consistent brand assets, professional presentation in every context, credentials and certifications prominently displayed, and client logos that signal trust.',
+    description: 'Intentional brands project credibility through substantive positioning and professional execution. They signal competence, reliability, and market seriousness through visible evidence of capability. Evidence includes: trademark protection (WIPO registration), consistent brand assets, professional presentation in every context, credentials and certifications prominently displayed, clear brand architecture strategy, and client logos that signal trust.',
     color: '#64748B',
     signals: {
-      strong: ['Registered trademarks protecting brand assets', 'Executive visibility and industry recognition', 'Awards and certifications prominently displayed', 'Client logos and case studies with names', 'Consistent professional presentation everywhere', 'Third-party credibility signals abundant'],
-      moderate: ['Some credentials visible', 'Generally professional presentation', 'Basic brand consistency', 'Some client references', 'Occasional credibility signals'],
-      weak: ['No trademark protection', 'Amateur or inconsistent presentation', 'No visible credentials or recognition', 'No client evidence', 'Credibility gaps undermine positioning'],
+      strong: ['Registered trademarks protecting brand assets', 'Executive visibility and industry recognition', 'Awards and certifications prominently displayed', 'Client logos and case studies with names', 'Consistent professional presentation everywhere', 'Third-party credibility signals abundant', 'Clear brand architecture (single brand, house of brands, endorsed, or sub-brand) consistently applied'],
+      moderate: ['Some credentials visible', 'Generally professional presentation', 'Basic brand consistency', 'Some client references', 'Occasional credibility signals', 'Brand architecture exists but applied inconsistently'],
+      weak: ['No trademark protection', 'Amateur or inconsistent presentation', 'No visible credentials or recognition', 'No client evidence', 'Credibility gaps undermine positioning', 'Confusing brand hierarchy undermining professional credibility'],
     },
   },
 ];

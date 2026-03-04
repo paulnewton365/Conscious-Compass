@@ -66,6 +66,23 @@ export const SERVICES = {
     type: 'fixed_fee',
   },
 
+  brandArchitecture: {
+    name: 'Brand Architecture',
+    category: 'Brand Strategy & Expression',
+    bundle: 'Brand Architecture',
+    includes: [
+      'Brand Hierarchy Audit',
+      'Architecture Strategy (Single Brand, House of Brands, Endorsed, Sub-brand)',
+      'Naming Conventions & Nomenclature',
+      'Visual Relationship System',
+      'Brand Portfolio Mapping',
+      'Migration & Implementation Roadmap',
+    ],
+    budget: { low: 20000, high: 35000 },
+    weeks: { low: 4, high: 8 },
+    type: 'fixed_fee',
+  },
+
   // -------------------------------------------------------------------------
   // WEBSITE & DIGITAL
   // -------------------------------------------------------------------------
@@ -592,6 +609,12 @@ export const ATTRIBUTE_MAPPINGS = {
       when: 'When brand strategy is defined but expression is weak',
     },
     {
+      serviceKey: 'brandArchitecture',
+      priority: 1,
+      reason: 'Clear brand hierarchy (single brand, house of brands, endorsed, sub-brand) eliminates confusion and builds coherent identity',
+      when: 'When brand/product hierarchy is unclear, inconsistent, or confusing across touchpoints',
+    },
+    {
       serviceKey: 'crisisComms',
       priority: 2,
       reason: 'Crisis preparedness protects brand authenticity when challenges arise',
@@ -805,6 +828,12 @@ export const ATTRIBUTE_MAPPINGS = {
       priority: 1,
       reason: 'Brand guidelines ensure professional, consistent execution everywhere',
       when: 'When brand lacks documented standards or WIPO protection is missing',
+    },
+    {
+      serviceKey: 'brandArchitecture',
+      priority: 1,
+      reason: 'Defined brand architecture demonstrates strategic sophistication and professional brand management',
+      when: 'When brand/product/sub-brand relationships are confusing or inconsistently presented',
     },
     {
       serviceKey: 'websiteFull',
