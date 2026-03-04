@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS } from './data/rubric';
 import { getAllRecommendations, formatBudget } from './data/serviceMapping';
-import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter } from 'lucide-react';
+import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType } from 'docx';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
@@ -1052,7 +1052,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.55
+        Version 2.12.58
       </div>
     </div>
   );
@@ -1969,11 +1969,13 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
   const [isAutoChecking, setIsAutoChecking] = useState(false);
   const [isSearchingWipo, setIsSearchingWipo] = useState(false);
   const [error, setError] = useState(null);
+  const [socialHealthCheck, setSocialHealthCheck] = useState(assessmentData.socialHealthCheck || '');
   const [inputs, setInputs] = useState({
     linkedinUrl: assessmentData.linkedinUrl || '',
     linkedinAbout: assessmentData.linkedinAbout || '',
     linkedinPosts: assessmentData.linkedinPosts || '',
     linkedinArticles: assessmentData.linkedinArticles || '',
+    linkedinFollowers: assessmentData.linkedinFollowers || '',
     employeeAdvocacy: assessmentData.employeeAdvocacy || '',
     awardsRecognition: assessmentData.awardsRecognition || '',
     xUrl: assessmentData.xUrl || '',
@@ -1987,7 +1989,7 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     glassdoorContent: assessmentData.glassdoorContent || '',
     nextdoorContent: assessmentData.nextdoorContent || '',
     wipoContent: assessmentData.wipoContent || '',
-    influencerContent: assessmentData.influencerContent || '',
+    hashtagContent: assessmentData.hashtagContent || '',
     paidMediaContent: assessmentData.paidMediaContent || '',
   });
   const [images, setImages] = useState(assessmentData.socialImages || []);
@@ -2000,53 +2002,77 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     setAssessmentData({ ...assessmentData, [key]: value });
   };
 
-  // Auto-check YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor
+  // Social Media Health Check - comprehensive brand presence analysis
   const runAutoCheck = async () => {
     setIsAutoChecking(true);
     setError(null);
     try {
-      const prompt = `Search for ${project.brandName}'s presence across multiple platforms.
+      const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown';
+      
+      const prompt = `Conduct a comprehensive Social Media Health Check for ${project.brandName}.
 
 Website: ${project.websiteUrl}
-Industry: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
+Industry: ${industryName}
 
-Please search the web for current information about this brand on each platform below.
+Search the web for current information about this brand's social media presence and provide a detailed health assessment covering:
 
-1. YOUTUBE PRESENCE:
-Search for ${project.brandName}'s YouTube channel. Report:
-- EXISTENCE: Does the brand have an official YouTube channel?
-- CHANNEL URL: The exact channel URL if found
-- CONTENT: What type of content do they publish?
-- ACTIVITY: Recent upload dates, posting frequency
-- Note: User will verify exact subscriber/view counts manually
+1. CHANNEL PRESENCE AUDIT
+For each major platform (LinkedIn, X/Twitter, Instagram, Facebook, YouTube, TikTok), determine:
+- Does the brand have an official/verified presence?
+- Channel URL if found
+- Approximate follower/subscriber count
+- Mark as "Not Found" if no presence detected
 
-2. WIKIPEDIA PRESENCE:
-Search Wikipedia for ${project.brandName}. Report:
-- EXISTENCE: Is there a Wikipedia page for this brand?
-- PAGE URL: The exact Wikipedia URL if found
-- SUMMARY: Key information from the Wikipedia page
-- NOTABLE FACTS: Awards, milestones, founding date, key figures
-- Any controversies or criticism sections noted
+2. POSTING ACTIVITY & CONSISTENCY
+- How frequently is the brand posting on each active channel?
+- When was the most recent post on each platform?
+- Is posting regular and consistent or sporadic?
+- Are there any abandoned/dormant accounts?
 
-3. REDDIT PRESENCE:
-Search Reddit for discussions about ${project.brandName}. Report:
-- SUBREDDITS: Any official subreddit or communities discussing them
-- SENTIMENT: What is the general sentiment in discussions?
-- COMMON TOPICS: What do people discuss about this brand?
-- NOTABLE THREADS: Any significant discussions found
+3. ENGAGEMENT HEALTH
+- What engagement levels are visible? (likes, comments, shares relative to follower count)
+- Are they responding to comments and mentions?
+- Is there genuine community interaction or one-way broadcasting?
+- Benchmark: 1-3% engagement rate is average, 3-6% is good, 6%+ is excellent
 
-4. GLASSDOOR PRESENCE:
-Search for ${project.brandName} on Glassdoor. Report:
-- EXISTENCE: Is there a Glassdoor profile?
-- REVIEW THEMES: Common themes in employee reviews (culture, leadership, etc.)
-- Note: User will verify exact rating numbers manually at glassdoor.com
+4. CONTENT QUALITY & BRAND CONSISTENCY
+- Is visual branding consistent across platforms?
+- Is the brand voice/tone consistent?
+- What content themes dominate?
+- Is content original or mostly reshared?
 
-5. NEXTDOOR PRESENCE (if B2C/local brand):
-- Is Nextdoor relevant for this brand type?
-- Any business presence or community mentions?
-- Note: Skip if clearly a B2B brand
+5. THIRD-PARTY COVERAGE & MENTIONS
+- Are others talking about the brand on social media?
+- What is the sentiment of mentions? (positive/neutral/negative)
+- Any notable influencers or media outlets mentioning them?
+- User-generated content presence?
 
-Format each section with clear headers. Be specific about what you found vs. what needs manual verification.`;
+6. REPUTATION & TRUST SIGNALS
+- What do reviews, comments, and discussions reveal about brand perception?
+- Any visible complaints, controversies, or PR issues?
+- Employee advocacy signals (employees sharing brand content)?
+- Trust indicators (verified accounts, response rates, transparency)?
+
+7. COMPETITIVE VISIBILITY
+- How does their social presence compare to typical brands in ${industryName}?
+- Are they visible in industry conversations?
+- Share of voice assessment
+
+8. AI SEARCH VISIBILITY
+- How is this brand represented in AI search results?
+- Is brand information accurate and favorable in AI summaries?
+
+FORMAT YOUR RESPONSE AS:
+Start with a 2-3 sentence EXECUTIVE SUMMARY of overall social media health.
+
+Then provide findings for each section above with specific evidence.
+
+End with:
+- OVERALL HEALTH SCORE: X/10
+- TOP 3 STRENGTHS
+- TOP 3 PRIORITY IMPROVEMENTS
+
+Be direct and evidence-based. If information is limited or not found, say so clearly.`;
 
       const response = await fetch('/api/claude', {
         method: 'POST',
@@ -2057,90 +2083,72 @@ Format each section with clear headers. Be specific about what you found vs. wha
         })
       });
 
-      if (!response.ok) throw new Error('Auto-check failed');
+      if (!response.ok) throw new Error('Health check failed');
       const data = await response.json();
       const result = data.content?.[0]?.text || data.text || '';
       
-      // Parse the response and update the relevant fields
-      const sections = result.split(/(?=\d\.\s*(?:YOUTUBE|WIKIPEDIA|REDDIT|GLASSDOOR|NEXTDOOR))/i);
-      
-      let youtubeInfo = '';
-      let wikiInfo = '';
-      let redditInfo = '';
-      let glassdoorInfo = '';
-      let nextdoorInfo = '';
-      
-      sections.forEach(section => {
-        if (section.toLowerCase().includes('youtube')) {
-          youtubeInfo = section.replace(/^\d\.\s*YOUTUBE[^:]*:/i, '').trim();
-        } else if (section.toLowerCase().includes('wikipedia')) {
-          wikiInfo = section.replace(/^\d\.\s*WIKIPEDIA[^:]*:/i, '').trim();
-        } else if (section.toLowerCase().includes('reddit')) {
-          redditInfo = section.replace(/^\d\.\s*REDDIT[^:]*:/i, '').trim();
-        } else if (section.toLowerCase().includes('glassdoor')) {
-          glassdoorInfo = section.replace(/^\d\.\s*GLASSDOOR[^:]*:/i, '').trim();
-        } else if (section.toLowerCase().includes('nextdoor')) {
-          nextdoorInfo = section.replace(/^\d\.\s*NEXTDOOR[^:]*:/i, '').trim();
-        }
-      });
+      // Store the health check result
+      setSocialHealthCheck(result);
+      setAssessmentData({ ...assessmentData, socialHealthCheck: result });
 
-      // Update the fields with auto-check results
-      if (youtubeInfo && !inputs.youtubeContent) {
-        updateInput('youtubeContent', `[Auto-searched] ${youtubeInfo}`);
-      }
-      if (wikiInfo && !inputs.wikipediaContent) {
-        updateInput('wikipediaContent', `[Auto-searched] ${wikiInfo}`);
-      }
-      if (redditInfo && !inputs.redditContent) {
-        updateInput('redditContent', `[Auto-searched] ${redditInfo}`);
-      }
-      if (glassdoorInfo && !inputs.glassdoorContent) {
-        updateInput('glassdoorContent', `[Auto-searched] ${glassdoorInfo}`);
-      }
-      if (nextdoorInfo && !inputs.nextdoorContent) {
-        updateInput('nextdoorContent', `[Auto-searched] ${nextdoorInfo}`);
-      }
-
-      // Also fetch data from Google APIs for enhanced accuracy
+      // Also fetch YouTube data from API for enhanced accuracy
       try {
-        // YouTube Data API - get exact channel stats
-        const ytResponse = await fetch(`/api/youtube?query=${encodeURIComponent(project.brandName)}`);
+        const ytResponse = await fetch(`/api/youtube?query=${encodeURIComponent(project.brandName)}&website=${encodeURIComponent(project.websiteUrl || '')}`);
         const ytData = await ytResponse.json();
-        if (ytData.found && !inputs.youtubeContent?.includes('[API Data]')) {
-          const ytStats = `[API Data] Channel: ${ytData.channelTitle}
-Subscribers: ${ytData.subscriberCount?.toLocaleString() || 'Hidden'}
-Videos: ${ytData.videoCount?.toLocaleString() || 0}
-Total Views: ${ytData.viewCount?.toLocaleString() || 0}
-URL: ${ytData.channelUrl}
-${ytData.description ? `\nDescription: ${ytData.description.slice(0, 300)}...` : ''}
-
-${youtubeInfo ? `\n[AI Analysis]\n${youtubeInfo}` : ''}`;
+        
+        if (!ytData.error && !inputs.youtubeContent?.includes('[API Data]')) {
+          let ytStats = '[API Data]\n\n';
+          
+          if (ytData.hasBrandedChannel && ytData.brandedChannel) {
+            const ch = ytData.brandedChannel;
+            const stats = ytData.brandedChannelStats;
+            ytStats += `═══ OFFICIAL CHANNEL FOUND ═══
+Channel: ${ch.channelTitle}
+URL: ${ch.channelUrl || ch.customUrl}
+Subscribers: ${stats?.subscriberCount?.toLocaleString() || 'Hidden'} (${ytData.summary?.subscriberTier})
+Videos: ${stats?.videoCount?.toLocaleString() || 0}
+Total Views: ${stats?.viewCount?.toLocaleString() || 0}
+Created: ${ch.publishedAt ? new Date(ch.publishedAt).toLocaleDateString() : 'Unknown'}
+`;
+          } else {
+            ytStats += `═══ NO OFFICIAL CHANNEL FOUND ═══
+No YouTube channel matching "${project.brandName}" was identified.
+`;
+          }
+          
+          ytStats += `\n═══ THIRD-PARTY COVERAGE (${ytData.summary?.thirdPartyCoverage || 'Unknown'}) ═══\n`;
+          
+          if (ytData.thirdPartyCoverage && ytData.thirdPartyCoverage.length > 0) {
+            ytData.thirdPartyCoverage.forEach((video, i) => {
+              ytStats += `\n${i + 1}. "${video.title}"
+   Channel: ${video.channelTitle}
+   URL: ${video.videoUrl}\n`;
+            });
+          } else {
+            ytStats += `No third-party videos found.\n`;
+          }
           updateInput('youtubeContent', ytStats);
         }
 
         // Knowledge Graph API - check entity status
         const kgResponse = await fetch(`/api/knowledge-graph?query=${encodeURIComponent(project.brandName)}`);
         const kgData = await kgResponse.json();
-        if (kgData.found && kgData.bestMatch) {
+        if (kgData.found && kgData.bestMatch && !inputs.wikipediaContent?.includes('[Knowledge Graph]')) {
           const kgInfo = `[Knowledge Graph] Entity Status: ${kgData.knowledgeGraphSignal}
 ${kgData.bestMatch.name ? `Name: ${kgData.bestMatch.name}` : ''}
 ${kgData.bestMatch.type?.length ? `Type: ${kgData.bestMatch.type.join(', ')}` : ''}
 ${kgData.bestMatch.description ? `Description: ${kgData.bestMatch.description}` : ''}
 ${kgData.bestMatch.url ? `Wikipedia: ${kgData.bestMatch.url}` : ''}`;
           
-          // Append to Wikipedia field if not already there
-          if (!inputs.wikipediaContent?.includes('[Knowledge Graph]')) {
-            const existingWiki = inputs.wikipediaContent || wikiInfo || '';
-            updateInput('wikipediaContent', `${kgInfo}\n\n${existingWiki}`);
-          }
+          const existingWiki = inputs.wikipediaContent || '';
+          updateInput('wikipediaContent', `${kgInfo}\n\n${existingWiki}`);
         }
       } catch (apiErr) {
         console.log('Google API enhancement failed (non-critical):', apiErr.message);
-        // Non-critical - the Claude search results are still available
       }
 
     } catch (err) {
-      setError('Auto-check failed: ' + err.message);
+      setError('Health check failed: ' + err.message);
     } finally {
       setIsAutoChecking(false);
     }
@@ -2321,8 +2329,8 @@ ${inputs.nextdoorContent || '[Not reviewed - Nextdoor presence impacts audience 
 === WIPO TRADEMARK STATUS ===
 ${inputs.wipoContent || '[Not checked - Trademark registration impacts brand professionalism and Intentional score]'}
 
-=== INFLUENCER & CREATOR PARTNERSHIPS ===
-${inputs.influencerContent || '[Not assessed - Check for #ad #sponsored content, brand ambassadors, creator collaborations]'}
+=== HASHTAG STRATEGY & EFFECTIVENESS ===
+${inputs.hashtagContent || '[Not assessed - Check branded hashtag usage across platforms]'}
 
 === PAID MEDIA PRESENCE ===
 ${inputs.paidMediaContent || '[Not checked - Review Meta Ad Library, Google Ads Transparency, LinkedIn Ad Library for active campaigns]'}
@@ -2347,19 +2355,19 @@ Based on the content provided above, deliver a comprehensive social media and re
 
 7. Wikipedia Presence: Does the brand have a Wikipedia page? How does this impact their credibility and AI search visibility?
 
-7. Glassdoor & Employer Reputation: Analyze employee reviews, ratings, and sentiment. How self-aware is the brand about its culture and reputation?
+8. Glassdoor & Employer Reputation: Analyze employee reviews, ratings, and sentiment. How self-aware is the brand about its culture and reputation?
 
-8. Community Presence (Nextdoor): For B2C brands, how does the local community perceive them? What do recommendations and discussions reveal?
+9. Community Presence (Nextdoor): For B2C brands, how does the local community perceive them? What do recommendations and discussions reveal?
 
-9. Trademark Protection (WIPO): Is the brand name properly protected? Are there any conflicts or risks?
+10. Trademark Protection (WIPO): Is the brand name properly protected? Are there any conflicts or risks?
 
-10. Influencer & Creator Strategy: Analyze any influencer, creator, or ambassador partnerships. Are partnerships strategic and aligned with brand positioning? Is there evidence of thought leader collaborations vs. purely lifestyle influencers? How does this impact credibility (AWAKE, AWARE, SENTIENT)?
+11. Hashtag Strategy: Evaluate branded hashtag usage and effectiveness across platforms. Is there a clear hashtag strategy? Are customers adopting branded hashtags? How does this impact discoverability?
 
-11. Paid Media Presence: Based on ad library findings, assess paid media investment signals. What creative themes dominate? Is messaging consistent with organic content? Does ad volume suggest serious market investment (COGENT, INTENTIONAL)? Is creative distinctive or generic (SENTIENT)?
+12. Paid Media Presence: Based on ad library findings, assess paid media investment signals. What creative themes dominate? Is messaging consistent with organic content? Does ad volume suggest serious market investment (COGENT, INTENTIONAL)? Is creative distinctive or generic (SENTIENT)?
 
-12. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
+13. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
 
-13. AI/Search Visibility: How does their social presence impact discoverability in AI search engines?
+14. AI/Search Visibility: How does their social presence impact discoverability in AI search engines?
 
 Write in flowing prose with specific observations from the content provided. End with key strengths and priority improvements.`;
 
@@ -2377,7 +2385,7 @@ Write in flowing prose with specific observations from the content provided. End
   const hasMinimumContent = inputs.linkedinAbout || inputs.linkedinPosts || inputs.xContent || inputs.youtubeContent || inputs.instagramContent;
 
   // Accordion state
-  const [expanded, setExpanded] = useState({ linkedin: true, x: false, instagram: false, other: false, influencer: false, paidMedia: false, reputation: false });
+  const [expanded, setExpanded] = useState({ linkedin: true, x: false, instagram: false, other: false, hashtag: false, paidMedia: false, reputation: false });
   const toggleSection = (section) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
   // Status badges for auto-check (5 platforms - WIPO is manual only)
@@ -2392,6 +2400,8 @@ Write in flowing prose with specific observations from the content provided. End
 
   // Completion tracking
   const completionItems = [
+    { label: 'Screenshots', done: images.length > 0 },
+    { label: 'Health Check', done: !!socialHealthCheck },
     { label: 'LinkedIn', done: !!(inputs.linkedinAbout || inputs.linkedinPosts) },
     { label: 'X/Twitter', done: !!inputs.xContent },
     { label: 'Wikipedia', done: !!inputs.wikipediaContent },
@@ -2400,11 +2410,15 @@ Write in flowing prose with specific observations from the content provided. End
     { label: 'Analysis', done: isComplete },
   ];
 
-  // Required checks before proceeding - ALL items mandatory
-  const canProceed = isComplete && !!inputs.redditAnswersContent && !!inputs.wikipediaContent && !!inputs.wipoContent && !!(inputs.linkedinAbout || inputs.linkedinPosts) && !!inputs.xContent;
+  // Required checks before proceeding - ALL items mandatory including screenshots
+  const canProceed = isComplete && !!inputs.redditAnswersContent && !!inputs.wikipediaContent && !!inputs.wipoContent && !!(inputs.linkedinAbout || inputs.linkedinPosts) && !!inputs.xContent && images.length > 0;
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
+    if (images.length === 0) {
+      setProceedError('Please upload at least one screenshot of social media profiles before proceeding.');
+      return;
+    }
     if (!(inputs.linkedinAbout || inputs.linkedinPosts)) {
       setProceedError('Please add LinkedIn information before proceeding.');
       return;
@@ -2463,34 +2477,44 @@ Write in flowing prose with specific observations from the content provided. End
 
       <CompletionIndicator items={completionItems} />
 
-      {/* Auto-Check Section */}
-      <div className="card p-4 mb-4">
-        <div className="flex items-center justify-between">
+      {/* Social Media Health Check Section */}
+      <div className="card p-4 mb-4 border-l-4 border-[#8B5CF6]">
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A]">Quick Auto-Search</h3>
-            <p className="text-xs text-[#666666]">Evidence-based check: YouTube, Wikipedia, Reddit, Glassdoor, Nextdoor</p>
+            <h3 className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
+              Social Media Health Check
+            </h3>
+            <p className="text-xs text-[#666666]">AI-powered analysis: presence, engagement, reputation, sentiment, trust signals</p>
           </div>
-          <div className="flex items-center gap-3">
-            {autoCheckCount > 0 && (
-              <span className="text-xs text-[#059669] font-medium">{autoCheckCount}/5 searched</span>
-            )}
-            <button 
-              onClick={runAutoCheck} 
-              disabled={isAutoChecking}
-              className="btn-primary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Searching...</> : <><Sparkles className="w-4 h-4" /> Auto-Search</>}
-            </button>
-          </div>
+          <button 
+            onClick={runAutoCheck} 
+            disabled={isAutoChecking}
+            className="btn-primary text-sm py-2 px-4 flex items-center gap-2"
+          >
+            {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Bot className="w-4 h-4" /> Run Health Check</>}
+          </button>
         </div>
+        
+        {socialHealthCheck && (
+          <div className="mt-3 border-t border-[#E8E6E1] pt-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Check className="w-4 h-4 text-[#059669]" />
+              <span className="text-sm font-medium text-[#1A1A1A]">Health Check Complete</span>
+            </div>
+            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-80 overflow-y-auto">
+              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{socialHealthCheck}</pre>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Screenshots - Matching Website Style */}
       <div className="card p-5 mb-4">
         <h3 className="text-sm font-medium text-[#1A1A1A] mb-2 flex items-center gap-2">
-          <Image className="w-5 h-5" /> Social Media Screenshots (up to 4)
+          <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) <span className="text-red-500">*</span>
         </h3>
-        <p className="text-sm text-[#666666] mb-4">Upload screenshots of key social profiles for visual analysis.</p>
+        <p className="text-sm text-[#666666] mb-4">Upload screenshots of key social profiles for visual analysis. Required to proceed.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
         
@@ -2546,6 +2570,11 @@ Write in flowing prose with specific observations from the content provided. End
                   <ExternalLink className="w-3 h-3" /> Open
                 </a>
               )}
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[#666666] mb-1 block">Follower Count</label>
+              <input type="text" value={inputs.linkedinFollowers} onChange={(e) => updateInput('linkedinFollowers', e.target.value)}
+                placeholder="e.g., 15,432 followers" className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
             </div>
             <div>
               <label className="text-xs font-medium text-[#666666] mb-1 block">Company Profile & About Section</label>
@@ -2757,52 +2786,48 @@ Write in flowing prose with specific observations from the content provided. End
         )}
       </div>
 
-      {/* Influencer & Creator Partnerships */}
+      {/* Hashtag Effectiveness Check */}
       <div className="mb-3">
         <AccordionHeader 
-          title="Influencer & Creator Partnerships" 
-          icon={Users} 
-          isOpen={expanded.influencer} 
-          onClick={() => toggleSection('influencer')}
-          hasContent={!!inputs.influencerContent}
+          title="Hashtag Effectiveness" 
+          icon={Hash} 
+          isOpen={expanded.hashtag} 
+          onClick={() => toggleSection('hashtag')}
+          hasContent={!!inputs.hashtagContent}
         />
-        {expanded.influencer && (
+        {expanded.hashtag && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
             <p className="text-xs text-[#666666] mb-2">
-              {project.businessModel === 'b2b' 
-                ? 'For B2B, focus on INDUSTRY EXPERT partnerships, analyst relationships, and thought leader collaborations. Consumer influencers are less relevant.'
-                : project.businessModel === 'b2c'
-                ? 'Check social feeds for #ad #sponsored #partner tags, brand ambassador pages, creator mentions, and UGC campaigns.'
-                : 'Document both industry expert partnerships (B2B) and consumer creator collaborations (B2C).'}
+              Check how effectively the brand uses hashtags across platforms to increase discoverability and engagement.
             </p>
             <div className="grid grid-cols-2 gap-2 mb-3">
               <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
                  className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
-                <span>IG Hashtag</span> <ExternalLink className="w-3 h-3" />
+                <span>Instagram #</span> <ExternalLink className="w-3 h-3" />
               </a>
-              <a href={`https://www.tiktok.com/search?q=${encodeURIComponent(project.brandName + ' sponsored')}`} target="_blank" rel="noopener noreferrer" 
-                 className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : 'bg-black hover:bg-gray-800'}`}>
-                <span>TikTok{project.businessModel === 'b2b' ? ' (optional)' : ''}</span> <ExternalLink className="w-3 h-3" />
+              <a href={`https://www.tiktok.com/tag/${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
+                 className="px-2 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-1">
+                <span>TikTok #</span> <ExternalLink className="w-3 h-3" />
+              </a>
+              <a href={`https://www.linkedin.com/search/results/content/?keywords=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
+                 className="px-2 py-1.5 bg-[#0A66C2] text-white text-xs font-medium rounded-lg hover:bg-[#004182] transition-colors flex items-center justify-center gap-1">
+                <span>LinkedIn #</span> <ExternalLink className="w-3 h-3" />
+              </a>
+              <a href={`https://twitter.com/search?q=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}&src=typed_query`} target="_blank" rel="noopener noreferrer" 
+                 className="px-2 py-1.5 bg-[#1A1A1A] text-white text-xs font-medium rounded-lg hover:bg-[#333] transition-colors flex items-center justify-center gap-1">
+                <span>X/Twitter #</span> <ExternalLink className="w-3 h-3" />
               </a>
             </div>
-            <textarea value={inputs.influencerContent} onChange={(e) => updateInput('influencerContent', e.target.value)}
-              placeholder={project.businessModel === 'b2b' 
-                ? `Document influencer/thought leader partnerships observed:
+            <textarea value={inputs.hashtagContent} onChange={(e) => updateInput('hashtagContent', e.target.value)}
+              placeholder={`Document hashtag usage and effectiveness:
 
-• Industry analysts: Relationships with Gartner, Forrester, IDC, etc.?
-• Thought leaders: Co-authored content, podcast appearances together?
-• Conference speakers: Sponsored speakers or joint presentations?
-• LinkedIn influencers: Industry voices promoting the brand?
-• Employee thought leadership: Executives with strong personal brands?
-• N/A if no industry partnerships observed...`
-                : `Document influencer/creator partnerships observed:
-
-• Brand ambassadors: Who? What platforms? How prominent?
-• Sponsored content: #ad or #partner posts found? Quality?
-• Creator collaborations: YouTube sponsorships, podcast integrations?
-• User-generated content: Are creators organically mentioning the brand?
-• Partnership strategy: Lifestyle influencers or niche creators?
-• N/A if no influencer activity observed...`} 
+• Branded hashtag: Do they have one? (#${project.brandName?.replace(/\s+/g, '') || 'BrandName'})
+• Usage volume: How many posts use their branded hashtag on each platform?
+• Campaign hashtags: Any specific campaign or product hashtags?
+• Industry hashtags: Are they using relevant industry hashtags effectively?
+• User adoption: Are customers/followers using the branded hashtag?
+• Consistency: Same hashtag strategy across all platforms?
+• N/A if no hashtag strategy observed...`} 
               className="w-full h-32 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         )}
@@ -3266,51 +3291,10 @@ Write in flowing prose.`;
 function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAutoAssessing, setIsAutoAssessing] = useState(false);
-  const [isSearchingNews, setIsSearchingNews] = useState(false);
   const [error, setError] = useState(null);
   const [coveragePaste, setCoveragePaste] = useState(assessmentData.coveragePaste || '');
-  const [newsResults, setNewsResults] = useState(assessmentData.newsResults || null);
 
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
-
-  // Search for recent news using Google Custom Search API
-  const searchNews = async () => {
-    setIsSearchingNews(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/search?query=${encodeURIComponent(project.brandName)}&type=news`);
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      setNewsResults(data);
-      setAssessmentData({ ...assessmentData, newsResults: data });
-      
-      // Format news results for the coverage paste field
-      if (data.results && data.results.length > 0) {
-        const newsText = data.results.map((r, i) => 
-          `${i + 1}. ${r.title}\n   Source: ${r.source}\n   ${r.snippet}\n   URL: ${r.link}`
-        ).join('\n\n');
-        
-        const formattedNews = `[Auto-searched ${new Date().toLocaleDateString()}] Recent news coverage for ${project.brandName}:\n\n${newsText}`;
-        
-        if (!coveragePaste) {
-          setCoveragePaste(formattedNews);
-          setAssessmentData({ ...assessmentData, coveragePaste: formattedNews, newsResults: data });
-        } else if (!coveragePaste.includes('[Auto-searched')) {
-          const combined = `${formattedNews}\n\n---\n\n${coveragePaste}`;
-          setCoveragePaste(combined);
-          setAssessmentData({ ...assessmentData, coveragePaste: combined, newsResults: data });
-        }
-      }
-    } catch (err) {
-      setError('News search failed: ' + err.message);
-    } finally {
-      setIsSearchingNews(false);
-    }
-  };
 
   // Auto-assess earned media performance
   const runAutoAssess = async () => {
@@ -3463,24 +3447,10 @@ Write in flowing prose with specific examples. End with priority recommendations
 
       {/* Coverage Paste Field */}
       <div className="card p-5 mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-[#1A1A1A]">Media Coverage (Last 3 Months)</h3>
-          <button 
-            onClick={searchNews} 
-            disabled={isSearchingNews}
-            className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
-          >
-            {isSearchingNews ? <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</> : <><Search className="w-3 h-3" /> Search News</>}
-          </button>
-        </div>
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Media Coverage (Last 3 Months)</h3>
         <p className="text-sm text-[#666666] mb-4">
-          Click "Search News" to auto-find recent coverage, or paste press coverage, news articles, and media clips manually.
+          Paste any press coverage, news articles, mentions, or media clips from the last 3 months.
         </p>
-        {newsResults && newsResults.results?.length > 0 && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
-            <p className="text-xs text-green-700">✓ Found {newsResults.results.length} recent news articles</p>
-          </div>
-        )}
         <textarea 
           value={coveragePaste} 
           onChange={(e) => setCoveragePaste(e.target.value)}
@@ -3673,7 +3643,7 @@ ${assessments.social.content}
 ${assessments.social.observations ? `Assessor Notes: ${assessments.social.observations}` : ''}
 Employee Advocacy: ${assessments.social.employeeAdvocacy || 'Not assessed'}
 Awards & Recognition: ${assessments.social.awardsRecognition || 'Not noted'}
-Influencer Partnerships: ${assessments.social.influencerContent || 'Not assessed'}
+Hashtag Strategy: ${assessments.social.hashtagContent || 'Not assessed'}
 Paid Media Presence: ${assessments.social.paidMediaContent || 'Not checked'}
 Glassdoor: ${assessments.social.glassdoorContent || 'Not reviewed'}
 Nextdoor: ${assessments.social.nextdoorContent || 'Not reviewed'}
@@ -7278,7 +7248,7 @@ function AppContent() {
   });
   const [assessments, setAssessments] = useState({
     website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-    social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', employeeAdvocacy: '', awardsRecognition: '', influencerContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+    social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
     aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
     earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
   });
@@ -7421,7 +7391,7 @@ function AppContent() {
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-        social: { status: 'pending', content: '', observations: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', employeeAdvocacy: '', awardsRecognition: '', influencerContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+        social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditContent: '', redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', nextdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
         aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
         earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
       });
