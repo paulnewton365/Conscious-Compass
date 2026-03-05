@@ -5565,7 +5565,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
             <span className="text-sm text-[#666666]">{results.length} assessments</span>
           </div>
           <div className="flex items-center gap-3">
-            {profile?.role === 'admin' && (
+            {profile?.is_admin && (
               <button onClick={() => setShowAddModal(true)} className="btn-secondary flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Add Manual Entry
               </button>
@@ -5652,8 +5652,8 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
           <div className="card p-12 text-center">
             <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Results Yet</h3>
-            <p className="text-[#666666] mb-4">Complete and save assessments to see them here{profile?.role === 'admin' ? ', or add manual entries' : ''}.</p>
-            {profile?.role === 'admin' && (
+            <p className="text-[#666666] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
+            {profile?.is_admin && (
               <button onClick={() => setShowAddModal(true)} className="btn-primary">
                 Add Manual Entry
               </button>
