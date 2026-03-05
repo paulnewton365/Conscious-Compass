@@ -1,5 +1,7 @@
 // Brand Consciousness Assessment Framework v2.8
 
+export const FRAMEWORK_VERSION = '2.8';
+
 export const MATURITY_STAGES = [
   { id: 'pre-foundational', name: 'Pre-Foundational', min: 0, max: 25, color: '#94A3B8', description: 'Requires fundamental development across most attributes. Significant gaps exist in basic brand presence and identity. The brand is largely invisible or incoherent to its audiences.' },
   { id: 'foundational', name: 'Foundational', min: 26, max: 39, color: '#F59E0B', description: 'Building basic presence with significant gaps. Some brand elements are in place, but execution is inconsistent and many fundamentals are missing.' },
