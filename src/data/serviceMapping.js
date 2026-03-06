@@ -899,8 +899,12 @@ export function getRecommendationsForAttribute(attributeId, score) {
 /**
  * Get all recommendations across all attributes, deduplicated
  * Ensures diversity: max 4 services from any single attribute in the top 6
+ * @param {Object} scores - The scores object with attribute scores
+ * @param {Object} options - Optional configuration
+ * @param {Array} options.forceIncludeServices - Service keys to force into top 6 (e.g., for GEO when AI issues detected)
  */
-export function getAllRecommendations(scores) {
+export function getAllRecommendations(scores, options = {}) {
+  const { forceIncludeServices = [] } = options;
   const allRecs = [];
   const seenServices = new Set();
 
@@ -923,13 +927,47 @@ export function getAllRecommendations(scores) {
     }
   }
 
+  // Find force-include services that aren't already in recommendations
+  // Add them from COGENT attribute mapping if they exist
+  for (const serviceKey of forceIncludeServices) {
+    if (!seenServices.has(serviceKey)) {
+      const service = SERVICES[serviceKey];
+      if (service) {
+        // Find which attribute this service is mapped to (prefer COGENT for GEO)
+        const cogentScore = scores.COGENT?.score || 50;
+        allRecs.unshift({
+          serviceKey,
+          service,
+          priority: 1,
+          reason: 'AI reputation assessment identified issues requiring this service',
+          when: 'AI reputation shows gaps or inaccuracies',
+          attributeId: 'COGENT',
+          attributeScore: cogentScore,
+          priorityLevel: 'critical',
+          forceIncluded: true,
+        });
+        seenServices.add(serviceKey);
+      }
+    }
+  }
+
   // Ensure diversity in top 6: max 4 from any single attribute
   const diverseTop6 = [];
   const attrCounts = {};
   const MAX_PER_ATTR = 4;
   
+  // First, add any force-included services
+  for (const rec of allRecs) {
+    if (rec.forceIncluded && diverseTop6.length < 6) {
+      diverseTop6.push(rec);
+      attrCounts[rec.attributeId] = (attrCounts[rec.attributeId] || 0) + 1;
+    }
+  }
+  
+  // Then fill remaining slots with diversity constraint
   for (const rec of allRecs) {
     if (diverseTop6.length >= 6) break;
+    if (rec.forceIncluded) continue; // Already added
     
     const count = attrCounts[rec.attributeId] || 0;
     if (count < MAX_PER_ATTR) {
@@ -951,6 +989,48 @@ export function getAllRecommendations(scores) {
   // Return diversified top 6 plus remaining recs
   const remaining = allRecs.filter(r => !diverseTop6.includes(r));
   return [...diverseTop6, ...remaining];
+}
+
+/**
+ * Analyze AI reputation synthesis text to determine if GEO should be force-included
+ * Returns array of service keys to force-include
+ */
+export function getForceIncludeServicesFromAIReputation(aiReputationSynthesis) {
+  if (!aiReputationSynthesis) return [];
+  
+  const forceInclude = [];
+  const text = aiReputationSynthesis.toLowerCase();
+  
+  // Keywords that indicate GEO should be recommended
+  const geoTriggerKeywords = [
+    'wikipedia absence',
+    'wikipedia gap',
+    'no wikipedia',
+    'lacks wikipedia',
+    'missing wikipedia',
+    'reddit',
+    'name confusion',
+    'disambiguation',
+    'ai discoverability',
+    'digital presence gap',
+    'digital presence weak',
+    'knowledge panel',
+    'ai systems cannot',
+    'ai systems struggle',
+    'misrepresented',
+    'inaccurately described',
+    'ai representation',
+    'search result prominence',
+    'ai training data',
+  ];
+  
+  const hasGeoTrigger = geoTriggerKeywords.some(keyword => text.includes(keyword));
+  
+  if (hasGeoTrigger) {
+    forceInclude.push('geoStrategy');
+  }
+  
+  return forceInclude;
 }
 
 /**
