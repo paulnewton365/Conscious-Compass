@@ -8,9 +8,13 @@ CREATE TABLE profiles (
   full_name TEXT,
   is_admin BOOLEAN DEFAULT FALSE,
   is_approved BOOLEAN DEFAULT FALSE,
+  is_readonly BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- MIGRATION: If profiles table already exists, add is_readonly column:
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_readonly BOOLEAN DEFAULT FALSE;
 
 -- 2. Create compass_results table (Results Grid)
 CREATE TABLE compass_results (

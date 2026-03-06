@@ -22,7 +22,8 @@ import {
   approveUser,
   revokeUser,
   makeAdmin,
-  removeAdmin
+  removeAdmin,
+  setReadonly
 } from './lib/supabase';
 
 // Use 'PROXY' to route through serverless function (secure, API key on server)
@@ -241,6 +242,15 @@ function AdminPage({ currentUser, onBack }) {
     loadUsers();
   };
 
+  const handleToggleReadonly = async (userId, isCurrentlyReadonly) => {
+    if (userId === currentUser.id) {
+      alert("You can't change your own access level");
+      return;
+    }
+    await setReadonly(userId, !isCurrentlyReadonly);
+    loadUsers();
+  };
+
   return (
     <div className="min-h-screen bg-[#F5F4F0]">
       <div className="max-w-4xl mx-auto p-4 md:p-8">
@@ -276,12 +286,24 @@ function AdminPage({ currentUser, onBack }) {
                         <div className="text-sm text-[#666666]">{user.email}</div>
                         <div className="text-xs text-[#9CA3AF]">Signed up {new Date(user.created_at).toLocaleDateString()}</div>
                       </div>
-                      <button 
-                        onClick={() => handleApprove(user.id)}
-                        className="btn-primary text-sm px-4 py-2"
-                      >
-                        Approve
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={async () => {
+                            await approveUser(user.id);
+                            await setReadonly(user.id, true);
+                            loadUsers();
+                          }}
+                          className="btn-secondary text-sm px-4 py-2"
+                        >
+                          Approve (Read-only)
+                        </button>
+                        <button 
+                          onClick={() => handleApprove(user.id)}
+                          className="btn-primary text-sm px-4 py-2"
+                        >
+                          Approve (Full)
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -298,7 +320,7 @@ function AdminPage({ currentUser, onBack }) {
                 {users.filter(u => u.is_approved).map(user => (
                   <div key={user.id} className="flex items-center justify-between p-4 bg-white border border-[#D9D6D0] rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${user.is_admin ? 'bg-[#E53935]' : 'bg-[#666666]'}`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${user.is_admin ? 'bg-[#E53935]' : user.is_readonly ? 'bg-[#9CA3AF]' : 'bg-[#059669]'}`}>
                         {(user.full_name || user.email || '?')[0].toUpperCase()}
                       </div>
                       <div>
@@ -306,6 +328,12 @@ function AdminPage({ currentUser, onBack }) {
                           {user.full_name || 'No name'}
                           {user.is_admin && (
                             <span className="text-xs px-2 py-0.5 bg-[#E53935] text-white rounded-full">Admin</span>
+                          )}
+                          {user.is_readonly && !user.is_admin && (
+                            <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only</span>
+                          )}
+                          {!user.is_admin && !user.is_readonly && (
+                            <span className="text-xs px-2 py-0.5 bg-[#059669] text-white rounded-full">Full Access</span>
                           )}
                           {user.id === currentUser.id && (
                             <span className="text-xs text-[#666666]">(you)</span>
@@ -315,6 +343,20 @@ function AdminPage({ currentUser, onBack }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {!user.is_admin && (
+                        <button 
+                          onClick={() => handleToggleReadonly(user.id, user.is_readonly)}
+                          className={`text-sm px-3 py-1.5 rounded border transition-colors ${
+                            user.is_readonly 
+                              ? 'border-[#059669] text-[#059669] hover:bg-[#059669]/10' 
+                              : 'border-[#9CA3AF] text-[#9CA3AF] hover:bg-[#9CA3AF]/10'
+                          }`}
+                          disabled={user.id === currentUser.id}
+                          title={user.is_readonly ? 'Grant full access' : 'Set to read-only'}
+                        >
+                          {user.is_readonly ? 'Grant Full Access' : 'Set Read-only'}
+                        </button>
+                      )}
                       <button 
                         onClick={() => handleToggleAdmin(user.id, user.is_admin)}
                         className={`text-sm px-3 py-1.5 rounded border transition-colors ${
@@ -828,6 +870,7 @@ function MaturityContinuum({ score }) {
 // Header
 function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, lastAutoSave, user, profile, onLogout, onAdmin }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isReadonly = profile?.is_readonly && !profile?.is_admin;
   
   return (
     <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-4 md:py-5 px-4 md:px-6">
@@ -854,9 +897,11 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
           <button onClick={onSavedAssessments} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
             <FileText className="w-4 h-4" /> Saved
           </button>
-          <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#1A1A1A] text-white hover:bg-[#333333] px-4 py-2 rounded-lg transition-colors">
-            <Plus className="w-4 h-4" /> New
-          </button>
+          {!isReadonly && (
+            <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#1A1A1A] text-white hover:bg-[#333333] px-4 py-2 rounded-lg transition-colors">
+              <Plus className="w-4 h-4" /> New
+            </button>
+          )}
           
           {/* User Menu */}
           <div className="ml-2 pl-3 border-l border-[#D9D6D0] flex items-center gap-3">
@@ -864,6 +909,9 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
               <button onClick={onAdmin} className="flex items-center gap-1.5 text-sm text-[#E53935] hover:text-[#C62828] transition-colors font-medium">
                 <Shield className="w-4 h-4" /> Admin
               </button>
+            )}
+            {isReadonly && (
+              <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only</span>
             )}
             <span className="text-xs text-[#666666] max-w-[120px] truncate" title={user?.email}>
               {profile?.full_name || user?.email?.split('@')[0]}
@@ -891,6 +939,11 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
               Auto-saved {lastAutoSave.toLocaleTimeString()}
             </div>
           )}
+          {isReadonly && (
+            <div className="px-4 py-2">
+              <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only Access</span>
+            </div>
+          )}
           <button onClick={() => { onComparison(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#333333] hover:bg-[#F0EEEA] rounded-lg transition-colors">
             <Users className="w-5 h-5" /> Compare Brands
           </button>
@@ -900,9 +953,11 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
           <button onClick={() => { onSavedAssessments(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#333333] hover:bg-[#F0EEEA] rounded-lg transition-colors">
             <FileText className="w-5 h-5" /> Saved Assessments
           </button>
-          <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#1A1A1A] text-white rounded-lg transition-colors">
-            <Plus className="w-5 h-5" /> New Assessment
-          </button>
+          {!isReadonly && (
+            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#1A1A1A] text-white rounded-lg transition-colors">
+              <Plus className="w-5 h-5" /> New Assessment
+            </button>
+          )}
           
           {/* Mobile User Controls */}
           <div className="pt-2 mt-2 border-t border-[#D9D6D0]">
@@ -1052,7 +1107,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.65
+        Version 2.12.66
       </div>
     </div>
   );
@@ -3533,7 +3588,7 @@ Example:
   );
 }
 // Report Page
-function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onPrev }) {
+function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onPrev, profile }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isScoring, setIsScoring] = useState(false);
@@ -3555,6 +3610,8 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
   });
   const [animatedScore, setAnimatedScore] = useState(0);
   const chartRef = useRef(null);
+  
+  const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -3963,13 +4020,19 @@ Return the JSON scores in this exact format:
               <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Assessment Complete</h3>
               <p className="text-[#666666] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
               
-              <button 
-                onClick={runScoring} 
-                disabled={isScoring}
-                className="btn-primary flex items-center gap-2 mx-auto text-lg px-8 py-3"
-              >
-                <Play className="w-5 h-5" /> Generate Brand Report
-              </button>
+              {isReadonly ? (
+                <div className="bg-[#F0EEEA] rounded-lg p-4 text-[#666666] text-sm">
+                  <strong>Read-only Access:</strong> You can view existing assessments but cannot generate new reports. Contact an admin to upgrade your access.
+                </div>
+              ) : (
+                <button 
+                  onClick={runScoring} 
+                  disabled={isScoring}
+                  className="btn-primary flex items-center gap-2 mx-auto text-lg px-8 py-3"
+                >
+                  <Play className="w-5 h-5" /> Generate Brand Report
+                </button>
+              )}
             </>
           )}
           
@@ -4936,18 +4999,22 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
           <h2 className="text-3xl font-bold text-[#1A1A1A]">{project.brandName}</h2>
           <p className="text-[#666666]">Conscious Compass Assessment Report | {industryName}</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={copyReportText} className="btn-secondary flex items-center gap-2"><Copy className="w-4 h-4" /> Copy Report</button>
-          <button onClick={onSave} className="btn-secondary flex items-center gap-2"><Save className="w-4 h-4" /> Save</button>
-          {/* PDF export temporarily disabled - redesign in progress
-          <button onClick={generatePdf} disabled={isGeneratingPdf} className="btn-primary flex items-center gap-2">
-            {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF
-          </button>
-          */}
-          <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-2">
-            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} DOCX
-          </button>
-        </div>
+        {!isReadonly ? (
+          <div className="flex gap-3">
+            <button onClick={copyReportText} className="btn-secondary flex items-center gap-2"><Copy className="w-4 h-4" /> Copy Report</button>
+            <button onClick={onSave} className="btn-secondary flex items-center gap-2"><Save className="w-4 h-4" /> Save</button>
+            {/* PDF export temporarily disabled - redesign in progress
+            <button onClick={generatePdf} disabled={isGeneratingPdf} className="btn-primary flex items-center gap-2">
+              {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF
+            </button>
+            */}
+            <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-2">
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} DOCX
+            </button>
+          </div>
+        ) : (
+          <span className="text-sm text-[#9CA3AF] bg-[#F0EEEA] px-3 py-1 rounded-full">Read-only Access</span>
+        )}
       </div>
 
       {/* Hero Section - Score & Chart Side by Side */}
@@ -7086,8 +7153,9 @@ function AssessmentStatusIndicator({ assessments }) {
 
 // Saved Assessments Modal
 // Saved Assessments Page
-function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore }) {
+function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore, profile }) {
   const fileInputRef = useRef(null);
+  const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
   const handleFileImport = (e) => {
     const file = e.target.files?.[0];
@@ -7118,10 +7186,14 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           <p className="text-[#666666]">Your assessments are stored securely in the cloud</p>
         </div>
         <div className="flex gap-2">
-          <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="btn-secondary flex items-center gap-2">
-            <Upload className="w-4 h-4" /> Import
-          </button>
+          {!isReadonly && (
+            <>
+              <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
+              <button onClick={() => fileInputRef.current?.click()} className="btn-secondary flex items-center gap-2">
+                <Upload className="w-4 h-4" /> Import
+              </button>
+            </>
+          )}
           <button onClick={onBack} className="btn-secondary flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
@@ -7131,7 +7203,10 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       {/* Info Card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <p className="text-sm text-blue-800">
-          <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup file.
+          {isReadonly 
+            ? <><strong>Read-only Access:</strong> You can view and share assessments. Contact an admin to upgrade your access for full editing capabilities.</>
+            : <><strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup file.</>
+          }
         </p>
       </div>
 
@@ -7185,11 +7260,15 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                     <button onClick={() => onExport(a)} className="text-[#666666] hover:text-[#1A1A1A] hover:bg-gray-100 p-2 rounded-lg transition-colors" title="Export JSON">
                       <Download className="w-4 h-4" />
                     </button>
-                    <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-4" title="Regenerate scores using current rubric">Rescore</button>
-                    <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-4">Load</button>
-                    <button onClick={() => onDelete(i)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!isReadonly && (
+                      <>
+                        <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-4" title="Regenerate scores using current rubric">Rescore</button>
+                        <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-4">Load</button>
+                        <button onClick={() => onDelete(i)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -7917,6 +7996,7 @@ function AppContent() {
           onExport={handleExport}
           onShare={handleShare}
           onRescore={handleRescore}
+          profile={profile}
         />
       </div>
     );
@@ -7948,7 +8028,7 @@ function AppContent() {
       {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
       {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
       {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
-      {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} />}
+      {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} />}
     </div>
   );
 }

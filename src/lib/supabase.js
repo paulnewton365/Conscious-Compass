@@ -172,3 +172,7 @@ export const makeAdmin = async (userId) => {
 export const removeAdmin = async (userId) => {
   return updateProfile(userId, { is_admin: false });
 };
+
+export const setReadonly = async (userId, isReadonly) => {
+  return updateProfile(userId, { is_readonly: isReadonly });
+};
