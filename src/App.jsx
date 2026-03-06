@@ -1052,7 +1052,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.63
+        Version 2.12.64
       </div>
     </div>
   );
@@ -7272,7 +7272,12 @@ function SharedReportView({ report, onClose }) {
             <span className="text-5xl font-bold">{overall}</span>
           </div>
           <h2 className="text-2xl font-bold text-[#1A1A1A] mb-2">{stage.name}</h2>
-          <p className="text-[#333333]">{stage.description}</p>
+          <p className="text-[#333333] mb-4">{stage.description}</p>
+          {scores.headline && (
+            <p className="text-lg italic text-[#1A1A1A] border-t border-[#E8E6E1] pt-4 mt-4">
+              "{scores.headline}"
+            </p>
+          )}
         </div>
 
         {/* Spider Chart */}
@@ -7361,12 +7366,93 @@ function SharedReportView({ report, onClose }) {
           ))}
         </div>
 
+        {/* Antenna Group Services */}
+        {(() => {
+          const serviceRecs = getAllRecommendations(scores);
+          const topServices = serviceRecs.slice(0, 6);
+          if (topServices.length === 0) return null;
+          
+          return (
+            <>
+              <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">RECOMMENDED ANTENNA GROUP SERVICES</h3>
+              <p className="text-[#666666] mb-4">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
+              <div className="grid md:grid-cols-2 gap-4 mb-8">
+                {topServices.map((rec, i) => {
+                  const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
+                  const attrScore = scores[rec.attributeId]?.score || 0;
+                  const budgetStr = rec.service.budget 
+                    ? `$${(rec.service.budget.low / 1000).toFixed(0)}K - $${(rec.service.budget.high / 1000).toFixed(0)}K`
+                    : 'Contact for pricing';
+                  
+                  return (
+                    <div key={i} className="card p-4 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
+                      <h4 className="font-semibold text-[#1A1A1A] mb-2">{rec.service.name}</h4>
+                      <p className="text-xs text-[#666666] mb-2">{rec.service.category}</p>
+                      <p className="text-sm text-[#333333] mb-2">
+                        Improves <span style={{ color: attr?.color }}>{attr?.name}</span> (currently {attrScore})
+                      </p>
+                      <p className="text-sm font-medium text-[#059669]">{budgetStr}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
+
         {/* Conclusions */}
         <div className="card p-5 mb-4">
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">CONCLUSIONS</h3>
           <p className="text-[#333333] leading-relaxed">
             {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
           </p>
+        </div>
+
+        {/* What We Evaluated */}
+        <div className="card p-5 mb-4">
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">WHAT WE EVALUATED</h3>
+          <p className="text-[#333333] leading-relaxed mb-4">
+            This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model ({project.businessModel?.toUpperCase() || 'B2B'}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
+          </p>
+          {report.assessmentSummary && (
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div className="bg-[#F0EEEA] p-3 rounded-lg">
+                <h4 className="font-semibold text-[#1A1A1A] mb-2">Website Analysis</h4>
+                <p className="text-[#666666]">
+                  {report.assessmentSummary.pagesReviewed || 'Key pages reviewed'}
+                </p>
+              </div>
+              <div className="bg-[#F0EEEA] p-3 rounded-lg">
+                <h4 className="font-semibold text-[#1A1A1A] mb-2">Social Media</h4>
+                <p className="text-[#666666]">
+                  {[
+                    report.assessmentSummary.hasLinkedIn && 'LinkedIn',
+                    report.assessmentSummary.hasX && 'X/Twitter',
+                    report.assessmentSummary.hasInstagram && 'Instagram',
+                    report.assessmentSummary.hasYouTube && 'YouTube',
+                    report.assessmentSummary.hasWikipedia && 'Wikipedia',
+                    report.assessmentSummary.hasRedditAnswers && 'Reddit Answers',
+                  ].filter(Boolean).join(', ') || 'Social platforms reviewed'}
+                </p>
+              </div>
+              <div className="bg-[#F0EEEA] p-3 rounded-lg">
+                <h4 className="font-semibold text-[#1A1A1A] mb-2">AI Reputation</h4>
+                <p className="text-[#666666]">
+                  {[
+                    report.assessmentSummary.hasClaudeAI && 'Claude',
+                    report.assessmentSummary.hasGeminiAI && 'Gemini',
+                    report.assessmentSummary.hasChatGPT && 'ChatGPT',
+                  ].filter(Boolean).join(', ') || 'AI platforms queried'}
+                </p>
+              </div>
+              <div className="bg-[#F0EEEA] p-3 rounded-lg">
+                <h4 className="font-semibold text-[#1A1A1A] mb-2">Earned Media</h4>
+                <p className="text-[#666666]">
+                  {report.assessmentSummary.hasEarnedMedia ? 'Coverage from past 3 months reviewed' : 'Media coverage analyzed'}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Score Justification */}
@@ -7686,9 +7772,24 @@ function AppContent() {
   };
 
   const handleShare = (assessment) => {
+    // Include essential assessment summary data (excluding large images)
     const shareData = {
       project: assessment.project,
       scores: assessment.scores,
+      assessmentSummary: {
+        pagesReviewed: assessment.assessments?.website?.pagesReviewed || '',
+        websiteUrl: assessment.assessments?.website?.websiteUrl || assessment.project?.websiteUrl || '',
+        hasLinkedIn: !!assessment.assessments?.social?.linkedinContent,
+        hasX: !!assessment.assessments?.social?.xContent,
+        hasInstagram: !!assessment.assessments?.social?.instagramBio,
+        hasYouTube: !!assessment.assessments?.social?.youtubeContent,
+        hasWikipedia: !!assessment.assessments?.social?.wikipediaContent,
+        hasRedditAnswers: !!assessment.assessments?.social?.redditAnswersContent,
+        hasClaudeAI: !!assessment.assessments?.aiReputation?.claudeManual,
+        hasGeminiAI: !!assessment.assessments?.aiReputation?.geminiManual,
+        hasChatGPT: !!assessment.assessments?.aiReputation?.chatgptManual,
+        hasEarnedMedia: !!assessment.assessments?.earnedMedia?.earnedMediaAnalysis,
+      },
       sharedAt: new Date().toISOString()
     };
     const encoded = btoa(JSON.stringify(shareData));
@@ -7715,6 +7816,14 @@ function AppContent() {
     );
   }
 
+  // Show shared report if accessed via share link (BEFORE auth check - allows public viewing)
+  if (sharedReport) {
+    return <SharedReportView report={sharedReport} onClose={() => {
+      setSharedReport(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    }} />;
+  }
+
   // Show auth page if not logged in
   if (!user || !profile) {
     return <AuthPage onAuthSuccess={handleAuthSuccess} />;
@@ -7723,14 +7832,6 @@ function AppContent() {
   // Show admin page
   if (showAdminPage) {
     return <AdminPage currentUser={user} onBack={() => setShowAdminPage(false)} />;
-  }
-
-  // Show shared report if accessed via share link
-  if (sharedReport) {
-    return <SharedReportView report={sharedReport} onClose={() => {
-      setSharedReport(null);
-      window.history.replaceState({}, '', window.location.pathname);
-    }} />;
   }
 
   // Show comparison page

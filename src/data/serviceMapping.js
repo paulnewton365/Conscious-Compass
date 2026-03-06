@@ -573,9 +573,9 @@ export const ATTRIBUTE_MAPPINGS = {
     },
     {
       serviceKey: 'geoStrategy',
-      priority: 2,
+      priority: 1,
       reason: 'GEO ensures brand appears accurately in AI search and community platforms like Reddit',
-      when: 'When AI reputation shows gaps or community trust is an issue',
+      when: 'When AI reputation shows gaps, inaccuracies, or community trust is an issue',
     },
     {
       serviceKey: 'marketingStrategy',
@@ -702,9 +702,9 @@ export const ATTRIBUTE_MAPPINGS = {
     },
     {
       serviceKey: 'geoStrategy',
-      priority: 2,
-      reason: 'GEO ensures brand is accurately represented in AI-powered search',
-      when: 'When AI reputation shows brand is misrepresented or unknown',
+      priority: 1,
+      reason: 'GEO ensures brand is accurately represented in AI-powered search and LLM outputs',
+      when: 'When AI reputation shows brand is misrepresented, unknown, or inaccurately described',
     },
     {
       serviceKey: 'marketingStrategy',
@@ -898,6 +898,7 @@ export function getRecommendationsForAttribute(attributeId, score) {
 
 /**
  * Get all recommendations across all attributes, deduplicated
+ * Ensures diversity: max 4 services from any single attribute in the top 6
  */
 export function getAllRecommendations(scores) {
   const allRecs = [];
@@ -922,7 +923,34 @@ export function getAllRecommendations(scores) {
     }
   }
 
-  return allRecs;
+  // Ensure diversity in top 6: max 4 from any single attribute
+  const diverseTop6 = [];
+  const attrCounts = {};
+  const MAX_PER_ATTR = 4;
+  
+  for (const rec of allRecs) {
+    if (diverseTop6.length >= 6) break;
+    
+    const count = attrCounts[rec.attributeId] || 0;
+    if (count < MAX_PER_ATTR) {
+      diverseTop6.push(rec);
+      attrCounts[rec.attributeId] = count + 1;
+    }
+  }
+  
+  // If we couldn't fill 6, add remaining recs that were skipped
+  if (diverseTop6.length < 6) {
+    for (const rec of allRecs) {
+      if (diverseTop6.length >= 6) break;
+      if (!diverseTop6.includes(rec)) {
+        diverseTop6.push(rec);
+      }
+    }
+  }
+  
+  // Return diversified top 6 plus remaining recs
+  const remaining = allRecs.filter(r => !diverseTop6.includes(r));
+  return [...diverseTop6, ...remaining];
 }
 
 /**
