@@ -1107,7 +1107,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.67
+        Version 2.12.69
       </div>
     </div>
   );
@@ -1173,7 +1173,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.67 | Read-only Access
+        Version 2.12.69 | Read-only Access
       </div>
     </div>
   );
@@ -7207,8 +7207,9 @@ function AssessmentStatusIndicator({ assessments }) {
 
 // Saved Assessments Modal
 // Saved Assessments Page
-function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore }) {
+function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore, profile }) {
   const fileInputRef = useRef(null);
+  const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
   const handleFileImport = (e) => {
     const file = e.target.files?.[0];
@@ -7239,10 +7240,14 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           <p className="text-[#666666]">Your assessments are stored securely in the cloud</p>
         </div>
         <div className="flex gap-2">
-          <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="btn-secondary flex items-center gap-2">
-            <Upload className="w-4 h-4" /> Import
-          </button>
+          {!isReadonly && (
+            <>
+              <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
+              <button onClick={() => fileInputRef.current?.click()} className="btn-secondary flex items-center gap-2">
+                <Upload className="w-4 h-4" /> Import
+              </button>
+            </>
+          )}
           <button onClick={onBack} className="btn-secondary flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
@@ -7300,17 +7305,23 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => onShare(a)} className="text-[#666666] hover:text-[#E53935] hover:bg-[#E53935]/10 p-2 rounded-lg transition-colors" title="Share Link">
-                      <Share2 className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => onExport(a)} className="text-[#666666] hover:text-[#1A1A1A] hover:bg-gray-100 p-2 rounded-lg transition-colors" title="Export JSON">
-                      <Download className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-4" title="Regenerate scores using current rubric">Rescore</button>
+                    {!isReadonly && (
+                      <>
+                        <button onClick={() => onShare(a)} className="text-[#666666] hover:text-[#E53935] hover:bg-[#E53935]/10 p-2 rounded-lg transition-colors" title="Share Link">
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => onExport(a)} className="text-[#666666] hover:text-[#1A1A1A] hover:bg-gray-100 p-2 rounded-lg transition-colors" title="Export JSON">
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-4" title="Regenerate scores using current rubric">Rescore</button>
+                      </>
+                    )}
                     <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-4">Load</button>
-                    <button onClick={() => onDelete(i)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!isReadonly && (
+                      <button onClick={() => onDelete(i)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -8038,6 +8049,7 @@ function AppContent() {
           onExport={handleExport}
           onShare={handleShare}
           onRescore={handleRescore}
+          profile={profile}
         />
       </div>
     );
