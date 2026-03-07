@@ -995,11 +995,11 @@ export function getAllRecommendations(scores, options = {}) {
  * Analyze AI reputation synthesis text to determine if GEO should be force-included
  * Returns array of service keys to force-include
  */
-export function getForceIncludeServicesFromAIReputation(aiReputationSynthesis) {
-  if (!aiReputationSynthesis) return [];
-  
+export function getForceIncludeServicesFromAIReputation(aiReputationSynthesis, assessments = null) {
   const forceInclude = [];
-  const text = aiReputationSynthesis.toLowerCase();
+  
+  // Check synthesis text for keywords
+  const synthesisText = (aiReputationSynthesis || '').toLowerCase();
   
   // Keywords that indicate GEO should be recommended
   const geoTriggerKeywords = [
@@ -1024,7 +1024,126 @@ export function getForceIncludeServicesFromAIReputation(aiReputationSynthesis) {
     'ai training data',
   ];
   
-  const hasGeoTrigger = geoTriggerKeywords.some(keyword => text.includes(keyword));
+  let hasGeoTrigger = geoTriggerKeywords.some(keyword => synthesisText.includes(keyword));
+  
+  // If we have full assessments, check additional conditions
+  if (assessments) {
+    // Check AI responses for skepticism/issues
+    const aiSkepticalKeywords = [
+      'skeptic',
+      'skeptical',
+      'caution',
+      'cautious',
+      'uncertain',
+      'unclear',
+      'limited information',
+      'limited data',
+      'not well known',
+      'not widely known',
+      'little information',
+      'lack of information',
+      'cannot find',
+      'could not find',
+      'no information',
+      'unverified',
+      'not verified',
+      'difficult to verify',
+      'hard to verify',
+      'may not be accurate',
+      'cannot confirm',
+      'unable to confirm',
+      'conflicting information',
+      'mixed reviews',
+      'negative reviews',
+      'complaints',
+      'controversy',
+      'controversial',
+      'criticism',
+      'concerns',
+      'issues',
+      'problems',
+      'warning',
+      'scam',
+      'fraud',
+      'misleading',
+      'deceptive',
+      'unreliable',
+      'questionable',
+      'doubt',
+      'not recommend',
+      'do not recommend',
+      'proceed with caution',
+      'be careful',
+      'be wary',
+    ];
+    
+    // Check Claude manual response
+    const claudeResponse = (assessments.aiReputation?.claudeManual || '').toLowerCase();
+    if (claudeResponse && aiSkepticalKeywords.some(k => claudeResponse.includes(k))) {
+      hasGeoTrigger = true;
+    }
+    
+    // Check ChatGPT manual response
+    const chatgptResponse = (assessments.aiReputation?.chatgptManual || '').toLowerCase();
+    if (chatgptResponse && aiSkepticalKeywords.some(k => chatgptResponse.includes(k))) {
+      hasGeoTrigger = true;
+    }
+    
+    // Check Gemini manual response
+    const geminiResponse = (assessments.aiReputation?.geminiManual || '').toLowerCase();
+    if (geminiResponse && aiSkepticalKeywords.some(k => geminiResponse.includes(k))) {
+      hasGeoTrigger = true;
+    }
+    
+    // Check for missing Reddit coverage
+    const redditContent = assessments.social?.redditAnswersContent || '';
+    if (!redditContent || redditContent.trim() === '') {
+      hasGeoTrigger = true;
+    } else {
+      // Check if Reddit content indicates no presence
+      const redditLower = redditContent.toLowerCase();
+      const noRedditKeywords = [
+        'no results',
+        'no discussions',
+        'no mentions',
+        'not found',
+        'not mentioned',
+        'no reddit',
+        'absent from reddit',
+        'no presence on reddit',
+        'limited reddit',
+        'minimal reddit',
+      ];
+      if (noRedditKeywords.some(k => redditLower.includes(k))) {
+        hasGeoTrigger = true;
+      }
+    }
+    
+    // Check for missing Wikipedia page
+    const wikiContent = assessments.social?.wikipediaContent || '';
+    if (!wikiContent || wikiContent.trim() === '') {
+      hasGeoTrigger = true;
+    } else {
+      // Check if Wikipedia content indicates no page exists
+      const wikiLower = wikiContent.toLowerCase();
+      const noWikiKeywords = [
+        'no wikipedia',
+        'no page',
+        'does not have a wikipedia',
+        'no dedicated page',
+        'not found on wikipedia',
+        'absent from wikipedia',
+        'no entry',
+        'no article',
+        'page does not exist',
+        'no knowledge graph',
+        'not in knowledge graph',
+      ];
+      if (noWikiKeywords.some(k => wikiLower.includes(k))) {
+        hasGeoTrigger = true;
+      }
+    }
+  }
   
   if (hasGeoTrigger) {
     forceInclude.push('geoStrategy');
