@@ -1107,7 +1107,73 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.66
+        Version 2.12.67
+      </div>
+    </div>
+  );
+}
+
+// Read-Only Welcome Page - for users with read-only access
+function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessments }) {
+  const [animate, setAnimate] = useState(false);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimate(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-8 relative overflow-hidden">
+      <div className="max-w-3xl text-center">
+        {/* Headline */}
+        <h1 
+          className={`text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight transition-all duration-1000 ease-out ${
+            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          <span className="block">Welcome to the</span>
+          <span className="block">Conscious Compass.</span>
+        </h1>
+        
+        {/* Subtitle */}
+        <p 
+          className={`text-xl text-[#333333] mb-4 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
+            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          }`}
+          style={{ transitionDelay: animate ? '300ms' : '0ms' }}
+        >
+          You have read-only access to view brand assessments, compare results, and explore saved reports.
+        </p>
+        
+        <p 
+          className={`text-sm text-[#666666] mb-8 transition-all duration-1000 ease-out ${
+            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          }`}
+          style={{ transitionDelay: animate ? '400ms' : '0ms' }}
+        >
+          Contact an administrator if you need full access to run new assessments.
+        </p>
+        
+        {/* Navigation buttons */}
+        <div 
+          className={`flex flex-col sm:flex-row gap-4 justify-center transition-all duration-700 ease-out ${
+            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+          style={{ transitionDelay: animate ? '600ms' : '0ms' }}
+        >
+          <button onClick={onCompassResults} className="btn-primary flex items-center justify-center gap-2 text-lg px-8 py-4">
+            <BarChart3 className="w-5 h-5" /> View Results
+          </button>
+          <button onClick={onComparison} className="btn-secondary flex items-center justify-center gap-2 text-lg px-8 py-4">
+            <Users className="w-5 h-5" /> Compare Brands
+          </button>
+          <button onClick={onSavedAssessments} className="btn-secondary flex items-center justify-center gap-2 text-lg px-8 py-4">
+            <FileText className="w-5 h-5" /> Saved Assessments
+          </button>
+        </div>
+      </div>
+      <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
+        Version 2.12.67 | Read-only Access
       </div>
     </div>
   );
@@ -3588,7 +3654,7 @@ Example:
   );
 }
 // Report Page
-function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onPrev, profile }) {
+function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onPrev }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isScoring, setIsScoring] = useState(false);
@@ -3610,8 +3676,6 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
   });
   const [animatedScore, setAnimatedScore] = useState(0);
   const chartRef = useRef(null);
-  
-  const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -4020,19 +4084,13 @@ Return the JSON scores in this exact format:
               <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Assessment Complete</h3>
               <p className="text-[#666666] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
               
-              {isReadonly ? (
-                <div className="bg-[#F0EEEA] rounded-lg p-4 text-[#666666] text-sm">
-                  <strong>Read-only Access:</strong> You can view existing assessments but cannot generate new reports. Contact an admin to upgrade your access.
-                </div>
-              ) : (
-                <button 
-                  onClick={runScoring} 
-                  disabled={isScoring}
-                  className="btn-primary flex items-center gap-2 mx-auto text-lg px-8 py-3"
-                >
-                  <Play className="w-5 h-5" /> Generate Brand Report
-                </button>
-              )}
+              <button 
+                onClick={runScoring} 
+                disabled={isScoring}
+                className="btn-primary flex items-center gap-2 mx-auto text-lg px-8 py-3"
+              >
+                <Play className="w-5 h-5" /> Generate Brand Report
+              </button>
             </>
           )}
           
@@ -4999,22 +5057,18 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
           <h2 className="text-3xl font-bold text-[#1A1A1A]">{project.brandName}</h2>
           <p className="text-[#666666]">Conscious Compass Assessment Report | {industryName}</p>
         </div>
-        {!isReadonly ? (
-          <div className="flex gap-3">
-            <button onClick={copyReportText} className="btn-secondary flex items-center gap-2"><Copy className="w-4 h-4" /> Copy Report</button>
-            <button onClick={onSave} className="btn-secondary flex items-center gap-2"><Save className="w-4 h-4" /> Save</button>
-            {/* PDF export temporarily disabled - redesign in progress
-            <button onClick={generatePdf} disabled={isGeneratingPdf} className="btn-primary flex items-center gap-2">
-              {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF
-            </button>
-            */}
-            <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-2">
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} DOCX
-            </button>
-          </div>
-        ) : (
-          <span className="text-sm text-[#9CA3AF] bg-[#F0EEEA] px-3 py-1 rounded-full">Read-only Access</span>
-        )}
+        <div className="flex gap-3">
+          <button onClick={copyReportText} className="btn-secondary flex items-center gap-2"><Copy className="w-4 h-4" /> Copy Report</button>
+          <button onClick={onSave} className="btn-secondary flex items-center gap-2"><Save className="w-4 h-4" /> Save</button>
+          {/* PDF export temporarily disabled - redesign in progress
+          <button onClick={generatePdf} disabled={isGeneratingPdf} className="btn-primary flex items-center gap-2">
+            {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF
+          </button>
+          */}
+          <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-2">
+            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} DOCX
+          </button>
+        </div>
       </div>
 
       {/* Hero Section - Score & Chart Side by Side */}
@@ -7153,9 +7207,8 @@ function AssessmentStatusIndicator({ assessments }) {
 
 // Saved Assessments Modal
 // Saved Assessments Page
-function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore, profile }) {
+function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore }) {
   const fileInputRef = useRef(null);
-  const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
   const handleFileImport = (e) => {
     const file = e.target.files?.[0];
@@ -7186,14 +7239,10 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           <p className="text-[#666666]">Your assessments are stored securely in the cloud</p>
         </div>
         <div className="flex gap-2">
-          {!isReadonly && (
-            <>
-              <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
-              <button onClick={() => fileInputRef.current?.click()} className="btn-secondary flex items-center gap-2">
-                <Upload className="w-4 h-4" /> Import
-              </button>
-            </>
-          )}
+          <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
+          <button onClick={() => fileInputRef.current?.click()} className="btn-secondary flex items-center gap-2">
+            <Upload className="w-4 h-4" /> Import
+          </button>
           <button onClick={onBack} className="btn-secondary flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
@@ -7203,10 +7252,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       {/* Info Card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <p className="text-sm text-blue-800">
-          {isReadonly 
-            ? <><strong>Read-only Access:</strong> You can view and share assessments. Contact an admin to upgrade your access for full editing capabilities.</>
-            : <><strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup file.</>
-          }
+          <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup file.
         </p>
       </div>
 
@@ -7260,15 +7306,11 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                     <button onClick={() => onExport(a)} className="text-[#666666] hover:text-[#1A1A1A] hover:bg-gray-100 p-2 rounded-lg transition-colors" title="Export JSON">
                       <Download className="w-4 h-4" />
                     </button>
-                    {!isReadonly && (
-                      <>
-                        <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-4" title="Regenerate scores using current rubric">Rescore</button>
-                        <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-4">Load</button>
-                        <button onClick={() => onDelete(i)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
+                    <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-4" title="Regenerate scores using current rubric">Rescore</button>
+                    <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-4">Load</button>
+                    <button onClick={() => onDelete(i)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -7996,16 +8038,18 @@ function AppContent() {
           onExport={handleExport}
           onShare={handleShare}
           onRescore={handleRescore}
-          profile={profile}
         />
       </div>
     );
   }
 
+  // Check if user is read-only (not admin)
+  const isReadonly = profile?.is_readonly && !profile?.is_admin;
+
   return (
     <div className="min-h-screen bg-[#E8E6E1]">
       {/* Onboarding Tour */}
-      {showOnboarding && (
+      {showOnboarding && !isReadonly && (
         <OnboardingTour onComplete={() => setShowOnboarding(false)} />
       )}
       
@@ -8020,15 +8064,27 @@ function AppContent() {
         onLogout={handleLogout}
         onAdmin={() => setShowAdminPage(true)}
       />
-      {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
+      
+      {/* Read-only users see simplified welcome page */}
+      {isReadonly ? (
+        <ReadOnlyWelcomePage 
+          onCompassResults={() => setShowResultsPage(true)}
+          onComparison={() => setShowComparisonPage(true)}
+          onSavedAssessments={() => setShowSavedPage(true)}
+        />
+      ) : (
+        <>
+          {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
 
-      {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
-      {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} />}
-      {currentStep === 2 && <WebsiteAssessment assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
-      {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
-      {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
-      {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
-      {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} />}
+          {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
+          {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} />}
+          {currentStep === 2 && <WebsiteAssessment assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
+          {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
+          {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
+          {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
+          {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} />}
+        </>
+      )}
     </div>
   );
 }
