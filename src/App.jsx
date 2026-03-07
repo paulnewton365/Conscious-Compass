@@ -1106,8 +1106,25 @@ function WelcomePage({ onStart }) {
           </button>
         </div>
       </div>
+      
+      {/* Fully Conscious Badge */}
+      <div 
+        className={`absolute bottom-8 left-8 transition-all duration-1000 ease-out hidden md:block ${
+          animate 
+            ? 'opacity-100 translate-y-0 rotate-[-8deg]' 
+            : 'opacity-0 translate-y-12 rotate-[-20deg]'
+        }`}
+        style={{ transitionDelay: animate ? '800ms' : '0ms' }}
+      >
+        <img 
+          src="/fully-conscious-badge.png" 
+          alt="Fully Conscious" 
+          className="w-32 lg:w-40 drop-shadow-lg hover:scale-105 transition-transform duration-300"
+        />
+      </div>
+      
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.71
+        Version 2.12.72
       </div>
     </div>
   );
@@ -1173,7 +1190,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
         </div>
       </div>
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.71 | Read-only Access
+        Version 2.12.72 | Read-only Access
       </div>
     </div>
   );
