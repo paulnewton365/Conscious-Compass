@@ -999,7 +999,7 @@ function MaturityContinuum({ score }) {
 }
 
 // Header
-function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, onStayConscious, activePage, lastAutoSave, user, profile, onLogout, onAdmin }) {
+function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, onStayConscious, activePage, lastAutoSave, user, profile, onLogout, onAdmin, isReadonly }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
@@ -1033,9 +1033,11 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
               Auto-saved {lastAutoSave.toLocaleTimeString()}
             </span>
           )}
-          <button onClick={onStayConscious} className={navBtnClass('stay-conscious')}>
-            <Sparkles className="w-4 h-4" /> Stay Conscious
-          </button>
+          {!isReadonly && (
+            <button onClick={onStayConscious} className={navBtnClass('stay-conscious')}>
+              <Sparkles className="w-4 h-4" /> Stay Conscious
+            </button>
+          )}
           <button onClick={onComparison} className={navBtnClass('compare')}>
             <Users className="w-4 h-4" /> Compare
           </button>
@@ -1092,9 +1094,11 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
               <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only Access</span>
             </div>
           )}
-          <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
-            <Sparkles className="w-5 h-5" /> Stay Conscious
-          </button>
+          {!isReadonly && (
+            <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
+              <Sparkles className="w-5 h-5" /> Stay Conscious
+            </button>
+          )}
           <button onClick={() => { onComparison(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('compare')}>
             <Users className="w-5 h-5" /> Compare Brands
           </button>
@@ -3850,12 +3854,15 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     }, 800);
 
     try {
-    // Helper: truncate long text to keep prompt lean
+    // Helper: truncate long text to keep prompt lean. Returns '' for empty so template literals don't render "null".
     const cap = (text, limit = 1200) => {
-      if (!text || text === 'None' || text === 'Not specified') return null;
+      if (!text || text === 'None' || text === 'Not specified') return '';
       return text.length > limit ? text.slice(0, limit) + '... [truncated]' : text;
     };
-    const field = (label, value) => value && value !== 'Not assessed' && value !== 'Not checked' && value !== 'Not reviewed' && value !== 'Not noted' && value !== 'Not provided' && value !== 'None noted' ? `${label}: ${value}` : null;
+    const field = (label, value) => {
+      const v = typeof value === 'string' ? value.trim() : value;
+      return v && !['Not assessed','Not checked','Not reviewed','Not noted','Not provided','None noted',''].includes(v) ? `${label}: ${v}` : null;
+    };
 
     const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}.
 
@@ -3960,7 +3967,7 @@ Return valid JSON only — no prose before or after. Schema:
   "INTENTIONAL":{ "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." }
 }`;
 
-      const result = await callClaude(prompt, apiKey, null, [], 0, true, 4500);
+      const result = await callClaude(prompt, apiKey, null, [], 0, true, 5000);
       clearInterval(progressInterval);
       setScoringProgress(100);
       setScoringStage('Complete!');
@@ -3968,7 +3975,6 @@ Return valid JSON only — no prose before or after. Schema:
       if (match) {
         try {
           const parsed = JSON.parse(match[0]);
-          // Validate parsed data has expected structure
           const hasAtLeastOneScore = ATTRIBUTES.some(attr => 
             parsed[attr.id] && typeof parsed[attr.id].score === 'number'
           );
@@ -3979,8 +3985,10 @@ Return valid JSON only — no prose before or after. Schema:
             console.error('Parsed but missing scores:', parsed);
           }
         } catch (parseErr) {
-          setScoringError('Failed to parse AI response. Please try again.');
-          console.error('JSON parse error:', parseErr, 'Raw match:', match[0].substring(0, 500));
+          setScoringError(`Failed to parse AI response: ${parseErr.message}. Please try again.`);
+          console.error('JSON parse error:', parseErr.message);
+          console.error('Raw match (first 800 chars):', match[0].substring(0, 800));
+          console.error('Raw match (last 200 chars):', match[0].slice(-200));
         }
       } else {
         setScoringError('AI response did not contain valid scoring data. Please try again.');
@@ -8678,6 +8686,7 @@ function AppContent() {
         profile={profile}
         onLogout={handleLogout}
         onAdmin={() => setShowAdminPage(true)}
+        isReadonly={isReadonly}
       />
       
       {/* Read-only users see simplified welcome page, unless they've loaded a report */}

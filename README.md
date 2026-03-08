@@ -1,12 +1,12 @@
 # Conscious Compass
 
-**Brand Consciousness Assessment Framework v2.12.44** by Antenna Group
+**Brand Consciousness Assessment Framework v2.14** by Antenna Group
 
-A comprehensive React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis of publicly available information.
+A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-2.12.44-blue)
-![Rubric](https://img.shields.io/badge/rubric-v2.6-green)
-![Status](https://img.shields.io/badge/status-beta-orange)
+![Version](https://img.shields.io/badge/version-2.14-blue)
+![Rubric](https://img.shields.io/badge/rubric-v2.8-green)
+![Status](https://img.shields.io/badge/status-live-brightgreen)
 
 ---
 
@@ -25,95 +25,58 @@ Conscious Compass evaluates brands by answering eight fundamental questions:
 | **VISIONARY** | Does the brand point toward something meaningful? |
 | **INTENTIONAL** | Does the brand show up with substance, confidence, and leadership? |
 
-Each attribute is scored 0-100 based on observable evidence, with specific signals for strong (70-100), moderate (40-69), and weak (0-39) performance.
+Each attribute is scored 0–100 based on observable evidence, with signals anchored at strong (70–100), moderate (40–69), and weak (0–39).
 
 ---
 
-## Features
+## Assessment Workflow
 
-### 📊 6-Step Assessment Workflow
+### 1. Brand Setup
+Name, website URL, business model (B2B / B2C / B2B2C), industry.
 
-1. **Brand Setup** — Name, website, business model, industry
-2. **Website Assessment** — Screenshots, auto-assess, SEO visibility, technical audit, recognition & credentials
-3. **Social Media Assessment** — 7 platform sections including influencer partnerships and paid media presence
-4. **AI Reputation** — How Claude, Gemini, and ChatGPT perceive the brand
-5. **Earned Media** — Press coverage, podcasts, keynotes, awards from past 3 months
-6. **Report Generation** — Scoring, spider chart, recommendations with benefits
+### 2. Website Assessment
+- Auto-Assess via AI analysis of screenshots
+- SEO visibility analysis
+- Technical audit (PageSpeed scores)
+- Recognition & credentials
 
-### 🔍 Compass Results Dashboard
+### 3. Social Media Assessment
+LinkedIn, X, Instagram, YouTube — plus influencer partnerships, paid media, Glassdoor, and WIPO trademark.
 
-- **Search** — Filter by brand name
-- **Quick Filters** — Industry, maturity level, business model
-- **CSV Export** — Download all results
-- **Manual Entry** — Add scores for brands assessed outside the tool
+### 4. AI Reputation
+Query up to five engines and paste responses: **Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot**. Wikipedia presence and Reddit community perception are captured here as AI training signals. A synthesis is generated from all inputs.
 
-### 📤 Export Options
+### 5. Earned Media
+Press coverage, podcast appearances, keynotes, awards — last 3 months.
 
-- **PDF** — Professional report with spider chart
-- **DOCX** — Editable Word document
-- **Copy Text** — Clipboard-friendly format
-
-### 👥 User Management
-
-- **Authentication** — Supabase-powered signup/login
-- **Approval Workflow** — Admin approves new users
-- **Admin Panel** — Manage users, view pending approvals
-- **Assessor Attribution** — Track who assessed each brand
+### 6. Report Generation
+Scores across 8 attributes, spider chart, maturity stage, signal conflicts, recommendations, and export options (PDF, DOCX, copy text).
 
 ---
 
-## Assessment Inputs
+## Key Features
 
-### Website Assessment
-
-| Input | Purpose | Attribute Impact |
-|-------|---------|------------------|
-| Auto-Assess | AI analysis of website screenshots | All |
-| SEO Visibility | Search discoverability analysis | COGENT |
-| Technical Audit | PageSpeed scores (manual entry) | ATTENTIVE, COGENT |
-| Recognition & Credentials | Awards, certifications, speaking | AWAKE, INTENTIONAL |
-| Screenshots | Up to 4 key pages | All |
-
-### Social Media Assessment
-
-| Section | Data Captured | Attribute Impact |
-|---------|---------------|------------------|
-| **LinkedIn** | Profile, posts, engagement, employee advocacy, awards | AWAKE, AWARE, REFLECTIVE |
-| **X (Twitter)** | Bio, content, voice, engagement | AWARE, SENTIENT |
-| **Instagram** | Visual brand, content themes | SENTIENT, ATTENTIVE |
-| **Other Platforms** | YouTube, Reddit, Wikipedia | AWAKE, COGENT |
-| **Influencer Partnerships** | #ad content, ambassadors, creator collabs | AWARE, SENTIENT |
-| **Paid Media** | Meta/Google/LinkedIn/TikTok ad libraries | COGENT, INTENTIONAL |
-| **Reputation Signals** | Glassdoor, Nextdoor, WIPO trademark | REFLECTIVE, AWARE, INTENTIONAL |
-
-### AI Reputation Assessment
-
-| AI Platform | How to Test |
-|-------------|-------------|
-| Claude | "What do you know about [Brand]?" |
-| Gemini | "What do you know about [Brand]?" |
-| ChatGPT | "What do you know about [Brand]?" |
-
-### Earned Media Assessment
-
-Include coverage from the last 3 months:
-- News articles and press mentions
-- Podcast appearances
-- Conference keynotes
-- Industry awards and rankings
-- Analyst reports
+- **Compass Results** — Sortable, filterable dashboard of all assessments with CSV export
+- **Compare** — Side-by-side brand comparison, industry benchmarks, and AI-powered portfolio insights
+- **Stay Conscious** — Live AI intelligence feed with web search on brand, AI, and communications trends
+- **Read-Only Access** — Share results with clients without edit permissions
+- **Saved Assessments** — Resume in-progress work at any time
+- **Signal Conflicts** — Automated diagnostic layer flagging attribute tensions (e.g. high AWAKE + low INTENTIONAL)
 
 ---
 
-## Scoring Methodology
+## Scoring
 
-### Framework v2.8
+### Maturity Stages
 
-Each attribute score directly answers its fundamental question using observable signals:
-
-- **Strong signals (70-100)**: Third-party validation, industry leadership evidence
-- **Moderate signals (40-69)**: Active participation, emerging presence
-- **Weak signals (0-39)**: Minimal evidence, participation without validation
+| Score | Stage |
+|-------|-------|
+| 0–25 | Pre-Foundational |
+| 26–39 | Foundational |
+| 40–55 | Establishing |
+| 56–69 | Differentiating |
+| 70–84 | Leading |
+| 85–100 | Transforming |
 
 ### Weighted Scoring
 
@@ -123,29 +86,12 @@ Each attribute score directly answers its fundamental question using observable 
 | COGENT | 80% | 20% (Technical SEO) |
 | Others | 100% | — |
 
-### Maturity Stages
-
-| Score | Stage | Description |
-|-------|-------|-------------|
-| 0-39 | Unconscious | Foundational development needed |
-| 40-54 | Emerging | Building basic consciousness |
-| 55-69 | Developing | Solid fundamentals established |
-| 70-84 | Conscious | Strong market presence |
-| 85-100 | Transcendent | Exceptional consciousness |
-
 ---
 
 ## Quick Start
 
-### 1. Install Dependencies
-
 ```bash
 npm install
-```
-
-### 2. Run Development Server
-
-```bash
 npm run dev
 ```
 
@@ -153,79 +99,35 @@ Open [http://localhost:5173](http://localhost:5173)
 
 ---
 
-## Deployment to Vercel
+## Deployment (Vercel)
 
-The API key is stored **server-side only** using a Vercel serverless function.
+The Anthropic API key is stored server-side only via a Vercel serverless function — never exposed to the browser.
 
-### Steps:
+### Steps
 
-1. **Push to GitHub**
+1. Push to GitHub
+2. Import in [Vercel](https://vercel.com)
+3. Add environment variables:
 
-2. **Import project in [Vercel](https://vercel.com)**
+| Name | Notes |
+|------|-------|
+| `ANTHROPIC_API_KEY` | Required — AI analysis |
+| `VITE_SUPABASE_URL` | Required — auth and data |
+| `VITE_SUPABASE_ANON_KEY` | Required — auth and data |
 
-3. **Add Environment Variables:**
-
-   | Name | Value | Notes |
-   |------|-------|-------|
-   | `ANTHROPIC_API_KEY` | `sk-ant-api03-...` | Required for AI analysis |
-   | `VITE_SUPABASE_URL` | Your Supabase URL | Required for auth/data |
-   | `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key | Required for auth/data |
-
-4. **Deploy**
-
-### How It Works
+4. Deploy
 
 ```
 Browser → /api/claude (Vercel serverless) → Anthropic API
                 ↑
-         API key stored here (never exposed to browser)
+         API key lives here only
 ```
 
 ---
 
-## Database Setup (Supabase)
+## Database (Supabase)
 
-### Required Tables
-
-```sql
--- Profiles (extends Supabase auth.users)
-CREATE TABLE profiles (
-  id UUID REFERENCES auth.users PRIMARY KEY,
-  email TEXT,
-  full_name TEXT,
-  is_approved BOOLEAN DEFAULT false,
-  is_admin BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Saved Assessments
-CREATE TABLE saved_assessments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES auth.users,
-  brand_name TEXT,
-  data JSONB,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Compass Results
-CREATE TABLE compass_results (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  brand_name TEXT,
-  business_model TEXT,
-  industry TEXT,
-  total_score INTEGER,
-  maturity_level TEXT,
-  scores JSONB,
-  assessor_name TEXT,
-  rubric_version TEXT,
-  is_manual BOOLEAN DEFAULT false,
-  saved_at TIMESTAMPTZ DEFAULT now()
-);
-```
-
-### Row Level Security
-
-Enable RLS on all tables and create appropriate policies for user access.
+Schema is in `supabase-schema.sql`. Three tables: `profiles`, `saved_assessments`, `compass_results`. Enable RLS on all three.
 
 ---
 
@@ -234,20 +136,26 @@ Enable RLS on all tables and create appropriate policies for user access.
 ```
 conscious-compass/
 ├── api/
-│   └── claude.js           # Vercel serverless API proxy
+│   ├── claude.js           # Anthropic API proxy (serverless)
+│   ├── knowledge-graph.js  # Google Knowledge Graph lookup
+│   ├── pagespeed.js        # PageSpeed Insights proxy
+│   └── youtube.js          # YouTube Data API proxy
 ├── src/
-│   ├── App.jsx             # Main application (7000+ lines)
+│   ├── App.jsx             # Main application
 │   ├── data/
-│   │   ├── rubric.js       # Framework v2.8 definitions
-│   │   └── serviceMapping.js
+│   │   ├── rubric.js       # Framework v2.8 — 8 attributes, signals, maturity stages
+│   │   └── serviceMapping.js  # 31 service recommendations mapped to attributes
 │   ├── lib/
-│   │   └── supabase.js     # Database functions
-│   ├── index.css           # Tailwind styles
+│   │   ├── api.js          # API helper utilities
+│   │   └── supabase.js     # Supabase client and auth functions
+│   ├── index.css           # Global styles
 │   └── main.jsx            # Entry point
-├── BETA_TESTER_GUIDE.md    # Guide for beta testers
-├── BETA_LAUNCH_CHECKLIST.md
+├── public/
+│   └── fully-conscious-badge.png
+├── supabase-schema.sql
 ├── package.json
-└── README.md
+├── vercel.json
+└── vite.config.js
 ```
 
 ---
@@ -260,10 +168,10 @@ conscious-compass/
 | Styling | Tailwind CSS |
 | Icons | Lucide React |
 | Charts | Custom SVG spider chart |
-| PDF Export | jsPDF, html2canvas |
+| PDF Export | jsPDF |
 | DOCX Export | docx, file-saver |
 | Backend | Supabase (PostgreSQL, Auth, RLS) |
-| AI | Anthropic Claude API (via serverless proxy) |
+| AI | Anthropic Claude (claude-sonnet-4-6) via serverless proxy |
 | Hosting | Vercel |
 
 ---
@@ -272,108 +180,13 @@ conscious-compass/
 
 | Version | Key Changes |
 |---------|-------------|
-| **2.12.44** | Compass Results search and filters |
-| **2.12.42** | Production cleanup, error boundary, removed debug logs |
-| **2.12.41** | Recommendation benefits displayed prominently |
-| **2.12.40** | Influencer & Paid Media recommendations added to rubric |
-| **2.12.39** | Influencer partnerships & paid media presence tracking |
-| **2.12.38** | Recognition & credentials, employee advocacy, awards inputs |
-| **2.12.37** | Framework v2.5→v2.6: Signal-based scoring, fundamental questions |
-| **2.12.35** | Spider chart animation timing (3s sync with score counter) |
-| **2.12.34** | Home page entrance animation |
-| **2.12.32** | Evidence-based output enforcement, no em-dashes |
-| **2.12.31** | Copy Report Text feature |
-| **2.12.30** | Assessment Readouts section in report |
-| **2.12.28** | React hooks ordering fix (blank screen bug) |
-| **2.12.22** | Auto-Assess for Website and Earned Media |
-| **2.12.20** | Maturity continuum animation |
-| **2.12.0** | Phase 2-3 UI (accordions, compact layout) |
-| **2.11.x** | Weighted scoring, manual tech audit |
-| **2.10.x** | Evidence-based scoring with citations |
-| **2.9.x** | Supabase backend, assessor tracking |
+| **2.14** | AI reputation expanded to 5 engines + reputation flags + Wikipedia/Reddit as AI training signals; report generation speed improvements; read-only user role |
+| **2.13** | Mini spider charts in results; comparison spider chart; Stay Conscious intelligence feed; Signal Conflicts diagnostic layer |
+| **2.12** | Compass Results search and filters; production cleanup; recommendation benefits |
+| **2.11** | Weighted scoring; manual tech audit inputs |
+| **2.10** | Evidence-based scoring with citations |
+| **2.9** | Supabase backend; assessor tracking |
 
 ---
 
-## Beta Testing
-
-See `BETA_TESTER_GUIDE.md` for instructions on running assessments.
-
-See `BETA_LAUNCH_CHECKLIST.md` for admin setup and user approval workflow.
-
----
-
-## Support
-
-For issues or feedback:
-- Use the thumbs down button on any Claude conversation
-- Email directly to the project maintainer
-
----
-
-## License
-
-© 2025-2026 Antenna Group. All rights reserved.
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              USER (Browser)                                  │
-│                         React SPA • Assessment UI                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      ↕
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            VERCEL PLATFORM                                   │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  FRONTEND (React + Vite)                                             │   │
-│  │  • App.jsx (7000+ lines)     • rubric.js (Framework v2.8)           │   │
-│  │  • Tailwind CSS              • serviceMapping.js (31 services)       │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  SERVERLESS FUNCTION                                                 │   │
-│  │  /api/claude.js → Proxies to Anthropic (API key server-side only)   │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      ↕
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          EXTERNAL SERVICES                                   │
-│  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐       │
-│  │  Anthropic Claude │  │  Supabase Auth    │  │  Supabase DB      │       │
-│  │  claude-sonnet-4  │  │  Login/Signup     │  │  PostgreSQL + RLS │       │
-│  │  AI Analysis      │  │  Sessions         │  │  Assessments      │       │
-│  └───────────────────┘  └───────────────────┘  └───────────────────┘       │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      ⋮
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      MANUAL DATA SOURCES (User visits & pastes)              │
-│  Ad Libraries: Meta, Google, LinkedIn, TikTok                                │
-│  AI Platforms: Claude, Gemini, ChatGPT                                       │
-│  Reputation: Glassdoor, WIPO, Wikipedia, Reddit                              │
-│  Technical: Google PageSpeed Insights                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Data Flow
-
-```
-1. INPUT        → User enters brand data, uploads screenshots
-2. AUTO-ASSESS  → AI analyzes website content and earned media
-3. SCORE        → Claude evaluates 8 attributes using signal-based framework
-4. RECOMMEND    → Low scores map to service recommendations
-5. REPORT       → Generate PDF/DOCX/text exports
-6. SAVE         → Store assessment and results in Supabase
-```
-
-### Security Model
-
-```
-Browser ──→ /api/claude ──→ Anthropic API
-                ↑
-         ANTHROPIC_API_KEY
-         (server-side only,
-          never exposed to browser)
-```
-
-For a visual diagram, see `ARCHITECTURE.html` in the project root.
+© 2025–2026 Antenna Group. All rights reserved.
