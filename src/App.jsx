@@ -711,6 +711,133 @@ function SpiderChart({ scores, size = 400, animate = true }) {
   );
 }
 
+// Mini Spider Chart — used in Results expanded rows (no labels, no animation)
+function MiniSpiderChart({ scores, size = 120 }) {
+  const padding = 16;
+  const viewBoxSize = size + padding * 2;
+  const center = viewBoxSize / 2;
+  const radius = size * 0.38;
+  const attrs = ATTRIBUTES;
+  const angleStep = (2 * Math.PI) / attrs.length;
+
+  const getPoint = (index, value) => {
+    const angle = angleStep * index - Math.PI / 2;
+    const r = (value / 100) * radius;
+    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
+  };
+
+  const gridLevels = [33, 67, 100];
+  const dataPoints = attrs.map((attr, i) => getPoint(i, scores?.[attr.id] || 0));
+  const pathD = dataPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
+
+  return (
+    <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} style={{ width: size, height: size, overflow: 'visible' }}>
+      {gridLevels.map(level => {
+        const pts = attrs.map((_, i) => {
+          const angle = angleStep * i - Math.PI / 2;
+          const r = (level / 100) * radius;
+          return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
+        });
+        return <polygon key={level} points={pts.join(' ')} fill="none" stroke="#D9D6D0" strokeWidth="0.5" />;
+      })}
+      {attrs.map((_, i) => {
+        const angle = angleStep * i - Math.PI / 2;
+        return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#D9D6D0" strokeWidth="0.5" />;
+      })}
+      <path d={pathD} fill="rgba(158, 157, 36, 0.35)" stroke="#9E9D24" strokeWidth="1.5" />
+      {dataPoints.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="#9E9D24" />
+      ))}
+    </svg>
+  );
+}
+
+// Comparison Spider Chart — multi-brand overlapping radar, max 4 brands
+const COMPARISON_COLORS = ['#E53935', '#1976D2', '#F57C00', '#388E3C'];
+
+function ComparisonSpiderChart({ brands, size = 320, industryAvg = null }) {
+  const padding = 55;
+  const viewBoxSize = size + padding * 2;
+  const center = viewBoxSize / 2;
+  const radius = size * 0.40;
+  const attrs = ATTRIBUTES;
+  const angleStep = (2 * Math.PI) / attrs.length;
+
+  const getPoint = (index, value) => {
+    const angle = angleStep * index - Math.PI / 2;
+    const r = (value / 100) * radius;
+    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
+  };
+
+  const gridLevels = [20, 40, 60, 80, 100];
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} style={{ width: '100%', maxWidth: size + 'px', overflow: 'visible' }} className="mx-auto">
+        {/* Grid polygons */}
+        {gridLevels.map(level => {
+          const pts = attrs.map((_, i) => {
+            const angle = angleStep * i - Math.PI / 2;
+            const r = (level / 100) * radius;
+            return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
+          });
+          return <polygon key={level} points={pts.join(' ')} fill="none" stroke={level === 100 ? '#C0BDB8' : '#D9D6D0'} strokeWidth={level === 100 ? 1.5 : 1} />;
+        })}
+        {/* Grid value labels */}
+        {[20, 40, 60, 80].map(level => (
+          <text key={`lbl-${level}`} x={center} y={center - (level / 100) * radius - 4} textAnchor="middle" style={{ fontSize: '8px', fill: '#9CA3AF' }}>{level}</text>
+        ))}
+        {/* Axis lines */}
+        {attrs.map((_, i) => {
+          const angle = angleStep * i - Math.PI / 2;
+          return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#D9D6D0" strokeWidth="1" />;
+        })}
+        {/* Industry average overlay (dashed) */}
+        {industryAvg && (() => {
+          const pts = attrs.map((attr, i) => getPoint(i, industryAvg[attr.id] || 0));
+          const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
+          return <path d={d} fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeDasharray="4 3" />;
+        })()}
+        {/* Brand polygons */}
+        {brands.map((brand, bi) => {
+          const color = COMPARISON_COLORS[bi % COMPARISON_COLORS.length];
+          const pts = attrs.map((attr, i) => getPoint(i, brand.scores?.[attr.id] || 0));
+          const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
+          return <path key={brand.id || bi} d={d} fill={color + '25'} stroke={color} strokeWidth="2" />;
+        })}
+        {/* Attribute labels */}
+        {attrs.map((attr, i) => {
+          const angle = angleStep * i - Math.PI / 2;
+          const labelR = radius + 30;
+          const x = center + labelR * Math.cos(angle);
+          const y = center + labelR * Math.sin(angle);
+          return (
+            <text key={attr.id} x={x} y={y} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '11px', fontWeight: '600', fill: '#1A1A1A' }}>
+              {attr.name}
+            </text>
+          );
+        })}
+      </svg>
+      {/* Legend */}
+      <div className="flex flex-wrap justify-center gap-3 mt-3">
+        {brands.map((brand, bi) => (
+          <div key={brand.id || bi} className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COMPARISON_COLORS[bi % COMPARISON_COLORS.length] }} />
+            <span className="text-xs font-medium text-[#1A1A1A]">{brand.brandName}</span>
+            <span className="text-xs text-[#666666]">({brand.totalScore})</span>
+          </div>
+        ))}
+        {industryAvg && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-0.5 bg-[#9CA3AF] border-t border-dashed" style={{ borderTop: '2px dashed #9CA3AF' }} />
+            <span className="text-xs text-[#9CA3AF]">Industry avg</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Maturity Continuum Visual
 function MaturityContinuum({ score }) {
   const stage = getMaturityStage(score);
@@ -868,9 +995,23 @@ function MaturityContinuum({ score }) {
 }
 
 // Header
-function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, lastAutoSave, user, profile, onLogout, onAdmin }) {
+function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, onStayConscious, activePage, lastAutoSave, user, profile, onLogout, onAdmin }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
+
+  const navBtnClass = (page) =>
+    `flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg transition-colors ${
+      activePage === page
+        ? 'bg-[#1A1A1A] text-white font-medium'
+        : 'text-[#333333] hover:text-[#1A1A1A] hover:bg-[#D9D6D0]'
+    }`;
+
+  const mobileNavBtnClass = (page) =>
+    `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+      activePage === page
+        ? 'bg-[#1A1A1A] text-white font-medium'
+        : 'text-[#333333] hover:bg-[#F0EEEA]'
+    }`;
   
   return (
     <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-4 md:py-5 px-4 md:px-6">
@@ -882,23 +1023,26 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
         </div>
         
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-1">
           {lastAutoSave && (
-            <span className="text-xs text-[#9CA3AF] mr-2">
+            <span className="text-xs text-[#9CA3AF] mr-3">
               Auto-saved {lastAutoSave.toLocaleTimeString()}
             </span>
           )}
-          <button onClick={onComparison} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
+          <button onClick={onStayConscious} className={navBtnClass('stay-conscious')}>
+            <Sparkles className="w-4 h-4" /> Stay Conscious
+          </button>
+          <button onClick={onComparison} className={navBtnClass('compare')}>
             <Users className="w-4 h-4" /> Compare
           </button>
-          <button onClick={onCompassResults} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
+          <button onClick={onCompassResults} className={navBtnClass('results')}>
             <BarChart3 className="w-4 h-4" /> Results
           </button>
-          <button onClick={onSavedAssessments} className="flex items-center gap-2 text-sm text-[#333333] hover:text-[#1A1A1A] transition-colors">
+          <button onClick={onSavedAssessments} className={navBtnClass('saved')}>
             <FileText className="w-4 h-4" /> Saved
           </button>
           {!isReadonly && (
-            <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#1A1A1A] text-white hover:bg-[#333333] px-4 py-2 rounded-lg transition-colors">
+            <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#E53935] text-white hover:bg-[#C62828] px-4 py-1.5 rounded-lg transition-colors ml-1">
               <Plus className="w-4 h-4" /> New
             </button>
           )}
@@ -933,7 +1077,7 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-4 pt-4 border-t border-[#D9D6D0] space-y-2">
+        <div className="md:hidden mt-4 pt-4 border-t border-[#D9D6D0] space-y-1">
           {lastAutoSave && (
             <div className="text-xs text-[#9CA3AF] px-2 pb-2">
               Auto-saved {lastAutoSave.toLocaleTimeString()}
@@ -944,17 +1088,20 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
               <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only Access</span>
             </div>
           )}
-          <button onClick={() => { onComparison(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#333333] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+          <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
+            <Sparkles className="w-5 h-5" /> Stay Conscious
+          </button>
+          <button onClick={() => { onComparison(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('compare')}>
             <Users className="w-5 h-5" /> Compare Brands
           </button>
-          <button onClick={() => { onCompassResults(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#333333] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+          <button onClick={() => { onCompassResults(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('results')}>
             <BarChart3 className="w-5 h-5" /> Results Grid
           </button>
-          <button onClick={() => { onSavedAssessments(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#333333] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+          <button onClick={() => { onSavedAssessments(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('saved')}>
             <FileText className="w-5 h-5" /> Saved Assessments
           </button>
           {!isReadonly && (
-            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#1A1A1A] text-white rounded-lg transition-colors">
+            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#E53935] text-white rounded-lg transition-colors">
               <Plus className="w-5 h-5" /> New Assessment
             </button>
           )}
@@ -1124,7 +1271,7 @@ function WelcomePage({ onStart }) {
       </div>
       
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.73
+        Version 2.13.0
       </div>
     </div>
   );
@@ -3331,9 +3478,20 @@ Write in flowing prose.`;
               href="https://gemini.google.com/app" 
               target="_blank" 
               rel="noopener noreferrer"
+              onClick={async (e) => {
+                try {
+                  await navigator.clipboard.writeText(aiPerceptionPrompt);
+                } catch (err) {
+                  const ta = document.createElement('textarea');
+                  ta.value = aiPerceptionPrompt;
+                  document.body.appendChild(ta); ta.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(ta);
+                }
+              }}
               className="px-3 py-1.5 bg-[#4285F4] text-white text-xs font-medium rounded-lg hover:bg-[#3367D6] transition-colors flex items-center gap-1"
             >
-              Open Gemini <ExternalLink className="w-3 h-3" />
+              <Copy className="w-3 h-3" /> Copy & Open Gemini <ExternalLink className="w-3 h-3" />
             </a>
           </div>
           <textarea value={manualInput.gemini} onChange={(e) => setManualInput(m => ({ ...m, gemini: e.target.value }))}
@@ -3356,9 +3514,20 @@ Write in flowing prose.`;
               href="https://chatgpt.com/" 
               target="_blank" 
               rel="noopener noreferrer"
+              onClick={async (e) => {
+                try {
+                  await navigator.clipboard.writeText(aiPerceptionPrompt);
+                } catch (err) {
+                  const ta = document.createElement('textarea');
+                  ta.value = aiPerceptionPrompt;
+                  document.body.appendChild(ta); ta.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(ta);
+                }
+              }}
               className="px-3 py-1.5 bg-[#10A37F] text-white text-xs font-medium rounded-lg hover:bg-[#0D8A6A] transition-colors flex items-center gap-1"
             >
-              Open ChatGPT <ExternalLink className="w-3 h-3" />
+              <Copy className="w-3 h-3" /> Copy & Open ChatGPT <ExternalLink className="w-3 h-3" />
             </a>
           </div>
           <textarea value={manualInput.chatgpt} onChange={(e) => setManualInput(m => ({ ...m, chatgpt: e.target.value }))}
@@ -5726,16 +5895,18 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
   return (
     <div className="min-h-screen bg-[#F5F4F0]">
-      <div className="max-w-7xl mx-auto p-8">
-        <div className="flex items-center justify-between mb-8">
+      <div className="max-w-7xl mx-auto p-4 md:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="btn-secondary flex items-center gap-2">
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
-            <h1 className="text-2xl font-bold text-[#1A1A1A]">Compass Results</h1>
-            <span className="text-sm text-[#666666]">{results.length} assessments</span>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Compass Results</h1>
+              <span className="text-sm text-[#666666]">{results.length} assessments</span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {profile?.is_admin && (
               <button onClick={() => setShowAddModal(true)} className="btn-secondary flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Add Manual Entry
@@ -5898,14 +6069,22 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                   {/* Expanded Details */}
                   {isExpanded && (
                     <div className="border-t border-[#E8E6E1] bg-[#F8F7F5] p-4 animate-fade-in">
-                      {/* Attribute Scores Grid */}
-                      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 mb-4">
-                        {ATTRIBUTES.map(attr => (
-                          <div key={attr.id} className="text-center p-2 bg-white rounded-lg">
-                            <div className="text-lg font-bold" style={{ color: attr.color }}>{r.scores?.[attr.id] || 0}</div>
-                            <div className="text-[10px] text-[#666666] truncate">{attr.name}</div>
+                      <div className="flex flex-col md:flex-row gap-4 mb-4">
+                        {/* Mini Spider Chart */}
+                        <div className="flex-shrink-0 flex justify-center md:justify-start">
+                          <MiniSpiderChart scores={r.scores} size={120} />
+                        </div>
+                        {/* Attribute Scores Grid */}
+                        <div className="flex-1">
+                          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                            {ATTRIBUTES.map(attr => (
+                              <div key={attr.id} className="text-center p-2 bg-white rounded-lg">
+                                <div className="text-lg font-bold" style={{ color: attr.color }}>{r.scores?.[attr.id] || 0}</div>
+                                <div className="text-[10px] text-[#666666] truncate">{attr.name}</div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        </div>
                       </div>
                       
                       {/* Meta Info */}
@@ -6651,7 +6830,10 @@ function ComparisonPage({ results, onBack }) {
   const [filterIndustry, setFilterIndustry] = useState('all');
   const [filterBusinessModel, setFilterBusinessModel] = useState('all');
   const [viewMode, setViewMode] = useState('brands'); // 'brands' or 'industry'
+  const [chartType, setChartType] = useState('radar'); // 'radar' or 'bars'
+  const [showIndustryAvg, setShowIndustryAvg] = useState(false);
   const maxComparison = 6;
+  const maxRadar = 4;
 
   const industries = [
     { id: 'all', name: 'All Industries' },
@@ -7019,88 +7201,169 @@ function ComparisonPage({ results, onBack }) {
               ) : (
                 <div className="space-y-6">
                   {/* Overall Score Comparison */}
-                  <div className="card p-6">
-                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Overall Scores</h3>
-                    <div className="flex flex-wrap justify-center gap-4">
-                      {selectedBrands.map((brand) => {
+                  <div className="card p-4 md:p-6">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <h3 className="text-sm font-medium text-[#1A1A1A]">Overall Scores</h3>
+                      {/* Chart type toggle — only show if ≤ maxRadar brands */}
+                      {selectedBrands.length <= maxRadar && (
+                        <div className="flex gap-1 text-xs">
+                          <button
+                            onClick={() => setChartType('radar')}
+                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'radar' ? 'bg-[#1A1A1A] text-white' : 'bg-[#F0EEEA] text-[#666666] hover:bg-[#E8E6E1]'}`}
+                          >
+                            Radar
+                          </button>
+                          <button
+                            onClick={() => setChartType('bars')}
+                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'bars' ? 'bg-[#1A1A1A] text-white' : 'bg-[#F0EEEA] text-[#666666] hover:bg-[#E8E6E1]'}`}
+                          >
+                            Bars
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 mb-4">
+                      {selectedBrands.map((brand, bi) => {
                         const stage = MATURITY_STAGES.find(s => s.name === brand.maturityLevel) || MATURITY_STAGES[0];
+                        const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : stage.color;
                         return (
                           <div key={brand.id} className="text-center">
                             <div 
-                              className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl md:text-2xl"
-                              style={{ backgroundColor: stage.color }}
+                              className="w-14 h-14 md:w-18 md:h-18 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-lg md:text-xl border-4"
+                              style={{ backgroundColor: color, borderColor: color + '60', width: '64px', height: '64px' }}
                             >
                               {brand.totalScore}
                             </div>
-                            <div className="font-medium text-xs md:text-sm text-[#1A1A1A] truncate max-w-[100px]">{brand.brandName}</div>
-                            <div className="text-xs text-[#666666]">{brand.maturityLevel}</div>
+                            <div className="font-medium text-xs text-[#1A1A1A] truncate max-w-[80px]">{brand.brandName}</div>
+                            <div className="text-[10px] text-[#666666]">{brand.maturityLevel}</div>
                           </div>
                         );
                       })}
-                      {/* Average Score */}
                       <div className="text-center border-l-2 border-[#D9D6D0] pl-4">
-                        <div 
-                          className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl md:text-2xl bg-[#1A1A1A]"
-                        >
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl bg-[#1A1A1A]">
                           {Math.round(selectedBrands.reduce((sum, b) => sum + b.totalScore, 0) / selectedBrands.length)}
                         </div>
-                        <div className="font-medium text-xs md:text-sm text-[#1A1A1A]">AVERAGE</div>
-                        <div className="text-xs text-[#666666]">{selectedBrands.length} brands</div>
+                        <div className="font-medium text-xs text-[#1A1A1A]">AVG</div>
+                        <div className="text-[10px] text-[#666666]">{selectedBrands.length} brands</div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Attribute Comparison */}
-                  <div className="card p-6">
-                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Comparison</h3>
-                    
-                    {/* Brand labels header */}
-                    <div className="flex items-center gap-2 mb-4 text-xs text-[#666666]">
-                      <div className="w-24 flex-shrink-0"></div>
-                      <div className="flex-1 flex gap-1">
-                        {selectedBrands.map((brand) => (
-                          <div key={brand.id} className="flex-1 truncate text-center">{brand.brandName}</div>
-                        ))}
-                        <div className="flex-1 text-center font-medium text-[#1A1A1A]">AVG</div>
+                  {/* Radar Chart (when ≤ maxRadar brands selected and chartType is radar) */}
+                  {selectedBrands.length <= maxRadar && chartType === 'radar' && (() => {
+                    // Build industry average if available and toggle is on
+                    const commonIndustry = selectedBrands.length >= 2 && selectedBrands.every(b => b.industry === selectedBrands[0].industry)
+                      ? selectedBrands[0].industry : null;
+                    const indBrands = commonIndustry ? results.filter(r => r.industry === commonIndustry) : [];
+                    const indAvg = (showIndustryAvg && indBrands.length > 0) ? (() => {
+                      const avg = {};
+                      ATTRIBUTES.forEach(a => { avg[a.id] = Math.round(indBrands.reduce((sum, b) => sum + (b.scores?.[a.id] || 0), 0) / indBrands.length); });
+                      return avg;
+                    })() : null;
+
+                    return (
+                      <div className="card p-4 md:p-6">
+                        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                          <h3 className="text-sm font-medium text-[#1A1A1A]">Radar Comparison</h3>
+                          {commonIndustry && (
+                            <button
+                              onClick={() => setShowIndustryAvg(!showIndustryAvg)}
+                              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${showIndustryAvg ? 'bg-[#F0EEEA] border-[#9CA3AF] text-[#666666]' : 'border-[#D9D6D0] text-[#999999] hover:border-[#999999]'}`}
+                            >
+                              {showIndustryAvg ? '✓ ' : ''}Industry avg overlay
+                            </button>
+                          )}
+                        </div>
+                        <ComparisonSpiderChart brands={selectedBrands} size={300} industryAvg={indAvg} />
                       </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      {ATTRIBUTES.map((attr) => {
-                        const avgScore = Math.round(selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length);
-                        return (
-                          <div key={attr.id} className="flex items-center gap-2">
-                            <div className="w-24 flex-shrink-0 flex items-center gap-2">
-                              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
-                              <span className="text-xs font-medium text-[#1A1A1A] truncate">{attr.name}</span>
-                            </div>
+                    );
+                  })()}
+
+                  {/* Bar chart view (always shown when chartType === 'bars', or when > maxRadar brands) */}
+                  {(chartType === 'bars' || selectedBrands.length > maxRadar) && (
+                    <div className="card p-4 md:p-6">
+                      <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Comparison</h3>
+                      <div className="overflow-x-auto">
+                        <div style={{ minWidth: `${Math.max(400, selectedBrands.length * 80 + 120)}px` }}>
+                          {/* Brand labels header */}
+                          <div className="flex items-center gap-2 mb-3 text-xs text-[#666666]">
+                            <div className="w-24 flex-shrink-0"></div>
                             <div className="flex-1 flex gap-1">
-                              {selectedBrands.map((brand) => {
-                                const score = brand.scores?.[attr.id] || 0;
-                                return (
-                                  <div key={brand.id} className="flex-1 relative">
-                                    <div className="h-4 bg-[#E8E6E1] rounded overflow-hidden">
-                                      <div 
-                                        className="h-full rounded transition-all duration-500"
-                                        style={{ width: `${score}%`, backgroundColor: attr.color }}
-                                      />
-                                    </div>
-                                    <div className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white mix-blend-difference">
-                                      {score}
+                              {selectedBrands.map((brand, bi) => (
+                                <div key={brand.id} className="flex-1 truncate text-center font-medium" style={{ color: selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#1A1A1A' }}>{brand.brandName}</div>
+                              ))}
+                              <div className="flex-1 text-center font-medium text-[#1A1A1A]">AVG</div>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            {ATTRIBUTES.map((attr) => {
+                              const avgScore = Math.round(selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length);
+                              return (
+                                <div key={attr.id} className="flex items-center gap-2">
+                                  <div className="w-24 flex-shrink-0 flex items-center gap-2">
+                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
+                                    <span className="text-xs font-medium text-[#1A1A1A] truncate">{attr.name}</span>
+                                  </div>
+                                  <div className="flex-1 flex gap-1">
+                                    {selectedBrands.map((brand) => {
+                                      const score = brand.scores?.[attr.id] || 0;
+                                      return (
+                                        <div key={brand.id} className="flex-1 relative">
+                                          <div className="h-5 bg-[#E8E6E1] rounded overflow-hidden">
+                                            <div className="h-full rounded transition-all duration-500" style={{ width: `${score}%`, backgroundColor: attr.color }} />
+                                          </div>
+                                          <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{score}</div>
+                                        </div>
+                                      );
+                                    })}
+                                    <div className="flex-1 relative">
+                                      <div className="h-5 bg-[#E8E6E1] rounded overflow-hidden">
+                                        <div className="h-full rounded transition-all duration-500 bg-[#1A1A1A]" style={{ width: `${avgScore}%` }} />
+                                      </div>
+                                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{avgScore}</div>
                                     </div>
                                   </div>
-                                );
-                              })}
-                              {/* Average bar */}
-                              <div className="flex-1 relative">
-                                <div className="h-4 bg-[#E8E6E1] rounded overflow-hidden">
-                                  <div 
-                                    className="h-full rounded transition-all duration-500 bg-[#1A1A1A]"
-                                    style={{ width: `${avgScore}%` }}
-                                  />
                                 </div>
-                                <div className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white mix-blend-difference">
-                                  {avgScore}
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Consciousness Profile */}
+                  <div className="card p-4 md:p-6">
+                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-4">Consciousness Profiles</h3>
+                    <div className="space-y-4">
+                      {selectedBrands.map((brand, bi) => {
+                        const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#1A1A1A';
+                        const attrScores = ATTRIBUTES.map(a => ({ ...a, score: brand.scores?.[a.id] || 0 }));
+                        const strongest = attrScores.reduce((a, b) => a.score > b.score ? a : b);
+                        const weakest = attrScores.reduce((a, b) => a.score < b.score ? a : b);
+                        // Most differentiated = highest gap vs group average
+                        const mostDiff = attrScores.reduce((best, a) => {
+                          const groupAvg = selectedBrands.reduce((sum, b2) => sum + (b2.scores?.[a.id] || 0), 0) / selectedBrands.length;
+                          const diff = a.score - groupAvg;
+                          return diff > best.diff ? { ...a, diff } : best;
+                        }, { diff: -Infinity, name: '-', score: 0 });
+                        return (
+                          <div key={brand.id} className="flex items-start gap-3 p-3 rounded-lg bg-[#F8F7F5]">
+                            <div className="w-2 h-12 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: color }} />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-sm text-[#1A1A1A] mb-2">{brand.brandName}</div>
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div>
+                                  <div className="text-[#9CA3AF] mb-0.5">Strongest</div>
+                                  <div className="font-medium text-[#059669]">{strongest.name} <span className="text-[#9CA3AF]">({strongest.score})</span></div>
+                                </div>
+                                <div>
+                                  <div className="text-[#9CA3AF] mb-0.5">Weakest</div>
+                                  <div className="font-medium text-[#E53935]">{weakest.name} <span className="text-[#9CA3AF]">({weakest.score})</span></div>
+                                </div>
+                                <div>
+                                  <div className="text-[#9CA3AF] mb-0.5">Most distinct</div>
+                                  <div className="font-medium text-[#1976D2]">{mostDiff.name} <span className="text-[#9CA3AF]">(+{Math.round(mostDiff.diff)})</span></div>
                                 </div>
                               </div>
                             </div>
@@ -7110,78 +7373,100 @@ function ComparisonPage({ results, onBack }) {
                     </div>
                   </div>
 
-                  {/* Quick Insights */}
-                  <div className="card p-6">
-                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Quick Insights</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                      <div className="bg-[#F0EEEA] rounded-lg p-4">
-                        <div className="font-medium text-[#1A1A1A] mb-2">Highest Overall Score</div>
-                        <div className="text-[#E53935] font-bold">
-                          {selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).brandName}
-                          <span className="text-[#666666] font-normal ml-2">
-                            ({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})
-                          </span>
+                  {/* Head-to-Head (only when exactly 2 brands) */}
+                  {selectedBrands.length === 2 && (() => {
+                    const [a, b] = selectedBrands;
+                    const aWins = ATTRIBUTES.filter(attr => (a.scores?.[attr.id] || 0) > (b.scores?.[attr.id] || 0));
+                    const bWins = ATTRIBUTES.filter(attr => (b.scores?.[attr.id] || 0) > (a.scores?.[attr.id] || 0));
+                    const tied = ATTRIBUTES.filter(attr => (a.scores?.[attr.id] || 0) === (b.scores?.[attr.id] || 0));
+                    return (
+                      <div className="card p-4 md:p-6">
+                        <h3 className="text-sm font-medium text-[#1A1A1A] mb-4">Head to Head</h3>
+                        <div className="grid grid-cols-3 gap-3 text-center mb-4">
+                          <div className="bg-[#F0EEEA] rounded-lg p-3">
+                            <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
+                            <div className="text-xs text-[#666666] mt-1 truncate">{a.brandName} leads</div>
+                          </div>
+                          <div className="bg-[#F0EEEA] rounded-lg p-3">
+                            <div className="text-2xl font-bold text-[#9CA3AF]">{tied.length}</div>
+                            <div className="text-xs text-[#666666] mt-1">Tied</div>
+                          </div>
+                          <div className="bg-[#F0EEEA] rounded-lg p-3">
+                            <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
+                            <div className="text-xs text-[#666666] mt-1 truncate">{b.brandName} leads</div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {ATTRIBUTES.map(attr => {
+                            const aScore = a.scores?.[attr.id] || 0;
+                            const bScore = b.scores?.[attr.id] || 0;
+                            const diff = aScore - bScore;
+                            const winner = diff > 0 ? 0 : diff < 0 ? 1 : null;
+                            return (
+                              <div key={attr.id} className="flex items-center gap-2 text-xs">
+                                <div className="flex-1 text-right">
+                                  <span className={`font-bold ${winner === 0 ? 'text-[#E53935]' : 'text-[#9CA3AF]'}`}>{aScore}</span>
+                                </div>
+                                <div className="w-20 text-center flex-shrink-0">
+                                  <div className="flex items-center gap-1 justify-center">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: attr.color }} />
+                                    <span className="text-[#666666]">{attr.name}</span>
+                                  </div>
+                                </div>
+                                <div className="flex-1">
+                                  <span className={`font-bold ${winner === 1 ? 'text-[#1976D2]' : 'text-[#9CA3AF]'}`}>{bScore}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div className="bg-[#F0EEEA] rounded-lg p-4">
-                        <div className="font-medium text-[#1A1A1A] mb-2">Largest Gap</div>
+                    );
+                  })()}
+
+                  {/* Quick Insights */}
+                  <div className="card p-4 md:p-6">
+                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Quick Insights</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div className="bg-[#F0EEEA] rounded-lg p-3">
+                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Highest Overall Score</div>
+                        <div className="text-[#E53935] font-bold text-sm">
+                          {selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).brandName}
+                          <span className="text-[#666666] font-normal ml-2 text-xs">({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})</span>
+                        </div>
+                      </div>
+                      <div className="bg-[#F0EEEA] rounded-lg p-3">
+                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Largest Attribute Gap</div>
                         {(() => {
-                          let maxGap = 0;
-                          let gapAttr = ATTRIBUTES[0];
+                          let maxGap = 0, gapAttr = ATTRIBUTES[0];
                           ATTRIBUTES.forEach(attr => {
                             const scores = selectedBrands.map(b => b.scores?.[attr.id] || 0);
                             const gap = Math.max(...scores) - Math.min(...scores);
-                            if (gap > maxGap) {
-                              maxGap = gap;
-                              gapAttr = attr;
-                            }
+                            if (gap > maxGap) { maxGap = gap; gapAttr = attr; }
                           });
-                          return (
-                            <div className="text-[#E53935] font-bold">
-                              {gapAttr.name}
-                              <span className="text-[#666666] font-normal ml-2">({maxGap} points)</span>
-                            </div>
-                          );
+                          return <div className="text-[#E53935] font-bold text-sm">{gapAttr.name} <span className="text-[#666666] font-normal text-xs">({maxGap} pts spread)</span></div>;
                         })()}
                       </div>
-                      <div className="bg-[#F0EEEA] rounded-lg p-4">
-                        <div className="font-medium text-[#1A1A1A] mb-2">Strongest Attribute (Avg)</div>
+                      <div className="bg-[#F0EEEA] rounded-lg p-3">
+                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Collective Strength</div>
                         {(() => {
-                          let maxAvg = 0;
-                          let strongAttr = ATTRIBUTES[0];
+                          let maxAvg = 0, strongAttr = ATTRIBUTES[0];
                           ATTRIBUTES.forEach(attr => {
                             const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
-                            if (avg > maxAvg) {
-                              maxAvg = avg;
-                              strongAttr = attr;
-                            }
+                            if (avg > maxAvg) { maxAvg = avg; strongAttr = attr; }
                           });
-                          return (
-                            <div className="text-[#E53935] font-bold">
-                              {strongAttr.name}
-                              <span className="text-[#666666] font-normal ml-2">({Math.round(maxAvg)} avg)</span>
-                            </div>
-                          );
+                          return <div className="text-[#059669] font-bold text-sm">{strongAttr.name} <span className="text-[#666666] font-normal text-xs">({Math.round(maxAvg)} avg)</span></div>;
                         })()}
                       </div>
-                      <div className="bg-[#F0EEEA] rounded-lg p-4">
-                        <div className="font-medium text-[#1A1A1A] mb-2">Weakest Attribute (Avg)</div>
+                      <div className="bg-[#F0EEEA] rounded-lg p-3">
+                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Collective Weakness</div>
                         {(() => {
-                          let minAvg = 100;
-                          let weakAttr = ATTRIBUTES[0];
+                          let minAvg = 100, weakAttr = ATTRIBUTES[0];
                           ATTRIBUTES.forEach(attr => {
                             const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
-                            if (avg < minAvg) {
-                              minAvg = avg;
-                              weakAttr = attr;
-                            }
+                            if (avg < minAvg) { minAvg = avg; weakAttr = attr; }
                           });
-                          return (
-                            <div className="text-[#E53935] font-bold">
-                              {weakAttr.name}
-                              <span className="text-[#666666] font-normal ml-2">({Math.round(minAvg)} avg)</span>
-                            </div>
-                          );
+                          return <div className="text-[#F57C00] font-bold text-sm">{weakAttr.name} <span className="text-[#666666] font-normal text-xs">({Math.round(minAvg)} avg)</span></div>;
                         })()}
                       </div>
                     </div>
@@ -7280,10 +7565,10 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-      <div className="flex items-center justify-between mb-8">
+    <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#1A1A1A]">Saved Assessments</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">Saved Assessments</h2>
           <p className="text-[#666666]">Your assessments are stored securely in the cloud</p>
         </div>
         <div className="flex gap-2">
@@ -7351,7 +7636,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2 justify-end">
                     {!isReadonly && (
                       <>
                         <button onClick={() => onShare(a)} className="text-[#666666] hover:text-[#E53935] hover:bg-[#E53935]/10 p-2 rounded-lg transition-colors" title="Share Link">
@@ -7360,10 +7645,10 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                         <button onClick={() => onExport(a)} className="text-[#666666] hover:text-[#1A1A1A] hover:bg-gray-100 p-2 rounded-lg transition-colors" title="Export JSON">
                           <Download className="w-4 h-4" />
                         </button>
-                        <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-4" title="Regenerate scores using current rubric">Rescore</button>
+                        <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-3" title="Regenerate scores using current rubric">Rescore</button>
                       </>
                     )}
-                    <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-4">Load</button>
+                    <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-3">Load</button>
                     {!isReadonly && (
                       <button onClick={() => onDelete(i)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete">
                         <Trash2 className="w-4 h-4" />
@@ -7499,6 +7784,130 @@ function SharedReportView({ report, onClose }) {
             With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
           </p>
         </div>
+
+        {/* Signal Conflicts */}
+        {(() => {
+          const s = (id) => scores[id]?.score || 0;
+          const conflicts = [];
+
+          // Awake vs Intentional: narrative leadership without credibility infrastructure
+          if (s('AWAKE') >= 60 && s('INTENTIONAL') < 45) {
+            conflicts.push({
+              title: 'Narrative leadership without credibility infrastructure',
+              attributes: ['Awake', 'Intentional'],
+              scores: [s('AWAKE'), s('INTENTIONAL')],
+              tension: `${project.brandName} scores well for shaping narratives (${s('AWAKE')}) but lacks the credibility infrastructure — trademarks, awards, executive visibility, client evidence — to sustain that authority (${s('INTENTIONAL')}). Audiences encounter a brand that sounds like a leader but cannot prove it. The gap erodes trust at the moment of consideration.`,
+              signal: 'High ambition, thin proof.',
+            });
+          }
+
+          // Reflective vs Aware: authentic internally but disconnected from audiences
+          if (s('REFLECTIVE') >= 60 && s('AWARE') < 45) {
+            conflicts.push({
+              title: 'Internal authenticity disconnected from audience understanding',
+              attributes: ['Reflective', 'Aware'],
+              scores: [s('REFLECTIVE'), s('AWARE')],
+              tension: `The brand demonstrates authentic self-expression (${s('REFLECTIVE')}) but shows limited evidence of genuinely understanding its audiences (${s('AWARE')}). Authenticity without audience insight becomes self-indulgence. The brand says what it believes, not necessarily what its audiences need to hear.`,
+              signal: 'Inward-facing brand, outward-facing blind spot.',
+            });
+          }
+
+          // Cogent vs Attentive: data-driven thinking but poor experience delivery
+          if (s('COGENT') >= 60 && s('ATTENTIVE') < 45) {
+            conflicts.push({
+              title: 'Strategic intelligence undermined by poor experience delivery',
+              attributes: ['Cogent', 'Attentive'],
+              scores: [s('COGENT'), s('ATTENTIVE')],
+              tension: `${project.brandName} shows evidence of data-driven marketing thinking (${s('COGENT')}) but the experience audiences actually encounter falls short (${s('ATTENTIVE')}). Smart strategy means nothing if the touchpoints fail. Audiences judge the brand by what they experience, not what its marketers intended.`,
+              signal: 'Good thinking, poor execution.',
+            });
+          }
+
+          // Visionary vs Reflective: purpose claims without authentic expression
+          if (s('VISIONARY') >= 60 && s('REFLECTIVE') < 45) {
+            conflicts.push({
+              title: 'Purpose claims not backed by authentic expression',
+              attributes: ['Visionary', 'Reflective'],
+              scores: [s('VISIONARY'), s('REFLECTIVE')],
+              tension: `The brand articulates meaningful purpose (${s('VISIONARY')}) but external signals suggest a disconnect between stated values and observable behaviour (${s('REFLECTIVE')}). Purpose without authenticity reads as marketing. Audiences are increasingly skilled at identifying the gap.`,
+              signal: 'Aspirational positioning, unconvincing reality.',
+            });
+          }
+
+          // Sentient vs Cogent: emotional resonance without strategic grounding
+          if (s('SENTIENT') >= 65 && s('COGENT') < 45) {
+            conflicts.push({
+              title: 'Emotional resonance without strategic intelligence',
+              attributes: ['Sentient', 'Cogent'],
+              scores: [s('SENTIENT'), s('COGENT')],
+              tension: `The brand creates emotional connection and distinctive creative (${s('SENTIENT')}) but appears to lack the data-driven strategic infrastructure behind it (${s('COGENT')}). Creative that isn't grounded in audience insight and measurement is hard to sustain and harder to scale. Without evidence of what's working, the energy dissipates.`,
+              signal: 'Inspired execution, unclear direction.',
+            });
+          }
+
+          // Awake vs Aware: thought leadership without audience connection
+          if (s('AWAKE') >= 65 && s('AWARE') < 45) {
+            conflicts.push({
+              title: 'Thought leadership broadcast into a vacuum',
+              attributes: ['Awake', 'Aware'],
+              scores: [s('AWAKE'), s('AWARE')],
+              tension: `${project.brandName} produces thought leadership and shapes industry discourse (${s('AWAKE')}) but shows limited evidence of two-way audience engagement (${s('AWARE')}). Leadership without listening becomes broadcasting. The brand talks at its audience rather than with them.`,
+              signal: 'Loud voice, limited conversation.',
+            });
+          }
+
+          // Attentive vs Sentient: polished experience but no emotional resonance  
+          if (s('ATTENTIVE') >= 65 && s('SENTIENT') < 40) {
+            conflicts.push({
+              title: 'Polished execution with no emotional impact',
+              attributes: ['Attentive', 'Sentient'],
+              scores: [s('ATTENTIVE'), s('SENTIENT')],
+              tension: `The brand delivers technically consistent, well-executed touchpoints (${s('ATTENTIVE')}) but fails to create genuine emotional connection or memorable creative distinction (${s('SENTIENT')}). Competence without resonance is forgettable. Audiences find nothing to feel or remember.`,
+              signal: 'Professional, but unmemorable.',
+            });
+          }
+
+          // Intentional vs Visionary: credible and present but no meaningful direction
+          if (s('INTENTIONAL') >= 65 && s('VISIONARY') < 40) {
+            conflicts.push({
+              title: 'Established presence with no sense of direction',
+              attributes: ['Intentional', 'Visionary'],
+              scores: [s('INTENTIONAL'), s('VISIONARY')],
+              tension: `${project.brandName} projects credibility and professional substance (${s('INTENTIONAL')}) but offers audiences no compelling sense of where it is headed or why it exists beyond commercial purpose (${s('VISIONARY')}). Credibility tells people what to trust. Purpose tells them why it matters. Without the latter, the brand competes on features and price alone.`,
+              signal: 'Respected, but not inspiring.',
+            });
+          }
+
+          if (conflicts.length === 0) return null;
+
+          return (
+            <div className="card p-5 mb-4 border-l-4 border-[#F59E0B]">
+              <div className="flex items-center gap-2 mb-4">
+                <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0" />
+                <h3 className="text-lg font-semibold text-[#1A1A1A]">SIGNAL CONFLICTS</h3>
+              </div>
+              <p className="text-sm text-[#666666] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
+              <div className="space-y-4">
+                {conflicts.map((c, i) => (
+                  <div key={i} className="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-4">
+                    <div className="flex items-start justify-between mb-2 gap-3">
+                      <h4 className="font-semibold text-[#92400E] text-sm leading-snug">{c.title}</h4>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        {c.attributes.map((attr, ai) => (
+                          <span key={attr} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E]">
+                            {attr} {c.scores[ai]}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-sm text-[#78350F] leading-relaxed mb-2">{c.tension}</p>
+                    <p className="text-xs font-semibold text-[#B45309] italic">{c.signal}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Attribute Analysis */}
         <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
@@ -7662,6 +8071,207 @@ function SharedReportView({ report, onClose }) {
   );
 }
 
+// Stay Conscious Page — brand intelligence feed powered by Claude
+const STAY_CONSCIOUS_CATEGORIES = ['AI Visibility', 'Digital Experience', 'Brand Strategy', 'Earned Media', 'Social Signals', 'Assessment Practice'];
+
+const CATEGORY_META = {
+  'AI Visibility':      { color: '#6366F1', bg: '#6366F115' },
+  'Digital Experience': { color: '#0EA5E9', bg: '#0EA5E915' },
+  'Brand Strategy':     { color: '#E53935', bg: '#E5393515' },
+  'Earned Media':       { color: '#F59E0B', bg: '#F59E0B15' },
+  'Social Signals':     { color: '#10B981', bg: '#10B98115' },
+  'Assessment Practice':{ color: '#8B5CF6', bg: '#8B5CF615' },
+};
+
+const STAY_CONSCIOUS_PROMPT = `You are a brand intelligence analyst advising consultants who use the Conscious Compass framework to evaluate brands based purely on publicly available signals — what audiences, prospects, and partners actually encounter. The framework measures eight attributes: Awake (narrative leadership), Aware (audience understanding), Reflective (authenticity), Attentive (experience quality), Cogent (strategic intelligence), Sentient (emotional resonance), Visionary (purpose), and Intentional (credibility).
+
+Generate exactly 6 "Stay Conscious" intelligence items that brand assessors should be aware of right now. These should be emerging trends, platform changes, new signals, shifting standards, or evolving best practices that affect how a brand is publicly experienced or how it should be rigorously assessed. Be specific and current. Avoid generic marketing platitudes. Write with conviction.
+
+Cover a spread across these categories — use each at most once: AI Visibility, Digital Experience, Brand Strategy, Earned Media, Social Signals, Assessment Practice.
+
+Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
+{"items":[{"headline":"...","category":"...","insight":"...","whyItMatters":"..."}]}
+
+Each item:
+- headline: punchy, specific, max 12 words
+- category: exactly one of: AI Visibility | Digital Experience | Brand Strategy | Earned Media | Social Signals | Assessment Practice
+- insight: 2-3 sentences. What is actually happening, with specifics where possible.
+- whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
+
+function StayConsciousPage({ apiKey, onBack }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [hasFetched, setHasFetched] = useState(false);
+
+  const fetchInsights = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const key = apiKey && apiKey !== 'PROXY' ? apiKey : null;
+      const headers = { 'Content-Type': 'application/json' };
+      let response;
+      if (key) {
+        response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { ...headers, 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model: 'claude-opus-4-20250514',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: STAY_CONSCIOUS_PROMPT }]
+          })
+        });
+      } else {
+        response = await fetch('/api/claude', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ prompt: STAY_CONSCIOUS_PROMPT })
+        });
+      }
+      if (!response.ok) throw new Error('Request failed');
+      const data = await response.json();
+      const text = (data.content?.[0]?.text || data.text || '').trim();
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+      if (parsed?.items?.length) {
+        setItems(parsed.items);
+        setLastRefreshed(new Date());
+        setHasFetched(true);
+      } else {
+        throw new Error('Unexpected response format');
+      }
+    } catch (err) {
+      setError('Could not load insights. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-fetch on first load
+  useEffect(() => {
+    if (!hasFetched) fetchInsights();
+  }, []);
+
+  const filteredItems = activeCategory === 'All' ? items : items.filter(i => i.category === activeCategory);
+
+  return (
+    <div className="min-h-screen bg-[#F5F4F0]">
+      <div className="max-w-5xl mx-auto p-4 md:p-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+          <div className="flex items-start gap-4">
+            <button onClick={onBack} className="btn-secondary flex items-center gap-2 flex-shrink-0">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="w-5 h-5 text-[#6366F1]" />
+                <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Stay Conscious</h1>
+              </div>
+              <p className="text-sm text-[#666666]">Brand intelligence for assessors. What's shifting, why it matters.</p>
+              {lastRefreshed && (
+                <p className="text-xs text-[#9CA3AF] mt-0.5">Last refreshed {lastRefreshed.toLocaleTimeString()}</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={fetchInsights}
+            disabled={loading}
+            className="btn-secondary flex items-center gap-2 self-start sm:self-auto flex-shrink-0"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
+
+        {/* Category filter */}
+        {items.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            {['All', ...STAY_CONSCIOUS_CATEGORIES].map(cat => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                  activeCategory === cat
+                    ? 'bg-[#1A1A1A] text-white'
+                    : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Loading state */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <div className="w-12 h-12 rounded-full bg-[#6366F1]/10 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-[#6366F1] animate-spin" />
+            </div>
+            <p className="text-sm text-[#666666]">Gathering brand intelligence...</p>
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && !loading && (
+          <div className="card p-8 text-center">
+            <AlertCircle className="w-10 h-10 text-[#E53935] mx-auto mb-3" />
+            <p className="text-[#666666] mb-4">{error}</p>
+            <button onClick={fetchInsights} className="btn-primary">Try Again</button>
+          </div>
+        )}
+
+        {/* Items grid */}
+        {!loading && filteredItems.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredItems.map((item, i) => {
+              const meta = CATEGORY_META[item.category] || CATEGORY_META['Brand Strategy'];
+              return (
+                <div key={i} className="card p-5 hover:shadow-md transition-shadow flex flex-col gap-3">
+                  {/* Category badge */}
+                  <div className="flex items-center justify-between">
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                      style={{ backgroundColor: meta.bg, color: meta.color }}
+                    >
+                      {item.category}
+                    </span>
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: meta.color }} />
+                  </div>
+                  {/* Headline */}
+                  <h3 className="font-semibold text-[#1A1A1A] leading-snug">{item.headline}</h3>
+                  {/* Insight */}
+                  <p className="text-sm text-[#444444] leading-relaxed">{item.insight}</p>
+                  {/* Why it matters */}
+                  <div className="border-t border-[#E8E6E1] pt-3 mt-auto">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] mb-1">Why it matters for assessment</div>
+                    <p className="text-xs text-[#666666] leading-relaxed">{item.whyItMatters}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Empty (fetched but no items) */}
+        {!loading && hasFetched && items.length === 0 && !error && (
+          <div className="card p-12 text-center">
+            <Sparkles className="w-10 h-10 text-[#D9D6D0] mx-auto mb-3" />
+            <p className="text-[#666666]">No insights loaded. Try refreshing.</p>
+          </div>
+        )}
+
+        <p className="text-center text-xs text-[#9CA3AF] mt-8">
+          Insights generated by Claude. Always apply your own professional judgement.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // Main App
 function AppContent() {
   const [authLoading, setAuthLoading] = useState(true);
@@ -7684,6 +8294,7 @@ function AppContent() {
   const [showSavedPage, setShowSavedPage] = useState(false);
   const [showResultsPage, setShowResultsPage] = useState(false);
   const [showComparisonPage, setShowComparisonPage] = useState(false);
+  const [showStayConsciousPage, setShowStayConsciousPage] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [savedAssessments, setSavedAssessments] = useState([]);
   const [compassResults, setCompassResults] = useState([]);
@@ -8023,6 +8634,28 @@ function AppContent() {
     return <AdminPage currentUser={user} onBack={() => setShowAdminPage(false)} />;
   }
 
+  // Show Stay Conscious page
+  if (showStayConsciousPage) {
+    return (
+      <div className="min-h-screen bg-[#E8E6E1]">
+        <Header 
+          onNewAssessment={handleNewAssessment}
+          onSavedAssessments={() => { setShowStayConsciousPage(false); setShowSavedPage(true); }}
+          onCompassResults={() => { setShowStayConsciousPage(false); setShowResultsPage(true); }}
+          onComparison={() => { setShowStayConsciousPage(false); setShowComparisonPage(true); }}
+          onStayConscious={() => setShowStayConsciousPage(false)}
+          activePage="stay-conscious"
+          lastAutoSave={lastAutoSave}
+          user={user}
+          profile={profile}
+          onLogout={handleLogout}
+          onAdmin={() => setShowAdminPage(true)}
+        />
+        <StayConsciousPage apiKey={apiKey} onBack={() => setShowStayConsciousPage(false)} />
+      </div>
+    );
+  }
+
   // Show comparison page
   if (showComparisonPage) {
     return (
@@ -8032,6 +8665,8 @@ function AppContent() {
           onSavedAssessments={() => { setShowComparisonPage(false); setShowSavedPage(true); }}
           onCompassResults={() => { setShowComparisonPage(false); setShowResultsPage(true); }}
           onComparison={() => setShowComparisonPage(false)}
+          onStayConscious={() => { setShowComparisonPage(false); setShowStayConsciousPage(true); }}
+          activePage="compare"
           lastAutoSave={lastAutoSave}
           user={user}
           profile={profile}
@@ -8055,6 +8690,8 @@ function AppContent() {
           onSavedAssessments={() => { setShowResultsPage(false); setShowSavedPage(true); }}
           onCompassResults={() => setShowResultsPage(false)}
           onComparison={() => { setShowResultsPage(false); setShowComparisonPage(true); }}
+          onStayConscious={() => { setShowResultsPage(false); setShowStayConsciousPage(true); }}
+          activePage="results"
           lastAutoSave={lastAutoSave}
           user={user}
           profile={profile}
@@ -8081,6 +8718,8 @@ function AppContent() {
           onSavedAssessments={() => setShowSavedPage(false)}
           onCompassResults={() => { setShowSavedPage(false); setShowResultsPage(true); }}
           onComparison={() => { setShowSavedPage(false); setShowComparisonPage(true); }}
+          onStayConscious={() => { setShowSavedPage(false); setShowStayConsciousPage(true); }}
+          activePage="saved"
           lastAutoSave={lastAutoSave}
           user={user}
           profile={profile}
@@ -8117,6 +8756,8 @@ function AppContent() {
         onSavedAssessments={() => setShowSavedPage(true)}
         onCompassResults={() => setShowResultsPage(true)}
         onComparison={() => setShowComparisonPage(true)}
+        onStayConscious={() => setShowStayConsciousPage(true)}
+        activePage={null}
         lastAutoSave={lastAutoSave}
         user={user}
         profile={profile}
