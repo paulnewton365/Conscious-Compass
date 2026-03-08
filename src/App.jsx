@@ -6,6 +6,8 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, T
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+
+const APP_VERSION = '2.14.0';
 import { 
   supabase, 
   signUp, 
@@ -1271,7 +1273,7 @@ function WelcomePage({ onStart }) {
       </div>
       
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.13.0
+        v{APP_VERSION}
       </div>
     </div>
   );
@@ -1354,7 +1356,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
       </div>
       
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        Version 2.12.73 | Read-only Access
+        v{APP_VERSION} · Read-only
       </div>
     </div>
   );
@@ -3881,8 +3883,24 @@ YouTube API Data: ${assessments.social.youtubeContent?.includes('[API Data]') ? 
 Knowledge Graph Status: ${assessments.social.wikipediaContent?.includes('[Knowledge Graph]') ? 'Entity data included' : 'Manual entry only'}
 
 AI REPUTATION ASSESSMENT:
-${assessments.aiReputation.content}
-${assessments.aiReputation.observations ? `Assessor Notes: ${assessments.aiReputation.observations}` : ''}
+${(() => {
+  const ai = assessments.aiReputation;
+  const engines = [
+    ['Claude', ai?.claudeManual],
+    ['Gemini', ai?.geminiManual],
+    ['ChatGPT', ai?.chatgptManual],
+    ['Perplexity', ai?.perplexityManual],
+    ['Microsoft Copilot', ai?.copilotManual],
+  ].filter(([, v]) => v);
+  const parts = [];
+  if (ai?.reputationFlags) parts.push(`REPUTATION FLAGS (pre-query research):\n${ai.reputationFlags}`);
+  if (engines.length) parts.push(engines.map(([name, val]) => `[${name} Response]\n${val}`).join('\n\n'));
+  if (ai?.wikipediaContent) parts.push(`WIKIPEDIA PRESENCE:\n${ai.wikipediaContent}`);
+  if (ai?.redditAnswersContent) parts.push(`REDDIT ANSWERS (AI community perception):\n${ai.redditAnswersContent}`);
+  if (ai?.observations) parts.push(`Assessor Notes: ${ai.observations}`);
+  if (ai?.content) parts.push(`AI REPUTATION SYNTHESIS:\n${ai.content}`);
+  return parts.length ? parts.join('\n\n') : 'Not completed';
+})()}
 
 EARNED MEDIA ASSESSMENT:
 ${assessments.earnedMedia.content}
@@ -3940,8 +3958,11 @@ OTHER SCORING FACTORS:
 - WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
 - Core Web Vitals (LCP, CLS, TBT) indicate user experience quality - factor into the technical portion of ATTENTIVE
 - YouTube API data (if available) provides verified metrics: subscriber tier, video count, third-party coverage impacts AWAKE (influence) and AWARE (audience reach)
-- Knowledge Graph entity status impacts COGENT (AI search visibility) and INTENTIONAL (brand credibility)
-- Reddit Answers perception directly impacts COGENT score (how AI systems perceive and describe the brand)
+- Wikipedia presence is an AI training signal: a well-maintained Wikipedia page directly boosts COGENT (AI search visibility) and INTENTIONAL (established credibility). Absence is a gap. Thin or contested content is a risk.
+- Reddit community perception impacts REFLECTIVE (does external community perception match the brand's self-presentation?) and COGENT (Reddit is a primary training source for AI models describing brands)
+- Reputation flags (legal issues, scandals, negative press, review patterns) directly impact REFLECTIVE and INTENTIONAL. Named flags must be acknowledged in scoring — they cannot be ignored.
+- AI engine convergence: where Claude, Gemini, ChatGPT, Perplexity, and Copilot all describe the brand similarly, this is a strong signal of established presence. Where they diverge significantly or struggle to describe the brand, this indicates weak AI discoverability — penalise COGENT and INTENTIONAL accordingly.
+- AI engine absence or vagueness: if AI models cannot clearly describe what the brand does, who it serves, or what it stands for, this is a scored gap in COGENT (AI search readability) and AWARE (brand clarity to external audiences)
 - Influencer partnerships impact multiple scores: strategic thought leader partnerships boost AWAKE, audience-aligned creators boost AWARE, creative quality impacts SENTIENT
 - Paid media presence signals investment and intentionality: ad volume and consistency impact INTENTIONAL, creative quality impacts SENTIENT, targeting sophistication impacts COGENT and AWARE
 
@@ -4326,15 +4347,17 @@ Return the JSON scores in this exact format:
   if (assessments.social?.xContent) evaluatedInputs.push('X (Twitter) content and voice');
   if (assessments.social?.instagramContent) evaluatedInputs.push('Instagram presence and visual brand');
   if (assessments.social?.youtubeContent) evaluatedInputs.push('YouTube channel and video content');
-  if (assessments.social?.redditAnswersContent) evaluatedInputs.push('Reddit Answers AI search visibility check');
-  if (assessments.social?.redditAnswersContent) evaluatedInputs.push('Reddit Answers AI search visibility');
-  if (assessments.social?.wikipediaContent) evaluatedInputs.push('Wikipedia presence and credibility signals');
   if (assessments.social?.socialImages?.length > 0) evaluatedInputs.push(`${assessments.social.socialImages.length} social media screenshot(s)`);
   
   // AI Reputation inputs
-  if (assessments.aiReputation?.responses?.claude) evaluatedInputs.push('Claude AI brand perception');
-  if (assessments.aiReputation?.responses?.gemini || assessments.aiReputation?.geminiManual) evaluatedInputs.push('Gemini AI brand perception');
-  if (assessments.aiReputation?.responses?.chatgpt || assessments.aiReputation?.chatgptManual) evaluatedInputs.push('ChatGPT brand perception');
+  if (assessments.aiReputation?.reputationFlags) evaluatedInputs.push('Reputation trigger search (news, controversy, reviews)');
+  if (assessments.aiReputation?.claudeManual) evaluatedInputs.push('Claude AI brand perception');
+  if (assessments.aiReputation?.geminiManual) evaluatedInputs.push('Gemini AI brand perception');
+  if (assessments.aiReputation?.chatgptManual) evaluatedInputs.push('ChatGPT brand perception');
+  if (assessments.aiReputation?.perplexityManual) evaluatedInputs.push('Perplexity AI brand perception');
+  if (assessments.aiReputation?.copilotManual) evaluatedInputs.push('Microsoft Copilot brand perception');
+  if (assessments.aiReputation?.wikipediaContent) evaluatedInputs.push('Wikipedia presence and AI training signal');
+  if (assessments.aiReputation?.redditAnswersContent) evaluatedInputs.push('Reddit Answers AI search visibility');
   
   // Earned Media inputs
   if (assessments.earnedMedia?.coveragePaste) evaluatedInputs.push('3 months earned media coverage and press mentions');
@@ -4454,34 +4477,36 @@ ${assessments.social.content}
     }
 
     // Add AI Reputation Assessment
-    if (assessments.aiReputation?.claudeManual || assessments.aiReputation?.geminiManual || assessments.aiReputation?.chatgptManual || assessments.aiReputation?.content) {
-      reportText += `
+    {
+      const ai = assessments.aiReputation;
+      const hasAny = ai?.claudeManual || ai?.geminiManual || ai?.chatgptManual || ai?.perplexityManual || ai?.copilotManual || ai?.content || ai?.reputationFlags || ai?.wikipediaContent || ai?.redditAnswersContent;
+      if (hasAny) {
+        reportText += `
 ${subDivider}
 AI REPUTATION ASSESSMENT
 ${subDivider}
 `;
-      if (assessments.aiReputation?.claudeManual) {
-        reportText += `
-[Claude Response]
-${assessments.aiReputation.claudeManual}
+        if (ai?.reputationFlags) reportText += `
+[Reputation Flags]
+${ai.reputationFlags}
 `;
-      }
-      if (assessments.aiReputation?.geminiManual) {
-        reportText += `
-[Gemini Response]
-${assessments.aiReputation.geminiManual}
+        for (const [key, label] of [['claudeManual','Claude'],['geminiManual','Gemini'],['chatgptManual','ChatGPT'],['perplexityManual','Perplexity'],['copilotManual','Microsoft Copilot']]) {
+          if (ai?.[key]) reportText += `
+[${label} Response]
+${ai[key]}
 `;
-      }
-      if (assessments.aiReputation?.chatgptManual) {
-        reportText += `
-[ChatGPT Response]
-${assessments.aiReputation.chatgptManual}
+        }
+        if (ai?.wikipediaContent) reportText += `
+[Wikipedia Presence]
+${ai.wikipediaContent}
 `;
-      }
-      if (assessments.aiReputation?.content) {
-        reportText += `
+        if (ai?.redditAnswersContent) reportText += `
+[Reddit Community Perception]
+${ai.redditAnswersContent}
+`;
+        if (ai?.content) reportText += `
 [AI Reputation Synthesis]
-${assessments.aiReputation.content}
+${ai.content}
 `;
       }
     }
@@ -4511,7 +4536,7 @@ ${assessments.earnedMedia.content}
 ${divider}
 METHODOLOGY
 ${divider}
-${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice.
+${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice.
 
 Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${FRAMEWORK_VERSION}
 `;
@@ -5147,7 +5172,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
             new Paragraph({ 
               spacing: { after: 400 },
               children: [new TextRun({ 
-                text: `This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, 
+                text: `This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, 
                 size: 20 
               })] 
             }),
@@ -5468,7 +5493,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         {expandedSections.evaluated && (
           <div className="card p-4 md:p-6 animate-fade-in">
             <p className="text-sm md:text-base text-[#333333] leading-relaxed">
-              This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement. AI reputation was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
+              This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
           </div>
         )}
@@ -8086,6 +8111,7 @@ function StayConsciousPage({ apiKey, onBack }) {
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
             max_tokens: 2000,
+            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
             messages: [{ role: 'user', content: STAY_CONSCIOUS_PROMPT }]
           })
         });
@@ -8093,14 +8119,19 @@ function StayConsciousPage({ apiKey, onBack }) {
         response = await fetch('/api/claude', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ prompt: STAY_CONSCIOUS_PROMPT })
+          body: JSON.stringify({ prompt: STAY_CONSCIOUS_PROMPT, useWebSearch: true })
         });
       }
-      if (!response.ok) throw new Error('Request failed');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Request failed (${response.status})`);
+      }
       const data = await response.json();
-      const text = (data.content?.[0]?.text || data.text || '').trim();
-      const clean = text.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(clean);
+      const text = (data.content?.filter(b => b.type === 'text').map(b => b.text).join('\n') || data.text || '').trim();
+      const clean = text.replace(/```json[\s\S]*?```/g, m => m.slice(7, -3)).replace(/```/g, '').trim();
+      // Find JSON object in response
+      const jsonMatch = clean.match(/\{[\s\S]*"items"[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : clean);
       if (parsed?.items?.length) {
         setItems(parsed.items);
         setLastRefreshed(new Date());
@@ -8109,7 +8140,7 @@ function StayConsciousPage({ apiKey, onBack }) {
         throw new Error('Unexpected response format');
       }
     } catch (err) {
-      setError('Could not load insights. Check your connection and try again.');
+      setError(`Could not load insights: ${err.message}`);
     } finally {
       setLoading(false);
     }
