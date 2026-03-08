@@ -485,7 +485,7 @@ function compressImage(dataUrl, maxSizeMB = 3.5) {
   });
 }
 
-async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0, isJson = false) {
+async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0, isJson = false, maxTokens = 6000) {
   // Add standard instructions for consistency
   const enhancedPrompt = `${prompt}
 
@@ -535,7 +535,7 @@ IMPORTANT FORMATTING RULES:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 8000,
+        max_tokens: maxTokens,
         temperature: 0,
         messages: [{ role: 'user', content }]
       })
@@ -558,7 +558,7 @@ IMPORTANT FORMATTING RULES:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 8000,
+        max_tokens: maxTokens,
         temperature: 0,
         messages: [{ role: 'user', content }]
       })
@@ -3850,41 +3850,29 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     }, 800);
 
     try {
-      const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}.
+    // Helper: truncate long text to keep prompt lean
+    const cap = (text, limit = 1200) => {
+      if (!text || text === 'None' || text === 'Not specified') return null;
+      return text.length > limit ? text.slice(0, limit) + '... [truncated]' : text;
+    };
+    const field = (label, value) => value && value !== 'Not assessed' && value !== 'Not checked' && value !== 'Not reviewed' && value !== 'Not noted' && value !== 'Not provided' && value !== 'None noted' ? `${label}: ${value}` : null;
 
-ASSESSMENT DATA COLLECTED:
+    const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}.
 
-WEBSITE ASSESSMENT:
-${assessments.website.content}
-${assessments.website.observations ? `Assessor Notes: ${assessments.website.observations}` : ''}
-Pages Reviewed: ${assessments.website.pagesReviewed || 'Not specified'}
-Additional Content: ${assessments.website.websiteContent || 'None'}
-Recognition & Credentials: ${assessments.website.credentialsContent || 'None noted'}
+ASSESSMENT DATA:
 
-SEO VISIBILITY ASSESSMENT:
-${assessments.website.seoAssessment || 'SEO visibility not assessed'}
+WEBSITE:
+${cap(assessments.website.content)}
+${cap(assessments.website.seoAssessment, 600) ? `SEO: ${cap(assessments.website.seoAssessment, 600)}` : ''}
+${assessments.website.techAudit ? `Technical: Performance ${assessments.website.techAudit.scores.performance}/100, Accessibility ${assessments.website.techAudit.scores.accessibility}/100, SEO ${assessments.website.techAudit.scores.seo}/100, Best Practices ${assessments.website.techAudit.scores.bestPractices}/100` : ''}
+${[field('Pages', assessments.website.pagesReviewed), field('Credentials', cap(assessments.website.credentialsContent, 300)), field('Notes', assessments.website.observations)].filter(Boolean).join('\n')}
 
-TECHNICAL PERFORMANCE AUDIT:
-${assessments.website.techAudit && (assessments.website.techAudit.scores.performance !== '' || assessments.website.techAudit.scores.accessibility !== '' || assessments.website.techAudit.scores.bestPractices !== '' || assessments.website.techAudit.scores.seo !== '') ? `
-Performance Score: ${assessments.website.techAudit.scores.performance !== '' ? assessments.website.techAudit.scores.performance + '/100' : 'Not provided'}
-Accessibility Score: ${assessments.website.techAudit.scores.accessibility !== '' ? assessments.website.techAudit.scores.accessibility + '/100' : 'Not provided'}
-Best Practices Score: ${assessments.website.techAudit.scores.bestPractices !== '' ? assessments.website.techAudit.scores.bestPractices + '/100' : 'Not provided'}
-Technical SEO Score: ${assessments.website.techAudit.scores.seo !== '' ? assessments.website.techAudit.scores.seo + '/100' : 'Not provided'}
-` : 'Technical audit not completed'}
+SOCIAL MEDIA:
+${cap(assessments.social.content)}
+${[field('Glassdoor', cap(assessments.social.glassdoorContent, 400)), field('Employee Advocacy', cap(assessments.social.employeeAdvocacy, 300)), field('Paid Media', cap(assessments.social.paidMediaContent, 300)), field('Awards', cap(assessments.social.awardsRecognition, 300)), field('WIPO', assessments.social.wipoContent), field('Notes', assessments.social.observations)].filter(Boolean).join('\n')}
+YouTube: ${assessments.social.youtubeContent?.includes('[API Data]') ? 'Verified metrics included' : 'Manual only'}
 
-SOCIAL MEDIA ASSESSMENT:
-${assessments.social.content}
-${assessments.social.observations ? `Assessor Notes: ${assessments.social.observations}` : ''}
-Employee Advocacy: ${assessments.social.employeeAdvocacy || 'Not assessed'}
-Awards & Recognition: ${assessments.social.awardsRecognition || 'Not noted'}
-Hashtag Strategy: ${assessments.social.hashtagContent || 'Not assessed'}
-Paid Media Presence: ${assessments.social.paidMediaContent || 'Not checked'}
-Glassdoor: ${assessments.social.glassdoorContent || 'Not reviewed'}
-WIPO Trademark: ${assessments.social.wipoContent || 'Not checked'}
-YouTube API Data: ${assessments.social.youtubeContent?.includes('[API Data]') ? 'Verified metrics included' : 'Manual entry only'}
-Knowledge Graph Status: ${assessments.social.wikipediaContent?.includes('[Knowledge Graph]') ? 'Entity data included' : 'Manual entry only'}
-
-AI REPUTATION ASSESSMENT:
+AI REPUTATION:
 ${(() => {
   const ai = assessments.aiReputation;
   const engines = [
@@ -3892,30 +3880,29 @@ ${(() => {
     ['Gemini', ai?.geminiManual],
     ['ChatGPT', ai?.chatgptManual],
     ['Perplexity', ai?.perplexityManual],
-    ['Microsoft Copilot', ai?.copilotManual],
+    ['Copilot', ai?.copilotManual],
   ].filter(([, v]) => v);
   const parts = [];
-  if (ai?.reputationFlags) parts.push(`REPUTATION FLAGS (pre-query research):\n${ai.reputationFlags}`);
-  if (engines.length) parts.push(engines.map(([name, val]) => `[${name} Response]\n${val}`).join('\n\n'));
-  if (ai?.wikipediaContent) parts.push(`WIKIPEDIA PRESENCE:\n${ai.wikipediaContent}`);
-  if (ai?.redditAnswersContent) parts.push(`REDDIT ANSWERS (AI community perception):\n${ai.redditAnswersContent}`);
-  if (ai?.observations) parts.push(`Assessor Notes: ${ai.observations}`);
-  if (ai?.content) parts.push(`AI REPUTATION SYNTHESIS:\n${ai.content}`);
+  if (ai?.reputationFlags) parts.push(`FLAGS: ${cap(ai.reputationFlags, 400)}`);
+  if (engines.length) parts.push(engines.map(([name, val]) => `[${name}] ${cap(val, 500)}`).join('\n\n'));
+  if (ai?.wikipediaContent) parts.push(`Wikipedia: ${cap(ai.wikipediaContent, 400)}`);
+  if (ai?.redditAnswersContent) parts.push(`Reddit: ${cap(ai.redditAnswersContent, 400)}`);
+  if (ai?.content) parts.push(`Synthesis: ${cap(ai.content, 600)}`);
+  if (ai?.observations) parts.push(`Notes: ${ai.observations}`);
   return parts.length ? parts.join('\n\n') : 'Not completed';
 })()}
 
-EARNED MEDIA ASSESSMENT:
-${assessments.earnedMedia.content}
-${assessments.earnedMedia.observations ? `Assessor Notes: ${assessments.earnedMedia.observations}` : ''}
+EARNED MEDIA:
+${cap(assessments.earnedMedia.content)}
+${field('Notes', assessments.earnedMedia.observations) || ''}
 
-SCORING RUBRIC v2.7 - Score each attribute 0-100 by answering these fundamental questions:
+SCORING RUBRIC v2.8 — Score each attribute 0-100:
 
 ${ATTRIBUTES.map(a => `${a.id} (${a.fullName})
-FUNDAMENTAL QUESTION: ${a.question}
-${a.description}
-STRONG SIGNALS (70-100): ${a.signals.strong.join('; ')}
-MODERATE SIGNALS (40-69): ${a.signals.moderate.join('; ')}
-WEAK SIGNALS (0-39): ${a.signals.weak.join('; ')}`).join('\n\n')}
+Q: ${a.question}
+Strong (70-100): ${a.signals.strong.join('; ')}
+Moderate (40-69): ${a.signals.moderate.join('; ')}
+Weak (0-39): ${a.signals.weak.join('; ')}`).join('\n\n')}
 
 SCORE RANGE DEFINITIONS (use these anchors for consistency):
 - 0-25 (Pre-Foundational): Cannot answer the fundamental question positively. Significant gaps, minimal evidence.
@@ -3940,84 +3927,13 @@ EVIDENCE STRENGTH GUIDELINES:
 - Tier 2 (Moderate): Industry publications, social proof, consistent messaging across channels
 - Tier 3 (Weak): Self-reported claims without verification, outdated content, single instances
 
-SCORING CONSIDERATIONS:
-
-WEIGHTED SCORING FOR TECHNICAL AUDIT DATA:
-When Technical Performance Audit data is available, use this weighted approach for ATTENTIVE:
-- 70% qualitative assessment (design, content quality, UX, brand consistency from screenshots)
-- 30% technical metrics (Performance score, Accessibility score, Core Web Vitals)
-Calculate: ATTENTIVE = (qualitative_score × 0.7) + (avg_technical_score × 0.3)
-
-For COGENT, technical SEO contributes ~20% of the score:
-- 80% qualitative assessment (messaging clarity, data-driven signals, content strategy)
-- 20% technical SEO score from PageSpeed audit
-Calculate: COGENT = (qualitative_score × 0.8) + (technical_seo_score × 0.2)
-
-If Technical Audit was not run, score based on qualitative assessment alone but note reduced confidence.
-
-OTHER SCORING FACTORS:
-- Glassdoor reviews impact REFLECTIVE score (brand self-awareness and reputation)
-- WIPO trademark registration impacts INTENTIONAL score (brand protection and professionalism)
-- Core Web Vitals (LCP, CLS, TBT) indicate user experience quality - factor into the technical portion of ATTENTIVE
-- YouTube API data (if available) provides verified metrics: subscriber tier, video count, third-party coverage impacts AWAKE (influence) and AWARE (audience reach)
-- Wikipedia presence is an AI training signal: a well-maintained Wikipedia page directly boosts COGENT (AI search visibility) and INTENTIONAL (established credibility). Absence is a gap. Thin or contested content is a risk.
-- Reddit community perception impacts REFLECTIVE (does external community perception match the brand's self-presentation?) and COGENT (Reddit is a primary training source for AI models describing brands)
-- Reputation flags (legal issues, scandals, negative press, review patterns) directly impact REFLECTIVE and INTENTIONAL. Named flags must be acknowledged in scoring — they cannot be ignored.
-- AI engine convergence: where Claude, Gemini, ChatGPT, Perplexity, and Copilot all describe the brand similarly, this is a strong signal of established presence. Where they diverge significantly or struggle to describe the brand, this indicates weak AI discoverability — penalise COGENT and INTENTIONAL accordingly.
-- AI engine absence or vagueness: if AI models cannot clearly describe what the brand does, who it serves, or what it stands for, this is a scored gap in COGENT (AI search readability) and AWARE (brand clarity to external audiences)
-- Influencer partnerships impact multiple scores: strategic thought leader partnerships boost AWAKE, audience-aligned creators boost AWARE, creative quality impacts SENTIENT
-- Paid media presence signals investment and intentionality: ad volume and consistency impact INTENTIONAL, creative quality impacts SENTIENT, targeting sophistication impacts COGENT and AWARE
-
-BUSINESS MODEL WEIGHTING (${project.businessModel.toUpperCase()}):
-${project.businessModel === 'b2b' ? `
-B2B SCORING ADJUSTMENTS:
-- LinkedIn is the PRIMARY social platform - weight LinkedIn presence and engagement 3x more than other social channels
-- TikTok presence should be MINIMALLY weighted (unless targeting younger B2B buyers like startup founders)
-- Instagram is secondary - useful for employer brand and culture, but not a primary lead channel
-- Influencer partnerships should focus on INDUSTRY EXPERTS and THOUGHT LEADERS, not consumer influencers
-- Earned media in TRADE PUBLICATIONS and INDUSTRY PRESS matters more than mainstream media
-- Long-form content (whitepapers, case studies, webinars) signals stronger than short-form social content
-- Employee advocacy on LinkedIn is a strong signal for REFLECTIVE and AWARE
-- YouTube third-party coverage by industry channels signals strong thought leadership (AWAKE)
-- Knowledge Graph entity recognition signals established credibility (INTENTIONAL, COGENT)
-- Conference speaking and podcast appearances weight heavily for AWAKE
-- Client logos and case studies are critical for INTENTIONAL and COGENT
-` : project.businessModel === 'b2c' ? `
-B2C SCORING ADJUSTMENTS:
-- Weight ALL consumer social platforms (Instagram, TikTok, YouTube, X) according to target audience demographics
-- TikTok is HIGHLY RELEVANT for brands targeting audiences under 40
-- Influencer partnerships with CONSUMER CREATORS are highly relevant signals
-- Paid media across Meta, TikTok, and Google indicates market investment
-- User-generated content and community engagement are strong signals
-- Consumer reviews and sentiment across platforms matter greatly
-- Mainstream media coverage may matter more than trade press
-- Instagram visual brand consistency is critical for SENTIENT
-- YouTube subscriber tier and third-party coverage indicates audience reach (AWARE)
-` : `
-B2B2C / HYBRID SCORING ADJUSTMENTS:
-- Weight LinkedIn heavily for B2B relationships but also assess consumer channels
-- Both trade press AND mainstream media coverage matter
-- Influencer strategy should show DUAL APPROACH: industry experts + consumer creators
-- TikTok relevance depends on whether consumer audience skews younger
-- Employee advocacy matters for B2B credibility
-- Consumer reviews and B2B testimonials both contribute to REFLECTIVE
-- Website should serve BOTH audiences - look for clear audience pathways
-`}
-
-CHANNEL RELEVANCE BY BUSINESS MODEL:
-| Channel | B2B Weight | B2C Weight | B2B2C Weight |
-| LinkedIn | Critical (5x) | Secondary (1x) | Important (3x) |
-| TikTok | Low (0.5x) | High for <40 (3x) | Moderate (1.5x) |
-| Instagram | Low (1x) | High (3x) | Moderate (2x) |
-| YouTube | Moderate (2x) | High (3x) | High (2.5x) |
-| X/Twitter | Moderate (2x) | Moderate (2x) | Moderate (2x) |
-| Trade Press | Critical (3x) | Low (0.5x) | Moderate (2x) |
-| Mainstream Media | Low (1x) | High (3x) | Moderate (2x) |
-| Reddit Answers | High (3x) | High (3x) | High (3x) |
-| Industry Events | High (3x) | Low (0.5x) | Moderate (2x) |
-| Consumer Reviews | Low (0.5x) | Critical (3x) | Moderate (2x) |
-
-Apply these weights when evaluating evidence. Missing presence on LOW-weight channels should not significantly penalize scores.
+SCORING NOTES:
+- ATTENTIVE: 70% qualitative + 30% technical metrics (if available). COGENT: 80% qualitative + 20% technical SEO.
+- Glassdoor impacts REFLECTIVE. WIPO impacts INTENTIONAL. Wikipedia absence/thin = gap in COGENT+INTENTIONAL.
+- Reddit perception: REFLECTIVE + COGENT. Reputation flags: must be reflected in REFLECTIVE + INTENTIONAL scores.
+- AI engine convergence = strong discoverability (COGENT+INTENTIONAL). Vagueness/divergence = penalise both.
+- Business model: ${project.businessModel.toUpperCase()}. ${project.businessModel === 'b2b' ? 'LinkedIn 3x. Trade press over mainstream. Long-form over short-form. Low TikTok weight.' : project.businessModel === 'b2c' ? 'All consumer social weighted. TikTok relevant if <40 audience. Consumer reviews critical. Mainstream media over trade press.' : 'Weight LinkedIn for B2B, consumer channels for B2C. Both trade and mainstream press matter.'}
+- Recency: weight last 3 months more heavily. Evidence tiers: major publications/verified data (strong), industry/social proof (moderate), self-reported/single instance (weak).
 
 SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 - AWAKE: Executive Visibility, PR & Media Relations, Thought Leadership Content
@@ -4029,81 +3945,22 @@ SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 - VISIONARY: Brand Strategy, Impact Communications, Executive Visibility
 - INTENTIONAL: Brand Strategy, Brand Assets & Guidelines, Website Development, Communications Training
 
-Return the JSON scores in this exact format:
+Return valid JSON only — no prose before or after. Schema:
 {
-  "headline": "A single pithy sentence (max 20 words) that captures the brand's current state and primary opportunity. Be specific, not generic. E.g., 'Strong thought leadership undermined by inconsistent visual identity and weak digital infrastructure.'",
-  "conclusion": "A 2-3 sentence insight-based conclusion that signposts the specific opportunity for this brand. Reference actual findings. Avoid generic language like 'well positioned' or 'strong foundation'. Instead, name the specific transformation available. E.g., 'Brand X has built genuine industry authority through executive visibility, but this influence dissipates at the website. Converting thought leadership credibility into a cohesive digital experience would unlock significant pipeline growth.'",
-  "justification": "Under 175 words explaining why the overall score is what it is. Call out any notably high or low scores with specific evidence. This helps users defend the assessment. E.g., 'The 42 overall reflects solid awareness foundations offset by execution gaps. AWAKE scored highest (68) due to Forbes coverage and active LinkedIn thought leadership. SENTIENT scored lowest (28) because visual identity is inconsistent across channels and creative work lacks distinctive personality. The REFLECTIVE score (35) was impacted by 2.8 Glassdoor rating showing culture-brand misalignment.'",
-  "AWAKE": {
-    "score": 45,
-    "confidence": "medium",
-    "findings": "Specific observations with cited evidence. E.g., 'Forbes coverage (Jan 2026) demonstrates tier-1 media presence. LinkedIn shows 3 thought leadership articles in past quarter.'",
-    "evidence": [
-      {"source": "Forbes article", "type": "earned_media", "strength": "strong", "detail": "CEO quoted on industry trends"},
-      {"source": "LinkedIn articles", "type": "thought_leadership", "strength": "moderate", "detail": "3 articles published in Q4"}
-    ],
-    "gaps": ["No podcast appearances found", "Limited speaking engagement visibility", "No Wikipedia presence"],
-    "opportunity": "Consider Executive Visibility and PR services to build industry influence and narrative leadership."
-  },
-  "AWARE": {
-    "score": 52,
-    "confidence": "high",
-    "findings": "Evidence-based observations about audience understanding and trust signals.",
-    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
-    "gaps": ["List specific missing elements"],
-    "opportunity": "Audience Research and Social Media Strategy would strengthen audience connection."
-  },
-  "REFLECTIVE": {
-    "score": 38,
-    "confidence": "medium",
-    "findings": "Evidence-based observations about brand consistency and reputation.",
-    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
-    "gaps": ["List specific missing elements"],
-    "opportunity": "Brand Strategy services would establish authentic brand foundation."
-  },
-  "ATTENTIVE": {
-    "score": 55,
-    "confidence": "high",
-    "findings": "Evidence-based observations about quality, UX, and accessibility (estimate WCAG 2.1 AA compliance).",
-    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
-    "gaps": ["List specific missing elements"],
-    "opportunity": "Website Strategy & Development would improve experience quality."
-  },
-  "COGENT": {
-    "score": 42,
-    "confidence": "medium",
-    "findings": "Evidence-based observations about SEO, data-driven approach, and strategic intelligence.",
-    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
-    "gaps": ["List specific missing elements"],
-    "opportunity": "SEO Strategy and Integrated Measurement would strengthen data-driven marketing."
-  },
-  "SENTIENT": {
-    "score": 35,
-    "confidence": "medium",
-    "findings": "Evidence-based observations about emotional resonance and creative differentiation.",
-    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
-    "gaps": ["List specific missing elements"],
-    "opportunity": "Creative Campaigns would create stronger emotional connections."
-  },
-  "VISIONARY": {
-    "score": 48,
-    "confidence": "medium",
-    "findings": "Evidence-based observations about purpose, vision, and forward-thinking positioning.",
-    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
-    "gaps": ["List specific missing elements"],
-    "opportunity": "Brand Strategy and Impact Communications would clarify purpose and vision."
-  },
-  "INTENTIONAL": {
-    "score": 50,
-    "confidence": "high",
-    "findings": "Evidence-based observations about credibility, professionalism, and intentional positioning.",
-    "evidence": [{"source": "...", "type": "...", "strength": "...", "detail": "..."}],
-    "gaps": ["List specific missing elements"],
-    "opportunity": "Brand Assets & Guidelines would ensure professional market presence."
-  }
+  "headline": "Single pithy sentence (max 20 words) capturing brand state and primary opportunity. Specific, not generic.",
+  "conclusion": "2-3 sentences naming the specific transformation available. Reference actual findings. No generic phrases.",
+  "justification": "Under 150 words. Why the overall score is what it is. Call out notably high/low scores with evidence.",
+  "AWAKE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "Cited evidence", "evidence": [{"source":"","type":"","strength":"strong|moderate|weak","detail":""}], "gaps": ["..."], "opportunity": "Relevant service area recommendation." },
+  "AWARE":      { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
+  "REFLECTIVE": { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
+  "ATTENTIVE":  { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
+  "COGENT":     { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
+  "SENTIENT":   { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
+  "VISIONARY":  { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
+  "INTENTIONAL":{ "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." }
 }`;
 
-      const result = await callClaude(prompt, apiKey, null, [], 0, true);
+      const result = await callClaude(prompt, apiKey, null, [], 0, true, 4500);
       clearInterval(progressInterval);
       setScoringProgress(100);
       setScoringStage('Complete!');
@@ -4479,38 +4336,14 @@ ${assessments.social.content}
     }
 
     // Add AI Reputation Assessment
-    {
-      const ai = assessments.aiReputation;
-      const hasAny = ai?.claudeManual || ai?.geminiManual || ai?.chatgptManual || ai?.perplexityManual || ai?.copilotManual || ai?.content || ai?.reputationFlags || ai?.wikipediaContent || ai?.redditAnswersContent;
-      if (hasAny) {
-        reportText += `
+    if (assessments.aiReputation?.content) {
+      reportText += `
 ${subDivider}
 AI REPUTATION ASSESSMENT
 ${subDivider}
+
+${assessments.aiReputation.content}
 `;
-        if (ai?.reputationFlags) reportText += `
-[Reputation Flags]
-${ai.reputationFlags}
-`;
-        for (const [key, label] of [['claudeManual','Claude'],['geminiManual','Gemini'],['chatgptManual','ChatGPT'],['perplexityManual','Perplexity'],['copilotManual','Microsoft Copilot']]) {
-          if (ai?.[key]) reportText += `
-[${label} Response]
-${ai[key]}
-`;
-        }
-        if (ai?.wikipediaContent) reportText += `
-[Wikipedia Presence]
-${ai.wikipediaContent}
-`;
-        if (ai?.redditAnswersContent) reportText += `
-[Reddit Community Perception]
-${ai.redditAnswersContent}
-`;
-        if (ai?.content) reportText += `
-[AI Reputation Synthesis]
-${ai.content}
-`;
-      }
     }
 
     // Add Earned Media Assessment
@@ -5610,44 +5443,19 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
                   </div>
                   <div className="text-left">
                     <h4 className="font-medium text-[#1A1A1A]">AI Reputation Assessment</h4>
-                    <p className="text-xs text-[#666666]">Claude, Gemini, ChatGPT perception synthesis</p>
+                    <p className="text-xs text-[#666666]">AI engine reputation synthesis</p>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutAI ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutAI && (
-                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
-                  {assessments.aiReputation?.claudeManual && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#3B82F6] mb-2">Claude Response</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-48 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.claudeManual}</pre>
-                      </div>
+                <div className="border-t border-[#E8E6E1] p-4 bg-[#FAFAF9]">
+                  {assessments.aiReputation?.content ? (
+                    <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                      <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
                     </div>
-                  )}
-                  {assessments.aiReputation?.geminiManual && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#3B82F6] mb-2">Gemini Response</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-48 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.geminiManual}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {assessments.aiReputation?.chatgptManual && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#3B82F6] mb-2">ChatGPT Response</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-48 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.chatgptManual}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {assessments.aiReputation?.content && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#3B82F6] mb-2">AI Reputation Synthesis</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
-                      </div>
-                    </div>
+                  ) : (
+                    <p className="text-sm text-[#666666]">No synthesis generated yet.</p>
                   )}
                 </div>
               )}
@@ -6349,12 +6157,6 @@ function InsightsView({ results, industryBenchmarks, industries }) {
   }, [results]);
 
   const generateInsights = async () => {
-    const apiKey = localStorage.getItem('conscious-compass-apikey');
-    if (!apiKey) {
-      setError('Please add your API key in the Setup page to generate AI insights.');
-      return;
-    }
-    
     setLoading(true);
     setError(null);
     
@@ -6456,7 +6258,8 @@ Based on this data, provide thought leadership insights in this JSON format:
   ]
 }`;
 
-      const useProxy = !apiKey || apiKey === 'PROXY';
+      const storedKey = localStorage.getItem('conscious-compass-apikey');
+      const useProxy = !storedKey || storedKey === 'PROXY';
       let response;
       if (useProxy) {
         response = await fetch('/api/claude', {
@@ -6469,7 +6272,7 @@ Based on this data, provide thought leadership insights in this JSON format:
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': apiKey,
+            'x-api-key': storedKey,
             'anthropic-version': '2023-06-01',
             'anthropic-dangerous-direct-browser-access': 'true',
           },
@@ -6482,7 +6285,10 @@ Based on this data, provide thought leadership insights in this JSON format:
         });
       }
 
-      if (!response.ok) throw new Error('API request failed');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Request failed (${response.status})`);
+      }
       
       const data = await response.json();
       const text = useProxy ? (data.text || data.content?.[0]?.text || '') : data.content[0].text;
@@ -6490,11 +6296,17 @@ Based on this data, provide thought leadership insights in this JSON format:
       // Parse JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        setAiInsights(JSON.parse(jsonMatch[0]));
+        try {
+          setAiInsights(JSON.parse(jsonMatch[0]));
+        } catch (parseErr) {
+          throw new Error('Response was not valid JSON. Please try again.');
+        }
+      } else {
+        throw new Error('No structured data in response. Please try again.');
       }
     } catch (err) {
-      setError('Failed to generate insights. Please try again.');
-      console.error(err);
+      setError(`Failed to generate insights: ${err.message}`);
+      console.error('Insights error:', err);
     }
     
     setLoading(false);
@@ -7003,46 +6815,140 @@ function ComparisonPage({ results, onBack }) {
                   </div>
                 </div>
 
-                {/* Industry Attribute Comparison */}
-                <div className="card p-6">
-                  <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Comparison by Industry</h3>
-                  
-                  {/* Industry labels header */}
-                  <div className="flex items-center gap-2 mb-4 text-xs text-[#666666]">
-                    <div className="w-24 flex-shrink-0"></div>
-                    <div className="flex-1 flex gap-1">
-                      {Object.entries(industryBenchmarks).map(([industry, data]) => (
-                        <div key={industry} className="flex-1 truncate text-center">{data.industryName}</div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {ATTRIBUTES.map((attr) => (
-                      <div key={attr.id} className="flex items-center gap-2">
-                        <div className="w-24 flex-shrink-0 flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
-                          <span className="text-xs font-medium text-[#1A1A1A] truncate">{attr.name}</span>
-                        </div>
-                        <div className="flex-1 flex gap-1">
-                          {Object.entries(industryBenchmarks).map(([industry, data]) => (
-                            <div key={industry} className="flex-1 relative">
-                              <div className="h-4 bg-[#E8E6E1] rounded overflow-hidden">
-                                <div 
-                                  className="h-full rounded transition-all duration-500"
-                                  style={{ width: `${data.attrAvgs[attr.id]}%`, backgroundColor: attr.color }}
-                                />
-                              </div>
-                              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white mix-blend-difference">
-                                {data.attrAvgs[attr.id]}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                {/* Attribute Comparison by Industry — rows = attributes, cols = industries */}
+                {(() => {
+                  const benchmarkEntries = Object.entries(industryBenchmarks);
+                  const scoreColor = (s) => {
+                    if (s >= 70) return { bg: '#1A1A1A', text: '#FFFFFF' };
+                    if (s >= 55) return { bg: '#4A4A4A', text: '#FFFFFF' };
+                    if (s >= 40) return { bg: '#8A8A8A', text: '#FFFFFF' };
+                    if (s >= 25) return { bg: '#D0CEC9', text: '#1A1A1A' };
+                    return { bg: '#F0EEEA', text: '#666666' };
+                  };
+                  return (
+                    <div className="card p-6">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-[#1A1A1A]">Attribute Performance by Industry</h3>
+                        <p className="text-xs text-[#666666] mt-0.5">Average score per attribute across each industry</p>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr>
+                              <th className="text-left py-2 pr-4 font-medium text-[#666666] w-28">Attribute</th>
+                              {benchmarkEntries.map(([ind, data]) => (
+                                <th key={ind} className="text-center py-2 px-1 font-medium text-[#1A1A1A] min-w-[80px]">
+                                  <div className="truncate max-w-[90px] mx-auto" title={data.industryName}>{data.industryName}</div>
+                                  <div className="text-[10px] text-[#999] font-normal">{data.count}b</div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ATTRIBUTES.map((attr, i) => (
+                              <tr key={attr.id} className={i % 2 === 0 ? 'bg-[#F9F8F6]' : ''}>
+                                <td className="py-2 pr-4 font-medium text-[#1A1A1A]">{attr.name}</td>
+                                {benchmarkEntries.map(([ind, data]) => {
+                                  const s = data.attrAvgs[attr.id] || 0;
+                                  const c = scoreColor(s);
+                                  return (
+                                    <td key={ind} className="py-1.5 px-1 text-center">
+                                      <span
+                                        className="inline-block w-10 rounded text-center py-0.5 font-semibold tabular-nums"
+                                        style={{ backgroundColor: c.bg, color: c.text }}
+                                      >
+                                        {s}
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex items-center gap-3 mt-4 pt-3 border-t border-[#E8E6E1]">
+                        <span className="text-[10px] text-[#999]">Score key:</span>
+                        {[['70+','#1A1A1A','#FFFFFF','Leading'],['55–69','#4A4A4A','#FFFFFF','Differentiating'],['40–54','#8A8A8A','#FFFFFF','Establishing'],['25–39','#D0CEC9','#1A1A1A','Foundational'],['0–24','#F0EEEA','#666666','Pre-Foundational']].map(([range, bg, fg, label]) => (
+                          <div key={range} className="flex items-center gap-1">
+                            <span className="inline-block w-8 text-center rounded text-[10px] font-semibold py-0.5" style={{ backgroundColor: bg, color: fg }}>{range}</span>
+                            <span className="text-[10px] text-[#999] hidden sm:inline">{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Industry Comparison by Attribute — rows = industries, cols = attributes */}
+                {(() => {
+                  const benchmarkEntries = Object.entries(industryBenchmarks);
+                  const scoreColor = (s) => {
+                    if (s >= 70) return { bg: '#1A1A1A', text: '#FFFFFF' };
+                    if (s >= 55) return { bg: '#4A4A4A', text: '#FFFFFF' };
+                    if (s >= 40) return { bg: '#8A8A8A', text: '#FFFFFF' };
+                    if (s >= 25) return { bg: '#D0CEC9', text: '#1A1A1A' };
+                    return { bg: '#F0EEEA', text: '#666666' };
+                  };
+                  return (
+                    <div className="card p-6">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-[#1A1A1A]">Industry Performance by Attribute</h3>
+                        <p className="text-xs text-[#666666] mt-0.5">How each industry tracks across the eight dimensions</p>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr>
+                              <th className="text-left py-2 pr-4 font-medium text-[#666666] w-36">Industry</th>
+                              {ATTRIBUTES.map(attr => (
+                                <th key={attr.id} className="text-center py-2 px-1 font-medium text-[#1A1A1A] min-w-[56px]">
+                                  {attr.name}
+                                </th>
+                              ))}
+                              <th className="text-center py-2 px-1 font-medium text-[#666666] min-w-[56px]">Avg</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {benchmarkEntries.map(([ind, data], i) => {
+                              const c = scoreColor(data.avgScore);
+                              return (
+                                <tr key={ind} className={i % 2 === 0 ? 'bg-[#F9F8F6]' : ''}>
+                                  <td className="py-2 pr-4">
+                                    <div className="font-medium text-[#1A1A1A] truncate max-w-[130px]" title={data.industryName}>{data.industryName}</div>
+                                    <div className="text-[10px] text-[#999]">{data.count} brand{data.count !== 1 ? 's' : ''}</div>
+                                  </td>
+                                  {ATTRIBUTES.map(attr => {
+                                    const s = data.attrAvgs[attr.id] || 0;
+                                    const ac = scoreColor(s);
+                                    return (
+                                      <td key={attr.id} className="py-1.5 px-1 text-center">
+                                        <span
+                                          className="inline-block w-10 rounded text-center py-0.5 font-semibold tabular-nums"
+                                          style={{ backgroundColor: ac.bg, color: ac.text }}
+                                        >
+                                          {s}
+                                        </span>
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="py-1.5 px-1 text-center">
+                                    <span
+                                      className="inline-block w-10 rounded text-center py-0.5 font-bold tabular-nums"
+                                      style={{ backgroundColor: c.bg, color: c.text }}
+                                    >
+                                      {data.avgScore}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>
