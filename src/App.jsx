@@ -532,7 +532,7 @@ IMPORTANT FORMATTING RULES:
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 6000,
         temperature: 0,
         messages: [{ role: 'user', content }]
@@ -555,7 +555,7 @@ IMPORTANT FORMATTING RULES:
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 6000,
         temperature: 0,
         messages: [{ role: 'user', content }]
@@ -1361,7 +1361,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
 }
 
 // Setup Page
-function SetupPage({ project, setProject, apiKey, setApiKey, onNext }) {
+function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
   const canProceed = project.brandName && project.websiteUrl && apiKey;
 
   return (
@@ -1418,7 +1418,8 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext }) {
         )}
       </div>
 
-      <div className="flex justify-end mt-10">
+      <div className="flex items-center justify-between mt-10">
+        <button onClick={onBack} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={onNext} disabled={!canProceed} className="btn-primary flex items-center gap-2">
           Continue <ArrowRight className="w-4 h-4" />
         </button>
@@ -2199,7 +2200,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
                 className="text-sm text-[#E53935] hover:underline flex items-center gap-1"
               >
                 {isAssessingSeo ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                Regenerate
+                Regenerate Analysis
               </button>
             </div>
             <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-64 overflow-y-auto">
@@ -2272,7 +2273,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 
       <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} className={`btn-primary flex items-center gap-2 ${!canProceed ? 'opacity-60' : ''}`}>Continue <ArrowRight className="w-4 h-4" /></button>
+        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
     </div>
   );
@@ -2697,7 +2698,6 @@ Write in flowing prose with specific observations from the content provided. End
   // Status badges for auto-check
   const autoCheckStatus = {
     youtube: !!inputs.youtubeContent?.includes('[API Data]') || !!inputs.youtubeContent?.includes('[Auto-searched]'),
-    wikipedia: !!inputs.wikipediaContent?.includes('[Knowledge Graph]') || !!inputs.wikipediaContent?.includes('[Auto-searched]'),
     glassdoor: !!inputs.glassdoorContent?.includes('[Auto-searched]'),
   };
   const autoCheckCount = Object.values(autoCheckStatus).filter(Boolean).length;
@@ -2708,14 +2708,12 @@ Write in flowing prose with specific observations from the content provided. End
     { label: 'Health Check', done: !!socialHealthCheck },
     { label: 'LinkedIn', done: !!(inputs.linkedinAbout || inputs.linkedinPosts) },
     { label: 'X/Twitter', done: !!inputs.xContent },
-    { label: 'Wikipedia', done: !!inputs.wikipediaContent },
-    { label: 'Reddit Answers', done: !!inputs.redditAnswersContent },
     { label: 'WIPO', done: !!inputs.wipoContent },
     { label: 'Analysis', done: isComplete },
   ];
 
-  // Required checks before proceeding - ALL items mandatory including screenshots
-  const canProceed = isComplete && !!inputs.redditAnswersContent && !!inputs.wikipediaContent && !!inputs.wipoContent && !!(inputs.linkedinAbout || inputs.linkedinPosts) && !!inputs.xContent && images.length > 0;
+  // Required checks before proceeding
+  const canProceed = isComplete && !!inputs.wipoContent && !!(inputs.linkedinAbout || inputs.linkedinPosts) && !!inputs.xContent && images.length > 0;
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
@@ -2729,14 +2727,6 @@ Write in flowing prose with specific observations from the content provided. End
     }
     if (!inputs.xContent) {
       setProceedError('Please add X/Twitter information before proceeding.');
-      return;
-    }
-    if (!inputs.wikipediaContent) {
-      setProceedError('Please check Wikipedia presence before proceeding.');
-      return;
-    }
-    if (!inputs.redditAnswersContent) {
-      setProceedError('Please complete the Reddit Answers check before proceeding. This is required to assess AI search visibility.');
       return;
     }
     if (!inputs.wipoContent) {
@@ -2937,14 +2927,14 @@ Write in flowing prose with specific observations from the content provided. End
         )}
       </div>
 
-      {/* Other Platforms (YouTube, Reddit, Wikipedia) */}
+      {/* Other Platforms (YouTube) */}
       <div className="mb-3">
         <AccordionHeader 
           title="Other Platforms" 
           icon={Globe} 
           isOpen={expanded.other} 
           onClick={() => toggleSection('other')}
-          hasContent={!!(inputs.youtubeContent || inputs.redditAnswersContent || inputs.wikipediaContent)}
+          hasContent={!!inputs.youtubeContent}
         />
         {expanded.other && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
@@ -2961,48 +2951,6 @@ Write in flowing prose with specific observations from the content provided. End
               </div>
               <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
                 placeholder="Channel exists? Content themes, posting frequency, engagement quality... (verify metrics at YouTube)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#666666]">Wikipedia</label>
-                <div className="flex items-center gap-2">
-                  {autoCheckStatus.wikipedia && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
-                  <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                     className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium rounded hover:bg-gray-200 transition-colors flex items-center gap-1">
-                    Verify <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-              </div>
-              <textarea value={inputs.wikipediaContent} onChange={(e) => updateInput('wikipediaContent', e.target.value)}
-                placeholder="Does the brand have a Wikipedia page? Key details..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-orange-800">Reddit Answers <span className="font-normal">(AI Search Visibility)</span></label>
-                <a href="https://www.reddit.com/answers/" target="_blank" rel="noopener noreferrer" 
-                   className="px-3 py-1 bg-[#FF4500] text-white text-xs font-medium rounded-lg hover:bg-[#E03D00] transition-colors flex items-center gap-1">
-                  Open Reddit Answers <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-              <div className="bg-white border border-orange-200 rounded-lg p-3 mb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-xs text-[#333333] leading-relaxed flex-1">
-                    What do people on Reddit actually think of <strong>{project.brandName}</strong>? I want honest community perception, not their marketing. Specifically: What do they do? Are they credible — do actions match messaging? What's their reputation and reach across Reddit communities? Are their values seen as genuine or performative? And what's the perception of their environmental and social impact — positive, negative, or indifferent?
-                  </p>
-                  <button
-                    onClick={() => {
-                      const prompt = `What do people on Reddit actually think of ${project.brandName}? I want honest community perception, not their marketing. Specifically: What do they do? Are they credible — do actions match messaging? What's their reputation and reach across Reddit communities? Are their values seen as genuine or performative? And what's the perception of their environmental and social impact — positive, negative, or indifferent?`;
-                      navigator.clipboard.writeText(prompt);
-                    }}
-                    className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded hover:bg-orange-200 transition-colors flex items-center gap-1 flex-shrink-0"
-                  >
-                    <Copy className="w-3 h-3" /> Copy
-                  </button>
-                </div>
-              </div>
-              <textarea value={inputs.redditAnswersContent} onChange={(e) => updateInput('redditAnswersContent', e.target.value)}
-                placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation, credibility, and community perception...`} 
-                className="w-full h-24 px-3 py-2 border border-orange-300 rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -3179,7 +3127,7 @@ Write in flowing prose with specific observations from the content provided. End
 
       {/* Analysis Button & Results */}
       {!isComplete && (
-        <button onClick={runAnalysis} disabled={isProcessing || !hasMinimumContent} className="btn-primary w-full flex items-center justify-center gap-2 mb-4">
+        <button onClick={runAnalysis} disabled={isProcessing || !hasMinimumContent} className="btn-primary flex items-center gap-2 mb-4">
           {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> Run Social Analysis</>}
         </button>
       )}
@@ -3215,7 +3163,7 @@ Write in flowing prose with specific observations from the content provided. End
 
       <div className="flex items-center justify-between pt-4 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} className={`btn-primary flex items-center gap-2 ${!canProceed ? 'opacity-60' : ''}`}>Continue <ArrowRight className="w-4 h-4" /></button>
+        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
     </div>
   );
@@ -3223,14 +3171,33 @@ Write in flowing prose with specific observations from the content provided. End
 
 // AI Reputation Page
 function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
-  const [responses, setResponses] = useState(assessmentData.responses || { claude: '', gemini: '', chatgpt: '' });
-  const [manualInput, setManualInput] = useState({ claude: assessmentData.claudeManual || '', gemini: assessmentData.geminiManual || '', chatgpt: assessmentData.chatgptManual || '' });
+  const [manualInput, setManualInput] = useState({
+    claude: assessmentData.claudeManual || '',
+    gemini: assessmentData.geminiManual || '',
+    chatgpt: assessmentData.chatgptManual || '',
+    perplexity: assessmentData.perplexityManual || '',
+    copilot: assessmentData.copilotManual || '',
+  });
   const [isProcessing, setIsProcessing] = useState({});
-  const [isAutoRunningClaude, setIsAutoRunningClaude] = useState(false);
   const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
+  const [reputationFlags, setReputationFlags] = useState(assessmentData.reputationFlags || '');
+  const [wikipediaContent, setWikipediaContent] = useState(assessmentData.wikipediaContent || '');
+  const [redditContent, setRedditContent] = useState(assessmentData.redditAnswersContent || '');
 
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
+
+  // Helper: copy text to clipboard
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+  };
 
   // Comprehensive AI Brand Perception Prompt
   const aiPerceptionPrompt = `You are simulating what a potential customer, partner, or investor would discover when researching a brand online. Please search for and gather current information about this brand to provide a comprehensive assessment.
@@ -3268,117 +3235,83 @@ How easy was it to find information about this brand? Is their digital footprint
 
 Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis of how this brand appears to someone researching them online: what they stand for, how they are regarded, and any gaps or concerns a prospect might notice. Then provide an AI Discoverability Score from 1–10 reflecting how well-represented and clearly understood this brand is in online search, with a brief rationale for the score.`;
 
-  const copyPrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(aiPerceptionPrompt);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      // Fallback for browsers without clipboard API
-      const textarea = document.createElement('textarea');
-      textarea.value = aiPerceptionPrompt;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
+  const redditPrompt = `What do people on Reddit actually think of ${project.brandName}? I want honest community perception, not their marketing. Specifically: What do they do? Are they credible — do actions match messaging? What's their reputation and reach across Reddit communities? Are their values seen as genuine or performative? And what's the perception of their environmental and social impact — positive, negative, or indifferent?`;
 
-  // Auto-run Claude with web search
-  const runClaudeAuto = async () => {
-    setIsAutoRunningClaude(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: aiPerceptionPrompt,
-          useWebSearch: true
-        })
-      });
+  // AI engines config
+  const engines = [
+    { key: 'claude',      name: 'Claude',             brand: 'Anthropic',       url: 'https://claude.ai/new',          color: '#8B5CF6', hover: '#7C3AED' },
+    { key: 'chatgpt',     name: 'ChatGPT',            brand: 'OpenAI',          url: 'https://chatgpt.com/',           color: '#10A37F', hover: '#0D8A6A' },
+    { key: 'gemini',      name: 'Gemini',             brand: 'Google',          url: 'https://gemini.google.com/app',  color: '#4285F4', hover: '#3367D6' },
+    { key: 'perplexity',  name: 'Perplexity',         brand: 'Perplexity AI',   url: 'https://www.perplexity.ai/',     color: '#20B2AA', hover: '#178C84' },
+    { key: 'copilot',     name: 'Copilot',            brand: 'Microsoft',       url: 'https://copilot.microsoft.com/', color: '#0078D4', hover: '#005A9E' },
+  ];
 
-      if (!response.ok) throw new Error('Auto-run failed');
-      const data = await response.json();
-      const result = data.content?.[0]?.text || data.text || '';
-      
-      if (result) {
-        setManualInput(prev => ({ ...prev, claude: result }));
-        setAssessmentData({ ...assessmentData, claudeManual: result });
-      }
-    } catch (err) {
-      setError('Auto-run failed - please copy the prompt and run manually');
-    } finally {
-      setIsAutoRunningClaude(false);
-    }
-  };
-
-  const hasAllResponses = manualInput.claude && manualInput.gemini && manualInput.chatgpt;
+  const filledCount = engines.filter(e => !!manualInput[e.key]).length;
+  const canSynthesize = filledCount >= 3;
   const isComplete = assessmentData.status === 'complete';
 
   const generateSynthesis = async () => {
     setIsProcessing(p => ({ ...p, synthesis: true }));
+    setError(null);
     try {
+      const engineSections = engines
+        .filter(e => manualInput[e.key])
+        .map(e => `${e.name.toUpperCase()}: ${manualInput[e.key]}`)
+        .join('\n\n');
+
       const prompt = `Analyze these AI system responses about ${project.brandName}:
 
-CLAUDE: ${manualInput.claude}
-GEMINI: ${manualInput.gemini}
-CHATGPT: ${manualInput.chatgpt}
+${engineSections}
 
-${assessmentData.observations ? `ASSESSOR OBSERVATIONS TO CONSIDER:\n${assessmentData.observations}` : ''}
+${reputationFlags ? `REPUTATION FLAGS IDENTIFIED:\n${reputationFlags}\n` : ''}
+${wikipediaContent ? `WIKIPEDIA PRESENCE:\n${wikipediaContent}\n` : ''}
+${redditContent ? `REDDIT COMMUNITY PERCEPTION:\n${redditContent}\n` : ''}
+${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
 
 Provide a comprehensive AI reputation assessment:
-1. Convergence - Where do all three agree? (likely accurate)
-2. Divergence - Where do they differ? What's missing?
-3. Sentiment - Overall tone across systems
-4. Vulnerabilities - What can't any AI answer about this brand?
-5. Recommendations - How to improve AI representation
+1. Convergence — Where do the AI systems agree? (likely accurate signals)
+2. Divergence — Where do they differ, and what might explain it?
+3. Sentiment — Overall tone and brand framing across systems
+4. Gaps — What can't any AI answer about this brand? What's absent?
+5. Recommendations — Specific steps to improve AI representation and discoverability
 
 Write in flowing prose.`;
 
       const result = await callClaude(prompt, apiKey);
-      setAssessmentData({ 
-        ...assessmentData, 
-        status: 'complete', 
-        content: result, 
-        responses,
+      setAssessmentData({
+        ...assessmentData,
+        status: 'complete',
+        content: result,
         claudeManual: manualInput.claude,
         geminiManual: manualInput.gemini,
-        chatgptManual: manualInput.chatgpt
+        chatgptManual: manualInput.chatgpt,
+        perplexityManual: manualInput.perplexity,
+        copilotManual: manualInput.copilot,
+        reputationFlags,
+        wikipediaContent,
+        redditAnswersContent: redditContent,
       });
     } catch (e) { setError(e.message); }
     finally { setIsProcessing(p => ({ ...p, synthesis: false })); }
   };
 
-  // Completion tracking
   const completionItems = [
-    { label: 'Claude', done: !!manualInput.claude },
-    { label: 'Gemini', done: !!manualInput.gemini },
-    { label: 'ChatGPT', done: !!manualInput.chatgpt },
+    ...engines.map(e => ({ label: e.name, done: !!manualInput[e.key] })),
+    { label: 'Wikipedia', done: !!wikipediaContent },
+    { label: 'Reddit', done: !!redditContent },
     { label: 'Synthesis', done: isComplete },
   ];
 
-  // Required checks before proceeding - ALL items mandatory
-  const canProceed = isComplete && !!manualInput.claude && !!manualInput.gemini && !!manualInput.chatgpt;
+  const canProceed = isComplete && canSynthesize;
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
-    if (!manualInput.claude) {
-      setProceedError('Please add Claude\'s response before proceeding.');
-      return;
-    }
-    if (!manualInput.gemini) {
-      setProceedError('Please add Gemini\'s response before proceeding.');
-      return;
-    }
-    if (!manualInput.chatgpt) {
-      setProceedError('Please add ChatGPT\'s response before proceeding.');
+    if (filledCount < 3) {
+      setProceedError('Please run the prompt in at least 3 AI engines before proceeding.');
       return;
     }
     if (!isComplete) {
-      setProceedError('Please run the AI Reputation Synthesis before proceeding.');
+      setProceedError('Please generate the AI Reputation Synthesis before proceeding.');
       return;
     }
     setProceedError(null);
@@ -3399,153 +3332,151 @@ Write in flowing prose.`;
 
       <CompletionIndicator items={completionItems} />
 
+      {/* Reputation Triggers */}
+      <div className="card p-4 mb-4 border-l-4 border-[#F59E0B]">
+        <div className="flex items-start gap-3 mb-3">
+          <AlertCircle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="text-sm font-medium text-[#1A1A1A] mb-0.5">Reputation Triggers — check before running AI queries</h3>
+            <p className="text-xs text-[#666666]">Search for anything charged in the brand's public record that AI models may surface. Note flags here so you can account for them when reading AI responses.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {[
+            { label: 'Google News', url: `https://news.google.com/search?q=${encodeURIComponent(project.brandName)}` },
+            { label: 'Google Search', url: `https://www.google.com/search?q=${encodeURIComponent('"' + project.brandName + '" controversy OR lawsuit OR scandal OR criticism')}` },
+            { label: 'Trustpilot', url: `https://www.trustpilot.com/search?query=${encodeURIComponent(project.brandName)}` },
+          ].map(link => (
+            <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer"
+               className="px-3 py-1.5 bg-[#FEF3C7] text-[#92400E] text-xs font-medium rounded-lg hover:bg-[#FDE68A] transition-colors flex items-center gap-1">
+              {link.label} <ExternalLink className="w-3 h-3" />
+            </a>
+          ))}
+        </div>
+        <textarea
+          value={reputationFlags}
+          onChange={(e) => { setReputationFlags(e.target.value); setAssessmentData({ ...assessmentData, reputationFlags: e.target.value }); }}
+          placeholder={`Note any legal issues, negative press, social controversies, or leadership concerns found for ${project.brandName}. These become context when interpreting AI responses.`}
+          className="w-full h-16 px-3 py-2 border border-[#FDE68A] rounded-lg bg-[#FFFBEB] resize-none text-sm"
+        />
+      </div>
+
       {/* AI Brand Perception Prompt */}
       <div className="card p-4 mb-4 border-l-4 border-[#3B82F6]">
-        <div className="flex items-start justify-between mb-3">
+        <div className="flex items-start justify-between mb-2">
           <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">AI Brand Research Prompt</h3>
-            <p className="text-xs text-[#666666]">Simulates what a prospect would discover when researching this brand</p>
+            <h3 className="text-sm font-medium text-[#1A1A1A] mb-0.5">AI Brand Research Prompt</h3>
+            <p className="text-xs text-[#666666]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
           </div>
-          <button 
-            onClick={copyPrompt}
-            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
-              copied 
-                ? 'bg-green-100 text-green-700' 
-                : 'bg-[#3B82F6] text-white hover:bg-[#2563EB]'
-            }`}
-          >
-            {copied ? <><Check className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy Prompt</>}
-          </button>
         </div>
-        <div className="bg-[#F8F7F5] rounded-lg p-3 max-h-48 overflow-y-auto">
-          <pre className="text-xs text-[#333333] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 500)}...</pre>
+        <div className="bg-[#F8F7F5] rounded-lg p-3 max-h-32 overflow-y-auto mb-2">
+          <pre className="text-xs text-[#333333] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 400)}...</pre>
         </div>
-        <p className="text-xs text-[#999999] mt-2">
-          Prompt customized for <strong>{project.brandName}</strong> in the <strong>{industryName}</strong> sector
-        </p>
+        <p className="text-xs text-[#999999]">Customised for <strong>{project.brandName}</strong> · {industryName}</p>
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
 
+      {/* AI Engine Cards — uniform pattern */}
       <div className="space-y-3 mb-4">
-        {/* Claude */}
-        <div className={`card p-4 ${manualInput.claude ? 'bg-[#F0EEEA]' : ''}`}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.claude ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
-                {manualInput.claude ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+        {engines.map(engine => (
+          <div key={engine.key} className={`card p-4 ${manualInput[engine.key] ? 'bg-[#F0EEEA]' : ''}`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
+                  {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+                </div>
+                <div>
+                  <h4 className="font-medium">{engine.name}</h4>
+                  <p className="text-sm text-[#666666]">{engine.brand}</p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-medium">Claude (Anthropic)</h4>
-                <p className="text-sm text-[#666666]">Auto-run or paste response</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={runClaudeAuto}
-                disabled={isAutoRunningClaude}
-                className="px-3 py-1.5 bg-[#8B5CF6] text-white text-xs font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-1 disabled:opacity-50"
-              >
-                {isAutoRunningClaude ? <><Loader2 className="w-3 h-3 animate-spin" /> Running...</> : <><Sparkles className="w-3 h-3" /> Auto-Run</>}
-              </button>
-              <a 
-                href="https://claude.ai/new" 
-                target="_blank" 
+              <a
+                href={engine.url}
+                target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-1.5 bg-[#D97706] text-white text-xs font-medium rounded-lg hover:bg-[#B45309] transition-colors flex items-center gap-1"
+                onClick={() => copyToClipboard(aiPerceptionPrompt)}
+                className="px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1"
+                style={{ backgroundColor: engine.color }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = engine.hover}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = engine.color}
               >
-                Manual <ExternalLink className="w-3 h-3" />
+                <Copy className="w-3 h-3" /> Copy & Open {engine.name} <ExternalLink className="w-3 h-3" />
               </a>
             </div>
+            <textarea
+              value={manualInput[engine.key]}
+              onChange={(e) => {
+                const val = e.target.value;
+                setManualInput(m => ({ ...m, [engine.key]: val }));
+                setAssessmentData({ ...assessmentData, [`${engine.key}Manual`]: val });
+              }}
+              placeholder={`Paste ${engine.name}'s response here...`}
+              className={`w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm ${manualInput[engine.key] ? 'bg-[#F0EEEA]' : 'bg-white'}`}
+            />
           </div>
-          <textarea value={manualInput.claude || ''} onChange={(e) => setManualInput(m => ({ ...m, claude: e.target.value }))}
-            placeholder="Paste Claude's response here..." className={`w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm ${manualInput.claude ? 'bg-[#F0EEEA]' : 'bg-white'}`} />
-        </div>
+        ))}
+      </div>
 
-        {/* Gemini */}
-        <div className={`card p-4 ${manualInput.gemini ? 'bg-[#F0EEEA]' : ''}`}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.gemini ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
-                {manualInput.gemini ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
-              </div>
-              <div>
-                <h4 className="font-medium">Gemini (Google)</h4>
-                <p className="text-sm text-[#666666]">Paste response from gemini.google.com</p>
+      {/* AI Training Sources */}
+      <div className="card p-4 mb-4 border-l-4 border-[#6366F1]">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">AI Training Sources</h3>
+        <p className="text-xs text-[#666666] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
+        <div className="space-y-3">
+          {/* Wikipedia */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-[#666666]">Wikipedia</label>
+              <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer"
+                 className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium rounded hover:bg-gray-200 transition-colors flex items-center gap-1">
+                Search Wikipedia <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            </div>
+            <textarea
+              value={wikipediaContent}
+              onChange={(e) => { setWikipediaContent(e.target.value); setAssessmentData({ ...assessmentData, wikipediaContent: e.target.value }); }}
+              placeholder={`Does ${project.brandName} have a Wikipedia page? Record what it says — or note its absence.`}
+              className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
+            />
+          </div>
+          {/* Reddit Answers */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-orange-800">Reddit Answers <span className="text-[#666666] font-normal">(AI search visibility)</span></label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => copyToClipboard(redditPrompt)}
+                  className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium rounded hover:bg-orange-200 transition-colors flex items-center gap-1"
+                >
+                  <Copy className="w-2.5 h-2.5" /> Copy prompt
+                </button>
+                <a href="https://www.reddit.com/answers/" target="_blank" rel="noopener noreferrer"
+                   className="px-2 py-0.5 bg-[#FF4500] text-white text-[10px] font-medium rounded hover:bg-[#E03D00] transition-colors flex items-center gap-1">
+                  Open Reddit Answers <ExternalLink className="w-2.5 h-2.5" />
+                </a>
               </div>
             </div>
-            <a 
-              href="https://gemini.google.com/app" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              onClick={async (e) => {
-                try {
-                  await navigator.clipboard.writeText(aiPerceptionPrompt);
-                } catch (err) {
-                  const ta = document.createElement('textarea');
-                  ta.value = aiPerceptionPrompt;
-                  document.body.appendChild(ta); ta.select();
-                  document.execCommand('copy');
-                  document.body.removeChild(ta);
-                }
-              }}
-              className="px-3 py-1.5 bg-[#4285F4] text-white text-xs font-medium rounded-lg hover:bg-[#3367D6] transition-colors flex items-center gap-1"
-            >
-              <Copy className="w-3 h-3" /> Copy & Open Gemini <ExternalLink className="w-3 h-3" />
-            </a>
+            <textarea
+              value={redditContent}
+              onChange={(e) => { setRedditContent(e.target.value); setAssessmentData({ ...assessmentData, redditAnswersContent: e.target.value }); }}
+              placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation and community perception...`}
+              className="w-full h-24 px-3 py-2 border border-orange-200 rounded-lg bg-orange-50 resize-none text-sm"
+            />
           </div>
-          <textarea value={manualInput.gemini} onChange={(e) => setManualInput(m => ({ ...m, gemini: e.target.value }))}
-            placeholder="Paste Gemini's response here..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm bg-white" />
-        </div>
-
-        {/* ChatGPT */}
-        <div className={`card p-4 ${manualInput.chatgpt ? 'bg-[#F0EEEA]' : ''}`}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput.chatgpt ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
-                {manualInput.chatgpt ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
-              </div>
-              <div>
-                <h4 className="font-medium">ChatGPT (OpenAI)</h4>
-                <p className="text-sm text-[#666666]">Paste response from chatgpt.com</p>
-              </div>
-            </div>
-            <a 
-              href="https://chatgpt.com/" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              onClick={async (e) => {
-                try {
-                  await navigator.clipboard.writeText(aiPerceptionPrompt);
-                } catch (err) {
-                  const ta = document.createElement('textarea');
-                  ta.value = aiPerceptionPrompt;
-                  document.body.appendChild(ta); ta.select();
-                  document.execCommand('copy');
-                  document.body.removeChild(ta);
-                }
-              }}
-              className="px-3 py-1.5 bg-[#10A37F] text-white text-xs font-medium rounded-lg hover:bg-[#0D8A6A] transition-colors flex items-center gap-1"
-            >
-              <Copy className="w-3 h-3" /> Copy & Open ChatGPT <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-          <textarea value={manualInput.chatgpt} onChange={(e) => setManualInput(m => ({ ...m, chatgpt: e.target.value }))}
-            placeholder="Paste ChatGPT's response here..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm bg-white" />
         </div>
       </div>
 
-      {/* Assessor Observations - moved before synthesis */}
+      {/* Assessor Observations */}
       <div className="card p-5 mb-4">
         <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
-        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the synthesis and final report.</p>
+        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the synthesis.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about the AI responses, discrepancies noticed, concerns, etc..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
+          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
       </div>
 
-      {hasAllResponses && !isComplete && (
-        <button onClick={generateSynthesis} disabled={isProcessing.synthesis} className="btn-primary flex items-center gap-2 w-full justify-center mb-6">
-          {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Play className="w-4 h-4" /> Generate Synthesis</>}
+      {canSynthesize && !isComplete && (
+        <button onClick={generateSynthesis} disabled={isProcessing.synthesis} className="btn-primary flex items-center gap-2 mb-6">
+          {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Play className="w-4 h-4" /> Generate Synthesis ({filledCount} engines)</>}
         </button>
       )}
 
@@ -3555,15 +3486,12 @@ Write in flowing prose.`;
             <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#3B82F6]" /> Synthesis Complete
             </h3>
-            <button 
-              onClick={() => {
-                generateSynthesis();
-                if (onClearScores) onClearScores();
-              }} 
-              disabled={isProcessing.synthesis} 
+            <button
+              onClick={() => { generateSynthesis(); if (onClearScores) onClearScores(); }}
+              disabled={isProcessing.synthesis}
               className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
             >
-              {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Synthesis</>}
+              {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
           <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-64 overflow-y-auto text-sm text-[#333333]">{assessmentData.content}</div>
@@ -3579,11 +3507,12 @@ Write in flowing prose.`;
 
       <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} className={`btn-primary flex items-center gap-2 ${!canProceed ? 'opacity-60' : ''}`}>Continue <ArrowRight className="w-4 h-4" /></button>
+        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
     </div>
   );
 }
+
 
 // Earned Media Assessment with paste field
 function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
@@ -3851,7 +3780,7 @@ Example:
 
       <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} className={`btn-primary flex items-center gap-2 ${!canProceed ? 'opacity-60' : ''}`}>Continue <ArrowRight className="w-4 h-4" /></button>
+        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
     </div>
   );
@@ -6509,7 +6438,7 @@ Based on this data, provide thought leadership insights in this JSON format:
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 2500,
           temperature: 0,
           messages: [{ role: 'user', content: prompt }],
@@ -7565,31 +7494,37 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+    <div className="max-w-3xl mx-auto p-4 md:p-8 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">Saved Assessments</h2>
-          <p className="text-[#666666]">Your assessments are stored securely in the cloud</p>
+          <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Saved Assessments</h2>
+          <p className="text-sm text-[#666666]">Your assessments are stored securely in the cloud</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           {!isReadonly && (
             <>
               <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
-              <button onClick={() => fileInputRef.current?.click()} className="btn-secondary flex items-center gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors"
+              >
                 <Upload className="w-4 h-4" /> Import
               </button>
             </>
           )}
-          <button onClick={onBack} className="btn-secondary flex items-center gap-2">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors"
+          >
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
         </div>
       </div>
 
-      {/* Info Card */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <p className="text-sm text-blue-800">
-          <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup file.
+      {/* Info tip */}
+      <div className="bg-[#F0F7FF] border border-[#BFDBFE] rounded-lg px-4 py-3 mb-5">
+        <p className="text-xs text-[#1E40AF]">
+          <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup.
         </p>
       </div>
 
@@ -7601,57 +7536,88 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           <p className="text-sm text-[#9CA3AF]">Or import a previously exported assessment using the Import button above.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {assessments.map((a, i) => {
             const overallScore = a.scores ? Math.round(
               Object.entries(a.scores)
                 .filter(([key, val]) => val && typeof val.score === 'number')
                 .reduce((sum, [, v]) => sum + v.score, 0) / 8
             ) : null;
+            const maturity = overallScore !== null ? getMaturityStage(overallScore) : null;
+            const industryName = a.project.industry && a.project.industry !== 'other'
+              ? INDUSTRIES.find(ind => ind.id === a.project.industry)?.name || a.project.industry
+              : null;
             return (
-              <div key={i} className="card p-5 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    {overallScore !== null && (
-                      <div className="w-14 h-14 rounded-xl bg-[#E53935]/10 flex items-center justify-center">
-                        <span className="text-xl font-bold text-[#E53935]">{overallScore}</span>
-                      </div>
-                    )}
-                    <div>
-                      <h4 className="font-semibold text-[#1A1A1A] text-lg">{a.project.brandName}</h4>
-                      <div className="flex items-center gap-3 text-sm text-[#666666]">
-                        <span>{a.project.date || 'No date'}</span>
-                        {a.project.industry && a.project.industry !== 'other' && (
-                          <>
-                            <span className="w-1 h-1 rounded-full bg-[#666666]"></span>
-                            <span>{INDUSTRIES.find(ind => ind.id === a.project.industry)?.name || a.project.industry}</span>
-                          </>
-                        )}
-                        {overallScore !== null && (
-                          <>
-                            <span className="w-1 h-1 rounded-full bg-[#666666]"></span>
-                            <span>{getMaturityStage(overallScore).name}</span>
-                          </>
-                        )}
-                      </div>
+              <div key={i} className="card px-4 py-3 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  {/* Score badge */}
+                  {overallScore !== null && (
+                    <div className="w-11 h-11 rounded-lg flex-shrink-0 flex items-center justify-center"
+                      style={{ backgroundColor: (maturity?.color || '#E53935') + '18' }}>
+                      <span className="text-base font-bold" style={{ color: maturity?.color || '#E53935' }}>{overallScore}</span>
+                    </div>
+                  )}
+
+                  {/* Brand info */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-[#1A1A1A] text-sm leading-tight truncate">{a.project.brandName}</h4>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                      <span className="text-xs text-[#9CA3AF] whitespace-nowrap">{a.project.date || '—'}</span>
+                      {industryName && (
+                        <span className="text-xs text-[#9CA3AF]">·</span>
+                      )}
+                      {industryName && (
+                        <span className="text-xs text-[#666666] truncate max-w-[140px]">{industryName}</span>
+                      )}
+                      {maturity && (
+                        <span className="text-xs text-[#9CA3AF]">·</span>
+                      )}
+                      {maturity && (
+                        <span className="text-xs font-medium" style={{ color: maturity.color }}>{maturity.name}</span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 justify-end">
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                     {!isReadonly && (
                       <>
-                        <button onClick={() => onShare(a)} className="text-[#666666] hover:text-[#E53935] hover:bg-[#E53935]/10 p-2 rounded-lg transition-colors" title="Share Link">
-                          <Share2 className="w-4 h-4" />
+                        <button
+                          onClick={() => onShare(a)}
+                          title="Share link"
+                          className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#E53935] hover:bg-[#E53935]/8 rounded transition-colors"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => onExport(a)} className="text-[#666666] hover:text-[#1A1A1A] hover:bg-gray-100 p-2 rounded-lg transition-colors" title="Export JSON">
-                          <Download className="w-4 h-4" />
+                        <button
+                          onClick={() => onExport(a)}
+                          title="Export JSON"
+                          className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => onRescore(a)} className="btn-secondary text-sm py-2 px-3" title="Regenerate scores using current rubric">Rescore</button>
+                        <button
+                          onClick={() => onRescore(a)}
+                          title="Regenerate scores using current rubric"
+                          className="px-3 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors whitespace-nowrap"
+                        >
+                          Rescore
+                        </button>
                       </>
                     )}
-                    <button onClick={() => onLoad(a)} className="btn-primary text-sm py-2 px-3">Load</button>
+                    <button
+                      onClick={() => onLoad(a)}
+                      className="px-4 py-1.5 text-xs font-semibold bg-[#1A1A1A] text-white hover:bg-[#333333] rounded transition-colors whitespace-nowrap"
+                    >
+                      Load
+                    </button>
                     {!isReadonly && (
-                      <button onClick={() => onDelete(i)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete">
-                        <Trash2 className="w-4 h-4" />
+                      <button
+                        onClick={() => onDelete(i)}
+                        title="Delete"
+                        className="w-8 h-8 flex items-center justify-center text-[#D9D6D0] hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
@@ -8118,7 +8084,7 @@ function StayConsciousPage({ apiKey, onBack }) {
           method: 'POST',
           headers: { ...headers, 'x-api-key': key, 'anthropic-version': '2023-06-01' },
           body: JSON.stringify({
-            model: 'claude-opus-4-20250514',
+            model: 'claude-sonnet-4-6',
             max_tokens: 2000,
             messages: [{ role: 'user', content: STAY_CONSCIOUS_PROMPT }]
           })
@@ -8781,7 +8747,7 @@ function AppContent() {
           {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
 
           {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
-          {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} />}
+          {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} onBack={() => setCurrentStep(0)} />}
           {currentStep === 2 && <WebsiteAssessment assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
           {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
           {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}

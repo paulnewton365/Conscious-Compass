@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
     // Build request body
     const requestBody = {
-      model: model || 'claude-sonnet-4-20250514',
+      model: model || 'claude-sonnet-4-6',
       max_tokens: max_tokens || 4096,
       temperature: temperature ?? 0,
       messages: finalMessages,
