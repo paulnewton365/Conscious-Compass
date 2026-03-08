@@ -485,7 +485,7 @@ function compressImage(dataUrl, maxSizeMB = 3.5) {
   });
 }
 
-async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0) {
+async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0, isJson = false) {
   // Add standard instructions for consistency
   const enhancedPrompt = `${prompt}
 
@@ -535,7 +535,7 @@ IMPORTANT FORMATTING RULES:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 6000,
+        max_tokens: 8000,
         temperature: 0,
         messages: [{ role: 'user', content }]
       })
@@ -558,7 +558,7 @@ IMPORTANT FORMATTING RULES:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 6000,
+        max_tokens: 8000,
         temperature: 0,
         messages: [{ role: 'user', content }]
       })
@@ -571,8 +571,10 @@ IMPORTANT FORMATTING RULES:
     result = data.content[0].text;
   }
   
-  // Post-process to remove any em-dashes or en-dashes that slipped through
-  result = result.replace(/—/g, ', ').replace(/–/g, ' to ');
+  // Post-process to remove em/en-dashes — skip for JSON responses to avoid corruption
+  if (!isJson) {
+    result = result.replace(/—/g, ', ').replace(/–/g, ' to ');
+  }
   
   return result;
 }
@@ -4101,7 +4103,7 @@ Return the JSON scores in this exact format:
   }
 }`;
 
-      const result = await callClaude(prompt, apiKey, null, [], 0);
+      const result = await callClaude(prompt, apiKey, null, [], 0, true);
       clearInterval(progressInterval);
       setScoringProgress(100);
       setScoringStage('Complete!');
@@ -6454,26 +6456,36 @@ Based on this data, provide thought leadership insights in this JSON format:
   ]
 }`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 2500,
-          temperature: 0,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
+      const useProxy = !apiKey || apiKey === 'PROXY';
+      let response;
+      if (useProxy) {
+        response = await fetch('/api/claude', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, max_tokens: 2500, temperature: 0 })
+        });
+      } else {
+        response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 2500,
+            temperature: 0,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+      }
 
       if (!response.ok) throw new Error('API request failed');
       
       const data = await response.json();
-      const text = data.content[0].text;
+      const text = useProxy ? (data.text || data.content?.[0]?.text || '') : data.content[0].text;
       
       // Parse JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -8107,7 +8119,7 @@ function StayConsciousPage({ apiKey, onBack }) {
       if (key) {
         response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
-          headers: { ...headers, 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          headers: { ...headers, 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
             max_tokens: 2000,
