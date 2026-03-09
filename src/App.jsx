@@ -1230,60 +1230,59 @@ function WelcomePage({ onStart }) {
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-8 relative overflow-hidden">
       <div className="max-w-3xl text-center">
-        {/* Headline - appears first */}
+
+        {/* Fully Conscious Badge — centred above headline */}
+        <div
+          className={`flex justify-center mb-8 transition-all duration-1000 ease-out ${
+            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          <img
+            src="/fully-conscious-badge.png"
+            alt="Fully Conscious"
+            className="w-32 md:w-40 lg:w-48 drop-shadow-lg hover:scale-105 transition-transform duration-300"
+          />
+        </div>
+
+        {/* Headline */}
         <h1 
           className={`text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight transition-all duration-1000 ease-out ${
             animate 
               ? 'opacity-100 translate-y-0' 
               : 'opacity-0 translate-y-8'
           }`}
+          style={{ transitionDelay: animate ? '200ms' : '0ms' }}
         >
           <span className="block">Consequential brands</span>
           <span className="block">are conscious brands.</span>
         </h1>
         
-        {/* Subtitle - appears second */}
+        {/* Subtitle */}
         <p 
           className={`text-xl text-[#333333] mb-8 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
             animate 
-              ? 'opacity-100 translate-y-0 delay-300' 
+              ? 'opacity-100 translate-y-0' 
               : 'opacity-0 translate-y-6'
           }`}
-          style={{ transitionDelay: animate ? '300ms' : '0ms' }}
+          style={{ transitionDelay: animate ? '400ms' : '0ms' }}
         >
           They don't just show up, they stand out. They don't follow trends; they shape narratives. 
           The Conscious Compass explores your brand's impact across 8 essential attributes.
         </p>
         
-        {/* Button - appears third */}
+        {/* Button */}
         <div 
           className={`transition-all duration-700 ease-out ${
             animate 
               ? 'opacity-100 translate-y-0' 
               : 'opacity-0 translate-y-4'
           }`}
-          style={{ transitionDelay: animate ? '600ms' : '0ms' }}
+          style={{ transitionDelay: animate ? '700ms' : '0ms' }}
         >
           <button onClick={onStart} className="btn-primary btn-arrow text-lg px-8 py-4">
             Start Assessment
           </button>
         </div>
-      </div>
-      
-      {/* Fully Conscious Badge */}
-      <div 
-        className={`absolute bottom-8 left-8 transition-all duration-1000 ease-out ${
-          animate 
-            ? 'opacity-100 translate-y-0' 
-            : 'opacity-0 translate-y-12'
-        }`}
-        style={{ transitionDelay: animate ? '800ms' : '0ms' }}
-      >
-        <img 
-          src="/fully-conscious-badge.png" 
-          alt="Fully Conscious" 
-          className="w-28 md:w-32 lg:w-40 drop-shadow-lg hover:scale-105 transition-transform duration-300"
-        />
       </div>
       
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
