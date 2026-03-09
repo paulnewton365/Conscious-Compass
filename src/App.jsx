@@ -216,7 +216,18 @@ function AdminPage({ currentUser, onBack }) {
   const loadUsers = async () => {
     setLoading(true);
     const { data } = await fetchAllProfiles();
-    if (data) setUsers(data);
+    if (data) {
+      try {
+        const res = await fetch('/api/list-users');
+        const json = await res.json();
+        if (json.error) console.error('list-users error:', json.error);
+        const loginMap = json.loginMap || {};
+        setUsers(data.map(u => ({ ...u, last_login: loginMap[u.id] || null })));
+      } catch (e) {
+        console.error('list-users fetch failed:', e);
+        setUsers(data);
+      }
+    }
     setLoading(false);
   };
 
@@ -1062,8 +1073,8 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
       <div className="max-w-6xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2 md:gap-4">
           <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
-          <div className="hidden md:block h-6 w-px bg-[#1A1A1A]" />
-          <span className="hidden md:block text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
+          <div className="hidden lg:block h-6 w-px bg-[#1A1A1A]" />
+          <span className="hidden lg:block text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
         </div>
         
         {/* Desktop Navigation */}
