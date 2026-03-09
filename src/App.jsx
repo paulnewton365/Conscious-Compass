@@ -25,7 +25,8 @@ import {
   revokeUser,
   makeAdmin,
   removeAdmin,
-  setReadonly
+  setReadonly,
+  deleteUser
 } from './lib/supabase';
 
 // Use 'PROXY' to route through serverless function (secure, API key on server)
@@ -231,6 +232,13 @@ function AdminPage({ currentUser, onBack }) {
     }
   };
 
+  const handleDelete = async (userId, userName) => {
+    if (confirm(`Permanently delete "${userName || 'this user'}"? This cannot be undone.`)) {
+      await deleteUser(userId);
+      loadUsers();
+    }
+  };
+
   const handleToggleAdmin = async (userId, isCurrentlyAdmin) => {
     if (userId === currentUser.id) {
       alert("You can't change your own admin status");
@@ -304,6 +312,14 @@ function AdminPage({ currentUser, onBack }) {
                           className="btn-primary text-sm px-4 py-2"
                         >
                           Approve (Full)
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(user.id, user.full_name || user.email)}
+                          className="text-sm px-3 py-2 rounded border border-red-400 text-red-700 hover:bg-red-100 transition-colors"
+                          title="Permanently delete this user"
+                        >
+                          <Trash2 className="w-4 h-4 inline mr-1" />
+                          Delete
                         </button>
                       </div>
                     </div>
@@ -380,6 +396,16 @@ function AdminPage({ currentUser, onBack }) {
                         <UserX className="w-4 h-4 inline mr-1" />
                         Revoke
                       </button>
+                      {user.id !== currentUser.id && (
+                        <button 
+                          onClick={() => handleDelete(user.id, user.full_name || user.email)}
+                          className="text-sm px-3 py-1.5 rounded border border-red-400 text-red-700 hover:bg-red-100 transition-colors"
+                          title="Permanently delete this user"
+                        >
+                          <Trash2 className="w-4 h-4 inline mr-1" />
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

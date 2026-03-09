@@ -176,3 +176,11 @@ export const removeAdmin = async (userId) => {
 export const setReadonly = async (userId, isReadonly) => {
   return updateProfile(userId, { is_readonly: isReadonly });
 };
+
+export const deleteUser = async (userId) => {
+  const { error } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('id', userId);
+  return { error };
+};
