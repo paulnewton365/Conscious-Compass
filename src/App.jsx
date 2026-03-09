@@ -234,8 +234,13 @@ function AdminPage({ currentUser, onBack }) {
 
   const handleDelete = async (userId, userName) => {
     if (confirm(`Permanently delete "${userName || 'this user'}"? This cannot be undone.`)) {
-      await deleteUser(userId);
-      loadUsers();
+      // Optimistically remove from UI immediately
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      const { error } = await deleteUser(userId);
+      if (error) {
+        alert(`Delete failed: ${error}`);
+        loadUsers(); // Re-fetch to restore accurate state
+      }
     }
   };
 

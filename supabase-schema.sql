@@ -131,3 +131,13 @@ CREATE TRIGGER on_auth_user_created
 -- 10. Create your admin user (run this AFTER you sign up)
 -- Replace 'your-email@example.com' with your actual email
 -- UPDATE profiles SET is_admin = true, is_approved = true WHERE email = 'your-email@example.com';
+
+-- MIGRATION: Enable cascade delete so removing auth user also removes their profile
+-- Run this if profiles table already exists:
+-- ALTER TABLE profiles DROP CONSTRAINT profiles_id_fkey;
+-- ALTER TABLE profiles ADD CONSTRAINT profiles_id_fkey
+--   FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- NOTE: User deletion requires SUPABASE_SERVICE_ROLE_KEY in Vercel environment variables.
+-- Find it in: Supabase Dashboard → Project Settings → API → service_role key (secret)
+-- Add as: SUPABASE_SERVICE_ROLE_KEY = your-service-role-key

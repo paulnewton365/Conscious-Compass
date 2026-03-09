@@ -178,9 +178,12 @@ export const setReadonly = async (userId, isReadonly) => {
 };
 
 export const deleteUser = async (userId) => {
-  const { error } = await supabase
-    .from('profiles')
-    .delete()
-    .eq('id', userId);
-  return { error };
+  const response = await fetch('/api/delete-user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  });
+  const data = await response.json();
+  if (!response.ok) return { error: data.error || 'Delete failed' };
+  return { error: null };
 };
