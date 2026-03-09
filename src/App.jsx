@@ -1304,11 +1304,26 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-8 relative overflow-hidden">
       <div className="max-w-3xl text-center">
+
+        {/* Fully Conscious Badge — centred above headline */}
+        <div
+          className={`flex justify-center mb-8 transition-all duration-1000 ease-out ${
+            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          <img
+            src="/fully-conscious-badge.png"
+            alt="Fully Conscious"
+            className="w-32 md:w-40 lg:w-48 drop-shadow-lg hover:scale-105 transition-transform duration-300"
+          />
+        </div>
+
         {/* Headline */}
         <h1 
           className={`text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
+          style={{ transitionDelay: animate ? '200ms' : '0ms' }}
         >
           <span className="block">Welcome to the</span>
           <span className="block">Conscious Compass.</span>
@@ -1319,7 +1334,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
           className={`text-xl text-[#333333] mb-4 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
-          style={{ transitionDelay: animate ? '300ms' : '0ms' }}
+          style={{ transitionDelay: animate ? '400ms' : '0ms' }}
         >
           You have read-only access to view brand assessments, compare results, and explore saved reports.
         </p>
@@ -1328,7 +1343,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
           className={`text-sm text-[#666666] mb-8 transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
-          style={{ transitionDelay: animate ? '400ms' : '0ms' }}
+          style={{ transitionDelay: animate ? '500ms' : '0ms' }}
         >
           Contact an administrator if you need full access to run new assessments.
         </p>
@@ -1338,7 +1353,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
           className={`flex flex-col sm:flex-row gap-4 justify-center transition-all duration-700 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
-          style={{ transitionDelay: animate ? '600ms' : '0ms' }}
+          style={{ transitionDelay: animate ? '700ms' : '0ms' }}
         >
           <button onClick={onCompassResults} className="btn-primary flex items-center justify-center gap-2 text-lg px-8 py-4">
             <BarChart3 className="w-5 h-5" /> View Results
@@ -1350,22 +1365,6 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
             <FileText className="w-5 h-5" /> Saved Assessments
           </button>
         </div>
-      </div>
-      
-      {/* Fully Conscious Badge */}
-      <div 
-        className={`absolute bottom-8 left-8 transition-all duration-1000 ease-out ${
-          animate 
-            ? 'opacity-100 translate-y-0' 
-            : 'opacity-0 translate-y-12'
-        }`}
-        style={{ transitionDelay: animate ? '800ms' : '0ms' }}
-      >
-        <img 
-          src="/fully-conscious-badge.png" 
-          alt="Fully Conscious" 
-          className="w-28 md:w-32 lg:w-40 drop-shadow-lg hover:scale-105 transition-transform duration-300"
-        />
       </div>
       
       <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
