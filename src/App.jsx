@@ -2943,11 +2943,11 @@ Write in flowing prose with specific observations from the content provided. End
         )}
       </div>
 
-      {/* Other Platforms (YouTube) */}
+      {/* YouTube */}
       <div className="mb-3">
         <AccordionHeader 
-          title="Other Platforms" 
-          icon={Globe} 
+          title="YouTube" 
+          icon={Play} 
           isOpen={expanded.other} 
           onClick={() => toggleSection('other')}
           hasContent={!!inputs.youtubeContent}
@@ -2955,8 +2955,7 @@ Write in flowing prose with specific observations from the content provided. End
         {expanded.other && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#666666]">YouTube</label>
+              <div className="flex items-center justify-end mb-1">
                 <div className="flex items-center gap-2">
                   {autoCheckStatus.youtube && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
                   <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
@@ -6209,82 +6208,51 @@ function InsightsView({ results, industryBenchmarks, industries }) {
     });
     
     try {
-      const prompt = `You are analyzing Brand Consciousness assessment data to identify thought leadership opportunities and storytelling angles. Brand Consciousness is a framework with 8 attributes that transform fragmented marketing into synchronized strategy for "consequential brands" in the Age of Adoption.
+      const prompt = `You are a brand strategist at Antenna Group, a brand strategy agency. You have just run Brand Consciousness assessments on the following brands and you are identifying thought leadership storytelling opportunities — the kinds of stories Antenna Group could write, speak about, or publish based on what the data reveals.
 
-THE 8 ATTRIBUTES OF BRAND CONSCIOUSNESS:
-- AWAKE: Influence & Narrative Leadership - shaping industry conversations through thought leadership
-- AWARE: Trust Building & Audience Understanding - building authentic connections through listening
-- REFLECTIVE: Authenticity & Reputation Management - grounded in clear brand strategy
-- ATTENTIVE: Experience Quality & Excellence - prioritizing quality at every touchpoint
-- COGENT: Strategic Intelligence & Data-Driven Marketing - transforming data into measurable action
-- SENTIENT: Creative Differentiation & Emotional Connection - forging emotional resonance
-- VISIONARY: Future Vision & Audience Benefit - inspiring perspectives that shape industry
-- INTENTIONAL: Credibility & Organizational Confidence - confident, substantive interactions
+Brand Consciousness is a proprietary framework with 8 attributes:
+AWAKE (Narrative Leadership), AWARE (Audience Understanding), REFLECTIVE (Authenticity), ATTENTIVE (Experience Quality), COGENT (Strategic Intelligence), SENTIENT (Emotional Connection), VISIONARY (Future Vision), INTENTIONAL (Organisational Credibility).
 
-PORTFOLIO DATA (${results.length} brands assessed):
-- Overall Average Score: ${portfolioStats.avgScore}/100
-- Maturity Distribution: ${JSON.stringify(portfolioStats.maturityDistribution)}
+ASSESSMENT DATA (${results.length} brands):
+Portfolio average: ${portfolioStats.avgScore}/100
+Strongest attribute across portfolio: ${portfolioStats.strongestAttr[0]} (avg ${portfolioStats.strongestAttr[1]})
+Weakest attribute across portfolio: ${portfolioStats.weakestAttr[0]} (avg ${portfolioStats.weakestAttr[1]})
 
-ATTRIBUTE AVERAGES ACROSS ALL BRANDS:
-${Object.entries(portfolioStats.attrAverages).map(([k, v]) => `- ${k}: ${v}/100`).join('\n')}
+Attribute averages:
+${Object.entries(portfolioStats.attrAverages).map(([k, v]) => `${k}: ${v}`).join(', ')}
 
-SECTOR-BY-SECTOR BREAKDOWN:
-${sectorSummaries.map(s => `
-${s.sector.toUpperCase()} (${s.brandCount} brand${s.brandCount > 1 ? 's' : ''}):
-  - Average Score: ${s.avgScore}
-  - Strongest: ${s.strongestAttr[0]} (${s.strongestAttr[1]})
-  - Weakest: ${s.weakestAttr[0]} (${s.weakestAttr[1]})
-  - Brands: ${s.brands.join(', ')}`).join('\n')}
+Brands assessed:
+${results.map(r => `${r.brandName} (${r.industry || 'unspecified'}, ${r.businessModel || ''}, score: ${r.totalScore})`).join('\n')}
 
-TOP PERFORMERS:
-${portfolioStats.topPerformers.map(b => `- ${b.brandName} (${b.industry}): ${b.totalScore} - ${b.maturityLevel}`).join('\n')}
+Sector breakdown:
+${sectorSummaries.map(s => `${s.sector}: ${s.brandCount} brand(s), avg score ${s.avgScore}, strongest ${s.strongestAttr[0]} (${s.strongestAttr[1]}), weakest ${s.weakestAttr[0]} (${s.weakestAttr[1]})`).join('\n')}
 
-BRANDS WITH GROWTH POTENTIAL:
-${portfolioStats.bottomPerformers.map(b => `- ${b.brandName} (${b.industry}): ${b.totalScore} - ${b.maturityLevel}`).join('\n')}
+Based on this data, identify 3 to 5 thought leadership stories Antenna Group could tell. Each story should be grounded in a specific pattern, tension, or insight from the data — not generic marketing advice. These should be publishable angles: blog posts, talks, LinkedIn articles, or POV pieces.
 
-Based on this data, provide thought leadership insights in this JSON format:
-{
-  "narrativeHeadline": "A compelling headline that captures the main story this data tells (max 12 words)",
-  "executiveSummary": "2-3 sentences describing the overall state of brand consciousness across these sectors - what's the big picture story?",
-  "sectorStories": [
-    {
-      "sector": "sector name",
-      "narrative": "2-3 sentences telling the story of this sector - where are brands excelling, where are they struggling, what does this mean for the industry?",
-      "consciousnessGap": "Which consciousness attribute represents the biggest opportunity and why?",
-      "thoughtLeadershipAngle": "A specific thought leadership theme or article topic that could resonate with this sector"
-    }
-  ],
-  "crossSectorPatterns": [
-    {
-      "pattern": "Name of the pattern observed",
-      "insight": "2 sentences explaining this pattern across multiple sectors and its implications"
-    }
-  ],
-  "consciousnessOpportunities": [
-    {
-      "attribute": "ATTRIBUTE_NAME",
-      "observation": "What the data shows about this attribute across the portfolio",
-      "whyItMatters": "Why this matters in the Age of Adoption / for consequential brands"
-    }
-  ],
-  "thoughtLeadershipThemes": [
-    "Theme 1: A potential article or POV topic based on the data",
-    "Theme 2: Another angle for thought leadership content",
-    "Theme 3: A third perspective worth exploring"
-  ]
-}`;
+For each story write:
+- A punchy headline (max 12 words)
+- A 2-3 sentence summary of what the story argues and why the data supports it
+
+Write in plain text. Number each story. No JSON, no bullet sub-lists, no headers beyond the story number and headline.`;
 
       const storedKey = localStorage.getItem('conscious-compass-apikey');
       const useProxy = !storedKey || storedKey === 'PROXY';
-      let response;
+      let responseText;
+
       if (useProxy) {
-        response = await fetch('/api/claude', {
+        const response = await fetch('/api/claude', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, max_tokens: 2500, temperature: 0 })
+          body: JSON.stringify({ prompt, max_tokens: 1500, temperature: 0 })
         });
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `Request failed (${response.status})`);
+        }
+        const data = await response.json();
+        responseText = data.text || data.content?.[0]?.text || '';
       } else {
-        response = await fetch('https://api.anthropic.com/v1/messages', {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -6294,32 +6262,32 @@ Based on this data, provide thought leadership insights in this JSON format:
           },
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
-            max_tokens: 2500,
+            max_tokens: 1500,
             temperature: 0,
             messages: [{ role: 'user', content: prompt }],
           }),
         });
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `Request failed (${response.status})`);
+        }
+        const data = await response.json();
+        responseText = data.content[0].text;
       }
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Request failed (${response.status})`);
-      }
-      
-      const data = await response.json();
-      const text = useProxy ? (data.text || data.content?.[0]?.text || '') : data.content[0].text;
-      
-      // Parse JSON from response
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          setAiInsights(JSON.parse(jsonMatch[0]));
-        } catch (parseErr) {
-          throw new Error('Response was not valid JSON. Please try again.');
-        }
-      } else {
-        throw new Error('No structured data in response. Please try again.');
-      }
+      if (!responseText?.trim()) throw new Error('Empty response. Please try again.');
+
+      // Parse numbered stories from plain text
+      const storyBlocks = responseText.split(/\n(?=\d+\.)/).map(s => s.trim()).filter(Boolean);
+      const parsed = storyBlocks.map(block => {
+        const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+        const headlineLine = lines[0].replace(/^\d+\.\s*/, '');
+        const body = lines.slice(1).join(' ');
+        return { headline: headlineLine, body };
+      }).filter(s => s.headline && s.body);
+
+      if (parsed.length === 0) throw new Error('Could not parse stories from response. Please try again.');
+      setAiInsights(parsed);
     } catch (err) {
       setError(`Failed to generate insights: ${err.message}`);
       console.error('Insights error:', err);
@@ -6485,7 +6453,7 @@ Based on this data, provide thought leadership insights in this JSON format:
       <div className="card p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[#6366F1]" /> AI-Powered Insights
+            <Lightbulb className="w-5 h-5 text-[#E8FF00]" style={{filter: 'drop-shadow(0 0 2px #E8FF00)'}} /> Story Opportunities
           </h3>
           <button
             onClick={generateInsights}
@@ -6493,7 +6461,7 @@ Based on this data, provide thought leadership insights in this JSON format:
             className="btn-primary flex items-center gap-2 text-sm"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {loading ? 'Analyzing...' : aiInsights ? 'Refresh Insights' : 'Generate Insights'}
+            {loading ? 'Generating...' : aiInsights ? 'Regenerate' : 'Generate Stories'}
           </button>
         </div>
 
@@ -6505,112 +6473,26 @@ Based on this data, provide thought leadership insights in this JSON format:
 
         {!aiInsights && !loading && !error && (
           <div className="text-center py-8 text-[#666666]">
-            <Sparkles className="w-12 h-12 mx-auto mb-3 text-[#D9D6D0]" />
-            <p>Click "Generate Insights" to get AI-powered analysis of your portfolio trends,<br/>opportunities, and strategic recommendations.</p>
+            <Lightbulb className="w-12 h-12 mx-auto mb-3 text-[#D9D6D0]" />
+            <p className="text-sm">Generate 3–5 thought leadership story opportunities based on what your assessment data reveals.</p>
           </div>
         )}
 
         {aiInsights && (
-          <div className="space-y-6">
-            {/* Narrative Headline & Summary */}
-            <div className="p-5 bg-gradient-to-r from-[#6366F1]/10 to-[#A78BFA]/10 rounded-xl border border-[#6366F1]/20">
-              <h4 className="text-xl font-bold text-[#1A1A1A] mb-2">{aiInsights.narrativeHeadline}</h4>
-              <p className="text-[#666666]">{aiInsights.executiveSummary}</p>
-            </div>
-
-            {/* Sector Stories */}
-            {aiInsights.sectorStories?.length > 0 && (
-              <div>
-                <h4 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
-                  <Globe className="w-5 h-5 text-[#059669]" /> Sector Stories
-                </h4>
-                <div className="space-y-4">
-                  {aiInsights.sectorStories.map((story, idx) => (
-                    <div key={idx} className="card p-5 border-l-4 border-[#059669]">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-bold text-[#059669] uppercase tracking-wide">{story.sector}</span>
-                      </div>
-                      <p className="text-sm text-[#1A1A1A] mb-3">{story.narrative}</p>
-                      <div className="grid md:grid-cols-2 gap-3 text-xs">
-                        <div className="p-3 bg-[#F0EEEA] rounded-lg">
-                          <div className="font-medium text-[#666666] mb-1">Consciousness Gap</div>
-                          <div className="text-[#1A1A1A]">{story.consciousnessGap}</div>
-                        </div>
-                        <div className="p-3 bg-[#E8FF00]/20 rounded-lg">
-                          <div className="font-medium text-[#666666] mb-1">💡 Thought Leadership Angle</div>
-                          <div className="text-[#1A1A1A] font-medium">{story.thoughtLeadershipAngle}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+          <div className="space-y-4">
+            {aiInsights.map((story, idx) => (
+              <div key={idx} className="p-5 bg-[#1A1A1A] rounded-xl">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-[#E8FF00] text-[#1A1A1A] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
+                    {idx + 1}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white mb-2 leading-snug">{story.headline}</div>
+                    <div className="text-sm text-[#9CA3AF] leading-relaxed">{story.body}</div>
+                  </div>
                 </div>
               </div>
-            )}
-
-            {/* Cross-Sector Patterns */}
-            {aiInsights.crossSectorPatterns?.length > 0 && (
-              <div>
-                <h4 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-[#6366F1]" /> Cross-Sector Patterns
-                </h4>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {aiInsights.crossSectorPatterns.map((pattern, idx) => (
-                    <div key={idx} className="p-4 bg-[#6366F1]/5 rounded-lg border border-[#6366F1]/20">
-                      <div className="font-medium text-[#6366F1] text-sm mb-2">{pattern.pattern}</div>
-                      <div className="text-xs text-[#666666]">{pattern.insight}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Consciousness Opportunities */}
-            {aiInsights.consciousnessOpportunities?.length > 0 && (
-              <div>
-                <h4 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
-                  <Compass className="w-5 h-5 text-[#F59E0B]" /> Consciousness Opportunities
-                </h4>
-                <div className="space-y-3">
-                  {aiInsights.consciousnessOpportunities.map((opp, idx) => {
-                    const attr = ATTRIBUTES.find(a => a.id === opp.attribute);
-                    return (
-                      <div key={idx} className="flex gap-4 p-4 bg-white rounded-lg border border-[#E8E6E1]">
-                        <div 
-                          className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold"
-                          style={{ backgroundColor: attr?.color || '#666' }}
-                        >
-                          {opp.attribute?.substring(0, 3)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-[#1A1A1A] text-sm">{attr?.name || opp.attribute}</div>
-                          <div className="text-xs text-[#666666] mt-1">{opp.observation}</div>
-                          <div className="text-xs text-[#059669] mt-2 font-medium">↳ {opp.whyItMatters}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Thought Leadership Themes */}
-            {aiInsights.thoughtLeadershipThemes?.length > 0 && (
-              <div className="p-5 bg-[#1A1A1A] rounded-xl text-white">
-                <h4 className="font-semibold mb-4 flex items-center gap-2">
-                  <Lightbulb className="w-5 h-5 text-[#E8FF00]" /> Thought Leadership Themes
-                </h4>
-                <div className="space-y-3">
-                  {aiInsights.thoughtLeadershipThemes.map((theme, idx) => (
-                    <div key={idx} className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#E8FF00] text-[#1A1A1A] flex items-center justify-center flex-shrink-0 text-sm font-bold">
-                        {idx + 1}
-                      </div>
-                      <div className="text-sm text-[#E8E6E1]">{theme}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            ))}
           </div>
         )}
       </div>
