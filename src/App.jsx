@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.14.0';
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.14.12';
 import { 
   supabase, 
   signUp, 
@@ -545,7 +545,11 @@ IMPORTANT FORMATTING RULES:
       throw new Error(err.error || `API error: ${response.status}`);
     }
     const data = await response.json();
+    const stopReason = data.stop_reason;
     result = data.content[0].text;
+    if (isJson && stopReason === 'max_tokens') {
+      throw new Error('Response was cut short — increase max tokens or reduce prompt size.');
+    }
   } else {
     // Local development: Direct API call with client-provided key
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -568,7 +572,11 @@ IMPORTANT FORMATTING RULES:
       throw new Error(err.error?.message || `API error: ${response.status}`);
     }
     const data = await response.json();
+    const stopReason = data.stop_reason;
     result = data.content[0].text;
+    if (isJson && stopReason === 'max_tokens') {
+      throw new Error('Response was cut short — increase max tokens or reduce prompt size.');
+    }
   }
   
   // Post-process to remove em/en-dashes — skip for JSON responses to avoid corruption
@@ -3957,17 +3965,17 @@ Return valid JSON only — no prose before or after. Schema:
   "headline": "Single pithy sentence (max 20 words) capturing brand state and primary opportunity. Specific, not generic.",
   "conclusion": "2-3 sentences naming the specific transformation available. Reference actual findings. No generic phrases.",
   "justification": "Under 150 words. Why the overall score is what it is. Call out notably high/low scores with evidence.",
-  "AWAKE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "Cited evidence", "evidence": [{"source":"","type":"","strength":"strong|moderate|weak","detail":""}], "gaps": ["..."], "opportunity": "Relevant service area recommendation." },
-  "AWARE":      { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
-  "REFLECTIVE": { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
-  "ATTENTIVE":  { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
-  "COGENT":     { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
-  "SENTIENT":   { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
-  "VISIONARY":  { "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." },
-  "INTENTIONAL":{ "score": 0-100, "confidence": "...", "findings": "...", "evidence": [...], "gaps": [...], "opportunity": "..." }
+  "AWAKE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "Cited evidence, under 100 words.", "gaps": ["max 3 items"], "opportunity": "Relevant service area recommendation." },
+  "AWARE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
+  "REFLECTIVE": { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
+  "ATTENTIVE":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
+  "COGENT":     { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
+  "SENTIENT":   { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
+  "VISIONARY":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
+  "INTENTIONAL":{ "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." }
 }`;
 
-      const result = await callClaude(prompt, apiKey, null, [], 0, true, 5000);
+      const result = await callClaude(prompt, apiKey, null, [], 0, true, 8000);
       clearInterval(progressInterval);
       setScoringProgress(100);
       setScoringStage('Complete!');
