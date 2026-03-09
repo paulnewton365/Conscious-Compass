@@ -24,10 +24,13 @@ export const signIn = async (email, password) => {
   });
   // Stamp last_login on successful sign-in
   if (data?.user && !error) {
-    await supabase
+    const { error: updateError } = await supabase
       .from('profiles')
       .update({ last_login: new Date().toISOString() })
       .eq('id', data.user.id);
+    if (updateError) {
+      console.error('last_login update failed:', updateError.message, updateError.code);
+    }
   }
   return { data, error };
 };
