@@ -999,7 +999,7 @@ function MaturityContinuum({ score }) {
 }
 
 // Header
-function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, onStayConscious, activePage, lastAutoSave, user, profile, onLogout, onAdmin, isReadonly }) {
+function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, onStayConscious, activePage, lastAutoSave, user, profile, onLogout, onAdmin }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
@@ -8686,7 +8686,6 @@ function AppContent() {
         profile={profile}
         onLogout={handleLogout}
         onAdmin={() => setShowAdminPage(true)}
-        isReadonly={isReadonly}
       />
       
       {/* Read-only users see simplified welcome page, unless they've loaded a report */}
