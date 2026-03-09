@@ -22,6 +22,13 @@ export const signIn = async (email, password) => {
     email,
     password
   });
+  // Stamp last_login on successful sign-in
+  if (data?.user && !error) {
+    await supabase
+      .from('profiles')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', data.user.id);
+  }
   return { data, error };
 };
 

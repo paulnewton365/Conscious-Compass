@@ -266,9 +266,20 @@ function AdminPage({ currentUser, onBack }) {
     loadUsers();
   };
 
+  const formatDate = (ts) => {
+    if (!ts) return null;
+    const d = new Date(ts);
+    const now = new Date();
+    const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   return (
     <div className="min-h-screen bg-[#F5F4F0]">
-      <div className="max-w-4xl mx-auto p-4 md:p-8">
+      <div className="max-w-3xl mx-auto p-4 md:p-8">
         <div className="flex items-center gap-4 mb-8">
           <button onClick={onBack} className="btn-secondary flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> Back
@@ -285,46 +296,39 @@ function AdminPage({ currentUser, onBack }) {
             <p className="mt-4 text-[#666666]">Loading users...</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
+
             {/* Pending Users */}
             {users.filter(u => !u.is_approved).length > 0 && (
-              <div className="card p-6">
-                <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
-                  <UserCheck className="w-5 h-5 text-yellow-600" />
+              <div>
+                <h2 className="text-sm font-semibold text-[#666666] uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-yellow-600" />
                   Pending Approval ({users.filter(u => !u.is_approved).length})
                 </h2>
                 <div className="space-y-3">
                   {users.filter(u => !u.is_approved).map(user => (
-                    <div key={user.id} className="flex items-center justify-between p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <div>
-                        <div className="font-medium text-[#1A1A1A]">{user.full_name || 'No name'}</div>
-                        <div className="text-sm text-[#666666]">{user.email}</div>
-                        <div className="text-xs text-[#9CA3AF]">Signed up {new Date(user.created_at).toLocaleDateString()}</div>
+                    <div key={user.id} className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                          {(user.full_name || user.email || '?')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-[#1A1A1A]">{user.full_name || 'No name'}</div>
+                          <div className="text-sm text-[#666666]">{user.email}</div>
+                          <div className="text-xs text-[#9CA3AF] mt-0.5">Signed up {formatDate(user.created_at)}</div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={async () => {
-                            await approveUser(user.id);
-                            await setReadonly(user.id, true);
-                            loadUsers();
-                          }}
-                          className="btn-secondary text-sm px-4 py-2"
-                        >
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={async () => { await approveUser(user.id); await setReadonly(user.id, true); loadUsers(); }}
+                          className="btn-secondary text-sm px-4 py-2">
                           Approve (Read-only)
                         </button>
-                        <button 
-                          onClick={() => handleApprove(user.id)}
-                          className="btn-primary text-sm px-4 py-2"
-                        >
-                          Approve (Full)
+                        <button onClick={() => handleApprove(user.id)} className="btn-primary text-sm px-4 py-2">
+                          Approve (Full Access)
                         </button>
-                        <button 
-                          onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                          className="text-sm px-3 py-2 rounded border border-red-400 text-red-700 hover:bg-red-100 transition-colors"
-                          title="Permanently delete this user"
-                        >
-                          <Trash2 className="w-4 h-4 inline mr-1" />
-                          Delete
+                        <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
+                          className="text-sm px-3 py-2 rounded border border-red-300 text-red-600 hover:bg-red-50 transition-colors ml-auto">
+                          <Trash2 className="w-4 h-4 inline mr-1" />Delete
                         </button>
                       </div>
                     </div>
@@ -333,89 +337,86 @@ function AdminPage({ currentUser, onBack }) {
               </div>
             )}
 
-            {/* Approved Users */}
-            <div className="card p-6">
-              <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
-                <Users className="w-5 h-5 text-green-600" />
+            {/* Active Users */}
+            <div>
+              <h2 className="text-sm font-semibold text-[#666666] uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#059669]" />
                 Active Users ({users.filter(u => u.is_approved).length})
               </h2>
               <div className="space-y-3">
-                {users.filter(u => u.is_approved).map(user => (
-                  <div key={user.id} className="flex items-center justify-between p-4 bg-white border border-[#D9D6D0] rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${user.is_admin ? 'bg-[#E53935]' : user.is_readonly ? 'bg-[#9CA3AF]' : 'bg-[#059669]'}`}>
-                        {(user.full_name || user.email || '?')[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-medium text-[#1A1A1A] flex items-center gap-2">
-                          {user.full_name || 'No name'}
-                          {user.is_admin && (
-                            <span className="text-xs px-2 py-0.5 bg-[#E53935] text-white rounded-full">Admin</span>
-                          )}
-                          {user.is_readonly && !user.is_admin && (
-                            <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only</span>
-                          )}
-                          {!user.is_admin && !user.is_readonly && (
-                            <span className="text-xs px-2 py-0.5 bg-[#059669] text-white rounded-full">Full Access</span>
-                          )}
-                          {user.id === currentUser.id && (
-                            <span className="text-xs text-[#666666]">(you)</span>
-                          )}
+                {users.filter(u => u.is_approved).map(user => {
+                  const isSelf = user.id === currentUser.id;
+                  const roleColor = user.is_admin ? 'bg-[#E53935]' : user.is_readonly ? 'bg-[#9CA3AF]' : 'bg-[#059669]';
+                  const roleLabel = user.is_admin ? 'Admin' : user.is_readonly ? 'Read-only' : 'Full Access';
+                  return (
+                    <div key={user.id} className="bg-white border border-[#E8E6E1] rounded-xl p-5">
+                      {/* User info row */}
+                      <div className="flex items-start gap-3 mb-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 ${roleColor}`}>
+                          {(user.full_name || user.email || '?')[0].toUpperCase()}
                         </div>
-                        <div className="text-sm text-[#666666]">{user.email}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-[#1A1A1A]">{user.full_name || 'No name'}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full text-white ${roleColor}`}>{roleLabel}</span>
+                            {isSelf && <span className="text-xs text-[#9CA3AF]">(you)</span>}
+                          </div>
+                          <div className="text-sm text-[#666666] mt-0.5 truncate">{user.email}</div>
+                          <div className="flex gap-3 mt-1">
+                            <span className="text-xs text-[#9CA3AF]">
+                              Joined {formatDate(user.created_at)}
+                            </span>
+                            {user.last_login && (
+                              <span className="text-xs text-[#9CA3AF]">
+                                · Last login {formatDate(user.last_login)}
+                              </span>
+                            )}
+                            {!user.last_login && (
+                              <span className="text-xs text-[#C4C1BB]">· Never logged in</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!user.is_admin && (
-                        <button 
-                          onClick={() => handleToggleReadonly(user.id, user.is_readonly)}
-                          className={`text-sm px-3 py-1.5 rounded border transition-colors ${
-                            user.is_readonly 
-                              ? 'border-[#059669] text-[#059669] hover:bg-[#059669]/10' 
-                              : 'border-[#9CA3AF] text-[#9CA3AF] hover:bg-[#9CA3AF]/10'
-                          }`}
-                          disabled={user.id === currentUser.id}
-                          title={user.is_readonly ? 'Grant full access' : 'Set to read-only'}
-                        >
-                          {user.is_readonly ? 'Grant Full Access' : 'Set Read-only'}
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => handleToggleAdmin(user.id, user.is_admin)}
-                        className={`text-sm px-3 py-1.5 rounded border transition-colors ${
-                          user.is_admin 
-                            ? 'border-[#E53935] text-[#E53935] hover:bg-[#E53935]/10' 
-                            : 'border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
-                        }`}
-                        disabled={user.id === currentUser.id}
-                        title={user.id === currentUser.id ? "Can't change your own admin status" : ""}
-                      >
-                        <Shield className="w-4 h-4 inline mr-1" />
-                        {user.is_admin ? 'Remove Admin' : 'Make Admin'}
-                      </button>
-                      <button 
-                        onClick={() => handleRevoke(user.id)}
-                        className="text-sm px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                        disabled={user.id === currentUser.id}
-                      >
-                        <UserX className="w-4 h-4 inline mr-1" />
-                        Revoke
-                      </button>
-                      {user.id !== currentUser.id && (
-                        <button 
-                          onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                          className="text-sm px-3 py-1.5 rounded border border-red-400 text-red-700 hover:bg-red-100 transition-colors"
-                          title="Permanently delete this user"
-                        >
-                          <Trash2 className="w-4 h-4 inline mr-1" />
-                          Delete
-                        </button>
+                      {/* Actions row */}
+                      {!isSelf && (
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-[#F0EEEA]">
+                          {!user.is_admin && (
+                            <button onClick={() => handleToggleReadonly(user.id, user.is_readonly)}
+                              className={`text-sm px-3 py-1.5 rounded border transition-colors ${
+                                user.is_readonly
+                                  ? 'border-[#059669] text-[#059669] hover:bg-[#059669]/10'
+                                  : 'border-[#9CA3AF] text-[#9CA3AF] hover:bg-[#9CA3AF]/10'
+                              }`}>
+                              {user.is_readonly ? 'Grant Full Access' : 'Set Read-only'}
+                            </button>
+                          )}
+                          <button onClick={() => handleToggleAdmin(user.id, user.is_admin)}
+                            className={`text-sm px-3 py-1.5 rounded border transition-colors ${
+                              user.is_admin
+                                ? 'border-[#E53935] text-[#E53935] hover:bg-[#E53935]/10'
+                                : 'border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+                            }`}>
+                            <Shield className="w-3.5 h-3.5 inline mr-1" />
+                            {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                          </button>
+                          <div className="flex gap-2 ml-auto">
+                            <button onClick={() => handleRevoke(user.id)}
+                              className="text-sm px-3 py-1.5 rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+                              <UserX className="w-3.5 h-3.5 inline mr-1" />Revoke
+                            </button>
+                            <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
+                              className="text-sm px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-50 transition-colors">
+                              <Trash2 className="w-3.5 h-3.5 inline mr-1" />Delete
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
+
           </div>
         )}
       </div>

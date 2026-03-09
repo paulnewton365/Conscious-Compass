@@ -141,3 +141,7 @@ CREATE TRIGGER on_auth_user_created
 -- NOTE: User deletion requires SUPABASE_SERVICE_ROLE_KEY in Vercel environment variables.
 -- Find it in: Supabase Dashboard → Project Settings → API → service_role key (secret)
 -- Add as: SUPABASE_SERVICE_ROLE_KEY = your-service-role-key
+
+-- MIGRATION: Add last_login column to profiles
+-- Run this in Supabase SQL Editor:
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE;
