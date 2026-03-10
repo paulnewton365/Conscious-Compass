@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
-import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash } from 'lucide-react';
+import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType } from 'docx';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
@@ -1084,11 +1084,9 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
               Auto-saved {lastAutoSave.toLocaleTimeString()}
             </span>
           )}
-          {!isReadonly && (
-            <button onClick={onStayConscious} className={navBtnClass('stay-conscious')}>
-              <Sparkles className="w-4 h-4" /> Stay Conscious
-            </button>
-          )}
+          <button onClick={onStayConscious} className={navBtnClass('stay-conscious')}>
+            <Sparkles className="w-4 h-4" /> Stay Conscious
+          </button>
           <button onClick={onComparison} className={navBtnClass('compare')}>
             <Users className="w-4 h-4" /> Compare
           </button>
@@ -1145,11 +1143,9 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
               <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only Access</span>
             </div>
           )}
-          {!isReadonly && (
-            <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
-              <Sparkles className="w-5 h-5" /> Stay Conscious
-            </button>
-          )}
+          <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
+            <Sparkles className="w-5 h-5" /> Stay Conscious
+          </button>
           <button onClick={() => { onComparison(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('compare')}>
             <Users className="w-5 h-5" /> Compare Brands
           </button>
@@ -7407,12 +7403,14 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
         </div>
       </div>
 
-      {/* Info tip */}
-      <div className="bg-[#F0F7FF] border border-[#BFDBFE] rounded-lg px-4 py-3 mb-5">
-        <p className="text-xs text-[#1E40AF]">
-          <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup.
-        </p>
-      </div>
+      {/* Info tip — hidden for read-only users */}
+      {!(profile?.is_readonly && !profile?.is_admin) && (
+        <div className="bg-[#F0F7FF] border border-[#BFDBFE] rounded-lg px-4 py-3 mb-5">
+          <p className="text-xs text-[#1E40AF]">
+            <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup.
+          </p>
+        </div>
+      )}
 
       {assessments.length === 0 ? (
         <div className="card p-12 text-center">
@@ -7950,67 +7948,40 @@ Each item:
 - insight: 2-3 sentences. What is actually happening, with specifics where possible.
 - whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
 
-function StayConsciousPage({ apiKey, onBack }) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
+function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = null, onCacheUpdate }) {
+  const [items, setItems] = useState(cachedItems);
+  const [loading, setLoading] = useState(cachedItems.length === 0);
   const [error, setError] = useState(null);
-  const [lastRefreshed, setLastRefreshed] = useState(null);
+  const [lastRefreshed, setLastRefreshed] = useState(cachedLastRefreshed);
   const [activeCategory, setActiveCategory] = useState('All');
-  const [hasFetched, setHasFetched] = useState(false);
 
-  const fetchInsights = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const key = apiKey && apiKey !== 'PROXY' ? apiKey : null;
-      const headers = { 'Content-Type': 'application/json' };
-      let response;
-      if (key) {
-        response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { ...headers, 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 2000,
-            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
-            messages: [{ role: 'user', content: STAY_CONSCIOUS_PROMPT }]
-          })
-        });
-      } else {
-        response = await fetch('/api/claude', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ prompt: STAY_CONSCIOUS_PROMPT, useWebSearch: true })
-        });
-      }
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Request failed (${response.status})`);
-      }
-      const data = await response.json();
-      const text = (data.content?.filter(b => b.type === 'text').map(b => b.text).join('\n') || data.text || '').trim();
-      const clean = text.replace(/```json[\s\S]*?```/g, m => m.slice(7, -3)).replace(/```/g, '').trim();
-      // Find JSON object in response
-      const jsonMatch = clean.match(/\{[\s\S]*"items"[\s\S]*\}/);
-      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : clean);
-      if (parsed?.items?.length) {
-        setItems(parsed.items);
-        setLastRefreshed(new Date());
-        setHasFetched(true);
-      } else {
-        throw new Error('Unexpected response format');
-      }
-    } catch (err) {
-      setError(`Could not load insights: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Auto-fetch on first load
   useEffect(() => {
-    if (!hasFetched) fetchInsights();
+    // Only fetch from server if we don't already have cached items in App state
+    if (cachedItems.length === 0) {
+      fetch('/api/stay-conscious')
+        .then(r => r.json())
+        .then(data => {
+          if (data.items?.length) {
+            const refreshed = data.refreshedAt ? new Date(data.refreshedAt) : null;
+            setItems(data.items);
+            setLastRefreshed(refreshed);
+            if (onCacheUpdate) onCacheUpdate(data.items, refreshed);
+          } else if (data.error) {
+            setError(data.error);
+          } else {
+            setError('No insights available yet — check back after the first weekly refresh.');
+          }
+        })
+        .catch(e => setError(e.message))
+        .finally(() => setLoading(false));
+    }
   }, []);
+
+  const formatRefreshed = (date) => {
+    if (!date) return null;
+    return date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) +
+      ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   const filteredItems = activeCategory === 'All' ? items : items.filter(i => i.category === activeCategory);
 
@@ -8029,19 +8000,13 @@ function StayConsciousPage({ apiKey, onBack }) {
                 <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Stay Conscious</h1>
               </div>
               <p className="text-sm text-[#666666]">Brand intelligence for assessors. What's shifting, why it matters.</p>
-              {lastRefreshed && (
-                <p className="text-xs text-[#9CA3AF] mt-0.5">Last refreshed {lastRefreshed.toLocaleTimeString()}</p>
+              {lastRefreshed ? (
+                <p className="text-xs text-[#9CA3AF] mt-0.5">Updated {formatRefreshed(lastRefreshed)} · Refreshes every Sunday</p>
+              ) : !loading && (
+                <p className="text-xs text-[#9CA3AF] mt-0.5">Refreshes every Sunday</p>
               )}
             </div>
           </div>
-          <button
-            onClick={fetchInsights}
-            disabled={loading}
-            className="btn-secondary flex items-center gap-2 self-start sm:self-auto flex-shrink-0"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
         </div>
 
         {/* Category filter */}
@@ -8153,6 +8118,7 @@ function AppContent() {
   const [showResultsPage, setShowResultsPage] = useState(false);
   const [showComparisonPage, setShowComparisonPage] = useState(false);
   const [showStayConsciousPage, setShowStayConsciousPage] = useState(false);
+  const [stayConsciousCache, setStayConsciousCache] = useState({ items: [], lastRefreshed: null });
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [savedAssessments, setSavedAssessments] = useState([]);
   const [compassResults, setCompassResults] = useState([]);
@@ -8509,7 +8475,12 @@ function AppContent() {
           onLogout={handleLogout}
           onAdmin={() => setShowAdminPage(true)}
         />
-        <StayConsciousPage apiKey={apiKey} onBack={() => setShowStayConsciousPage(false)} />
+        <StayConsciousPage
+          onBack={() => setShowStayConsciousPage(false)}
+          cachedItems={stayConsciousCache.items}
+          cachedLastRefreshed={stayConsciousCache.lastRefreshed}
+          onCacheUpdate={(items, lastRefreshed) => setStayConsciousCache({ items, lastRefreshed })}
+        />
       </div>
     );
   }

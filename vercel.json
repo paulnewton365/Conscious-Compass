@@ -4,5 +4,11 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/refresh-stay-conscious",
+      "schedule": "0 22 * * 0"
+    }
   ]
 }

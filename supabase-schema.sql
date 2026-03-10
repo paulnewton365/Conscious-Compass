@@ -145,3 +145,15 @@ CREATE TRIGGER on_auth_user_created
 -- MIGRATION: Add last_login column to profiles
 -- Run this in Supabase SQL Editor:
 -- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE;
+
+-- MIGRATION: Create Stay Conscious weekly cache table
+-- Run this in Supabase SQL Editor:
+-- CREATE TABLE IF NOT EXISTS stay_conscious_cache (
+--   id INTEGER PRIMARY KEY DEFAULT 1,
+--   items JSONB NOT NULL,
+--   refreshed_at TIMESTAMP WITH TIME ZONE NOT NULL
+-- );
+-- Enable RLS but allow all authenticated users to read:
+-- ALTER TABLE stay_conscious_cache ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "Authenticated users can read stay conscious cache"
+--   ON stay_conscious_cache FOR SELECT TO authenticated USING (true);
