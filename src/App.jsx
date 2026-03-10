@@ -7948,33 +7948,59 @@ Each item:
 - insight: 2-3 sentences. What is actually happening, with specifics where possible.
 - whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
 
-function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = null, onCacheUpdate }) {
+function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = null, onCacheUpdate, isAdmin }) {
   const [items, setItems] = useState(cachedItems);
   const [loading, setLoading] = useState(cachedItems.length === 0);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(cachedLastRefreshed);
   const [activeCategory, setActiveCategory] = useState('All');
 
+  const loadFromCache = () => {
+    setLoading(true);
+    setError(null);
+    fetch('/api/stay-conscious')
+      .then(r => r.json())
+      .then(data => {
+        if (data.items?.length) {
+          const refreshed = data.refreshedAt ? new Date(data.refreshedAt) : null;
+          setItems(data.items);
+          setLastRefreshed(refreshed);
+          if (onCacheUpdate) onCacheUpdate(data.items, refreshed);
+        } else {
+          setError(data.error || 'No insights available yet — check back after the first weekly refresh.');
+        }
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  };
+
+  const forceRefresh = () => {
+    setRefreshing(true);
+    setError(null);
+    fetch('/api/refresh-stay-conscious', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          // Re-read the newly written cache
+          return fetch('/api/stay-conscious').then(r => r.json()).then(cached => {
+            if (cached.items?.length) {
+              const refreshed = cached.refreshedAt ? new Date(cached.refreshedAt) : new Date();
+              setItems(cached.items);
+              setLastRefreshed(refreshed);
+              if (onCacheUpdate) onCacheUpdate(cached.items, refreshed);
+            }
+          });
+        } else {
+          throw new Error(data.error || 'Refresh failed');
+        }
+      })
+      .catch(e => setError(`Refresh failed: ${e.message}`))
+      .finally(() => setRefreshing(false));
+  };
+
   useEffect(() => {
-    // Only fetch from server if we don't already have cached items in App state
-    if (cachedItems.length === 0) {
-      fetch('/api/stay-conscious')
-        .then(r => r.json())
-        .then(data => {
-          if (data.items?.length) {
-            const refreshed = data.refreshedAt ? new Date(data.refreshedAt) : null;
-            setItems(data.items);
-            setLastRefreshed(refreshed);
-            if (onCacheUpdate) onCacheUpdate(data.items, refreshed);
-          } else if (data.error) {
-            setError(data.error);
-          } else {
-            setError('No insights available yet — check back after the first weekly refresh.');
-          }
-        })
-        .catch(e => setError(e.message))
-        .finally(() => setLoading(false));
-    }
+    if (cachedItems.length === 0) loadFromCache();
   }, []);
 
   const formatRefreshed = (date) => {
@@ -7989,7 +8015,7 @@ function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = nul
     <div className="min-h-screen bg-[#F5F4F0]">
       <div className="max-w-5xl mx-auto p-4 md:p-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8 gap-4">
           <div className="flex items-start gap-4">
             <button onClick={onBack} className="btn-secondary flex items-center gap-2 flex-shrink-0">
               <ArrowLeft className="w-4 h-4" /> Back
@@ -8007,6 +8033,17 @@ function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = nul
               )}
             </div>
           </div>
+          {isAdmin && (
+            <button
+              onClick={forceRefresh}
+              disabled={refreshing || loading}
+              className="btn-secondary flex items-center gap-2 self-start flex-shrink-0 text-sm"
+              title="Force refresh for all users"
+            >
+              {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {refreshing ? 'Refreshing...' : 'Force Refresh'}
+            </button>
+          )}
         </div>
 
         {/* Category filter */}
@@ -8029,32 +8066,31 @@ function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = nul
         )}
 
         {/* Loading state */}
-        {loading && (
+        {(loading || refreshing) && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div className="w-12 h-12 rounded-full bg-[#6366F1]/10 flex items-center justify-center">
               <Loader2 className="w-6 h-6 text-[#6366F1] animate-spin" />
             </div>
-            <p className="text-sm text-[#666666]">Gathering brand intelligence...</p>
+            <p className="text-sm text-[#666666]">{refreshing ? 'Generating fresh insights...' : 'Gathering brand intelligence...'}</p>
           </div>
         )}
 
         {/* Error state */}
-        {error && !loading && (
+        {error && !loading && !refreshing && (
           <div className="card p-8 text-center">
             <AlertCircle className="w-10 h-10 text-[#E53935] mx-auto mb-3" />
             <p className="text-[#666666] mb-4">{error}</p>
-            <button onClick={fetchInsights} className="btn-primary">Try Again</button>
+            <button onClick={loadFromCache} className="btn-primary">Try Again</button>
           </div>
         )}
 
         {/* Items grid */}
-        {!loading && filteredItems.length > 0 && (
+        {!loading && !refreshing && filteredItems.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredItems.map((item, i) => {
               const meta = CATEGORY_META[item.category] || CATEGORY_META['Brand Strategy'];
               return (
                 <div key={i} className="card p-5 hover:shadow-md transition-shadow flex flex-col gap-3">
-                  {/* Category badge */}
                   <div className="flex items-center justify-between">
                     <span
                       className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
@@ -8064,11 +8100,8 @@ function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = nul
                     </span>
                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: meta.color }} />
                   </div>
-                  {/* Headline */}
                   <h3 className="font-semibold text-[#1A1A1A] leading-snug">{item.headline}</h3>
-                  {/* Insight */}
                   <p className="text-sm text-[#444444] leading-relaxed">{item.insight}</p>
-                  {/* Why it matters */}
                   <div className="border-t border-[#E8E6E1] pt-3 mt-auto">
                     <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] mb-1">Why it matters for assessment</div>
                     <p className="text-xs text-[#666666] leading-relaxed">{item.whyItMatters}</p>
@@ -8079,11 +8112,12 @@ function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = nul
           </div>
         )}
 
-        {/* Empty (fetched but no items) */}
-        {!loading && hasFetched && items.length === 0 && !error && (
+        {/* Empty state */}
+        {!loading && !refreshing && items.length === 0 && !error && (
           <div className="card p-12 text-center">
             <Sparkles className="w-10 h-10 text-[#D9D6D0] mx-auto mb-3" />
-            <p className="text-[#666666]">No insights loaded. Try refreshing.</p>
+            <p className="text-[#666666]">No insights available yet.</p>
+            {isAdmin && <p className="text-sm text-[#9CA3AF] mt-2">Use Force Refresh to generate the first set.</p>}
           </div>
         )}
 
@@ -8480,6 +8514,7 @@ function AppContent() {
           cachedItems={stayConsciousCache.items}
           cachedLastRefreshed={stayConsciousCache.lastRefreshed}
           onCacheUpdate={(items, lastRefreshed) => setStayConsciousCache({ items, lastRefreshed })}
+          isAdmin={profile?.is_admin}
         />
       </div>
     );
