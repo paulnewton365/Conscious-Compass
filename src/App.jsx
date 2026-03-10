@@ -3289,7 +3289,11 @@ How credible is this brand in its field? Is it regarded as knowledgeable, trustw
 9. Digital Presence & Findability
 How easy was it to find information about this brand? Is their digital footprint strong or weak? Are they present across multiple channels (website, LinkedIn, news, reviews) or hard to research? This reflects what a prospect would experience when doing due diligence.
 
-Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis of how this brand appears to someone researching them online: what they stand for, how they are regarded, and any gaps or concerns a prospect might notice. Then provide an AI Discoverability Score from 1–10 reflecting how well-represented and clearly understood this brand is in online search, with a brief rationale for the score.`;
+Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis of how this brand appears to someone researching them online: what they stand for, how they are regarded, and any gaps or concerns a prospect might notice. Then provide an AI Discoverability Score from 1–10 reflecting how well-represented and clearly understood this brand is in online search, with a brief rationale for the score.${reputationFlags ? `
+
+IMPORTANT CONTEXT — KNOWN REPUTATION FLAGS:
+The following issues have been identified in ${project.brandName}'s public record. Please address these directly in your response — particularly in sections 6 (Reputation) and 7 (Authenticity). Do not omit or minimise them:
+${reputationFlags}` : ''}`;
 
   const redditPrompt = `What do people on Reddit actually think of ${project.brandName}? I want honest community perception, not their marketing. Specifically: What do they do? Are they credible — do actions match messaging? What's their reputation and reach across Reddit communities? Are their values seen as genuine or performative? And what's the perception of their environmental and social impact — positive, negative, or indifferent?`;
 
@@ -3319,7 +3323,7 @@ Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis o
 
 ${engineSections}
 
-${reputationFlags ? `REPUTATION FLAGS IDENTIFIED:\n${reputationFlags}\n` : ''}
+${reputationFlags ? `REPUTATION FLAGS — CRITICAL CONTEXT:\nThe following issues were identified before running AI queries. These flags must be addressed directly in your analysis — do not omit or minimise them:\n${reputationFlags}\n` : ''}
 ${wikipediaContent ? `WIKIPEDIA PRESENCE:\n${wikipediaContent}\n` : ''}
 ${redditContent ? `REDDIT COMMUNITY PERCEPTION:\n${redditContent}\n` : ''}
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
@@ -3329,9 +3333,9 @@ Provide a comprehensive AI reputation assessment:
 2. Divergence — Where do they differ, and what might explain it?
 3. Sentiment — Overall tone and brand framing across systems
 4. Gaps — What can't any AI answer about this brand? What's absent?
-5. Recommendations — Specific steps to improve AI representation and discoverability
+${reputationFlags ? `5. Reputation Risks — How do the identified flags (${reputationFlags.substring(0, 100)}...) affect AI-surfaced perception? Are the AI responses acknowledging, downplaying, or ignoring these issues?\n6. Recommendations — Specific steps to improve AI representation and discoverability` : '5. Recommendations — Specific steps to improve AI representation and discoverability'}
 
-Write in flowing prose.`;
+Write in flowing prose. If reputation flags were provided, they must be woven throughout the analysis — not confined to a single section.`;
 
       const result = await callClaude(prompt, apiKey);
       setAssessmentData({
@@ -3938,7 +3942,7 @@ ${(() => {
     ['Copilot', ai?.copilotManual],
   ].filter(([, v]) => v);
   const parts = [];
-  if (ai?.reputationFlags) parts.push(`FLAGS: ${cap(ai.reputationFlags, 400)}`);
+  if (ai?.reputationFlags) parts.push(`FLAGS (known reputation risks — must be weighted against REFLECTIVE, INTENTIONAL, and AWAKE scores): ${cap(ai.reputationFlags, 400)}`);
   if (engines.length) parts.push(engines.map(([name, val]) => `[${name}] ${cap(val, 500)}`).join('\n\n'));
   if (ai?.wikipediaContent) parts.push(`Wikipedia: ${cap(ai.wikipediaContent, 400)}`);
   if (ai?.redditAnswersContent) parts.push(`Reddit: ${cap(ai.redditAnswersContent, 400)}`);
