@@ -1079,11 +1079,6 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
         
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-1">
-          {lastAutoSave && (
-            <span className="text-xs text-[#9CA3AF] mr-3">
-              Auto-saved {lastAutoSave.toLocaleTimeString()}
-            </span>
-          )}
           <button onClick={onStayConscious} className={navBtnClass('stay-conscious')}>
             <Sparkles className="w-4 h-4" /> Stay Conscious
           </button>
@@ -1133,11 +1128,6 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden mt-4 pt-4 border-t border-[#D9D6D0] space-y-1">
-          {lastAutoSave && (
-            <div className="text-xs text-[#9CA3AF] px-2 pb-2">
-              Auto-saved {lastAutoSave.toLocaleTimeString()}
-            </div>
-          )}
           {isReadonly && (
             <div className="px-4 py-2">
               <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only Access</span>
