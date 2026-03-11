@@ -1020,10 +1020,6 @@ function MaturityContinuum({ score }) {
                 <span className={`text-[10px] text-center leading-tight hidden sm:block ${isCurrent ? 'font-bold text-[#1A1A1A]' : 'text-[#666666]'}`}>
                   {s.name}
                 </span>
-                <span className={`text-[9px] text-center leading-tight block sm:hidden origin-top-left`}
-                  style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', height: 56, color: isCurrent ? '#1A1A1A' : '#666666', fontWeight: isCurrent ? 700 : 400 }}>
-                  {s.name}
-                </span>
               </div>
             );
           })}
