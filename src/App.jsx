@@ -1071,11 +1071,11 @@ function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onCompa
   return (
     <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-4 md:py-5 px-4 md:px-6">
       <div className="max-w-6xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-2 md:gap-4">
+        <button onClick={onNewAssessment} className="flex items-center gap-2 md:gap-4 hover:opacity-75 transition-opacity">
           <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
           <div className="hidden lg:block h-6 w-px bg-[#1A1A1A]" />
           <span className="hidden lg:block text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
-        </div>
+        </button>
         
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-1">
@@ -1403,12 +1403,30 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
   );
 }
 
+// Mobile assessment warning banner — shown only on small screens during assessment steps
+function MobileAssessmentBanner() {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <div className="sm:hidden mb-5 flex items-start gap-3 bg-[#FFFBEB] border border-[#FCD34D] rounded-lg px-4 py-3">
+      <span className="text-lg leading-none mt-0.5">💡</span>
+      <p className="flex-1 text-xs text-[#92400E] leading-relaxed">
+        <strong>Best on a larger screen.</strong> This assessment is designed for tablet or desktop. You can continue on mobile, but the experience will be better with more space.
+      </p>
+      <button onClick={() => setDismissed(true)} className="text-[#B45309] hover:text-[#92400E] flex-shrink-0 mt-0.5">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 // Setup Page
 function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
   const canProceed = project.brandName && project.websiteUrl && apiKey;
 
   return (
     <div className="max-w-2xl mx-auto p-8 animate-fade-in">
+      <MobileAssessmentBanner />
       <h2 className="text-3xl font-bold text-[#1A1A1A] mb-2">Brand Details</h2>
       <p className="text-[#333333] mb-8">Tell us about the brand you're assessing.</p>
 
@@ -2049,6 +2067,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+      <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
         <div className="w-12 h-12 bg-[#E53935]/10 rounded-xl flex items-center justify-center">
           <Globe className="w-6 h-6 text-[#E53935]" />
@@ -2802,6 +2821,7 @@ Write in flowing prose with specific observations from the content provided. End
 
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+      <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
         <div className="w-12 h-12 bg-[#8B5CF6]/10 rounded-xl flex items-center justify-center">
           <Users className="w-6 h-6 text-[#8B5CF6]" />
@@ -3366,6 +3386,7 @@ Write in flowing prose. If reputation flags were provided, they must be woven th
 
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+      <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
         <div className="w-12 h-12 bg-[#3B82F6]/10 rounded-xl flex items-center justify-center">
           <Bot className="w-6 h-6 text-[#3B82F6]" />
@@ -3706,6 +3727,7 @@ Write in flowing prose with specific examples. End with priority recommendations
 
   return (
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+      <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
         <div className="w-12 h-12 bg-[#10B981]/10 rounded-xl flex items-center justify-center">
           <Newspaper className="w-6 h-6 text-[#10B981]" />
