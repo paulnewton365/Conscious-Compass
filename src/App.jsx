@@ -7331,16 +7331,18 @@ function AssessmentStatusIndicator({ assessments }) {
   );
 }
 
-// Saved Assessments Modal
 // Saved Assessments Page
 function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore, profile }) {
   const fileInputRef = useRef(null);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
+  const [search, setSearch] = useState('');
+  const [filterStage, setFilterStage] = useState('');
+  const [filterIndustry, setFilterIndustry] = useState('');
+  const [sortBy, setSortBy] = useState('date-desc');
 
   const handleFileImport = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
@@ -7355,11 +7357,49 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       }
     };
     reader.readAsText(file);
-    e.target.value = ''; // Reset input
+    e.target.value = '';
   };
 
+  // Enrich each assessment with computed values once
+  const enriched = assessments.map((a, i) => {
+    const overallScore = a.scores ? Math.round(
+      Object.entries(a.scores)
+        .filter(([, val]) => val && typeof val.score === 'number')
+        .reduce((sum, [, v]) => sum + v.score, 0) / 8
+    ) : null;
+    const maturity = overallScore !== null ? getMaturityStage(overallScore) : null;
+    const industryName = a.project.industry && a.project.industry !== 'other'
+      ? INDUSTRIES.find(ind => ind.id === a.project.industry)?.name || a.project.industry
+      : null;
+    return { a, i, overallScore, maturity, industryName };
+  });
+
+  // Unique industries and stages for filter dropdowns
+  const usedIndustries = [...new Set(enriched.map(e => e.industryName).filter(Boolean))].sort();
+  const usedStages = [...new Set(enriched.map(e => e.maturity?.name).filter(Boolean))];
+
+  // Filter + sort
+  const filtered = enriched
+    .filter(({ a, maturity, industryName }) => {
+      if (search && !a.project.brandName.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterStage && maturity?.name !== filterStage) return false;
+      if (filterIndustry && industryName !== filterIndustry) return false;
+      return true;
+    })
+    .sort((x, y) => {
+      if (sortBy === 'date-desc') return (y.a.project.date || '').localeCompare(x.a.project.date || '');
+      if (sortBy === 'date-asc') return (x.a.project.date || '').localeCompare(y.a.project.date || '');
+      if (sortBy === 'score-desc') return (y.overallScore || 0) - (x.overallScore || 0);
+      if (sortBy === 'score-asc') return (x.overallScore || 0) - (y.overallScore || 0);
+      if (sortBy === 'name') return a.project.brandName.localeCompare(y.a.project.brandName);
+      return 0;
+    });
+
+  const hasFilters = search || filterStage || filterIndustry;
+
   return (
-    <div className="max-w-3xl mx-auto p-4 md:p-8 animate-fade-in">
+    <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Saved Assessments</h2>
@@ -7369,25 +7409,21 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           {!isReadonly && (
             <>
               <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors"
-              >
+              <button onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
                 <Upload className="w-4 h-4" /> Import
               </button>
             </>
           )}
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors"
-          >
+          <button onClick={onBack}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
         </div>
       </div>
 
-      {/* Info tip — hidden for read-only users */}
-      {!(profile?.is_readonly && !profile?.is_admin) && (
+      {/* Sharing tip */}
+      {!isReadonly && (
         <div className="bg-[#F0F7FF] border border-[#BFDBFE] rounded-lg px-4 py-3 mb-5">
           <p className="text-xs text-[#1E40AF]">
             <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup.
@@ -7403,52 +7439,102 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           <p className="text-sm text-[#9CA3AF]">Or import a previously exported assessment using the Import button above.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {assessments.map((a, i) => {
-            const overallScore = a.scores ? Math.round(
-              Object.entries(a.scores)
-                .filter(([key, val]) => val && typeof val.score === 'number')
-                .reduce((sum, [, v]) => sum + v.score, 0) / 8
-            ) : null;
-            const maturity = overallScore !== null ? getMaturityStage(overallScore) : null;
-            const industryName = a.project.industry && a.project.industry !== 'other'
-              ? INDUSTRIES.find(ind => ind.id === a.project.industry)?.name || a.project.industry
-              : null;
-            return (
-              <div key={i} className="card px-4 py-3 hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-3">
-                  {/* Score badge */}
-                  {overallScore !== null && (
-                    <div className="w-11 h-11 rounded-lg flex-shrink-0 flex items-center justify-center"
-                      style={{ backgroundColor: (maturity?.color || '#E53935') + '18' }}>
-                      <span className="text-base font-bold" style={{ color: maturity?.color || '#E53935' }}>{overallScore}</span>
-                    </div>
-                  )}
+        <>
+          {/* Search + filters */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
+              <input
+                type="text"
+                placeholder="Search brands…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#1A1A1A]">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {/* Stage filter */}
+            {usedStages.length > 1 && (
+              <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
+                className="px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#444444]">
+                <option value="">All stages</option>
+                {usedStages.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            )}
+            {/* Industry filter */}
+            {usedIndustries.length > 1 && (
+              <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
+                className="px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#444444]">
+                <option value="">All industries</option>
+                {usedIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+              </select>
+            )}
+            {/* Sort */}
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+              className="px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#444444]">
+              <option value="date-desc">Newest first</option>
+              <option value="date-asc">Oldest first</option>
+              <option value="score-desc">Highest score</option>
+              <option value="score-asc">Lowest score</option>
+              <option value="name">Brand name</option>
+            </select>
+          </div>
 
-                  {/* Brand info + actions stacked */}
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-[#1A1A1A] text-sm leading-tight">{a.project.brandName}</h4>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                      <span className="text-xs text-[#9CA3AF] whitespace-nowrap">{a.project.date || '—'}</span>
-                      {industryName && <span className="text-xs text-[#9CA3AF]">·</span>}
-                      {industryName && <span className="text-xs text-[#666666]">{industryName}</span>}
-                      {maturity && <span className="text-xs text-[#9CA3AF]">·</span>}
-                      {maturity && <span className="text-xs font-medium" style={{ color: maturity.color }}>{maturity.name}</span>}
+          {/* Results count when filtering */}
+          {hasFilters && (
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-[#666666]">{filtered.length} of {assessments.length} assessments</p>
+              <button onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); }}
+                className="text-xs text-[#E53935] hover:underline">Clear filters</button>
+            </div>
+          )}
+
+          {filtered.length === 0 ? (
+            <div className="card p-8 text-center">
+              <p className="text-[#666666]">No assessments match your filters.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map(({ a, i, overallScore, maturity, industryName }) => (
+                <div key={i} className="card px-4 py-3 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    {/* Score badge */}
+                    {overallScore !== null && (
+                      <div className="w-11 h-11 rounded-lg flex-shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: (maturity?.color || '#E53935') + '18' }}>
+                        <span className="text-base font-bold" style={{ color: maturity?.color || '#E53935' }}>{overallScore}</span>
+                      </div>
+                    )}
+
+                    {/* Brand info */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-[#1A1A1A] text-sm leading-tight">{a.project.brandName}</h4>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                        <span className="text-xs text-[#9CA3AF] whitespace-nowrap">{a.project.date || '—'}</span>
+                        {industryName && <><span className="text-xs text-[#9CA3AF]">·</span><span className="text-xs text-[#666666]">{industryName}</span></>}
+                        {maturity && <><span className="text-xs text-[#9CA3AF]">·</span><span className="text-xs font-medium" style={{ color: maturity.color }}>{maturity.name}</span></>}
+                      </div>
                     </div>
-                    {/* Actions row below brand info on mobile */}
-                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+
+                    {/* Actions — right-aligned on desktop, visible always */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                       {!isReadonly && (
                         <>
                           <button onClick={() => onShare(a)} title="Share link"
-                            className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#E53935] hover:bg-[#E53935]/8 rounded transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#9CA3AF] hover:text-[#E53935] hover:bg-[#E5393508] rounded transition-colors">
                             <Share2 className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onExport(a)} title="Export JSON"
-                            className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
                             <Download className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => onRescore(a)} title="Regenerate scores using current rubric"
-                            className="px-3 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors whitespace-nowrap">
+                          <button onClick={() => onRescore(a)}
+                            className="px-3 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors whitespace-nowrap hidden sm:block">
                             Rescore
                           </button>
                         </>
@@ -7459,22 +7545,44 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       </button>
                       {!isReadonly && (
                         <button onClick={() => onDelete(i)} title="Delete"
-                          className="w-8 h-8 flex items-center justify-center text-[#D9D6D0] hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#D9D6D0] hover:text-red-500 hover:bg-red-50 rounded transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
-      <p className="text-center text-sm text-[#9CA3AF] mt-8">
-        {assessments.length} assessment{assessments.length !== 1 ? 's' : ''} saved
-      </p>
+                  {/* Mobile-only secondary actions */}
+                  {!isReadonly && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#F0EEEA] sm:hidden">
+                      <button onClick={() => onShare(a)} title="Share"
+                        className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#E53935] rounded transition-colors">
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => onExport(a)} title="Export"
+                        className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A1A] rounded transition-colors">
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => onRescore(a)}
+                        className="px-3 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
+                        Rescore
+                      </button>
+                      <button onClick={() => onDelete(i)} title="Delete"
+                        className="w-8 h-8 flex items-center justify-center text-[#D9D6D0] hover:text-red-500 rounded transition-colors ml-auto">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="text-center text-sm text-[#9CA3AF] mt-8">
+            {assessments.length} assessment{assessments.length !== 1 ? 's' : ''} saved
+          </p>
+        </>
+      )}
     </div>
   );
 }
