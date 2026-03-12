@@ -1,8758 +1,4370 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION } from './data/rubric';
-import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
-import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw } from 'lucide-react';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType } from 'docx';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  Upload, FileText, CheckCircle, AlertTriangle, AlertCircle, Loader2,
+  ChevronDown, ChevronRight, Key, Eye, EyeOff, Copy, Check,
+  ArrowRight, Download, Sparkles, PenTool, Search, MessageSquare,
+  Lightbulb, Target, Users, DollarSign, Save, FolderOpen,
+  Building2, Globe, TrendingUp, FileQuestion, Send, RotateCcw, X,
+  Plus, Edit3, Trash2, ChevronLeft, Star, Clock, Archive, ArrowUpRight,
+  RefreshCw, ChevronUp, Layers, BookOpen, ShieldCheck, Zap,
+  LogOut, UserCog, UserPlus, Shield, Lock, User, ToggleLeft, ToggleRight,
+  ClipboardList, TableProperties, Filter, ExternalLink, Award, BadgeCheck, XCircle
+} from 'lucide-react';
+import {
+  Document, Packer, Paragraph, TextRun, Header, Footer,
+  AlignmentType, HeadingLevel, BorderStyle, LevelFormat, PageNumber
+} from 'docx';
 import { saveAs } from 'file-saver';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { supabase } from './lib/supabase.js';
 
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.14.12';
-import { 
-  supabase, 
-  signUp, 
-  signIn, 
-  signOut, 
-  getProfile,
-  fetchCompassResults,
-  saveCompassResult,
-  deleteCompassResult,
-  fetchSavedAssessments,
-  saveAssessment,
-  deleteAssessment,
-  fetchAllProfiles,
-  approveUser,
-  revokeUser,
-  makeAdmin,
-  removeAdmin,
-  setReadonly,
-  deleteUser
-} from './lib/supabase';
+const APP_VERSION = '3.12.0';
+const MODEL = 'claude-sonnet-4-5-20250929';
 
-// Use 'PROXY' to route through serverless function (secure, API key on server)
-// Or set VITE_ANTHROPIC_API_KEY for local development with direct API calls
-const DEFAULT_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || 'PROXY';
+// ============================================================================
+// PIPELINE CONFIG
+// ============================================================================
+const PIPELINE_STAGES = [
+  { id: 'research', number: 1, label: 'Research', Icon: Search, description: 'Company discovery & intake questions' },
+  { id: 'brief', number: 2, label: 'Return Brief', Icon: FileText, description: 'Transcript analysis & client brief' },
+  { id: 'proposal', number: 3, label: 'Proposal', Icon: Sparkles, description: 'Service selection & proposal' },
+  { id: 'sow', number: 4, label: 'SOW', Icon: PenTool, description: 'Statement of Work generation' },
+  { id: 'handover', number: 5, label: 'Handover', Icon: ClipboardList, description: 'Sales to delivery handover doc' },
+];
 
-// Error Boundary for graceful error handling in production
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
+const PROPOSAL_STATUSES = [
+  { value: 'draft', label: 'Draft', bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' },
+  { value: 'client_review', label: 'Client Review', bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
+  { value: 'rework', label: 'Rework Needed', bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' },
+  { value: 'approved', label: 'Approved ✓', bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' },
+  { value: 'evaporated', label: 'Evaporated', bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' },
+];
+
+// ============================================================================
+// USER MANAGEMENT SYSTEM
+// ============================================================================
+const USER_ROLES = {
+  growth: {
+    label: 'Growth',
+    description: 'Business development — research, briefs & proposals',
+    color: 'bg-blue-100 text-blue-800 border-blue-200',
+    badgeColor: 'bg-blue-600',
+    allowedStages: ['research', 'brief', 'proposal'],
+    canAccessSOWReview: false,
+    canAccessAdmin: false,
+    canCreateOpportunities: true,
+  },
+  pm: {
+    label: 'PM',
+    description: 'Full pipeline access including SOW generation',
+    color: 'bg-purple-100 text-purple-800 border-purple-200',
+    badgeColor: 'bg-purple-600',
+    allowedStages: ['research', 'brief', 'proposal', 'sow', 'handover'],
+    canAccessSOWReview: true,
+    canAccessAdmin: false,
+    canCreateOpportunities: true,
+  },
+  reviewer: {
+    label: 'Reviewer',
+    description: 'SOW quality review only',
+    color: 'bg-amber-100 text-amber-800 border-amber-200',
+    badgeColor: 'bg-amber-600',
+    allowedStages: [],
+    canAccessSOWReview: true,
+    canAccessAdmin: false,
+    canCreateOpportunities: false,
+  },
+  admin: {
+    label: 'Admin',
+    description: 'Full access + user management',
+    color: 'bg-gray-900 text-white border-gray-700',
+    badgeColor: 'bg-gray-900',
+    allowedStages: ['research', 'brief', 'proposal', 'sow', 'handover'],
+    canAccessSOWReview: true,
+    canAccessAdmin: true,
+    canCreateOpportunities: true,
+  },
+};
+
+const PRACTICES = ['Climate', 'Real Estate', 'Health', 'PA', 'HOWL'];
+
+// Simple counter for unique opp numbers (stored in localStorage for persistence)
+const getNextOppNumber = () => {
+  try {
+    const next = parseInt(localStorage.getItem('ag_opp_counter') || '0', 10) + 1;
+    localStorage.setItem('ag_opp_counter', String(next));
+    return `OPP-${String(next).padStart(4, '0')}`;
+  } catch { return `OPP-${Date.now().toString().slice(-4)}`; }
+};
+
+const createOpportunity = (companyName, companyUrl = '', industry = '', practice = '', title = '') => ({
+  id: Date.now().toString(),
+  oppNumber: getNextOppNumber(),
+  companyName,
+  title,
+  companyUrl,
+  industry,
+  practice,
+  rid: '',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  currentStage: 'research',
+  // Stage 1
+  researchComplete: false,
+  researchSummary: '',
+  intakeQuestions: [],
+  // Stage 2
+  transcript: '',
+  briefNotes: '',
+  compassAssessment: '',
+  fitArchetype: '',
+  briefComplete: false,
+  returnBrief: '',
+  transcriptAnalysis: null,
+  // Stage 3
+  selectedServices: [],
+  selectedArchetypes: [],
+  draftEngagementType: 'fixed_fee',
+  draftNotes: '',
+  proposalDraft: '',
+  proposalStatus: 'draft',
+  // Stage 4
+  sowDraft: '',
+  sowStatus: 'draft',
+  sowNotes: '',
+  // Stage 5
+  handoverDraft: '',
+  handoverNotes: '',
+  handoverStatus: 'draft',
+});
+
+// ============================================================================
+// SERVICE TRIGGERS
+// ============================================================================
+const SERVICE_TRIGGERS = [
+  {"id": "website", "category": "Website & App Development", "description": "Build or rebuild digital platforms", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["need a new website", "website redesign", "site looks outdated", "rebuild our site", "new landing page", "mobile-friendly"], "indirect": ["high bounce rates", "site is slow", "can\\'t update the site ourselves", "CMS is difficult", "doesn\\'t reflect our brand", "can\\'t integrate with our tools"], "situational": ["recent rebrand", "merger", "new product launch", "expansion into new markets", "adding e-commerce", "company milestone"], "performance": ["low conversion rates", "cart abandonment", "poor search rankings", "low time on site", "customer complaints about UX", "website not generating leads"]}, "services": [{"name": "Website Strategy & Planning", "recommend": "always", "condition": "when website is mentioned", "pricing": {"bundle": "Standard Website Offering", "engagementType": "fixed_fee", "termLow": 8, "termHigh": 20, "budgetLow": 40000, "budgetHigh": 140000}}, {"name": "Website Design & UX", "recommend": "always", "condition": "when website is mentioned", "pricing": {"bundle": "Standard Website Offering", "engagementType": "fixed_fee"}}, {"name": "Website Development", "recommend": "always", "condition": "when website is mentioned", "pricing": {"bundle": "Standard Website Offering", "engagementType": "fixed_fee"}}, {"name": "CMS Implementation", "recommend": "always", "condition": "when website is mentioned", "pricing": {"bundle": "Standard Website Offering", "engagementType": "fixed_fee"}}, {"name": "Performance Assurance", "recommend": "always", "condition": "when website is mentioned", "pricing": {"bundle": "Standard Website Offering", "engagementType": "fixed_fee"}}, {"name": "Website Refresh", "recommend": "conditional", "condition": "Staying on existing CMS but a simple design refresh without any updates to brand or website structure. This includes enhancements to fonts, color, image selection and data visualization only. Shoudl only be offered when client is stuck on existing CMS and only needs styling updates.", "pricing": {"engagementType": "fixed_fee", "termLow": 5, "termHigh": 8, "budgetLow": 20000, "budgetHigh": 30000}}, {"name": "Mobile App Development", "recommend": "conditional", "condition": "only if standalone app is requested. Goo to recopmmend for events, campaigns or launch moments.", "pricing": {"engagementType": "fixed_fee", "termLow": 3, "termHigh": 10, "budgetLow": 10000, "budgetHigh": 60000}}, {"name": "Landing Page Development", "recommend": "conditional", "condition": "only if landing or holding page is referenced. Good for temprary websites. Single page fixed structure", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 10000, "budgetHigh": 15000}}, {"name": "Website Migration", "recommend": "conditional", "condition": "only if content migration is referenced as requirement. This includes lift and ahift and the lower end and an audiit appraisel and some light refresh at the top end. Top end also reflects scale of contentvrequirements which is anticipated to be under 50 within this range. More pages will required more budget", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 60000}}, {"name": "Performance Optimization and Support", "recommend": "conditional", "condition": "only if website reporting and tracking is referenced as requirement", "pricing": {"engagementType": "retainer", "termLow": 52, "termHigh": 52, "budgetLow": 24000, "budgetHigh": 30000, "note": "Annual retainer"}}]},
+  {"id": "integrated_strategy", "category": "Integrated Marketing Strategy", "description": "Develop cohesive marketing plans", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["need a marketing strategy", "marketing feels disjointed", "don\\'t have a plan", "where to focus our budget", "nothing seems connected"], "indirect": ["marketing not producing results", "conflicting messages", "no customer journey", "which channels to prioritize", "marketing and sales not aligned", "budget spread too thin"], "situational": ["new fiscal year", "leadership change", "entering new market", "product launch", "competitive pressure", "organizational shift"], "performance": ["declining market share", "acquisition costs increasing", "ROI unknown", "lead quality issues", "lifetime value decreasing", "inconsistent channel performance"]}, "services": [{"name": "Integrated Marketing Strategy Development", "recommend": "conditional", "condition": "when client has specific marketing goals (awareness, reputation, credibility, visibility, perception, audience inspiration)", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 25000}}, {"name": "Channel Planning & Media Mix & Connections Planning", "recommend": "conditional", "condition": "when paid and social media are discussed as requirements", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 10000, "budgetHigh": 20000}}, {"name": "Primary audience research", "recommend": "conditional", "condition": "This should be delivered by a consultants and will require hard cost fees. For surveys focus groups. TO gather qualitiative insight", "pricing": {"engagementType": "fixed_fee", "termLow": 4, "termHigh": 6, "budgetLow": 25000, "budgetHigh": 35000}}, {"name": "Customer Journey Mapping", "recommend": "conditional", "condition": "when website conversion is a goal or audience segmentation issues identified", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 7000, "budgetHigh": 15000}}, {"name": "Marketing Audit & Assessment (Compass)", "recommend": "conditional", "condition": "when client does not know what problem to solve or has broad goals (awareness, reputation, credibility, visibility, perception)", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 3000, "budgetHigh": 4000}}, {"name": "Market & Competitive Research", "recommend": "conditional", "condition": "when client does not know competitors or requests differentiation", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 2000, "budgetHigh": 30000}}, {"name": "Audience Research & Segmentation", "recommend": "conditional", "condition": "when client does not know their audience, what inspires them, or how to reach them", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 2000, "budgetHigh": 5000}}]},
+  {"id": "brand", "category": "Brand Strategy & Expression", "description": "Define or refresh your brand foundation", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["need to rebrand", "brand feels outdated", "need a new logo", "brand doesn\\'t reflect who we are", "need brand guidelines", "Brand stricture is confusing", "brand is inconsistent"], "indirect": ["company evolved but identity hasn't", "can't explain what makes us different", "inconsistent messaging", "employees can\\'t articulate positioning", "customer confusion", "Interelationship between brands is not clear", "premium pricing not supported by perception"], "situational": ["merger or acquisition", "spin-off", "new leadership", "expansion beyond original scope", "new markets", "negative reputation", "company milestone", "geographical exansion", "IPO"], "performance": ["brand awareness declining", "NPS dropping", "customer feedback about perception", "can\\'t command premium prices", "losing deals to stronger brands", "employee engagement declining"]}, "services": [{"name": "Brand Research (Compass)", "recommend": "always", "condition": "for all brand refresh projects", "pricing": {"bundle": "Brand Strategy", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 15000, "budgetHigh": 20000}}, {"name": "Stakeholder Interviews (IDIs)", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Strategy", "engagementType": "fixed_fee"}}, {"name": "Rapid Discovery (Landscape & Audience)", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Strategy", "engagementType": "fixed_fee"}}, {"name": "Brand Positioning", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Strategy", "engagementType": "fixed_fee"}}, {"name": "Brand House Development", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Strategy", "engagementType": "fixed_fee"}}, {"name": "Brand Workshop", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Strategy", "engagementType": "fixed_fee"}}, {"name": "Authentic Foundation (Why, What, How)", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Strategy", "engagementType": "fixed_fee"}}, {"name": "Brand Heirachy Definition", "recommend": "conditional", "condition": "For projectd that identify a confused relationship between brand, subrands, products and partners - and geographies/languages", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 1, "budgetLow": 3000, "budgetHigh": 5000}}, {"name": "Tone of Voice", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Expression", "engagementType": "fixed_fee", "termLow": 3, "termHigh": 7, "budgetLow": 25000, "budgetHigh": 30000}}, {"name": "Manifesto", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Expression", "engagementType": "fixed_fee"}}, {"name": "Visual Identity System", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Expression", "engagementType": "fixed_fee"}}, {"name": "Logo/Wordmark Development", "recommend": "always", "condition": "for all brand projects", "pricing": {"bundle": "Brand Expression", "engagementType": "fixed_fee"}}, {"name": "Brand Deck Asset Production", "recommend": "conditional", "condition": "only if requested", "pricing": {"bundle": "Brand Expression", "engagementType": "fixed_fee", "termLow": 1, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 30000}}, {"name": "Social Lock-ups", "recommend": "conditional", "condition": "only if requested", "pricing": {"bundle": "Brand Assets", "engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 10000, "budgetHigh": 15000}}, {"name": "Brand Guidelines", "recommend": "conditional", "condition": "only if requested", "pricing": {"bundle": "Brand Assets", "engagementType": "fixed_fee"}}]},
+  {"id": "ongoing_creative_production", "category": "Ongoing Creative Production", "description": "", "engagementType": "fixed_fee", "triggerPatterns": {"direct": [], "indirect": [], "situational": [], "performance": []}, "services": [{"name": "Graphic Design", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm", "termLow": 52, "termHigh": 52, "budgetLow": 24000, "budgetHigh": 80000, "note": "Annual minimum commitment"}}, {"name": "Video Production", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Animation & Motion Graphics", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Photography", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Copywriting", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Sales Collateral", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Presentation Design", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Social Media Content", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Campaign Asset Creation", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Brand Asset Library", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Content Ideation", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}, {"name": "Transcreation (Multi-language)", "recommend": "conditional", "condition": "only if requested in the context of undefined ongoing need for content that may include teh service name", "pricing": {"bundle": "Creative Retainer", "engagementType": "tm"}}]},
+  {"id": "standalone_creative_production", "category": "Standalone Creative Production", "description": "", "engagementType": "fixed_fee", "triggerPatterns": {"direct": [], "indirect": [], "situational": [], "performance": []}, "services": [{"name": "Video Production", "recommend": "conditional", "condition": "Production cost only. Does not include ideation, treatment and scripting. If standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 2, "termHigh": 8, "budgetLow": 10000, "budgetHigh": 50000}}, {"name": "Animation & Motion Graphics", "recommend": "conditional", "condition": "Production cost only. Does not include ideation, treatment and scripting. If standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 20000}}, {"name": "Photography", "recommend": "conditional", "condition": "Production cost only. Does not include ideation, treatment and scripting. If standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 4, "budgetLow": 2000, "budgetHigh": 30000}}, {"name": "Copywriting", "recommend": "conditional", "condition": "Production cost only. Does not include ideation, treatment and scripting. If standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 4000, "budgetHigh": 10000}}, {"name": "Sales Collateral", "recommend": "conditional", "condition": "Production cost only. Does not include ideation, treatment and scripting. If standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 2000, "budgetHigh": 15000}}, {"name": "Presentation Design", "recommend": "conditional", "condition": "Production cost only. Does not include ideation, treatment and scripting. If standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 2000, "budgetHigh": 10000}}, {"name": "Social Media Content", "recommend": "conditional", "condition": "Production cost only. Does not include ideation, treatment and scripting. If standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 2000, "budgetHigh": 10000}}, {"name": "Campaign Asset Creation", "recommend": "conditional", "condition": "Production cost only. Does not include ideation, treatment and scripting. This assumes a content series as a part of a predefined campaign with a big idea, art direction and messagting strategy set If standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 4, "budgetLow": 5000, "budgetHigh": 20000}}, {"name": "Brand Asset Library", "recommend": "conditional", "condition": "Production cost only. Does not include ideation, treatment and scripting. It assumes that a brand staretgy and exp[ression and guidlines already exist. If standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 2, "termHigh": 5, "budgetLow": 8000, "budgetHigh": 20000}}, {"name": "Content Ideation", "recommend": "conditional", "condition": "If there is no idea for a content series this covers the strategy, and conceptual ideation to recommend specific describes content for production of standalone, campaign or a request of scale and complexity that required conceptual creative, ideation and iteration not just production", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 4, "budgetLow": 5000, "budgetHigh": 20000}}]},
+  {"id": "influencer", "category": "Influencer Marketing", "description": "Leverage creator partnerships", "engagementType": "retainer", "triggerPatterns": {"direct": ["want to work with influencers", "need an influencer campaign", "reach audience through creators", "tried influencer marketing but it didn\\'t work"], "indirect": ["difficulty reaching younger audiences", "need authentic endorsements", "product requires demonstration", "brand awareness stalled", "user-generated content insufficient"], "situational": ["product launch needing buzz", "new demographic market", "brand relevance concerns", "competitors using influencers", "need authentic content at scale", "event amplification"], "performance": ["social engagement declining", "owned content not resonating", "advertising fatigue", "high CPA on paid channels", "brand trust declining"]}, "services": [{"name": "Influencer Strategy", "recommend": "always", "condition": "when influencer marketing is discussed", "pricing": {"bundle": "Influencer Retainer", "engagementType": "retainer", "termLow": 52, "termHigh": 52, "budgetLow": 30000, "budgetHigh": 100000, "note": "Annual retainer, excludes creator fees"}}, {"name": "Creator Identification & Vetting", "recommend": "always", "condition": "when influencer marketing is discussed", "pricing": {"bundle": "Influencer Retainer", "engagementType": "retainer"}}, {"name": "Influencer Campaign Management", "recommend": "always", "condition": "when influencer marketing is discussed", "pricing": {"bundle": "Influencer Retainer", "engagementType": "retainer"}}, {"name": "Ambassador Programs", "recommend": "conditional", "condition": "only if long-term creator partnerships are requested", "pricing": {"bundle": "Influencer Retainer", "engagementType": "retainer"}}, {"name": "UGC Programs", "recommend": "conditional", "condition": "only if user-generated content is requested", "pricing": {"bundle": "Influencer Retainer", "engagementType": "retainer"}}]},
+  {"id": "creative_campaigns", "category": "Creative Campaigns & Innovation", "description": "Develop breakthrough campaign concepts", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["need a big idea", "need a campaign concept", "want something breakthrough", "need a creative platform", "marketing lacks unifying concept", "marketing is uninspiring", "breakthrough ideas"], "indirect": ["campaigns feel tactical", "each effort is standalone", "difficulty creating memorable work", "need to differentiate", "brand awareness plateaued", "work is boring", "looks like everyone else"], "situational": ["major launch", "brand repositioning", "new market entry", "competitive threat", "company transformation", "major anniversary", "category disruption"], "performance": ["brand recall declining", "campaign metrics mediocre", "share of voice decreasing", "advertising not breaking through", "content engagement low", "creative fatigue"]}, "services": [{"name": "Creative Platform Development", "recommend": "conditional", "condition": "when there is a request for a campaign or content series for owned, earned, paid, and/or social", "pricing": {"bundle": "Creative Campaigns", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 7, "budgetLow": 18000, "budgetHigh": 30000}}, {"name": "Big Idea Generation", "recommend": "conditional", "condition": "when client wants to make a splash, generate awareness, inspire media attention, or connect with audience", "pricing": {"bundle": "Creative Campaigns", "engagementType": "fixed_fee"}}, {"name": "Experiential Concepts", "recommend": "conditional", "condition": "when big idea development, media stunt, or event production are being recommended or requested", "pricing": {"bundle": "Creative Campaigns", "engagementType": "fixed_fee"}}]},
+  {"id": "pr", "category": "Public Relations & Media Outreach", "description": "Media relations, press coverage, and ongoing media engagement", "engagementType": "retainer", "triggerPatterns": {"direct": ["need PR", "want media coverage", "help with press relations", "want to be in specific publications", "need a PR agency", "want to be seen as a source", "need rapid response", "earned media", "press releases", "media outreach", "journalist relationships"], "indirect": ["important news not getting coverage", "lack of third-party credibility through media", "competitors in media more", "no journalist relationships", "story not being told in the press", "need crisis preparedness", "journalists covering competitors but not us"], "situational": ["funding announcement needing press coverage", "executive hire needing media announcement", "research release needing media amplification", "crisis situation", "merger announcement needing press strategy"], "performance": ["low share of voice in media", "minimal media mentions", "negative press coverage without response", "competitors quoted more in media", "no earned media results"]}, "services": [{"name": "Media Relations", "recommend": "always", "condition": "only when client explicitly requests PR, press coverage, earned media, media relations, journalist outreach, or press releases \u2014 NOT for general awareness or reputation goals alone", "pricing": {"bundle": "Standard PR", "engagementType": "retainer", "termLow": 52, "termHigh": 52, "budgetLow": 180000, "budgetHigh": 360000, "note": "Annual retainer ($15K-$30K/month)"}}, {"name": "Narrative & Media Messaging", "recommend": "always", "condition": "Low end: $10k \u2013 if brand work/IDI\u2019s were done and translating brand into media narrative. High end: $20k \u2013 if no brand work was done and we\u2019re building media messaging and narratives from scratch (inclusive of IDIs, workshop, etc.)", "pricing": {"bundle": "Standard PR", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 6, "budgetLow": 10000, "budgetHigh": 20000}}, {"name": "Media Training", "recommend": "conditional", "condition": "only when client mentions spokesperson preparation, media interviews, or executive media readiness. Low end: $3k \u2013 if training 1 exec, virtual session\nHigh end: $10k \u2013 if training multiple execs, in-person (does not include travel)", "pricing": {"engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 3000, "budgetHigh": 10000, "note": "Annual or per session"}}, {"name": "Crises Plan Development", "recommend": "conditional", "condition": "only if client mentions a crisis, reputational threat, or urgent PR support to solve a pressing and immediate reputation, credibility or perception issue. Fixed-fee project priced off crisis rates\nLow-end: $15k \u2013 if developed to prepare for an identified incident\nHigh end: $40k \u2013 if developed proactively for various scenarios, inclusive of stakeholder interviews, scenario planning, holding statements, stakeholder matrixes, crisis training, plan roll-out", "pricing": {"bundle": "Crises Comms", "engagementType": "fixed_fee", "termLow": 1, "termHigh": 6, "budgetLow": 15000, "budgetHigh": 40000}}, {"name": "Crisis Communications", "recommend": "conditional", "condition": "only if client mentions a crisis, reputational threat, or urgent PR support. most of our crisis management work is done on a drawdown basis but should be priced off our crisis flat fee rates vs. standard rate card (crisis rate is higher)", "pricing": {"bundle": "Crises Comms", "engagementType": "tm", "termLow": 1, "termHigh": 6, "budgetLow": 20000, "budgetHigh": 100000, "note": "T&M based on severity"}}, {"name": "Media Monitoring", "recommend": "always", "condition": "only when PR or earned media services are already being recommended, or client specifically requests media monitoring or share of voice tracking. Should always be bundled with Media relations and Narrative & Media Messaging", "pricing": {"bundle": "Standard PR", "engagementType": "retainer", "termLow": 52, "termHigh": 52, "budgetLow": 12000, "budgetHigh": 40000, "note": "Annual, excludes tool costs"}}, {"name": "Earned Media Strategy", "recommend": "conditional", "condition": "This outlines the strategic approach to earned media execution and the plan and is needed if one does not already exist. This is part of the Standard PR bundle and is required wherever a plan or strategy for earned media does not exist.", "pricing": {"bundle": "Standard PR", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 25000, "note": "T&M per opportunity"}}, {"name": "Announcement Strategy", "recommend": "conditional", "condition": "Specific targeted comms support to support a corporate announcement. This includes product launch, brand launch, renami, merger, Go To Market, and a high profile leadership announcment.", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 5000, "budgetHigh": 10000}}, {"name": "Earned content creation", "recommend": "conditional", "condition": "Blog posts, whitepapers, long form. Based on volume and announcement pipeline. Does not include the coordination of copmplicated releases", "pricing": {"engagementType": "retainer", "termLow": 52, "termHigh": 52, "budgetLow": 12000, "budgetHigh": 60000}}, {"name": "Onsite media liaison", "recommend": "conditional", "condition": "If the cient mentions that they need on site support from their comms team as a part of an event or a visit. This should only be recomended when requested explicitly.", "pricing": {"engagementType": "fixed_fee", "termLow": 0, "termHigh": 1, "budgetLow": 5000, "budgetHigh": 10000}}, {"name": "Events and meetings travel", "recommend": "conditional", "condition": "If travel is required this should be 5% of total Public Relations & Media Outreach", "pricing": {"engagementType": "retainer", "termLow": 0, "termHigh": 0, "budgetLow": 5000, "budgetHigh": 10000}}]},
+  {"id": "executive_visibility", "category": "Executive Visibility & Thought Leadership", "description": "Elevate leadership profiles and establish authority", "engagementType": "retainer", "triggerPatterns": {"direct": ["CEO needs to be more visible", "position executives as experts", "need thought leadership content", "leaders need higher profile", "leadership is invisible", "ceo profile"], "indirect": ["competitor executives more visible", "difficulty attracting talent", "investor relations need credibility", "sales cycle requires leadership trust", "industry influence desired", "board wants more visible CEO"], "situational": ["new CEO", "IPO preparation", "fundraising", "conference schedule", "speaking pipeline", "award nominations", "acquisition", "crisis"], "performance": ["low leadership recognition", "executive content not engaging", "speaking invitations not coming", "board feedback about visibility", "LinkedIn engagement low", "not invited to speak"]}, "services": [{"name": "Executive Positioning Strategy", "recommend": "always", "condition": "for all executive visibility projects - should be receommended when a c;lient states that they are havining issues with credibility, or are struglgling to get explosure for their leadership acrross tehir industry.", "pricing": {"bundle": "Executive Visibility", "engagementType": "retainer", "termLow": 52, "termHigh": 52, "budgetLow": 60000, "budgetHigh": 180000, "note": "Annual retainer ($5K-$15K/month per executive)"}}, {"name": "Thought Leadership Content", "recommend": "always", "condition": "for all executive visibility projects", "pricing": {"bundle": "Executive Visibility", "engagementType": "retainer"}}, {"name": "Byline & Op-Ed Development", "recommend": "conditional", "condition": "only when written thought leadership is requested", "pricing": {"bundle": "Executive Visibility", "engagementType": "retainer"}}, {"name": "Speaking Opportunity Strategy", "recommend": "conditional", "condition": "only when speaking engagements are requested", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 5000, "budgetHigh": 10000}}, {"name": "Onsite Media & Exec Support", "recommend": "conditional", "condition": "only When requested or speaking events are suggested.", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 1, "budgetLow": 5000, "budgetHigh": 8000}}, {"name": "Executive Social Media Strategy", "recommend": "conditional", "condition": "only when LinkedIn or social presence for company leaders, board or advocates is requested", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 5000, "budgetHigh": 10000}}, {"name": "Awards Strategy", "recommend": "conditional", "condition": "only when when recognition programs are requested", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 1, "budgetLow": 5000, "budgetHigh": 8000}}, {"name": "Podcast Guest Strategy", "recommend": "conditional", "condition": "only when podcast appearances are requested", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 1, "budgetLow": 5000, "budgetHigh": 8000}}]},
+  {"id": "paid_media", "category": "Paid Media", "description": "Social advertising campaigns", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["need social media ads", "want paid social campaigns", "help with Facebook/Instagram/LinkedIn ads", "social ads aren\\'t working"], "indirect": ["organic reach declining", "need precise targeting", "have budget but no expertise", "campaigns underperforming", "need lead generation"], "situational": ["campaign launch", "product launch", "event promotion", "time-sensitive offers", "competitive pressure on social"], "performance": ["high CPA on social", "low conversion rates", "ad fatigue", "poor targeting results", "ROAS below benchmarks"]}, "services": [{"name": "Paid Strategy", "recommend": "always", "condition": "when paid media, acquiring new audiences or extending reach with paid dlars is discussed. This is always presented when there is not yet a strategy to execute a requested paid media campaign.", "pricing": {"bundle": "Paid Media Strategy", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 6, "budgetLow": 10000, "budgetHigh": 30000, "note": "Annual retainer, excludes media spend"}}, {"name": "Campaign Setup & Management", "recommend": "conditional", "condition": "when paid media is discussed. This is always required when we are requested to do execution and not just the upfront strategy. This should be presented as a 10% of the paid spend figure quoted by prospect or client. If no paid spend is shared than use the range for this service.", "pricing": {"bundle": "Paid Media Execution", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 52, "budgetLow": 10000, "budgetHigh": 100000}}, {"name": "Audience Development & Targeting", "recommend": "conditional", "condition": "When client confirms that they either dont know whoe tehir audience is or they have not done any research into where that audience can be reached.", "pricing": {"bundle": "Paid Media Execution", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 20000}}, {"name": "Ad Creative Development", "recommend": "conditional", "condition": "Offered as a creative retainer. This is time and material and is offered with a minimum spend of $24k per year", "pricing": {"bundle": "Paid Media Execution", "engagementType": "tm", "termLow": 4, "termHigh": 52, "budgetLow": 24000, "budgetHigh": 60000}}, {"name": "Paid Media Reporting", "recommend": "always", "condition": "Offer an economy of scale if reporting for both paid media and scoal media selected. This should present costs as two thirds of teh ranges here fore each when both are selected.", "pricing": {"bundle": "Paid Media Execution", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 52, "budgetLow": 8000, "budgetHigh": 60000}}]},
+  {"id": "social_media", "category": "Social Media", "description": "Social media strategy, community management, and content", "engagementType": "retainer", "triggerPatterns": {"direct": ["need social media help", "social media strategy", "we need to be on social", "social channels", "community management"], "indirect": ["no social presence", "social channels inactive", "competitors active on social", "need to engage audiences online", "brand not represented on social platforms"], "situational": ["brand launch needing social presence", "campaign requiring social amplification", "new channels to set up", "social content needs"], "performance": ["low social engagement", "follower growth stalled", "social content not resonating", "no community engagement"]}, "services": [{"name": "Social Media Strategy", "recommend": "always", "condition": "when a client or prospect mentions needing social, or if they outline a need to nurture and build audience, or they dontt know what social channels to be on.", "pricing": {"bundle": "Social Media Strategy", "engagementType": "retainer", "termLow": 2, "termHigh": 6, "budgetLow": 15000, "budgetHigh": 25000, "note": "Annual retainer, excludes media spend"}}, {"name": "Channel Planning", "recommend": "always", "condition": "Always alongside the social media strategy to identify which cvhannels to use and how", "pricing": {"bundle": "Social Media Strategy", "engagementType": "retainer"}}, {"name": "Channel Set Up", "recommend": "conditional", "condition": "If they need to set up an optimimze their social channels based upon a clear brand and social strategy. Includes a little creative for profile and hero image and bio.", "pricing": {"bundle": "Social Execution", "engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 10000, "budgetHigh": 20000}}, {"name": "Community Management", "recommend": "conditional", "condition": "If the client wants ongoing management of tehir socisl channels. INcludes engagement, postyinga nd montoring for dverse events.Ongoing management of social communities. This is sold as a monthly cost starting at $4k per month", "pricing": {"bundle": "Social Execution", "engagementType": "retainer", "termLow": 4, "termHigh": 52, "budgetLow": 4000, "budgetHigh": 60000}}, {"name": "Social creative", "recommend": "conditional", "condition": "For ongoing social content creation not for a specific activation or campaign. When content is needed. Offered as a creative retainer. This is time and material and is offered with a minimum spend of $24k per year", "pricing": {"bundle": "Social Execution", "engagementType": "tm", "termLow": 4, "termHigh": 52, "budgetLow": 24000, "budgetHigh": 60000}}, {"name": "Social Media Reporting", "recommend": "conditional", "condition": "Offer an economy of scale if reporting for both paid media and scoal media selected. This should present costs as two thirds of the ranges here fore each when both are selected.", "pricing": {"bundle": "Social Execution", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 52, "budgetLow": 8000, "budgetHigh": 60000}}]},
+  {"id": "seo", "category": "Search Engine Optimization", "description": "Improve organic search visibility", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["don\\'t rank on Google", "need SEO help", "organic traffic declining", "want to rank for keywords"], "indirect": ["website not appearing in search", "competitors outranking us", "paid search costs too high", "content not getting discovered", "technical website issues"], "situational": ["website redesign", "new content strategy", "competitive threat in search", "market expansion", "algorithm update impact"], "performance": ["declining organic traffic", "keyword rankings dropping", "low domain authority", "high reliance on paid search", "competitor visibility increasing"]}, "services": [{"name": "SEO Strategy & Audit", "recommend": "always", "condition": "for all SEO engagements or to solve problems with website visibility.", "pricing": {"bundle": "SEO Strategy", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 8, "budgetLow": 20000, "budgetHigh": 35000, "note": "Annual retainer ($5K-$10K/month), 6-month minimum"}}, {"name": "Technical SEO", "recommend": "always", "condition": "for all SEO engagements", "pricing": {"bundle": "SEO Strategy", "engagementType": "fixed_fee"}}, {"name": "Critical SEO Assessment", "recommend": "conditional", "condition": "If they dont know what SEO statsus is or the problem they need to solve", "pricing": {"bundle": "SEO Strategy", "engagementType": "fixed_fee"}}, {"name": "Content SEO Strategy", "recommend": "conditional", "condition": "when content marketing is included", "pricing": {"bundle": "SEO Strategy", "engagementType": "fixed_fee"}}, {"name": "On-Page Optimization", "recommend": "conditional", "condition": "for all SEO engagements", "pricing": {"bundle": "SEO Execution", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 12, "budgetLow": 24000, "budgetHigh": 60000}}, {"name": "Link Building", "recommend": "conditional", "condition": "when off-page SEO is requested", "pricing": {"bundle": "SEO Execution", "engagementType": "fixed_fee"}}, {"name": "Local SEO", "recommend": "conditional", "condition": "when local/geographic targeting is needed", "pricing": {"bundle": "SEO Execution", "engagementType": "fixed_fee"}}, {"name": "SEO Reporting", "recommend": "conditional", "condition": "for all SEO engagements", "pricing": {"bundle": "SEO Reporting", "engagementType": "retainer", "termLow": 4, "termHigh": 52, "budgetLow": 4000, "budgetHigh": 40000}}]},
+  {"id": "orm", "category": "Online Reputation Management (ORM)", "description": "Online reputation management and brand perception", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["online reputation", "brand perception online", "what people see when they search us", "reputation management"], "indirect": ["negative search results", "outdated information online", "Wikipedia page needs updating", "Reddit threads about us", "AI tools saying wrong things about us"], "situational": ["reputation issue discovered", "negative coverage persisting in search", "competitive misinformation", "brand perception audit"], "performance": ["negative sentiment in search results", "inaccurate brand information online", "competitors controlling narrative", "AI-generated misinformation"]}, "services": [{"name": "GEO Strategy & Audit", "recommend": "always", "condition": "Where there is a problem or opportunity to shape or improve how a brand appears on LLM  or AI search. Recommend if client is having issues with reputation or perception.", "pricing": {"bundle": "GEO Strategy", "engagementType": "fixed_fee", "termLow": 1, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 20000, "note": "Annual retainer, often bundled with SEO"}}]},
+  {"id": "geo", "category": "Generative Engine Optimization (ORM)", "description": "Optimize for AI-powered search", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["need to show up in AI search", "want to be cited by ChatGPT", "optimize for AI answers"], "indirect": ["concern about AI changing search", "questions about future of organic search", "interest in emerging search", "competitors in AI content"], "situational": ["AI search feature launches", "industry AI conversations", "competitive monitoring", "future planning"], "performance": ["declining traditional search traffic", "absence from AI answers", "competitors cited in AI", "audience behavior changing"]}, "services": [{"name": "Reddit Optimization", "recommend": "conditional", "condition": "Reddit Optimization program. If the clientcrequires an improvement to Reddit channel", "pricing": {"bundle": "GEO Execution", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 6, "budgetLow": 20000, "budgetHigh": 30000}}, {"name": "Wikipedia Optimization", "recommend": "conditional", "condition": "Wikipedia Optimization program. If the client requires an improvement to Wikipedia channel", "pricing": {"bundle": "GEO Execution", "engagementType": "fixed_fee", "termLow": 3, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 15000}}, {"name": "Earned Strategy for GEO", "recommend": "conditional", "condition": "GEO focused Earned Strategy Enhancement. When we are doing earned and their is a request to limprove visibility, repur=tation and differentiation on LLMs and AI.", "pricing": {"bundle": "GEO Execution", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 15000}}]},
+  {"id": "integrated_measurement", "category": "Integrated Measurement & Analytics", "description": "Unified measurement across earned, social, paid channels", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["need integrated reporting", "unified dashboard", "cross-channel measurement", "integrated measurement framework"], "indirect": ["can't see how channels work together", "reporting is siloed", "no unified view of performance", "different teams report differently"], "situational": ["launching integrated campaign", "multiple agencies need unified reporting", "board wants holistic marketing view"], "performance": ["can't attribute results across channels", "no integrated performance view", "conflicting reports from different channels"]}, "services": [{"name": "Analytics Strategy & Measurement Framework", "recommend": "always", "condition": "When there is an integrated program touching any combination of earned, social, web and paid. When selected this supercedes the need for standallone reporting for paid and social", "pricing": {"bundle": "Integrated Measurement Strategy", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 20000}}]},
+  {"id": "measurement", "category": "Measurement & Analytics", "description": "Track and prove marketing ROI", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["don\\'t know if marketing is working", "need better reporting", "need to track performance", "can\\'t prove ROI"], "indirect": ["decisions without data", "tools not integrated", "leadership asking for accountability", "budget justification challenges", "unclear attribution"], "situational": ["new leadership demanding accountability", "budget review", "board reporting", "marketing technology audit", "new initiatives"], "performance": ["can\\'t report on basic metrics", "data conflicts between systems", "no baseline", "unknown customer journey", "efficiency unclear"]}, "services": [{"name": "Integrated Dashboard Development", "recommend": "conditional", "condition": "when reporting visualization is requested", "pricing": {"bundle": "Integrated Measurement Strategy", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 20000}}, {"name": "Attribution Modeling", "recommend": "conditional", "condition": "when multi-channel attribution is needed", "pricing": {"bundle": "Integrated Measurement Strategy", "engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 10000, "budgetHigh": 20000}}, {"name": "Marketing ROI Framework", "recommend": "conditional", "condition": "for all measurement engagements", "pricing": {"bundle": "Integrated Measurement Strategy", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 3, "budgetLow": 10000, "budgetHigh": 20000}}, {"name": "KPI Development", "recommend": "conditional", "condition": "for all measurement engagements", "pricing": {"bundle": "Integrated Measurement Strategy", "engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 10000, "budgetHigh": 20000}}, {"name": "Data Integration", "recommend": "conditional", "condition": "when multiple data sources need connecting", "pricing": {"bundle": "Integrated Measurement Strategy", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 20000, "budgetHigh": 30000}}, {"name": "Reporting", "recommend": "always", "condition": "When there is a need to report on integrated campaign impact, and recommend optimizations, A/B tests or changes to creative and strategy.", "pricing": {"bundle": "Integrated Reporting", "engagementType": "retainer", "termLow": 52, "termHigh": 52, "budgetLow": 30000, "budgetHigh": 40000}}]},
+  {"id": "gtm", "category": "Go-to-Market Strategy", "description": "Launch products and enter markets", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["launching a new product", "need a GTM strategy", "need to bring this to market", "entering a new market"], "indirect": ["uncertainty about target audience", "no launch plan", "pricing and positioning questions", "channel strategy unclear", "sales and marketing alignment needed"], "situational": ["product development completion", "service line expansion", "market expansion", "competitive response", "acquisition of new capabilities"], "performance": ["previous launches underperformed", "new product uptake slow", "market penetration below expectations", "customer acquisition challenges", "sales cycle too long"]}, "services": [{"name": "Go-to-Market Strategy", "recommend": "always", "condition": "for all GTM projects", "pricing": {"bundle": "GTM Strategy", "engagementType": "fixed_fee", "termLow": 1, "termHigh": 3, "budgetLow": 10000, "budgetHigh": 30000}}, {"name": "Launch Planning", "recommend": "always", "condition": "for all GTM projects", "pricing": {"bundle": "GTM Strategy", "engagementType": "fixed_fee"}}, {"name": "Market Entry Strategy", "recommend": "conditional", "condition": "when entering new markets", "pricing": {"bundle": "GTM Strategy", "engagementType": "fixed_fee"}}, {"name": "Channel Strategy", "recommend": "conditional", "condition": "when distribution channels need defining", "pricing": {"bundle": "GTM Strategy", "engagementType": "fixed_fee"}}, {"name": "Sales Enablement", "recommend": "conditional", "condition": "when sales team support is needed", "pricing": {"bundle": "GTM Strategy", "engagementType": "fixed_fee"}}]},
+  {"id": "events", "category": "Event Planning & Production", "description": "Plan and execute events", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["have an event coming up", "need to plan a conference", "need event support"], "indirect": ["team doesn\\'t have event experience", "past events had issues", "budget requires professional management", "complex logistics", "need creative concepts"], "situational": ["annual conference", "product launch event", "customer events", "trade show", "employee events", "milestone celebrations", "investor events"], "performance": ["event feedback poor", "attendance declining", "event ROI unclear", "logistics challenges", "content quality inconsistent"]}, "services": [{"name": "Event Strategy", "recommend": "always", "condition": "for all event projects", "pricing": {"bundle": "Event Strategy", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 6, "budgetLow": 10000, "budgetHigh": 20000, "note": "Excludes venue and vendor costs"}}, {"name": "Event Production", "recommend": "always", "condition": "for all event projects", "pricing": {"bundle": "Event Production", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 12, "budgetLow": 15000, "budgetHigh": 100000}}, {"name": "Virtual Event Production", "recommend": "conditional", "condition": "when virtual or hybrid events are needed", "pricing": {"bundle": "Event Production", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 15000, "budgetHigh": 30000}}, {"name": "Trade Show Management", "recommend": "conditional", "condition": "when trade show participation is involved", "pricing": {"bundle": "Event Production", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 15000, "budgetHigh": 30000}}, {"name": "Speaker Management", "recommend": "conditional", "condition": "when speakers need coordination", "pricing": {"bundle": "Event Production", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 5000, "budgetHigh": 15000}}, {"name": "Event Marketing", "recommend": "conditional", "condition": "when event promotion is needed", "pricing": {"bundle": "Event Marketing", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 6, "budgetLow": 10000, "budgetHigh": 20000}}]},
+  {"id": "training", "category": "Communications Training", "description": "Media and communications training", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["team needs media training", "need communications training", "executives need spokesperson prep", "want internal training"], "indirect": ["executives uncomfortable with media", "teams lack marketing skills", "inconsistent brand representation", "new hires need onboarding", "crisis preparedness concerns"], "situational": ["new spokesperson", "upcoming media tour", "crisis preparation", "marketing team expansion", "leadership changes", "brand launch"], "performance": ["poor media interview performance", "inconsistent external communication", "brand message dilution", "crisis response failures", "employee communications issues"]}, "services": [{"name": "Media & Spokesperson Training", "recommend": "always", "condition": "for all communications training", "pricing": {"bundle": "Communications Training", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 20000, "budgetHigh": 50000, "note": "Per session or program"}}, {"name": "Presentation Training", "recommend": "conditional", "condition": "when presentation skills are needed", "pricing": {"bundle": "Communications Training", "engagementType": "fixed_fee"}}, {"name": "Crisis Communications Training", "recommend": "conditional", "condition": "when crisis preparedness is needed", "pricing": {"bundle": "Communications Training", "engagementType": "fixed_fee"}}, {"name": "Brand Training", "recommend": "conditional", "condition": "when brand alignment training is needed", "pricing": {"bundle": "Communications Training", "engagementType": "fixed_fee"}}]},
+  {"id": "impact", "category": "Impact & Purpose Communications", "description": "Sustainability, impact, and purpose communications", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["need an annual report", "need an impact report", "need help with CSR report", "want to showcase our impact", "impact story", "sustainability story", "esg communications", "purpose driven"], "indirect": ["stakeholder expectations for transparency", "ESG reporting requirements", "investor relations needs", "employee engagement communications", "competitor reports setting higher bar", "customers want to know our values"], "situational": ["annual reporting cycle", "sustainability milestones", "stakeholder meeting", "grant reporting", "public accountability", "B Corp certification"], "performance": ["stakeholder feedback on transparency", "competitor reports more compelling", "internal data not shared", "impact not being communicated", "brand purpose scores low"]}, "services": [{"name": "Impact Report Writing & Design", "recommend": "always", "condition": "when impact/sustainability report is needed", "pricing": {"bundle": "Impact Reporting", "engagementType": "fixed_fee", "termLow": 4, "termHigh": 12, "budgetLow": 40000, "budgetHigh": 80000}}, {"name": "Sustainability Communications Messaging", "recommend": "conditional", "condition": "when sustainability messaging is needed", "pricing": {"bundle": "Impact Communications", "engagementType": "fixed_fee", "termLow": 3, "termHigh": 5, "budgetLow": 15000, "budgetHigh": 20000}}, {"name": "Purpose Discovery Workshop", "recommend": "conditional", "condition": "when purpose definition is needed", "pricing": {"bundle": "Impact Communications", "engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 8000, "budgetHigh": 10000}}]},
+  {"id": "content_production", "category": "Content Ideation & Production", "description": "Content strategy and creation", "engagementType": "fixed_fee", "triggerPatterns": {"direct": ["need more content", "need a content strategy", "run out of ideas", "need help producing content"], "indirect": ["content calendar empty", "publishing frequency declined", "team stretched too thin", "quality inconsistent", "topics not resonating"], "situational": ["blog launch", "newsletter launch", "podcast initiative", "video series", "campaign content", "thought leadership program"], "performance": ["content engagement declining", "audience growth stalled", "SEO content needed", "social content underperforming", "lead magnet requests"]}, "services": [{"name": "Content Strategy", "recommend": "always", "condition": "when client needs creative (designed or animated content to be produced", "pricing": {"bundle": "Content Strategy", "engagementType": "fixed_fee", "termLow": 2, "termHigh": 4, "budgetLow": 15000, "budgetHigh": 30000, "note": "Fixed Fee deliverable"}}, {"name": "Content Calendar Development", "recommend": "always", "condition": "when client needs content produced and distributed over time", "pricing": {"bundle": "Content Strategy", "engagementType": "tm", "termLow": 2, "termHigh": 4, "note": "Annual T&M based on volume"}}, {"name": "Blog & Article Writing", "recommend": "conditional", "condition": "only if requested or included in Additional Notes. For client or prospects own channels or to gues write on a partners channel when they are looking for greater visibility for leaders.", "pricing": {"bundle": "Content Production", "engagementType": "tm", "termLow": 1, "termHigh": 2, "budgetLow": 3500, "budgetHigh": 8000, "note": "T&M ongoing"}}, {"name": "Podcast Production", "recommend": "conditional", "condition": "only if requested or included in Additional Notes", "pricing": {"bundle": "Content Production", "engagementType": "tm", "termLow": 1, "termHigh": 2, "budgetLow": 3500, "budgetHigh": 10000}}, {"name": "Video Content Series", "recommend": "conditional", "condition": "only if requested or included in Additional Notes", "pricing": {"bundle": "Content Production", "engagementType": "tm", "termLow": 2, "termHigh": 4, "budgetLow": 10000, "budgetHigh": 50000}}, {"name": "Thought Leadership Content", "recommend": "conditional", "condition": "These is when client needs articles ghost written for them in teh voice of their brand or executives", "pricing": {"bundle": "Content Production", "engagementType": "tm", "termLow": 1, "termHigh": 2, "budgetLow": 6000, "budgetHigh": 10000}}, {"name": "Social Content Creation (Reactive)", "recommend": "conditional", "condition": "only if requested or social media management needed and reactive content that hacks into news stories and responds to current events and competitor activity. Sold as a retainer that includes story mining, ideation adn production. All quick production and approvals.", "pricing": {"bundle": "Reactive Content Engine", "engagementType": "tm", "termLow": 52, "termHigh": 52, "budgetLow": 60000, "budgetHigh": 120000}}]},
+  {"id": "operational_support", "category": "Operational Support", "description": "Coordinate complex marketing initiatives", "engagementType": "retainer", "triggerPatterns": {"direct": ["need help managing projects", "overwhelmed with coordination", "need a PM", "need onboarding support", "need someone to manage vendors"], "indirect": ["projects always late", "over budget", "multiple agencies not coordinated", "quality control problems", "no project management"], "situational": ["complex campaign launch", "multiple initiatives", "major event", "organizational change", "agency consolidation", "first engagement"], "performance": ["missed deadlines", "budget overruns", "quality inconsistencies", "team burnout", "stakeholder dissatisfaction"]}, "services": [{"name": "Project Management", "recommend": "always", "condition": "when PM support is requested", "pricing": {"engagementType": "retainer", "termLow": 52, "termHigh": 52, "percentageOfProject": 10.0, "note": "Approximately 15% of total project fee. Not required on PR/Earned-only engagements."}}, {"name": "Marketing Operations", "recommend": "conditional", "condition": "when paid media is included and operational support is needed", "pricing": {"engagementType": "retainer", "termLow": 52, "termHigh": 52, "percentageOfPaidMedia": 10.0, "note": "~10% of paid media management fees"}}, {"name": "Cross-agency Coordination", "recommend": "conditional", "condition": "when cross agency coordimnation is requested to manage other third party vendors or agencies.", "pricing": {"engagementType": "retainer", "termLow": 52, "termHigh": 52, "budgetLow": 24000, "budgetHigh": 50000}}, {"name": "Onboarding", "recommend": "conditional", "condition": "required if first engagment to onboard to ways of working and existing platforms so we can be afective.", "pricing": {"engagementType": "fixed_fee", "termLow": 1, "termHigh": 2, "budgetLow": 5000, "budgetHigh": 15000, "note": "$5K-$10K/month, for managing other agencies, partners and third parties"}}, {"name": "Client Side Project Management", "recommend": "conditional", "condition": "If we need top offer project management support to help coordinate clients internal operation. Project Management as a service,", "pricing": {"engagementType": "retainer", "termLow": 52, "termHigh": 52, "budgetLow": 60000, "budgetHigh": 120000}}]}
+];
+
+const FIT_ARCHETYPES = {
+  architect: {
+    id: 'architect',
+    title: 'Architect',
+    emoji: '📐',
+    short: 'Strategic & Systematic',
+    description: 'Values systematic approaches, formal planning, and proven methodologies.',
+    // Categories to boost — conditional services in these become auto-selected
+    boostCategories: ['integrated_strategy', 'brand', 'executive_visibility', 'measurement', 'pr', 'training'],
+    // Specific services to auto-select if the category is detected
+    boostServices: [
+      'Marketing Strategy Development', 'Customer Journey Mapping', 'Marketing Audit & Assessment (Compass)',
+      'Brand Research (Compass)', 'Stakeholder Interviews (IDIs)', 'Brand Workshop',
+      'Analytics Strategy & Measurement Framework', 'KPI Development', 'Marketing ROI Framework',
+      'Executive Positioning Strategy', 'Brand Guidelines'
+    ],
+    sowGuidance: `CLIENT FIT ARCHETYPE: ARCHITECT
+This client values strategic thinking and systematic approaches. The SOW should:
+- Emphasize strategic rationale and methodology behind each recommendation
+- Include detailed phasing with clear dependencies between workstreams
+- Present formal review and governance structures
+- Frame deliverables in terms of long-term brand and business impact
+- Use language that conveys thoughtful planning: "strategic framework", "phased approach", "stakeholder alignment"
+- Include robust reporting and measurement sections
+- Emphasize proven methodologies and industry best practices`,
+    waysOfWorking: `WAYS OF WORKING — ARCHITECT CLIENT
+Governance & Process:
+- Formal kickoff with comprehensive briefing and stakeholder alignment session
+- Structured governance model: Steering committee reviews at phase gates, working team reviews bi-weekly
+- All strategic recommendations presented in formal deck format with data rationale
+- Phased work plans with clear dependencies — each phase has defined entry/exit criteria before proceeding
+- Change requests require written submission and formal impact assessment before approval
+
+Communication Cadence:
+- Bi-weekly status reports with progress against milestones, budget tracking, and risk register
+- Monthly strategic review meetings with senior stakeholders
+- Quarterly business reviews assessing program-level impact against objectives
+- All deliverables accompanied by strategic rationale documentation
+
+Approval & Decision Flow:
+- Defined approval hierarchy: day-to-day decisions via designated point of contact, strategic decisions via steering committee
+- Client provides consolidated feedback representing unified organizational direction within agreed windows
+- Formal sign-off required at each phase gate before subsequent work commences
+
+Reporting & Documentation:
+- Comprehensive project documentation maintained throughout engagement
+- Post-phase retrospectives with lessons learned and optimization recommendations
+- Final engagement report summarizing outcomes against stated objectives`,
+    pricingGuidance: `PRICING APPROACH — ARCHITECT CLIENT
+- Frame fees as investment in strategic foundation and long-term brand building
+- Present comprehensive, all-inclusive phase pricing — Architects prefer clarity over modular á la carte
+- Emphasize the value of thorough upfront strategy to prevent costly rework downstream
+- Structure payments around phase gates and milestone approvals
+- Include detailed assumptions section — Architects want to understand what underlies the pricing
+- Where applicable, present multi-year or programmatic pricing that rewards sustained commitment
+- Include rate card for additional work but position it as exception, not expectation`
+  },
+  visionary: {
+    id: 'visionary',
+    title: 'Visionary',
+    emoji: '✨',
+    short: 'Creative & Bold',
+    description: 'Prioritizes authentic brand expression, breakthrough ideas, and bold creative risks.',
+    boostCategories: ['brand', 'creative_production', 'creative_campaigns', 'influencer', 'content_ideation'],
+    boostServices: [
+      'Creative Platform Development', 'Big Idea Generation', 'Experiential Concepts',
+      'Tone of Voice', 'Manifesto', 'Visual Identity System', 'Logo/Wordmark Development',
+      'Graphic Design', 'Video Production', 'Animation & Motion Graphics',
+      'Influencer Strategy', 'Content Strategy'
+    ],
+    sowGuidance: `CLIENT FIT ARCHETYPE: VISIONARY
+This client values creative breakthrough and authentic expression. The SOW should:
+- Lead with creative ambition and the opportunity for breakthrough work
+- Frame services as collaborative creative partnerships, not just deliverables
+- Emphasize creative exploration phases and concept development
+- Lean toward creative retainers and retained creative services for ongoing inspiration
+- Use language that conveys creative ambition: "breakthrough concepts", "authentic expression", "creative exploration"
+- Include creative workshops and collaborative ideation sessions
+- Describe revision processes as "creative refinement" rather than correction cycles
+- Emphasize brand storytelling and cultural relevance`,
+    waysOfWorking: `WAYS OF WORKING — VISIONARY CLIENT
+Creative Partnership Model:
+- Immersive kickoff: Deep-dive brand immersion session including culture, mission, aesthetic references, and creative ambitions
+- Collaborative creative workshops at key moments — Agency brings provocative stimulus; Client brings brand truth
+- Creative exploration phase built into every engagement before execution begins — space to ideate without constraint
+- Concept presentations as storytelling moments: show the journey from insight to idea, not just final output
+- Creative refinement rounds (not "revisions") — iterative evolution toward breakthrough, not correction cycles
+
+Communication Cadence:
+- Regular creative check-ins: informal, visual, collaborative — share mood boards, references, work-in-progress
+- Status updates focused on creative narrative and brand journey, not just task completion
+- Quarterly inspiration sessions: Agency proactively brings cultural trends, competitive creative, and breakthrough opportunities
+- Open creative dialogue encouraged between sessions — this is a partnership, not a vendor relationship
+
+Approval & Decision Flow:
+- Creative direction established collaboratively at outset — shared vision document as ongoing reference
+- Client empowered to make bold creative decisions quickly — minimize approval layers that dilute ideas
+- Feedback framed as creative direction, not prescriptive edits: "we want it to feel more…" not "change the font to…"
+- Agency retains creative recommendation authority — Client trusts Agency to push boundaries while respecting brand truth
+
+Reporting & Documentation:
+- Portfolio-style creative reviews showcasing body of work and brand evolution
+- Impact measured through brand expression metrics: distinctiveness, cultural relevance, creative recognition
+- End-of-engagement creative retrospective: what we built, what we learned, where the brand goes next`,
+    pricingGuidance: `PRICING APPROACH — VISIONARY CLIENT
+- Frame fees as investment in creative partnership and brand differentiation
+- Lean toward creative retainers and T&M with minimum commitment — Visionaries need ongoing creative access, not one-off projects
+- Include dedicated creative exploration / concept development budgets as line items — this isn't overhead, it's the work
+- Structure retained creative services with monthly creative commitment rather than rigid deliverable counts
+- Position premium pricing confidently — breakthrough creative commands premium investment
+- For project work, include concept development phase pricing separately from production execution
+- Build in flexibility for inspiration-driven pivots without triggering change orders for every creative evolution`
+  },
+  accelerator: {
+    id: 'accelerator',
+    title: 'Accelerator',
+    emoji: '📊',
+    short: 'Performance & Data-Driven',
+    description: 'Demands measurable results, data-driven decisions, and performance optimization.',
+    boostCategories: ['paid_media', 'social_media', 'measurement', 'integrated_measurement', 'seo', 'geo'],
+    boostServices: [
+      'Conversion Rate Optimization', 'On-Page Optimization', 'SEO Reporting',
+      'Analytics Strategy & Measurement Framework', 'Integrated Dashboard Development', 'Attribution Modeling', 'Marketing ROI Framework', 'KPI Development',
+      'Paid Strategy', 'Paid Media Reporting', 'Campaign Setup & Management',
+      'SEO Strategy & Audit', 'Reporting'
+    ],
+    sowGuidance: `CLIENT FIT ARCHETYPE: ACCELERATOR
+This client values measurable performance and data-driven optimization. The SOW should:
+- Lead with KPIs, success metrics, and measurable outcomes for every service
+- Include robust measurement frameworks and reporting cadences
+- Emphasize performance marketing, A/B testing, and optimization cycles
+- Include dashboard development and real-time performance visibility
+- Use language that conveys accountability: "measurable outcomes", "KPI targets", "data-driven optimization"
+- Frame creative work in terms of conversion impact and performance metrics
+- Include regular performance review cadences (weekly/monthly)
+- Define clear benchmarks and improvement targets within 90-day windows`,
+    waysOfWorking: `WAYS OF WORKING — ACCELERATOR CLIENT
+Performance-Driven Operations:
+- Data-first kickoff: Establish baseline metrics, define KPIs, agree on measurement framework and attribution model before work begins
+- 90-day goal cycles: All work structured around quarterly performance targets with mid-cycle optimization checkpoints
+- Test-measure-optimize loop built into every workstream — no creative or strategy ships without a hypothesis and success metric
+- Weekly optimization cadence: Agency reviews performance data and makes tactical adjustments within pre-approved parameters
+- Continuous A/B testing protocol: systematic testing calendar for creative, messaging, audiences, and channels
+
+Communication Cadence:
+- Real-time performance dashboards with Client access — no waiting for reports to see what's working
+- Weekly performance pulse: brief data-driven update on key metrics, wins, and optimization actions taken
+- Monthly deep-dive performance reviews with trend analysis, test results, and next optimization priorities
+- Quarterly strategic reviews connecting performance data to business outcomes and adjusting targets
+
+Approval & Decision Flow:
+- Pre-approved optimization parameters: Agency authorized to make tactical changes (bid adjustments, creative rotation, audience refinement) within defined boundaries without per-change approval
+- Strategic pivots (new channels, significant budget reallocation, messaging overhaul) require Client approval with data justification
+- Decisions backed by data — Agency presents options with projected performance impact; Client decides based on numbers
+- Rapid approval process: 24-48 hour turnaround on optimization recommendations to maintain momentum
+
+Reporting & Documentation:
+- Automated performance dashboards updated daily/weekly
+- Monthly performance reports with clear KPI tracking, trend analysis, and actionable recommendations
+- Test log documenting all experiments, hypotheses, results, and learnings
+- Quarterly business impact assessment connecting marketing performance to revenue and growth metrics`,
+    pricingGuidance: `PRICING APPROACH — ACCELERATOR CLIENT
+- Frame fees in terms of performance investment and measurable return
+- Include measurement and analytics setup as a foundational line item — not optional, essential
+- Structure ongoing services around optimization cycles with clear performance benchmarks
+- Consider performance review cadences as part of the service value, not administrative overhead
+- Present pricing with associated KPIs: "This investment targets [X] improvement in [metric] within [timeframe]"
+- Include dashboard development and reporting infrastructure in the initial scope — Accelerators need visibility from day one
+- For retainers, emphasize efficiency gains over time: optimization drives more value from the same investment
+- Budget for systematic A/B testing — position it as essential to performance improvement, not discretionary`
+  },
+  entrepreneur: {
+    id: 'entrepreneur',
+    title: 'Entrepreneur',
+    emoji: '🚀',
+    short: 'Fast & Action-Oriented',
+    description: 'Needs flexible, action-oriented partnerships with quick wins at entrepreneurial pace.',
+    boostCategories: ['gtm', 'paid_media', 'social_media', 'creative_campaigns', 'content_ideation'],
+    boostServices: [
+      'Go-to-Market Strategy', 'Launch Planning', 'Channel Strategy',
+      'Landing Page Development', 'On-Page Optimization',
+      'Creative Platform Development', 'Campaign Asset Creation',
+      'Paid Strategy', 'Audience Development & Targeting',
+      'Content Strategy', 'Social Content Creation (Reactive)'
+    ],
+    sowGuidance: `CLIENT FIT ARCHETYPE: ENTREPRENEUR
+This client values speed, flexibility, and quick wins. The SOW should:
+- Emphasize fast starts with rapid hypothesis-driven strategy
+- Structure work in short sprints rather than long phases
+- Include A/B testing and test-and-learn approaches for creative platforms and paid media
+- Prioritize quick wins that demonstrate value early
+- Use language that conveys momentum: "rapid deployment", "test and learn", "sprint-based delivery"
+- Build in flexibility for pivoting based on early results
+- Include lightweight reporting focused on actionable insights over comprehensive analysis
+- Emphasize getting to market quickly with creative assets across paid media and social`,
+    waysOfWorking: `WAYS OF WORKING — ENTREPRENEUR CLIENT
+Sprint-Based Partnership:
+- Rapid-start kickoff: Abbreviated onboarding (1-2 sessions max) focused on immediate priorities and first sprint definition
+- Work structured in 2-4 week sprints with defined deliverables, hypotheses, and success criteria per sprint
+- Hypothesis-driven approach: "We believe [X] will achieve [Y] — let's test it" rather than months of upfront strategy
+- Built-in pivot points at sprint boundaries — shift priorities based on what's working without formal change orders
+- MVP-first mentality: Launch with good-enough creative, learn from real-world data, refine in subsequent sprints
+
+Communication Cadence:
+- Quick-touch check-ins: 15-30 minute weekly syncs focused on decisions, blockers, and next actions — no lengthy presentations
+- Real-time communication channel (Slack/Teams) for day-to-day questions and quick approvals
+- Sprint retrospectives: brief review of what shipped, what we learned, what's next
+- Monthly strategic pulse: lightweight assessment of overall direction and priorities (not a formal review)
+
+Approval & Decision Flow:
+- Streamlined approvals: single decision-maker with authority to approve on the spot
+- Async approval workflow for creative and content — share for review, approved unless feedback within 24-48 hours
+- Agency empowered to make execution decisions within sprint scope without per-item approval
+- Pivot decisions made quickly at sprint boundaries — no committee required
+- "Good enough to ship" standard for initial launches; perfection is the enemy of progress
+
+Reporting & Documentation:
+- Lightweight sprint reports: what shipped, key metrics, learnings, next sprint priorities (1-2 pages max)
+- Action-oriented dashboards showing what's working and what to do about it
+- Monthly summary connecting sprint outputs to business growth metrics
+- Documentation kept lean — enough to make decisions, not enough to slow things down`,
+    pricingGuidance: `PRICING APPROACH — ENTREPRENEUR CLIENT
+- Frame fees around speed-to-value and quick wins that demonstrate ROI early
+- Structure pricing in sprint-based phases: small initial commitment that scales based on results
+- Present a "Phase 1 Fast Start" with lower entry point, followed by expansion phases tied to early wins
+- Lean toward T&M or retainer models that flex with changing priorities — Entrepreneurs hate paying for scope they've outgrown
+- Include swap-in/swap-out provisions: trade equivalent deliverables without change orders as priorities shift
+- Keep proposal modular — let client add services as they grow rather than requiring large upfront commitment
+- Position pricing as investment in velocity: "Get to market in [X] weeks rather than [Y] months"
+- Budget for test-and-learn: allocate portion of investment explicitly for experimentation across creative and channels`
   }
+};
 
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
+// ============================================================================
+// PRICING UTILITIES
+// ============================================================================
+const getServiceName = (service) => typeof service === 'object' ? service.name : service;
+const getServiceNames = (trigger) => trigger.services.map(getServiceName);
+const PAID_MEDIA_CATEGORY_IDS = ['paid_media'];
 
-  componentDidCatch(error, errorInfo) {
-    console.error('Application error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-[#FAF9F7] flex items-center justify-center p-8">
-          <div className="max-w-md text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-8 h-8 text-red-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-[#1A1A1A] mb-2">Something went wrong</h1>
-            <p className="text-[#666666] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="btn-primary"
-            >
-              Refresh Page
-            </button>
-          </div>
-        </div>
-      );
+const calculatePricingTotal = (selectedServices) => {
+  let totalLow = 0, totalHigh = 0, paidMediaLow = 0, paidMediaHigh = 0;
+  const countedBundles = new Set();
+  let pmPercentageCount = 0, mktOpsPercentage = 0;
+  for (const trigger of SERVICE_TRIGGERS) {
+    const isPaidMedia = PAID_MEDIA_CATEGORY_IDS.includes(trigger.id);
+    for (const service of trigger.services) {
+      const name = getServiceName(service);
+      if (!selectedServices.includes(name)) continue;
+      if (!service.pricing) continue;
+      const pricing = service.pricing;
+      if (pricing.percentageOfProject) { pmPercentageCount++; continue; }
+      if (pricing.percentageOfPaidMedia) { mktOpsPercentage = pricing.percentageOfPaidMedia; continue; }
+      if (pricing.bundle && !pricing.budgetLow) { continue; }
+      if (pricing.bundle) { if (countedBundles.has(pricing.bundle)) continue; countedBundles.add(pricing.bundle); }
+      if (pricing.budgetLow) totalLow += pricing.budgetLow;
+      if (pricing.budgetHigh) totalHigh += pricing.budgetHigh;
+      if (isPaidMedia) { if (pricing.budgetLow) paidMediaLow += pricing.budgetLow; if (pricing.budgetHigh) paidMediaHigh += pricing.budgetHigh; }
     }
-    return this.props.children;
   }
+  if (totalLow === 0 && totalHigh === 0 && pmPercentageCount === 0) return null;
+  const pmLow = pmPercentageCount > 0 && totalLow > 0 ? Math.round(totalLow * 0.10) : 0;
+  const pmHigh = pmPercentageCount > 0 && totalHigh > 0 ? Math.round(totalHigh * 0.10) : 0;
+  const mktOpsLow = mktOpsPercentage > 0 && paidMediaLow > 0 ? Math.round(paidMediaLow * (mktOpsPercentage / 100)) : 0;
+  const mktOpsHigh = mktOpsPercentage > 0 && paidMediaHigh > 0 ? Math.round(paidMediaHigh * (mktOpsPercentage / 100)) : 0;
+  const grandLow = totalLow + pmLow + mktOpsLow, grandHigh = totalHigh + pmHigh + mktOpsHigh;
+  const fmt = (n) => n >= 1000000 ? `$${(n/1000000).toFixed(1)}M` : n >= 1000 ? `$${(n/1000).toFixed(0)}K` : `$${n}`;
+  return { low: grandLow, high: grandHigh, lowFormatted: fmt(grandLow), highFormatted: fmt(grandHigh) };
+};
+
+const formatPricingForService = (service) => {
+  if (!service.pricing) return null;
+  const p = service.pricing;
+  if (p.percentageOfProject) return { term: null, budget: `~${p.percentageOfProject}% of project`, note: p.note };
+  if (p.percentageOfPaidMedia) return { term: null, budget: `~${p.percentageOfPaidMedia}% of paid media fees`, note: p.note };
+  if (p.bundle && !p.termLow) return { term: null, budget: null, note: null, bundle: p.bundle };
+  const fmtC = (n) => n >= 1000 ? `$${(n/1000).toFixed(0)}K` : `$${n}`;
+  const term = p.termLow && p.termHigh ? (p.termLow === p.termHigh ? (p.termLow === 52 ? 'Annual' : `${p.termLow} weeks`) : `${p.termLow}-${p.termHigh} weeks`) : null;
+  const budget = p.budgetLow && p.budgetHigh ? (p.budgetLow === p.budgetHigh ? fmtC(p.budgetLow) : `${fmtC(p.budgetLow)}-${fmtC(p.budgetHigh)}`) : null;
+  return { term, budget, note: p.note, bundle: p.bundle };
+};
+
+// ============================================================================
+// SOW BEST PRACTICES (condensed)
+// ============================================================================
+const SOW_BEST_PRACTICES = `
+AGENCY SOW QUALITY STANDARDS — ANTENNA GROUP
+For use in all SOW generation, review, and quality assessment.
+
+================================================================================
+REQUIRED SECTIONS (every SOW must include ALL of these)
+================================================================================
+1. PROJECT OVERVIEW & BACKGROUND — context, business need, parties involved, high-level success
+2. OBJECTIVES — specific, measurable goals aligned to client business objectives
+3. SCOPE OF WORK — all tasks with quantities, frequencies, formats, methodologies
+4. OUT OF SCOPE & EXCLUSIONS — explicitly list what is NOT included (critical for scope creep prevention)
+5. DELIVERABLES — each with format, quantity, quality standards, and dependencies
+6. ACCEPTANCE CRITERIA — objective conditions, review window, deemed acceptance on non-response
+7. TIMELINE & MILESTONES — specific dates, dependencies, client review cycles built in
+8. ROLES & RESPONSIBILITIES — BOTH parties explicitly; client obligations with timeframes and consequences
+9. ASSUMPTIONS — conditions assumed true, with consequence if each assumption proves false
+10. CHANGE MANAGEMENT PROCESS — written approval required before scope changes proceed
+11. FEES & PAYMENT TERMS — fee structure, schedule, late payment provisions, rate for OOS work
+12. TERMINATION PROVISIONS — notice period, payment on termination, kill fee, transition obligations
+
+================================================================================
+CRITICAL LANGUAGE RULES
+================================================================================
+VAGUE LANGUAGE TO REPLACE:
+- "Unlimited revisions" → "up to X rounds of revisions of decreasing complexity"
+- "As needed" → "up to X hours/items per [period]"
+- "Reasonable" → define specifically (e.g., "within 5 business days")
+- "Ongoing" → add time boundary or specify "for the term of this agreement"
+- "Best efforts" → specify measurable standard
+- "Standard" or "typical" → define explicitly
+- "Support / assistance / management / coordination" → specify activities, frequency, limits
+- "Including but not limited to" → use only to illustrate, never to expand scope
+- "Until client is satisfied" → NEVER use; tie completion to objective criteria
+
+REQUIRED LANGUAGE PATTERNS:
+- Quantities: "up to X" (sets ceiling, not floor; no refund for unused capacity)
+- Timeframes: "within X business days of [trigger event]"
+- Responsibility: "Agency will deliver..." / "Client will provide..." (active voice, clear subject)
+- Revision definition: "A round of revisions = one consolidated set of feedback from Client's designated approver"
+- Deemed acceptance: "If Client does not respond within [X] business days, deliverable is deemed accepted"
+- Client consequence: "If Client fails to [obligation] within [timeframe], Agency may [adjust timeline / pause work / adjust fee]"
+- Feedback consolidation: "Client will consolidate all stakeholder feedback into a single submission per revision round. Multiple separate submissions count as separate rounds."
+
+================================================================================
+CONTRACT TYPE REQUIREMENTS
+================================================================================
+FIXED FEE:
+- All deliverables listed with specs, quantities, revision limits
+- All exclusions explicitly stated
+- Assumptions documented with consequences for each
+- Change order process required — written approval before any OOS work
+- Acceptance criteria and final payment trigger defined
+- Client obligations with consequences (delays may require schedule/fee adjustment)
+
+RETAINER:
+- Minimum term commitment and monthly fee clearly stated
+- Services included explicitly enumerated; excluded services listed
+- Monthly allocation (hours or deliverables) quantified
+- Rollover policy explicit: no rollover (use it or lose it), limited rollover, or quarterly true-up
+- Overage rate and pre-approval process defined
+- Notification threshold when approaching allocation
+- Early termination fee and notice period
+
+TIME & MATERIALS:
+- Rate schedule for all roles with billing increment specified
+- Initial estimate clearly labeled as estimate (NOT cap)
+- Notification thresholds (e.g., at 75% of estimate)
+- Time reporting frequency and content defined
+- Intended objectives and boundaries stated
+
+T&M WITH CAP:
+- All T&M requirements above, PLUS:
+- Cap explicitly tied to defined scope
+- Work stoppage rights when approaching cap
+- Cap adjustment triggers: scope changes, assumption failures, client-caused delays
+- Inclusions and exclusions from cap specified
+
+================================================================================
+SCOPE CREEP PREVENTION
+================================================================================
+EXCLUSIONS SECTION must address common adjacent services:
+- Rush fees and expedited timelines
+- Additional revision rounds beyond stated limits
+- Crisis communications (if not explicitly included)
+- Paid media spend (if not included)
+- Event staffing / on-site support
+- Travel outside defined geography
+- Third-party vendor management
+- Photography, video, translation, legal review
+- Regulatory compliance verification
+
+STOP WORK PROVISION pattern:
+"If Client fails to make payment when due, or fails to respond to requests within [X] business days, Agency may stop work upon written notice until Client cures the failure. Stopping work does not limit Agency's right to terminate. Timeline will adjust accordingly."
+
+CHANGE ORDER PROCESS:
+- All scope additions require written approval BEFORE work proceeds
+- Include impact assessment step (timeline + fee)
+- No verbal authorizations; email confirmation minimum
+- Reference rate schedule for additional work
+
+================================================================================
+HIGH PRIORITY FLAGS (✗ = missing critical element)
+================================================================================
+CRITICAL:
+✗ No exclusions section
+✗ No client obligations section (or obligations without timeframes/consequences)
+✗ No revision limits or "unlimited revisions" language
+✗ No change order process
+✗ No assumptions section
+✗ No acceptance criteria
+✗ "Unlimited" anything in scope
+✗ No termination protection / no early termination fee
+✗ Payment not tied to milestones
+✗ No consequences for client non-performance
+✗ Scope described with vague verbs: "support", "assist", "manage" without specifics
+
+MODERATE:
+⚠ Acceptance criteria incomplete or subjective
+⚠ Client review windows not specified
+⚠ No deemed acceptance provision
+⚠ Vague timeline (no specific dates or milestones)
+⚠ Assumptions stated without consequences
+⚠ Passive voice obscuring responsibility
+⚠ Inconsistent or undefined terminology
+
+SERVICE-SPECIFIC REQUIREMENTS:
+PR/COMMS: specify proactive pitches/period, media list size, reporting format, reactive handling (in/out), crisis exclusion
+PAID MEDIA: separate media spend from agency fees, ad account ownership, optimization frequency, reporting cadence
+CREATIVE/BRANDING: concepts at each stage, revision rounds per phase, file formats, usage rights, stock imagery
+INTEGRATED: boundaries between service lines, handoff points, who leads strategy vs execution, single vs separate reporting
+`;
+
+
+// ============================================================================
+// API CALL UTILITY
+// ============================================================================
+const callClaude = async ({ system, userMessage, maxTokens = 4000, useWebSearch = false, fileContent = null }) => {
+  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true'
+  };
+  const body = { model: MODEL, max_tokens: maxTokens };
+  if (system) body.system = system;
+  if (useWebSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+  
+  let content;
+  if (fileContent && fileContent.type !== 'text') {
+    const mediaType = fileContent.type === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    content = [
+      { type: 'document', source: { type: 'base64', media_type: mediaType, data: fileContent.data } },
+      { type: 'text', text: userMessage }
+    ];
+  } else if (fileContent && fileContent.type === 'text') {
+    content = `${userMessage}\n\n${fileContent.data}`;
+  } else {
+    content = userMessage;
+  }
+  
+  body.messages = [{ role: 'user', content }];
+  const response = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!response.ok) { const e = await response.json(); throw new Error(e.error?.message || 'API error'); }
+  const data = await response.json();
+  return data.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+};
+
+// ============================================================================
+// DOCX GENERATION
+// ============================================================================
+const createAntennaHeader = () => new Header({ children: [new Paragraph({ children: [new TextRun({ text: '.antenna', font: 'Arial', size: 36, bold: true }), new TextRun({ text: 'group', font: 'Arial', size: 24, color: '666666' })] })] });
+const createFooter = () => new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Page ', font: 'Arial', size: 20, color: '666666' }), new TextRun({ children: [PageNumber.CURRENT], font: 'Arial', size: 20, color: '666666' })] })] });
+
+const generateDocxFromText = async (text, title, meta = {}) => {
+  const lines = text.split('\n');
+  const children = [];
+  
+  children.push(new Paragraph({ children: [new TextRun({ text: title, bold: true, size: 48, font: 'Arial' })], spacing: { after: 300 } }));
+  if (meta.client) children.push(new Paragraph({ children: [new TextRun({ text: `Prepared for: ${meta.client}`, size: 22, font: 'Arial', color: '666666' })], spacing: { after: 100 } }));
+  children.push(new Paragraph({ children: [new TextRun({ text: `Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, size: 22, font: 'Arial', color: '666666' })], spacing: { after: 400 } }));
+  children.push(new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'CCCCCC' } }, spacing: { after: 400 } }));
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) { children.push(new Paragraph({ spacing: { after: 100 } })); continue; }
+    if (t.startsWith('# ')) { children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: t.replace(/^# /, ''), bold: true, size: 32, font: 'Arial' })], spacing: { before: 400, after: 200 } })); }
+    else if (t.startsWith('## ')) { children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: t.replace(/^## /, ''), bold: true, size: 26, font: 'Arial' })], spacing: { before: 300, after: 150 } })); }
+    else if (t.startsWith('### ')) { children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: t.replace(/^### /, ''), bold: true, size: 24, font: 'Arial' })], spacing: { before: 200, after: 100 } })); }
+    else if (t.startsWith('**') && t.endsWith('**')) { children.push(new Paragraph({ children: [new TextRun({ text: t.replace(/\*\*/g, ''), bold: true, size: 22, font: 'Arial' })], spacing: { after: 120 } })); }
+    else if (t.startsWith('- ') || t.startsWith('• ')) { children.push(new Paragraph({ numbering: { reference: 'bullet-list', level: 0 }, children: [new TextRun({ text: t.replace(/^[-•] /, ''), size: 22, font: 'Arial' })], spacing: { after: 80 } })); }
+    else { children.push(new Paragraph({ children: [new TextRun({ text: t.replace(/\*\*/g, ''), size: 22, font: 'Arial' })], spacing: { after: 150 } })); }
+  }
+
+  const doc = new Document({
+    numbering: { config: [{ reference: 'bullet-list', levels: [{ level: 0, format: LevelFormat.BULLET, text: '•', alignment: AlignmentType.START, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }] },
+    sections: [{ properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, headers: { default: createAntennaHeader() }, footers: { default: createFooter() }, children }]
+  });
+  return doc;
+};
+
+const downloadDocx = async (text, filename, meta = {}) => {
+  try {
+    const doc = await generateDocxFromText(text, meta.title || filename.replace('.docx', ''), meta);
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, filename);
+  } catch (e) {
+    console.error('DOCX error:', e);
+    saveAs(new Blob([text], { type: 'text/plain' }), filename.replace('.docx', '.txt'));
+  }
+};
+
+// ============================================================================
+// SHARED UI COMPONENTS
+// ============================================================================
+function AntennaLogo({ className = "h-8" }) {
+  return <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className={className} />;
 }
 
-// Auth Page Component (Login/Signup)
-function AuthPage({ onAuthSuccess }) {
-  const [isLogin, setIsLogin] = useState(true);
+function AntennaButton({ children, onClick, disabled, loading, loadingText, icon: Icon, className = '', variant = 'primary', size = 'default' }) {
+  const sizes = { small: 'px-4 py-2 text-sm rounded-lg gap-2', default: 'px-6 py-3 text-base rounded-xl gap-3', large: 'px-8 py-4 text-lg rounded-xl gap-3' };
+  const variants = { primary: 'bg-[#12161E] text-white', secondary: 'bg-white text-[#12161E] border-2 border-[#12161E]', ghost: 'bg-transparent text-[#12161E] hover:bg-[#12161E]/5' };
+  return (
+    <button onClick={onClick} disabled={disabled || loading} className={`group relative overflow-hidden font-semibold transition-all duration-300 flex items-center justify-center ${variants[variant]} ${sizes[size]} ${(disabled || loading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${className}`}>
+      {loading ? (<><Loader2 className="w-5 h-5 animate-spin relative z-10" /><span className="relative z-10">{loadingText || 'Loading...'}</span></>) : (
+        <>
+          {Icon && <Icon className="w-5 h-5 relative z-10 flex-shrink-0" />}
+          <span className="relative z-10 flex-shrink-0 overflow-hidden">
+            <span className="relative inline-block">
+              {children}
+              <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 ease-out group-hover:translate-y-full pointer-events-none" style={{ backgroundColor: '#E8FF00' }}>
+                <span style={{ color: '#12161E' }}>{children}</span>
+              </span>
+            </span>
+          </span>
+          <svg className="w-5 h-5 flex-shrink-0 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17L17 7M17 7H7M17 7V17" /></svg>
+        </>
+      )}
+    </button>
+  );
+}
+
+function CopyButton({ text, className = '' }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) {} }} className={`p-1.5 rounded-md transition-all ${copied ? 'bg-green-600 text-white' : 'bg-white/60 text-gray-500 hover:bg-white hover:text-gray-900'} ${className}`}>
+      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
+function CollapsibleSection({ title, children, defaultOpen = false, icon: Icon, count, variant }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const variants = { critical: { header: 'bg-red-50 hover:bg-red-100', badge: 'bg-red-600 text-white', icon: 'text-red-600' }, recommended: { header: 'bg-amber-50 hover:bg-amber-100', badge: 'bg-amber-600 text-white', icon: 'text-amber-600' }, default: { header: 'bg-gray-50 hover:bg-gray-100', badge: 'bg-gray-900 text-white', icon: 'text-gray-900' } };
+  const s = variants[variant] || variants.default;
+  return (
+    <div className="border border-gray-200 rounded-xl mb-3 overflow-hidden">
+      <button onClick={() => setIsOpen(!isOpen)} className={`w-full px-5 py-4 ${s.header} flex items-center justify-between transition-colors`}>
+        <div className="flex items-center gap-3">{isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}{Icon && <Icon className={`w-5 h-5 ${s.icon}`} />}<span className="font-semibold text-gray-900">{title}</span>{count !== undefined && <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${s.badge}`}>{count}</span>}</div>
+      </button>
+      {isOpen && <div className="p-5 bg-white border-t border-gray-100">{children}</div>}
+    </div>
+  );
+}
+
+
+// ============================================================================
+// AUTH: LOGIN VIEW
+// ============================================================================
+function LoginView({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showRequest, setShowRequest] = useState(false);
+  const [reqName, setReqName] = useState('');
+  const [reqEmail, setReqEmail] = useState('');
+  const [reqPractice, setReqPractice] = useState('');
+  const [reqNote, setReqNote] = useState('');
+  const [reqSent, setReqSent] = useState(false);
+  const [reqLoading, setReqLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setMessage('');
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) return setError('Please enter your email and password.');
+    setLoading(true); setError('');
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase().trim(),
+        password,
+      });
+      if (authError) return setError('Invalid email or password. Please try again.');
 
-    if (isLogin) {
-      const { data, error } = await signIn(email, password);
-      if (error) {
-        setError(error.message);
-      } else if (data.user) {
-        const { data: profile } = await getProfile(data.user.id);
-        if (profile && !profile.is_approved) {
-          setError('Your account is pending approval. Please contact an administrator.');
-          await signOut();
-        } else {
-          onAuthSuccess(data.user, profile);
-        }
+      // Fetch profile for role/name
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError || !profile) return setError('Account not set up correctly. Contact your admin.');
+      if (profile.active === false) {
+        await supabase.auth.signOut();
+        return setError('Your account is pending activation. An admin will review your request shortly.');
       }
-    } else {
-      const { data, error } = await signUp(email, password, fullName);
-      if (error) {
-        setError(error.message);
-      } else {
-        setMessage('Account created! Please wait for an administrator to approve your access.');
-        setIsLogin(true);
-      }
+
+      onLogin({ ...profile, id: data.user.id });
+    } catch (e) {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  const handleRequestAccess = async () => {
+    if (!reqName.trim() || !reqEmail.trim()) return;
+    setReqLoading(true);
+    try {
+      // Store access request in a pending_requests table (or profiles with active=false)
+      // We create an auth user with a random password and mark profile as inactive/pending
+      const tempPassword = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2).toUpperCase() + '!1';
+      const { data, error } = await supabase.functions.invoke('admin-users', {
+        body: {
+          action: 'create',
+          name: reqName.trim(),
+          email: reqEmail.trim().toLowerCase(),
+          password: tempPassword,
+          role: 'growth',
+          active: false,
+          requestNote: reqNote.trim(),
+          practice: reqPractice,
+          isPendingRequest: true,
+        },
+      });
+      if (error || data?.error) {
+        setError(data?.error || error?.message || 'Could not submit request. Contact an admin directly.');
+      } else {
+        setReqSent(true);
+      }
+    } catch (e) {
+      setError('Could not submit request. Please email an admin directly.');
+    } finally {
+      setReqLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#E8E6E1] flex items-center justify-center p-4 md:p-8">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
-            <div className="h-6 w-px bg-[#1A1A1A]" />
-            <span className="text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#E8E6E1' }}>
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-10">
+            <AntennaLogo className="h-10 mx-auto mb-8" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">SOW Workbench</h1>
+            <p className="text-gray-500 text-sm">Sign in to access your pipeline</p>
           </div>
-          <p className="text-[#666666]">{isLogin ? 'Sign in to access the assessment tool' : 'Create an account to get started'}</p>
+
+          {!showRequest ? (
+            <>
+              <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">Email</label>
+                    <input
+                      type="email" value={email} onChange={e => setEmail(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                      placeholder="you@antennagroup.com" autoFocus
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none text-gray-900 placeholder:text-gray-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                        placeholder="••••••••"
+                        className="w-full px-4 py-3 pr-12 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none text-gray-900 placeholder:text-gray-400"
+                      />
+                      <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                        {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-600 text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
+                  </div>
+                )}
+
+                <AntennaButton onClick={handleLogin} loading={loading} loadingText="Signing in..." className="w-full" size="default">
+                  Sign In
+                </AntennaButton>
+              </div>
+
+              <p className="text-center text-sm text-gray-500 mt-6">
+                Don't have access?{' '}
+                <button onClick={() => setShowRequest(true)} className="font-semibold text-[#12161E] hover:underline">
+                  Request credentials
+                </button>
+              </p>
+            </>
+          ) : reqSent ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center shadow-sm">
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Request sent!</h3>
+              <p className="text-sm text-gray-500 mb-6">An admin will review your request and activate your account. You'll be able to sign in once approved.</p>
+              <button onClick={() => { setShowRequest(false); setReqSent(false); setReqName(''); setReqEmail(''); setReqNote(''); setReqPractice(''); }} className="text-sm font-semibold text-[#12161E] hover:underline">Back to Sign In</button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900">Request Access</h3>
+                <button onClick={() => setShowRequest(false)} className="text-gray-400 hover:text-gray-700"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Full Name *</label>
+                  <input value={reqName} onChange={e => setReqName(e.target.value)} placeholder="Your name"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Work Email *</label>
+                  <input type="email" value={reqEmail} onChange={e => setReqEmail(e.target.value)} placeholder="you@antennagroup.com"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Practice</label>
+                  <select value={reqPractice} onChange={e => setReqPractice(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900">
+                    <option value="">Select practice...</option>
+                    {PRACTICES.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Note (optional)</label>
+                  <input value={reqNote} onChange={e => setReqNote(e.target.value)} placeholder="Why you need access..."
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900" />
+                </div>
+              </div>
+              {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>}
+              <AntennaButton onClick={handleRequestAccess} loading={reqLoading} loadingText="Sending..." disabled={!reqName.trim() || !reqEmail.trim()} className="w-full">
+                Submit Request
+              </AntennaButton>
+              <p className="text-center text-xs text-gray-400 mt-4">An admin will review and activate your account.</p>
+            </div>
+          )}
         </div>
-        
-        <form onSubmit={handleSubmit} className="card p-6">
-          {!isLogin && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Full Name</label>
-              <input 
-                type="text" 
-                value={fullName} 
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Your name"
-                className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
-                required={!isLogin}
-              />
-            </div>
-          )}
-          
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Email</label>
-            <input 
-              type="email" 
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
-              required
-            />
-          </div>
-          
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Password</label>
-            <input 
-              type="password" 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={isLogin ? "Enter password" : "Create password (min 6 chars)"}
-              className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
-              required
-              minLength={6}
-            />
-          </div>
-          
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
-            </div>
-          )}
-          
-          {message && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-              {message}
-            </div>
-          )}
-          
-          <button type="submit" disabled={loading} className="btn-primary btn-arrow w-full">
-            {loading ? (
-              <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> {isLogin ? 'Signing in...' : 'Creating account...'}</>
-            ) : (
-              isLogin ? 'Sign In' : 'Create Account'
-            )}
-          </button>
-          
-          <div className="mt-4 text-center">
-            <button 
-              type="button"
-              onClick={() => { setIsLogin(!isLogin); setError(''); setMessage(''); }}
-              className="text-sm text-[#E53935] hover:underline"
-            >
-              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-            </button>
-          </div>
-        </form>
-        
-        <p className="text-center text-xs text-[#9CA3AF] mt-6">
-          Antenna Group | Brand Consciousness Assessment
-        </p>
       </div>
     </div>
   );
 }
 
-// Admin User Management Page
-function AdminPage({ currentUser, onBack }) {
+// ============================================================================
+// AUTH: USER MENU (header dropdown)
+// ============================================================================
+function UserMenu({ currentUser, onLogout, onOpenAdmin }) {
+  const [open, setOpen] = useState(false);
+  const roleInfo = USER_ROLES[currentUser.role] || USER_ROLES.growth;
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/60 hover:bg-white border border-gray-200 transition-all"
+      >
+        <div className="w-7 h-7 rounded-full bg-[#12161E] flex items-center justify-center flex-shrink-0">
+          <User className="w-3.5 h-3.5 text-white" />
+        </div>
+        <div className="hidden sm:block text-left">
+          <p className="text-xs font-semibold text-gray-900 leading-none">{currentUser.name}</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">{roleInfo.label}</p>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <p className="font-semibold text-gray-900 text-sm">{currentUser.name}</p>
+              <p className="text-xs text-gray-500">{currentUser.email}</p>
+              <span className={`mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${roleInfo.color}`}>{roleInfo.label}</span>
+            </div>
+            {currentUser.role === 'admin' && (
+              <button
+                onClick={() => { setOpen(false); onOpenAdmin(); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Shield className="w-4 h-4 text-gray-500" />Admin Panel
+              </button>
+            )}
+            <button
+              onClick={() => { setOpen(false); onLogout(); }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-gray-100"
+            >
+              <LogOut className="w-4 h-4" />Sign Out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// ADMIN PANEL
+// ============================================================================
+function AdminView({ currentUser, onClose }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'growth' });
+  const [editingId, setEditingId] = useState(null);
+  const [editUser, setEditUser] = useState({});
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [adminTab, setAdminTab] = useState('users');
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  useEffect(() => { loadUsers(); }, []);
 
   const loadUsers = async () => {
     setLoading(true);
-    const { data } = await fetchAllProfiles();
-    if (data) {
-      try {
-        const res = await fetch('/api/list-users');
-        const json = await res.json();
-        if (json.error) console.error('list-users error:', json.error);
-        const loginMap = json.loginMap || {};
-        setUsers(data.map(u => ({ ...u, last_login: loginMap[u.id] || null })));
-      } catch (e) {
-        console.error('list-users fetch failed:', e);
-        setUsers(data);
-      }
-    }
+    const { data, error } = await supabase.from('profiles').select('*').order('created_at');
+    if (!error && data) setUsers(data);
     setLoading(false);
   };
 
-  const handleApprove = async (userId) => {
-    await approveUser(userId);
-    loadUsers();
+  const activeUsers = users.filter(u => u.active !== false);
+  const pendingUsers = users.filter(u => u.active === false);
+
+  const handleActivate = async (user) => {
+    const tempPw = Math.random().toString(36).slice(2) + 'Aa1!';
+    setSaving(true);
+    try {
+      // Set a known temp password and activate
+      const { data, error } = await supabase.functions.invoke('admin-users', {
+        body: { action: 'update-password', userId: user.id, password: tempPw },
+      });
+      if (error || data?.error) return setError(data?.error || error?.message);
+      const { error: updateErr } = await supabase.from('profiles')
+        .update({ active: true })
+        .eq('id', user.id);
+      if (updateErr) return setError(updateErr.message);
+      await loadUsers();
+      alert(`Activated! Temp password: ${tempPw}\nShare with ${user.name} (${user.email})`);
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
-  const handleRevoke = async (userId) => {
-    if (confirm('Revoke access for this user?')) {
-      await revokeUser(userId);
-      loadUsers();
-    }
+  const handleCreate = async () => {
+    setError('');
+    const { name, email, password, role } = newUser;
+    if (!name.trim() || !email.trim() || !password.trim()) return setError('Name, email and password are required.');
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-users', {
+        body: { action: 'create', name: name.trim(), email: email.trim(), password, role },
+      });
+      if (error || data?.error) return setError(data?.error || error.message);
+      await loadUsers();
+      setNewUser({ name: '', email: '', password: '', role: 'growth' });
+      setShowCreate(false);
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
-  const handleDelete = async (userId, userName) => {
-    if (confirm(`Permanently delete "${userName || 'this user'}"? This cannot be undone.`)) {
-      // Optimistically remove from UI immediately
-      setUsers(prev => prev.filter(u => u.id !== userId));
-      const { error } = await deleteUser(userId);
-      if (error) {
-        alert(`Delete failed: ${error}`);
-        loadUsers(); // Re-fetch to restore accurate state
+  const handleSaveEdit = async (id) => {
+    setError('');
+    const { name, email, role, active, newPassword } = editUser;
+    if (!name?.trim() || !email?.trim()) return setError('Name and email are required.');
+    setSaving(true);
+    try {
+      const { error: profileErr } = await supabase.from('profiles')
+        .update({ name: name.trim(), email: email.toLowerCase().trim(), role, active })
+        .eq('id', id);
+      if (profileErr) return setError(profileErr.message);
+      if (newPassword?.trim()) {
+        const { data, error: pwErr } = await supabase.functions.invoke('admin-users', {
+          body: { action: 'update-password', userId: id, password: newPassword.trim() },
+        });
+        if (pwErr || data?.error) return setError(data?.error || pwErr.message);
       }
-    }
+      await loadUsers();
+      setEditingId(null);
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
-  const handleToggleAdmin = async (userId, isCurrentlyAdmin) => {
-    if (userId === currentUser.id) {
-      alert("You can't change your own admin status");
-      return;
-    }
-    if (isCurrentlyAdmin) {
-      await removeAdmin(userId);
-    } else {
-      await makeAdmin(userId);
-    }
-    loadUsers();
+  const handleToggleActive = async (user) => {
+    if (user.id === currentUser.id) return;
+    const { error } = await supabase.from('profiles').update({ active: !user.active }).eq('id', user.id);
+    if (!error) setUsers(prev => prev.map(u => u.id === user.id ? { ...u, active: !u.active } : u));
   };
 
-  const handleToggleReadonly = async (userId, isCurrentlyReadonly) => {
-    if (userId === currentUser.id) {
-      alert("You can't change your own access level");
-      return;
-    }
-    await setReadonly(userId, !isCurrentlyReadonly);
-    loadUsers();
+  const handleDelete = async (id) => {
+    if (id === currentUser.id) return;
+    if (!window.confirm('Permanently delete this user? This cannot be undone.')) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-users', {
+        body: { action: 'delete', userId: id },
+      });
+      if (error || data?.error) return setError(data?.error || error.message);
+      setUsers(prev => prev.filter(u => u.id !== id));
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
-  const formatDate = (ts) => {
-    if (!ts) return null;
-    const d = new Date(ts);
-    const now = new Date();
-    const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
+  const roleOptions = Object.entries(USER_ROLES).map(([value, info]) => ({ value, label: info.label, description: info.description }));
 
   return (
-    <div className="min-h-screen bg-[#F5F4F0]">
-      <div className="max-w-3xl mx-auto p-4 md:p-8">
-        <div className="flex items-center gap-4 mb-8">
-          <button onClick={onBack} className="btn-secondary flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-[#1A1A1A]">User Management</h1>
-            <p className="text-sm text-[#666666]">Approve users and manage access</p>
+    <div className="fixed inset-0 z-50 flex" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <div className="absolute inset-4 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-w-5xl mx-auto w-full">
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-5 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-[#12161E] rounded-xl flex items-center justify-center">
+              <Shield className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Admin Panel</h2>
+              <p className="text-xs text-gray-500">Manage users and access</p>
+            </div>
           </div>
+          <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
-        {loading ? (
-          <div className="card p-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#E53935]" />
-            <p className="mt-4 text-[#666666]">Loading users...</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 bg-gray-50 px-8">
+          {[
+            { id: 'users', label: 'Active Users', count: activeUsers.length },
+            { id: 'pending', label: 'Pending Requests', count: pendingUsers.length, highlight: pendingUsers.length > 0 },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setAdminTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all -mb-px ${adminTab === tab.id ? 'border-[#12161E] text-[#12161E]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              {tab.label}
+              {tab.count > 0 && (
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${tab.highlight ? 'bg-amber-400 text-amber-900' : 'bg-gray-200 text-gray-600'}`}>{tab.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
 
-            {/* Pending Users */}
-            {users.filter(u => !u.is_approved).length > 0 && (
-              <div>
-                <h2 className="text-sm font-semibold text-[#666666] uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-yellow-600" />
-                  Pending Approval ({users.filter(u => !u.is_approved).length})
-                </h2>
+        <div className="flex-1 overflow-y-auto px-8 py-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>
+          ) : adminTab === 'pending' ? (
+            <>
+              <p className="text-sm text-gray-500 mb-6">These users have requested access and are waiting for activation. Review their details and activate or delete.</p>
+              {pendingUsers.length === 0 ? (
+                <div className="text-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                  <CheckCircle className="w-10 h-10 text-green-300 mx-auto mb-3" />
+                  <p className="text-gray-400 font-medium">No pending requests</p>
+                </div>
+              ) : (
                 <div className="space-y-3">
-                  {users.filter(u => !u.is_approved).map(user => (
-                    <div key={user.id} className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center text-white font-semibold flex-shrink-0">
-                          {(user.full_name || user.email || '?')[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-[#1A1A1A]">{user.full_name || 'No name'}</div>
-                          <div className="text-sm text-[#666666]">{user.email}</div>
-                          <div className="text-xs text-[#9CA3AF] mt-0.5">Signed up {formatDate(user.created_at)}</div>
-                        </div>
+                  {pendingUsers.map(user => (
+                    <div key={user.id} className="flex items-center justify-between p-5 bg-amber-50 border border-amber-200 rounded-2xl">
+                      <div>
+                        <p className="font-bold text-gray-900">{user.name}</p>
+                        <p className="text-sm text-gray-500">{user.email}</p>
+                        {user.practice && <span className="text-xs px-2 py-0.5 bg-white border border-amber-300 rounded-full text-amber-700 font-medium mt-1 inline-block">{user.practice}</span>}
+                        {user.requestNote && <p className="text-xs text-gray-400 mt-1 italic">"{user.requestNote}"</p>}
+                        <p className="text-xs text-gray-400 mt-1">Requested {new Date(user.created_at).toLocaleDateString()}</p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={async () => { await approveUser(user.id); await setReadonly(user.id, true); loadUsers(); }}
-                          className="btn-secondary text-sm px-4 py-2">
-                          Approve (Read-only)
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button onClick={() => handleActivate(user)} disabled={saving}
+                          className="px-4 py-2 bg-[#12161E] text-white rounded-xl text-sm font-bold hover:bg-gray-800 disabled:opacity-50 transition-colors flex items-center gap-1.5">
+                          <CheckCircle className="w-3.5 h-3.5" />Activate
                         </button>
-                        <button onClick={() => handleApprove(user.id)} className="btn-primary text-sm px-4 py-2">
-                          Approve (Full Access)
-                        </button>
-                        <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                          className="text-sm px-3 py-2 rounded border border-red-300 text-red-600 hover:bg-red-50 transition-colors ml-auto">
-                          <Trash2 className="w-4 h-4 inline mr-1" />Delete
+                        <button onClick={() => handleDelete(user.id)} disabled={saving}
+                          className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 disabled:opacity-50 transition-colors">
+                          Decline
                         </button>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Active Users */}
-            <div>
-              <h2 className="text-sm font-semibold text-[#666666] uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#059669]" />
-                Active Users ({users.filter(u => u.is_approved).length})
-              </h2>
-              <div className="space-y-3">
-                {users.filter(u => u.is_approved).map(user => {
-                  const isSelf = user.id === currentUser.id;
-                  const roleColor = user.is_admin ? 'bg-[#E53935]' : user.is_readonly ? 'bg-[#9CA3AF]' : 'bg-[#059669]';
-                  const roleLabel = user.is_admin ? 'Admin' : user.is_readonly ? 'Read-only' : 'Full Access';
+              )}
+            </>
+          ) : (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-4 gap-4 mb-8">
+                {Object.entries(USER_ROLES).map(([role, info]) => {
+                  const count = users.filter(u => u.role === role && u.active !== false).length;
                   return (
-                    <div key={user.id} className="bg-white border border-[#E8E6E1] rounded-xl p-5">
-                      {/* User info row */}
-                      <div className="flex items-start gap-3 mb-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 ${roleColor}`}>
-                          {(user.full_name || user.email || '?')[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-[#1A1A1A]">{user.full_name || 'No name'}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full text-white ${roleColor}`}>{roleLabel}</span>
-                            {isSelf && <span className="text-xs text-[#9CA3AF]">(you)</span>}
-                          </div>
-                          <div className="text-sm text-[#666666] mt-0.5 truncate">{user.email}</div>
-                          <div className="flex gap-3 mt-1">
-                            <span className="text-xs text-[#9CA3AF]">
-                              Joined {formatDate(user.created_at)}
-                            </span>
-                            {user.last_login && (
-                              <span className="text-xs text-[#9CA3AF]">
-                                · Last login {formatDate(user.last_login)}
-                              </span>
-                            )}
-                            {!user.last_login && (
-                              <span className="text-xs text-[#C4C1BB]">· Never logged in</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {/* Actions row */}
-                      {!isSelf && (
-                        <div className="flex flex-wrap gap-2 pt-3 border-t border-[#F0EEEA]">
-                          {!user.is_admin && (
-                            <button onClick={() => handleToggleReadonly(user.id, user.is_readonly)}
-                              className={`text-sm px-3 py-1.5 rounded border transition-colors ${
-                                user.is_readonly
-                                  ? 'border-[#059669] text-[#059669] hover:bg-[#059669]/10'
-                                  : 'border-[#9CA3AF] text-[#9CA3AF] hover:bg-[#9CA3AF]/10'
-                              }`}>
-                              {user.is_readonly ? 'Grant Full Access' : 'Set Read-only'}
-                            </button>
-                          )}
-                          <button onClick={() => handleToggleAdmin(user.id, user.is_admin)}
-                            className={`text-sm px-3 py-1.5 rounded border transition-colors ${
-                              user.is_admin
-                                ? 'border-[#E53935] text-[#E53935] hover:bg-[#E53935]/10'
-                                : 'border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
-                            }`}>
-                            <Shield className="w-3.5 h-3.5 inline mr-1" />
-                            {user.is_admin ? 'Remove Admin' : 'Make Admin'}
-                          </button>
-                          <div className="flex gap-2 ml-auto">
-                            <button onClick={() => handleRevoke(user.id)}
-                              className="text-sm px-3 py-1.5 rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
-                              <UserX className="w-3.5 h-3.5 inline mr-1" />Revoke
-                            </button>
-                            <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                              className="text-sm px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-50 transition-colors">
-                              <Trash2 className="w-3.5 h-3.5 inline mr-1" />Delete
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                    <div key={role} className="bg-white border border-gray-200 rounded-xl p-4 text-center">
+                      <p className="text-2xl font-bold text-gray-900">{count}</p>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border mt-1 ${info.color}`}>{info.label}</span>
                     </div>
                   );
                 })}
               </div>
-            </div>
 
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const INDUSTRIES = [
-  { id: 'technology', name: 'Technology & Software' },
-  { id: 'healthcare', name: 'Healthcare & Life Sciences' },
-  { id: 'finance', name: 'Financial Services' },
-  { id: 'energy', name: 'Energy & Utilities' },
-  { id: 'manufacturing', name: 'Manufacturing & Industrial' },
-  { id: 'retail', name: 'Retail & Consumer Goods' },
-  { id: 'media', name: 'Media & Entertainment' },
-  { id: 'telecom', name: 'Telecommunications' },
-  { id: 'professional', name: 'Professional Services' },
-  { id: 'realestate', name: 'Real Estate & Construction' },
-  { id: 'mobility', name: 'Mobility & Automotive' },
-  { id: 'transportation', name: 'Transportation & Logistics' },
-  { id: 'hospitality', name: 'Hospitality & Travel' },
-  { id: 'education', name: 'Education' },
-  { id: 'nonprofit', name: 'Nonprofit & Government' },
-  { id: 'other', name: 'Other' },
-];
-
-// Compress image to max size for Claude API (5MB limit, we target 4MB)
-function compressImage(dataUrl, maxSizeMB = 3.5) {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        
-        // More aggressive initial scaling - 1400px max dimension
-        const maxDimension = 1400;
-        if (width > maxDimension || height > maxDimension) {
-          const scale = maxDimension / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Start with moderate quality
-        let quality = 0.75;
-        let result = canvas.toDataURL('image/jpeg', quality);
-        const maxBytes = maxSizeMB * 1024 * 1024;
-        
-        // Reduce quality if still too big
-        while (result.length * 0.75 > maxBytes && quality > 0.3) {
-          quality -= 0.1;
-          result = canvas.toDataURL('image/jpeg', quality);
-        }
-        
-        // If still too big, progressively reduce dimensions
-        let dimensionScale = 0.8;
-        while (result.length * 0.75 > maxBytes && dimensionScale > 0.3) {
-          canvas.width = Math.round(width * dimensionScale);
-          canvas.height = Math.round(height * dimensionScale);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          result = canvas.toDataURL('image/jpeg', 0.6);
-          dimensionScale -= 0.1;
-        }
-        
-        // Final safety - if somehow still too big, go very small
-        if (result.length * 0.75 > maxBytes) {
-          canvas.width = Math.round(width * 0.25);
-          canvas.height = Math.round(height * 0.25);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          result = canvas.toDataURL('image/jpeg', 0.5);
-        }
-        
-        resolve(result);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    
-    img.onerror = () => {
-      reject(new Error('Failed to load image'));
-    };
-    
-    img.src = dataUrl;
-  });
-}
-
-async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0, isJson = false, maxTokens = 6000) {
-  // Add standard instructions for consistency
-  const enhancedPrompt = `${prompt}
-
-IMPORTANT FORMATTING RULES:
-- Base all assessments on specific, observable evidence. Cite concrete examples.
-- Be consistent and repeatable in your analysis approach.
-- Do NOT use em-dashes (—) anywhere in your response. Use commas, semicolons, colons, or separate sentences instead.
-- Do NOT use en-dashes (–) for ranges. Use "to" instead (e.g., "50 to 60" not "50–60").`;
-
-  const content = [];
-  
-  // Add primary image if provided
-  if (primaryImage) {
-    const matches = primaryImage.match(/^data:([^;]+);base64,(.+)$/);
-    if (matches) {
-      content.push({
-        type: 'image',
-        source: { type: 'base64', media_type: matches[1], data: matches[2] }
-      });
-    }
-  }
-  
-  // Add additional images
-  if (additionalImages && additionalImages.length > 0) {
-    for (const img of additionalImages) {
-      const matches = img.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches) {
-        content.push({
-          type: 'image',
-          source: { type: 'base64', media_type: matches[1], data: matches[2] }
-        });
-      }
-    }
-  }
-  
-  content.push({ type: 'text', text: enhancedPrompt });
-  
-  // Use serverless function (secure) or direct API call (local dev with client key)
-  const useProxy = !apiKey || apiKey === 'PROXY';
-  
-  let result;
-  
-  if (useProxy) {
-    // Production: Use Vercel serverless function (API key stored server-side)
-    const response = await fetch('/api/claude', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: maxTokens,
-        temperature: 0,
-        messages: [{ role: 'user', content }]
-      })
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || `API error: ${response.status}`);
-    }
-    const data = await response.json();
-    const stopReason = data.stop_reason;
-    result = data.content[0].text;
-    if (isJson && stopReason === 'max_tokens') {
-      throw new Error('Response was cut short — increase max tokens or reduce prompt size.');
-    }
-  } else {
-    // Local development: Direct API call with client-provided key
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: maxTokens,
-        temperature: 0,
-        messages: [{ role: 'user', content }]
-      })
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error?.message || `API error: ${response.status}`);
-    }
-    const data = await response.json();
-    const stopReason = data.stop_reason;
-    result = data.content[0].text;
-    if (isJson && stopReason === 'max_tokens') {
-      throw new Error('Response was cut short — increase max tokens or reduce prompt size.');
-    }
-  }
-  
-  // Post-process to remove em/en-dashes — skip for JSON responses to avoid corruption
-  if (!isJson) {
-    result = result.replace(/—/g, ', ').replace(/–/g, ' to ');
-  }
-  
-  return result;
-}
-
-// Spider Chart Component
-function SpiderChart({ scores, size = 400, animate = true }) {
-  const [animatedScores, setAnimatedScores] = useState({});
-  const [animationProgress, setAnimationProgress] = useState(0);
-  
-  const padding = 70; // Padding for labels
-  const viewBoxSize = size + padding * 2;
-  const center = viewBoxSize / 2;
-  const radius = size * 0.40; // Larger radius for bigger chart
-  const attrs = ATTRIBUTES;
-  const angleStep = (2 * Math.PI) / attrs.length;
-  
-  // Animation effect
-  useEffect(() => {
-    if (!animate || !scores) {
-      setAnimatedScores(scores || {});
-      setAnimationProgress(1);
-      return;
-    }
-    
-    const duration = 3000; // 3 seconds
-    const startTime = Date.now();
-    
-    const animationFrame = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      
-      // Ease-out cubic for smooth deceleration
-      const eased = 1 - Math.pow(1 - progress, 3);
-      
-      setAnimationProgress(eased);
-      
-      // Interpolate each score
-      const interpolated = {};
-      attrs.forEach(attr => {
-        const targetScore = scores[attr.id]?.score || 0;
-        interpolated[attr.id] = {
-          ...scores[attr.id],
-          score: Math.round(targetScore * eased)
-        };
-      });
-      setAnimatedScores(interpolated);
-      
-      if (progress < 1) {
-        requestAnimationFrame(animationFrame);
-      }
-    };
-    
-    requestAnimationFrame(animationFrame);
-  }, [scores, animate]);
-  
-  // Use animated scores for rendering
-  const displayScores = animate ? animatedScores : scores;
-  
-  // Calculate overall score
-  const overall = displayScores ? Math.round(
-    Object.entries(displayScores)
-      .filter(([key, val]) => val && typeof val.score === 'number')
-      .reduce((a, [, v]) => a + v.score, 0) / 8
-  ) : 0;
-  
-  const getPoint = (index, value) => {
-    const angle = angleStep * index - Math.PI / 2;
-    const r = (value / 100) * radius;
-    return {
-      x: center + r * Math.cos(angle),
-      y: center + r * Math.sin(angle)
-    };
-  };
-
-  const gridLevels = [20, 40, 60, 80, 100];
-  
-  const dataPoints = attrs.map((attr, i) => getPoint(i, displayScores[attr.id]?.score || 0));
-  const pathD = dataPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-
-  return (
-    <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} className="spider-chart mx-auto" style={{ overflow: 'visible', width: '100%', maxWidth: size, height: 'auto' }}>
-      {/* Grid circles */}
-      {gridLevels.map(level => {
-        const r = (level / 100) * radius;
-        return (
-          <circle key={level} cx={center} cy={center} r={r} fill="none" stroke="#D9D6D0" strokeWidth="1" />
-        );
-      })}
-      
-      {/* Axis lines */}
-      {attrs.map((_, i) => {
-        const angle = angleStep * i - Math.PI / 2;
-        const x2 = center + radius * Math.cos(angle);
-        const y2 = center + radius * Math.sin(angle);
-        return <line key={i} x1={center} y1={center} x2={x2} y2={y2} stroke="#D9D6D0" strokeWidth="1" />;
-      })}
-      
-      {/* Data polygon */}
-      <path d={pathD} fill="rgba(158, 157, 36, 0.35)" stroke="#9E9D24" strokeWidth="2.5" />
-      
-      {/* Data points */}
-      {dataPoints.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="6" fill="#9E9D24" stroke="white" strokeWidth="2" />
-      ))}
-      
-      {/* Center score circle */}
-      <circle cx={center} cy={center} r="45" fill="#9E9D24" />
-      <text x={center} y={center + 2} textAnchor="middle" dominantBaseline="middle" 
-            className="font-bold fill-white" style={{ fontSize: '32px' }}>
-        {overall}
-      </text>
-      
-      {/* Labels */}
-      {attrs.map((attr, i) => {
-        const angle = angleStep * i - Math.PI / 2;
-        const labelRadius = radius + 35;
-        const x = center + labelRadius * Math.cos(angle);
-        const y = center + labelRadius * Math.sin(angle);
-        return (
-          <text key={attr.id} x={x} y={y} textAnchor="middle" dominantBaseline="middle" 
-                className="text-xs font-medium fill-[#1A1A1A]">
-            {attr.name}
-          </text>
-        );
-      })}
-      
-      {/* Score labels */}
-      {attrs.map((attr, i) => {
-        const point = dataPoints[i];
-        return (
-          <text key={`score-${attr.id}`} x={point.x} y={point.y - 14} textAnchor="middle" 
-                className="text-xs font-bold fill-[#9E9D24]">
-            {displayScores[attr.id]?.score || 0}
-          </text>
-        );
-      })}
-    </svg>
-  );
-}
-
-// Mini Spider Chart — used in Results expanded rows (no labels, no animation)
-function MiniSpiderChart({ scores, size = 120 }) {
-  const padding = 16;
-  const viewBoxSize = size + padding * 2;
-  const center = viewBoxSize / 2;
-  const radius = size * 0.38;
-  const attrs = ATTRIBUTES;
-  const angleStep = (2 * Math.PI) / attrs.length;
-
-  const getPoint = (index, value) => {
-    const angle = angleStep * index - Math.PI / 2;
-    const r = (value / 100) * radius;
-    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
-  };
-
-  const gridLevels = [33, 67, 100];
-  const dataPoints = attrs.map((attr, i) => getPoint(i, scores?.[attr.id] || 0));
-  const pathD = dataPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-
-  return (
-    <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} style={{ width: size, height: size, overflow: 'visible' }}>
-      {gridLevels.map(level => {
-        const pts = attrs.map((_, i) => {
-          const angle = angleStep * i - Math.PI / 2;
-          const r = (level / 100) * radius;
-          return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
-        });
-        return <polygon key={level} points={pts.join(' ')} fill="none" stroke="#D9D6D0" strokeWidth="0.5" />;
-      })}
-      {attrs.map((_, i) => {
-        const angle = angleStep * i - Math.PI / 2;
-        return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#D9D6D0" strokeWidth="0.5" />;
-      })}
-      <path d={pathD} fill="rgba(158, 157, 36, 0.35)" stroke="#9E9D24" strokeWidth="1.5" />
-      {dataPoints.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="#9E9D24" />
-      ))}
-    </svg>
-  );
-}
-
-// Comparison Spider Chart — multi-brand overlapping radar, max 4 brands
-const COMPARISON_COLORS = ['#E53935', '#1976D2', '#F57C00', '#388E3C'];
-
-function ComparisonSpiderChart({ brands, size = 320, industryAvg = null }) {
-  const padding = 55;
-  const viewBoxSize = size + padding * 2;
-  const center = viewBoxSize / 2;
-  const radius = size * 0.40;
-  const attrs = ATTRIBUTES;
-  const angleStep = (2 * Math.PI) / attrs.length;
-
-  const getPoint = (index, value) => {
-    const angle = angleStep * index - Math.PI / 2;
-    const r = (value / 100) * radius;
-    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
-  };
-
-  const gridLevels = [20, 40, 60, 80, 100];
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} style={{ width: '100%', maxWidth: size + 'px', overflow: 'visible' }} className="mx-auto">
-        {/* Grid polygons */}
-        {gridLevels.map(level => {
-          const pts = attrs.map((_, i) => {
-            const angle = angleStep * i - Math.PI / 2;
-            const r = (level / 100) * radius;
-            return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
-          });
-          return <polygon key={level} points={pts.join(' ')} fill="none" stroke={level === 100 ? '#C0BDB8' : '#D9D6D0'} strokeWidth={level === 100 ? 1.5 : 1} />;
-        })}
-        {/* Grid value labels */}
-        {[20, 40, 60, 80].map(level => (
-          <text key={`lbl-${level}`} x={center} y={center - (level / 100) * radius - 4} textAnchor="middle" style={{ fontSize: '8px', fill: '#9CA3AF' }}>{level}</text>
-        ))}
-        {/* Axis lines */}
-        {attrs.map((_, i) => {
-          const angle = angleStep * i - Math.PI / 2;
-          return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#D9D6D0" strokeWidth="1" />;
-        })}
-        {/* Industry average overlay (dashed) */}
-        {industryAvg && (() => {
-          const pts = attrs.map((attr, i) => getPoint(i, industryAvg[attr.id] || 0));
-          const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-          return <path d={d} fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeDasharray="4 3" />;
-        })()}
-        {/* Brand polygons */}
-        {brands.map((brand, bi) => {
-          const color = COMPARISON_COLORS[bi % COMPARISON_COLORS.length];
-          const pts = attrs.map((attr, i) => getPoint(i, brand.scores?.[attr.id] || 0));
-          const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-          return <path key={brand.id || bi} d={d} fill={color + '25'} stroke={color} strokeWidth="2" />;
-        })}
-        {/* Attribute labels */}
-        {attrs.map((attr, i) => {
-          const angle = angleStep * i - Math.PI / 2;
-          const labelR = radius + 30;
-          const x = center + labelR * Math.cos(angle);
-          const y = center + labelR * Math.sin(angle);
-          return (
-            <text key={attr.id} x={x} y={y} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '11px', fontWeight: '600', fill: '#1A1A1A' }}>
-              {attr.name}
-            </text>
-          );
-        })}
-      </svg>
-      {/* Legend */}
-      <div className="flex flex-wrap justify-center gap-3 mt-3">
-        {brands.map((brand, bi) => (
-          <div key={brand.id || bi} className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COMPARISON_COLORS[bi % COMPARISON_COLORS.length] }} />
-            <span className="text-xs font-medium text-[#1A1A1A]">{brand.brandName}</span>
-            <span className="text-xs text-[#666666]">({brand.totalScore})</span>
-          </div>
-        ))}
-        {industryAvg && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-5 h-0.5 bg-[#9CA3AF] border-t border-dashed" style={{ borderTop: '2px dashed #9CA3AF' }} />
-            <span className="text-xs text-[#9CA3AF]">Industry avg</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Maturity Continuum Visual
-function MaturityContinuum({ score }) {
-  const stage = getMaturityStage(score);
-  const [isVisible, setIsVisible] = useState(false);
-  const [animatedScore, setAnimatedScore] = useState(0);
-  const containerRef = useRef(null);
-  
-  // Scroll-triggered animation
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isVisible) {
-          setIsVisible(true);
-        }
-      },
-      { threshold: 0.3 }
-    );
-    
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-    
-    return () => observer.disconnect();
-  }, [isVisible]);
-  
-  // Animate score counting up
-  useEffect(() => {
-    if (isVisible) {
-      const duration = 1500;
-      const steps = 60;
-      const increment = score / steps;
-      let current = 0;
-      
-      const timer = setInterval(() => {
-        current += increment;
-        if (current >= score) {
-          setAnimatedScore(score);
-          clearInterval(timer);
-        } else {
-          setAnimatedScore(Math.round(current));
-        }
-      }, duration / steps);
-      
-      return () => clearInterval(timer);
-    }
-  }, [isVisible, score]);
-  
-  const progressWidth = isVisible ? score : 0;
-  
-  return (
-    <div ref={containerRef} className="card p-6 overflow-hidden">
-      <h3 className="text-lg font-semibold text-[#1A1A1A] mb-6">Brand Consciousness Maturity</h3>
-      
-      {/* Progress Track */}
-      <div className="relative mb-4">
-        {/* Background track with stage colors */}
-        <div className="h-3 rounded-full overflow-hidden flex">
-          {MATURITY_STAGES.map(s => (
-            <div 
-              key={s.id} 
-              className="h-full"
-              style={{ 
-                width: `${s.max - s.min + 1}%`,
-                backgroundColor: s.color,
-                opacity: 0.25
-              }} 
-            />
-          ))}
-        </div>
-        
-        {/* Animated progress fill */}
-        <div 
-          className="absolute top-0 left-0 h-3 rounded-full transition-all ease-out"
-          style={{ 
-            width: `${progressWidth}%`,
-            background: `linear-gradient(90deg, ${MATURITY_STAGES.map(s => s.color).join(', ')})`,
-            backgroundSize: '100vw 100%',
-            transitionDuration: '1.5s'
-          }}
-        />
-        
-        {/* Score marker */}
-        <div 
-          className="absolute top-0 h-3 transition-all ease-out"
-          style={{ 
-            left: `${progressWidth}%`,
-            transitionDuration: '1.5s'
-          }}
-        >
-          <div 
-            className="absolute -top-1 -right-1 w-5 h-5 rounded-full border-3 border-white shadow-lg"
-            style={{ backgroundColor: stage.color }}
-          />
-        </div>
-      </div>
-      
-      {/* Score display */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="text-sm text-[#666666]">Progress</div>
-        <div className="flex items-baseline gap-1">
-          <span className="text-3xl font-bold" style={{ color: stage.color }}>{animatedScore}</span>
-          <span className="text-lg text-[#999999]">/100</span>
-        </div>
-      </div>
-      
-      {/* Stage milestones */}
-      <div className="relative mb-6">
-        <div className="flex justify-between">
-          {MATURITY_STAGES.map((s, i) => {
-            const isReached = score >= s.min;
-            const isCurrent = stage.id === s.id;
-            return (
-              <div 
-                key={s.id} 
-                className={`flex flex-col items-center transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
-                style={{ transitionDelay: `${i * 100 + 500}ms`, width: `${100/6}%` }}
-              >
-                <div 
-                  className={`w-4 h-4 rounded-full border-2 mb-2 transition-all duration-300 ${isReached ? 'scale-110' : 'scale-100'}`}
-                  style={{ 
-                    backgroundColor: isReached ? s.color : 'transparent',
-                    borderColor: s.color
-                  }}
-                />
-                <span className={`text-[10px] text-center leading-tight hidden sm:block ${isCurrent ? 'font-bold text-[#1A1A1A]' : 'text-[#666666]'}`}>
-                  {s.name}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      
-      {/* Current stage card */}
-      <div 
-        className={`rounded-xl p-5 text-center transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-        style={{ 
-          backgroundColor: `${stage.color}15`,
-          borderLeft: `4px solid ${stage.color}`,
-          transitionDelay: '800ms'
-        }}
-      >
-        <div className="text-xl font-bold mb-1" style={{ color: stage.color }}>{stage.name}</div>
-        <p className="text-sm text-[#333333] mb-3">{stage.description}</p>
-        
-        {/* Progress to next stage */}
-        {score < 100 && (
-          <div className="text-xs text-[#666666]">
-            <span className="font-medium" style={{ color: stage.color }}>{Math.min(100, MATURITY_STAGES.find(s => s.min > score)?.min || 100) - score} points</span> to next level
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Header
-function Header({ onNewAssessment, onSavedAssessments, onCompassResults, onComparison, onStayConscious, activePage, lastAutoSave, user, profile, onLogout, onAdmin }) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isReadonly = profile?.is_readonly && !profile?.is_admin;
-
-  const navBtnClass = (page) =>
-    `flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg transition-colors ${
-      activePage === page
-        ? 'bg-[#1A1A1A] text-white font-medium'
-        : 'text-[#333333] hover:text-[#1A1A1A] hover:bg-[#D9D6D0]'
-    }`;
-
-  const mobileNavBtnClass = (page) =>
-    `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-      activePage === page
-        ? 'bg-[#1A1A1A] text-white font-medium'
-        : 'text-[#333333] hover:bg-[#F0EEEA]'
-    }`;
-  
-  return (
-    <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-4 md:py-5 px-4 md:px-6">
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
-        <button onClick={onNewAssessment} className="flex items-center gap-2 md:gap-4 hover:opacity-75 transition-opacity">
-          <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
-          <div className="hidden lg:block h-6 w-px bg-[#1A1A1A]" />
-          <span className="hidden lg:block text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
-        </button>
-        
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-1">
-          <button onClick={onStayConscious} className={navBtnClass('stay-conscious')}>
-            <Sparkles className="w-4 h-4" /> Stay Conscious
-          </button>
-          <button onClick={onComparison} className={navBtnClass('compare')}>
-            <Users className="w-4 h-4" /> Compare
-          </button>
-          <button onClick={onCompassResults} className={navBtnClass('results')}>
-            <BarChart3 className="w-4 h-4" /> Results
-          </button>
-          <button onClick={onSavedAssessments} className={navBtnClass('saved')}>
-            <FileText className="w-4 h-4" /> Saved
-          </button>
-          {!isReadonly && (
-            <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#E53935] text-white hover:bg-[#C62828] px-4 py-1.5 rounded-lg transition-colors ml-1">
-              <Plus className="w-4 h-4" /> New
-            </button>
-          )}
-          
-          {/* User Menu */}
-          <div className="ml-2 pl-3 border-l border-[#D9D6D0] flex items-center gap-3">
-            {profile?.is_admin && (
-              <button onClick={onAdmin} className="flex items-center gap-1.5 text-sm text-[#E53935] hover:text-[#C62828] transition-colors font-medium">
-                <Shield className="w-4 h-4" /> Admin
-              </button>
-            )}
-            {isReadonly && (
-              <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only</span>
-            )}
-            <span className="text-xs text-[#666666] max-w-[120px] truncate" title={user?.email}>
-              {profile?.full_name || user?.email?.split('@')[0]}
-            </span>
-            <button onClick={onLogout} className="flex items-center gap-1 text-sm text-[#666666] hover:text-[#E53935] transition-colors" title="Sign out">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Menu Button */}
-        <button 
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 text-[#1A1A1A]"
-        >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
-        </button>
-      </div>
-
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden mt-4 pt-4 border-t border-[#D9D6D0] space-y-1">
-          {isReadonly && (
-            <div className="px-4 py-2">
-              <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only Access</span>
-            </div>
-          )}
-          <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
-            <Sparkles className="w-5 h-5" /> Stay Conscious
-          </button>
-          <button onClick={() => { onComparison(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('compare')}>
-            <Users className="w-5 h-5" /> Compare Brands
-          </button>
-          <button onClick={() => { onCompassResults(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('results')}>
-            <BarChart3 className="w-5 h-5" /> Results Grid
-          </button>
-          <button onClick={() => { onSavedAssessments(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('saved')}>
-            <FileText className="w-5 h-5" /> Saved Assessments
-          </button>
-          {!isReadonly && (
-            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#E53935] text-white rounded-lg transition-colors">
-              <Plus className="w-5 h-5" /> New Assessment
-            </button>
-          )}
-          
-          {/* Mobile User Controls */}
-          <div className="pt-2 mt-2 border-t border-[#D9D6D0]">
-            <div className="px-4 py-2 text-sm text-[#666666]">
-              Signed in as <span className="font-medium">{profile?.full_name || user?.email}</span>
-            </div>
-            {profile?.is_admin && (
-              <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#E53935] hover:bg-[#F0EEEA] rounded-lg transition-colors">
-                <Shield className="w-5 h-5" /> User Management
-              </button>
-            )}
-            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#666666] hover:bg-[#F0EEEA] rounded-lg transition-colors">
-              <LogOut className="w-5 h-5" /> Sign Out
-            </button>
-          </div>
-        </div>
-      )}
-    </header>
-  );
-}
-
-// Completion Indicator for Assessment Pages
-function CompletionIndicator({ items }) {
-  const completed = items.filter(i => i.done).length;
-  const total = items.length;
-  const percentage = Math.round((completed / total) * 100);
-  
-  return (
-    <div className="bg-white border border-[#E8E6E1] rounded-lg p-3 mb-6">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-[#666666] uppercase tracking-wide">Progress</span>
-        <span className="text-xs font-medium text-[#1A1A1A]">{completed}/{total} complete</span>
-      </div>
-      <div className="h-1.5 bg-[#E8E6E1] rounded-full overflow-hidden mb-3">
-        <div 
-          className="h-full bg-[#E53935] rounded-full transition-all duration-300"
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {items.map((item, i) => (
-          <span 
-            key={i}
-            className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${
-              item.done 
-                ? 'bg-[#E53935]/10 text-[#E53935]' 
-                : 'bg-[#F0EEEA] text-[#999999]'
-            }`}
-          >
-            {item.done ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-current" />}
-            {item.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Progress Steps
-function ProgressSteps({ currentStep, steps, assessments }) {
-  return (
-    <div className="bg-white border-b border-[#D9D6D0] py-3 md:py-4 px-4 md:px-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Desktop Progress */}
-        <div className="hidden md:flex items-center justify-center gap-2">
-          {steps.map((step, i) => (
-            <div key={step.id} className="flex items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
-                i < currentStep ? 'bg-[#E53935] text-white' : i === currentStep ? 'bg-[#E53935]/10 text-[#E53935] ring-2 ring-[#E53935]' : 'bg-[#F0EEEA] text-gray-400'
-              }`}>
-                {i < currentStep ? <Check className="w-4 h-4" /> : i + 1}
-              </div>
-              {i < steps.length - 1 && <div className={`w-8 h-0.5 mx-1 ${i < currentStep ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`} />}
-            </div>
-          ))}
-        </div>
-        
-        {/* Mobile Progress */}
-        <div className="md:hidden flex items-center justify-between">
-          <span className="text-sm font-medium text-[#1A1A1A]">
-            Step {currentStep} of {steps.length - 1}: {steps[currentStep]?.name}
-          </span>
-          <div className="flex items-center gap-1">
-            {steps.slice(1).map((_, i) => (
-              <div 
-                key={i}
-                className={`w-2 h-2 rounded-full ${i < currentStep ? 'bg-[#E53935]' : i === currentStep - 1 ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Welcome Page
-function WelcomePage({ onStart }) {
-  const [animate, setAnimate] = useState(false);
-  
-  useEffect(() => {
-    // Trigger animation after mount
-    const timer = setTimeout(() => setAnimate(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-8 relative overflow-hidden">
-      <div className="max-w-3xl text-center">
-
-        {/* Fully Conscious Badge — centred above headline */}
-        <div
-          className={`flex justify-center mb-8 transition-all duration-1000 ease-out ${
-            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          <img
-            src="/fully-conscious-badge.png"
-            alt="Fully Conscious"
-            className="w-32 md:w-40 lg:w-48 drop-shadow-lg hover:scale-105 transition-transform duration-300"
-          />
-        </div>
-
-        {/* Headline */}
-        <h1 
-          className={`text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight transition-all duration-1000 ease-out ${
-            animate 
-              ? 'opacity-100 translate-y-0' 
-              : 'opacity-0 translate-y-8'
-          }`}
-          style={{ transitionDelay: animate ? '200ms' : '0ms' }}
-        >
-          <span className="block">Consequential brands</span>
-          <span className="block">are conscious brands.</span>
-        </h1>
-        
-        {/* Subtitle */}
-        <p 
-          className={`text-xl text-[#333333] mb-8 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
-            animate 
-              ? 'opacity-100 translate-y-0' 
-              : 'opacity-0 translate-y-6'
-          }`}
-          style={{ transitionDelay: animate ? '400ms' : '0ms' }}
-        >
-          They don't just show up, they stand out. They don't follow trends; they shape narratives. 
-          The Conscious Compass explores your brand's impact across 8 essential attributes.
-        </p>
-        
-        {/* Button */}
-        <div 
-          className={`transition-all duration-700 ease-out ${
-            animate 
-              ? 'opacity-100 translate-y-0' 
-              : 'opacity-0 translate-y-4'
-          }`}
-          style={{ transitionDelay: animate ? '700ms' : '0ms' }}
-        >
-          <button onClick={onStart} className="btn-primary btn-arrow text-lg px-8 py-4">
-            Start Assessment
-          </button>
-        </div>
-      </div>
-      
-      <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        v{APP_VERSION}
-      </div>
-    </div>
-  );
-}
-
-// Read-Only Welcome Page - for users with read-only access
-function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessments }) {
-  const [animate, setAnimate] = useState(false);
-  
-  useEffect(() => {
-    const timer = setTimeout(() => setAnimate(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-8 relative overflow-hidden">
-      <div className="max-w-3xl text-center">
-
-        {/* Fully Conscious Badge — centred above headline */}
-        <div
-          className={`flex justify-center mb-8 transition-all duration-1000 ease-out ${
-            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          <img
-            src="/fully-conscious-badge.png"
-            alt="Fully Conscious"
-            className="w-32 md:w-40 lg:w-48 drop-shadow-lg hover:scale-105 transition-transform duration-300"
-          />
-        </div>
-
-        {/* Headline */}
-        <h1 
-          className={`text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight transition-all duration-1000 ease-out ${
-            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-          style={{ transitionDelay: animate ? '200ms' : '0ms' }}
-        >
-          <span className="block">Welcome to the</span>
-          <span className="block">Conscious Compass.</span>
-        </h1>
-        
-        {/* Subtitle */}
-        <p 
-          className={`text-xl text-[#333333] mb-4 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
-            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
-          }`}
-          style={{ transitionDelay: animate ? '400ms' : '0ms' }}
-        >
-          You have read-only access to view brand assessments, compare results, and explore saved reports.
-        </p>
-        
-        <p 
-          className={`text-sm text-[#666666] mb-8 transition-all duration-1000 ease-out ${
-            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
-          }`}
-          style={{ transitionDelay: animate ? '500ms' : '0ms' }}
-        >
-          Contact an administrator if you need full access to run new assessments.
-        </p>
-        
-        {/* Navigation buttons */}
-        <div 
-          className={`flex flex-col sm:flex-row gap-4 justify-center transition-all duration-700 ease-out ${
-            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-          }`}
-          style={{ transitionDelay: animate ? '700ms' : '0ms' }}
-        >
-          <button onClick={onCompassResults} className="btn-primary flex items-center justify-center gap-2 text-lg px-8 py-4">
-            <BarChart3 className="w-5 h-5" /> View Results
-          </button>
-          <button onClick={onComparison} className="btn-secondary flex items-center justify-center gap-2 text-lg px-8 py-4">
-            <Users className="w-5 h-5" /> Compare Brands
-          </button>
-          <button onClick={onSavedAssessments} className="btn-secondary flex items-center justify-center gap-2 text-lg px-8 py-4">
-            <FileText className="w-5 h-5" /> Saved Assessments
-          </button>
-        </div>
-      </div>
-      
-      <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
-        v{APP_VERSION} · Read-only
-      </div>
-    </div>
-  );
-}
-
-// Mobile assessment warning banner — shown only on small screens during assessment steps
-function MobileAssessmentBanner() {
-  const [dismissed, setDismissed] = useState(false);
-  if (dismissed) return null;
-  return (
-    <div className="sm:hidden mb-5 flex items-start gap-3 bg-[#FFFBEB] border border-[#FCD34D] rounded-lg px-4 py-3">
-      <span className="text-lg leading-none mt-0.5">💡</span>
-      <p className="flex-1 text-xs text-[#92400E] leading-relaxed">
-        <strong>Best on a larger screen.</strong> This assessment is designed for tablet or desktop. You can continue on mobile, but the experience will be better with more space.
-      </p>
-      <button onClick={() => setDismissed(true)} className="text-[#B45309] hover:text-[#92400E] flex-shrink-0 mt-0.5">
-        <X className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
-
-// Setup Page
-function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
-  const canProceed = project.brandName && project.websiteUrl && apiKey;
-
-  return (
-    <div className="max-w-2xl mx-auto p-8 animate-fade-in">
-      <MobileAssessmentBanner />
-      <h2 className="text-3xl font-bold text-[#1A1A1A] mb-2">Brand Details</h2>
-      <p className="text-[#333333] mb-8">Tell us about the brand you're assessing.</p>
-
-      <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Brand Name *</label>
-          <input type="text" value={project.brandName} onChange={(e) => setProject({ ...project, brandName: e.target.value })}
-            placeholder="e.g., Antenna Group" className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white" />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Website URL *</label>
-          <input type="url" value={project.websiteUrl} onChange={(e) => setProject({ ...project, websiteUrl: e.target.value })}
-            placeholder="https://www.example.com" className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white" />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Business Model</label>
-          <select value={project.businessModel} onChange={(e) => setProject({ ...project, businessModel: e.target.value })}
-            className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white">
-            {BUSINESS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Industry</label>
-          <select value={project.industry || 'other'} onChange={(e) => setProject({ ...project, industry: e.target.value })}
-            className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white">
-            {INDUSTRIES.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-          </select>
-          <p className="text-xs text-[#666666] mt-1">Used for industry context in the assessment</p>
-        </div>
-
-        {/* Only show API key field if no default is configured */}
-        {!DEFAULT_API_KEY && (
-          <div className="pt-4 border-t border-[#D9D6D0]">
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Claude API Key *</label>
-            <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white font-mono text-sm" />
-            <p className="text-xs text-[#666666] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">console.anthropic.com</a></p>
-          </div>
-        )}
-        {DEFAULT_API_KEY && (
-          <div className="pt-4 border-t border-[#D9D6D0]">
-            <div className="flex items-center gap-2 text-sm text-[#059669]">
-              <Check className="w-4 h-4" />
-              <span>API key configured</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between mt-10">
-        <button onClick={onBack} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={onNext} disabled={!canProceed} className="btn-primary flex items-center gap-2">
-          Continue <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Technical Performance Audit Component (Manual Entry + Auto-Fetch)
-function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }) {
-  const [techAudit, setTechAudit] = useState(assessmentData.techAudit || {
-    scores: { performance: '', accessibility: '', bestPractices: '', seo: '' },
-    metrics: {}
-  });
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState(null);
-
-  // Helper function to get color based on PageSpeed score
-  const getScoreColor = (score) => {
-    if (score === '' || score === undefined || score === null) return '#666666';
-    const num = parseInt(score);
-    if (num >= 90) return '#059669'; // Green - Good
-    if (num >= 50) return '#D97706'; // Amber - Needs Improvement
-    return '#DC2626'; // Red - Poor
-  };
-
-  // Helper function to get label based on PageSpeed score
-  const getScoreLabel = (score) => {
-    if (score === '' || score === undefined || score === null) return '';
-    const num = parseInt(score);
-    if (num >= 90) return 'Good';
-    if (num >= 50) return 'Needs Work';
-    return 'Poor';
-  };
-
-  const updateScore = (field, value) => {
-    const numValue = value === '' ? '' : Math.min(100, Math.max(0, parseInt(value) || 0));
-    const updated = {
-      ...techAudit,
-      scores: { ...techAudit.scores, [field]: numValue },
-      fetchedAt: new Date().toISOString(),
-    };
-    setTechAudit(updated);
-    
-    // Only save to assessment if at least one score is entered
-    const hasScores = Object.values(updated.scores).some(s => s !== '' && s !== undefined);
-    setAssessmentData({ ...assessmentData, techAudit: hasScores ? updated : null });
-  };
-
-  const fetchPageSpeedScores = async () => {
-    if (!websiteUrl) return;
-    
-    setIsFetching(true);
-    setFetchError(null);
-    
-    try {
-      const url = websiteUrl.startsWith('http') ? websiteUrl : 'https://' + websiteUrl;
-      
-      // Use server-side proxy to avoid CORS issues
-      const response = await fetch(`/api/pagespeed?url=${encodeURIComponent(url)}`);
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      if (data.scores) {
-        const updated = {
-          scores: data.scores,
-          metrics: {},
-          fetchedAt: data.fetchedAt || new Date().toISOString(),
-        };
-        
-        setTechAudit(updated);
-        setAssessmentData({ ...assessmentData, techAudit: updated });
-      } else {
-        throw new Error('Could not analyze this website');
-      }
-    } catch (err) {
-      let errorMsg = err.message || 'Failed to fetch PageSpeed scores';
-      if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
-        errorMsg = 'Network error - check your connection and try again';
-      } else if (errorMsg.includes('quota') || errorMsg.includes('limit') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
-        errorMsg = 'API rate limit reached - please wait a minute and try again';
-      }
-      setFetchError(errorMsg);
-    } finally {
-      setIsFetching(false);
-    }
-  };
-  // Generate PageSpeed URL for the website (desktop analysis)
-  const pageSpeedUrl = websiteUrl 
-    ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(websiteUrl.startsWith('http') ? websiteUrl : 'https://' + websiteUrl)}&form_factor=desktop`
-    : null;
-
-  const hasAnyScore = Object.values(techAudit.scores).some(s => s !== '' && s !== undefined);
-
-  return (
-    <div className="card p-5 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h3 className="text-sm font-medium text-[#1A1A1A]">Technical Performance Audit</h3>
-          <p className="text-xs text-[#666666]">PageSpeed scores impact ATTENTIVE & COGENT</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={fetchPageSpeedScores}
-            disabled={isFetching || !websiteUrl}
-            className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1"
-          >
-            {isFetching ? <><Loader2 className="w-3 h-3 animate-spin" /> Fetching...</> : <><Sparkles className="w-3 h-3" /> Auto-Fetch</>}
-          </button>
-          {pageSpeedUrl && (
-            <a 
-              href={pageSpeedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
-            >
-              <ExternalLink className="w-3 h-3" /> Manual
-            </a>
-          )}
-        </div>
-      </div>
-
-      {fetchError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-xs text-red-700">
-          {fetchError} — Try the Manual button instead.
-        </div>
-      )}
-
-      {!fetchError && (
-        <div className="bg-[#F0EEEA] rounded-lg p-3 mb-4">
-          <p className="text-xs text-[#666666]">
-            Click "Auto-Fetch" to get scores automatically, or "Manual" to verify on Google PageSpeed.
-          </p>
-        </div>
-      )}
-
-      {/* Score Input Grid */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { key: 'performance', label: 'Performance' },
-          { key: 'accessibility', label: 'Accessibility' },
-          { key: 'bestPractices', label: 'Best Practices' },
-          { key: 'seo', label: 'SEO' },
-        ].map((item) => (
-          <div key={item.key} className="text-center">
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={techAudit.scores[item.key] ?? ''}
-              onChange={(e) => updateScore(item.key, e.target.value)}
-              placeholder="-"
-              className="w-full text-center text-2xl font-bold py-2 border border-[#D9D6D0] rounded-lg bg-white focus:ring-2 focus:ring-[#E53935] focus:border-transparent"
-              style={{ color: getScoreColor(techAudit.scores[item.key]) }}
-            />
-            <div className="text-xs text-[#666666] mt-1">{item.label}</div>
-            <div 
-              className="text-[10px] font-medium"
-              style={{ color: getScoreColor(techAudit.scores[item.key]) }}
-            >
-              {getScoreLabel(techAudit.scores[item.key])}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {hasAnyScore && (
-        <div className="mt-3 pt-3 border-t border-[#E8E6E1] flex items-center gap-2">
-          <Check className="w-4 h-4 text-[#059669]" />
-          <span className="text-xs text-[#666666]">Scores will be included in assessment</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Website Assessment with Image Upload
-// Website Assessment with Multiple Image Upload (up to 4)
-function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isCompressing, setIsCompressing] = useState(false);
-  const [isAutoAssessing, setIsAutoAssessing] = useState(false);
-  const [error, setError] = useState(null);
-  const [images, setImages] = useState(assessmentData.images || []);
-  const [pagesReviewed, setPagesReviewed] = useState(assessmentData.pagesReviewed || '');
-  const [websiteContent, setWebsiteContent] = useState(assessmentData.websiteContent || '');
-  const [credentialsContent, setCredentialsContent] = useState(assessmentData.credentialsContent || '');
-  const fileInputRef = useRef(null);
-  
-  // SEO Visibility State (simplified)
-  const [seoAssessment, setSeoAssessment] = useState(assessmentData.seoAssessment || '');
-  const [isAssessingSeo, setIsAssessingSeo] = useState(false);
-  const [isAssessingCredentials, setIsAssessingCredentials] = useState(false);
-
-  const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
-
-  // Auto-assess credentials and recognition
-  const runCredentialsAssess = async () => {
-    setIsAssessingCredentials(true);
-    setError(null);
-    try {
-      const prompt = `Search for awards, certifications, memberships, speaking engagements, and industry recognition for ${project.brandName} (${project.websiteUrl}).
-
-Look for:
-1. Industry awards (e.g., Inc. 5000, Deloitte Fast 500, industry-specific awards)
-2. Certifications (e.g., ISO, SOC 2, B Corp, industry certifications)
-3. Professional memberships (e.g., trade associations, councils, chambers)
-4. Speaking engagements (e.g., conference keynotes, panel appearances, TEDx)
-5. Media recognition (e.g., Forbes lists, analyst mentions, "best of" rankings)
-6. Client logos or notable partnerships visible on their website
-7. Case study awards or recognition
-8. Executive thought leadership recognition (e.g., Forbes Council, industry advisory boards)
-
-Search both their website and external sources. Report ONLY what you find with evidence. If you cannot find recognition in a category, say "None found" for that category.
-
-Format your response as a concise bulleted list grouped by category. Include dates/years where available.`;
-
-      const result = await callClaude(prompt, apiKey);
-      setCredentialsContent(result);
-      setAssessmentData({ ...assessmentData, credentialsContent: result });
-    } catch (e) { 
-      setError('Failed to search credentials: ' + e.message); 
-    }
-    finally { setIsAssessingCredentials(false); }
-  };
-
-  // Auto-assess website
-  const runAutoAssess = async () => {
-    setIsAutoAssessing(true);
-    setError(null);
-    try {
-      const prompt = `You are a senior brand strategist and UX analyst with deep expertise in digital brand presence, content strategy, and audience experience design. Your task is to conduct a comprehensive website assessment for ${project.brandName}, operating in the ${industryName} sector. The website URL is ${project.websiteUrl}.
-
-Begin by thoroughly reviewing the website, including its pages, navigation, content, imagery, and overall design, before making any evaluations. Every finding must be grounded in direct observation from the website itself. Do not speculate, infer from industry norms, or assume capabilities or intentions that are not evidenced by what is actually present on the site.
-
-Step 1: Audience & Intent Identification
-Before scoring any dimension, identify who this website is actually built for based solely on its content, language, navigation structure, and calls to action. Name the distinct audience segments the site appears to be addressing. This audience identification will serve as the evaluative lens for all subsequent dimensions.
-
-Step 2: Primary Message, Mission & Vision
-Based exclusively on the language, headlines, copy, and content present on the site, extract and articulate: the brand's primary message (what it leads with), its apparent mission (what it exists to do), and its vision (where it is pointing). If any of these are ambiguous, absent, or contradictory across pages, flag this as a finding rather than filling the gap with assumption.
-
-Step 3: Dimensional Assessment
-Evaluate the website across each of the following dimensions. For each, provide a qualitative assessment grounded in specific observations, a performance score from 1 to 10 with clear rationale, and 1 to 2 actionable recommendations.
-
-1. Information Architecture
-Assess the logic, clarity, and depth of the site's navigational structure. Does the hierarchy reflect the priorities of the audiences identified in Step 1? Are key sections easy to locate? Is there evidence of user journeys being intentionally designed, or does the structure feel arbitrary or internally driven?
-
-2. Design System
-Evaluate the consistency and coherence of the visual design language, including typography, color palette, spacing, component design, and iconography. Is a defined design system being applied consistently across pages, or are there visible inconsistencies that undermine professionalism and brand cohesion?
-
-3. Layout & Composition
-Assess how individual pages are structured visually. Does the layout guide attention effectively? Is hierarchy established through scale, contrast, and spacing? Does the composition reflect intentional design decisions or a templated, generic approach?
-
-4. Content Strategy & Quality
-Evaluate the depth, clarity, relevance, and voice of written content across the site. Is the content tailored to the audiences identified, or does it read as generic? Is it specific and substantive, or does it rely on vague, buzzword-heavy language? Assess whether content earns credibility or merely claims it.
-
-5. User Experience (UX)
-Assess the overall ease and quality of interacting with the site. Consider page load indicators, interactive elements, form design, mobile responsiveness signals, error handling, and accessibility cues where observable. Does the site remove friction or introduce it?
-
-6. Data Visualization
-Evaluate the use of charts, graphs, infographics, statistics, and other data presentations where present. Are they clear, accurate, and purposeful? Do they reinforce key messages or feel decorative? If data visualization is absent where it would clearly serve the audience, note this as a gap.
-
-7. Use of Imagery
-Assess the quality, relevance, and strategic use of photography, illustration, and visual media. Does imagery reflect the brand's identity and resonate with its identified audiences, or does it rely on generic stock photography? Is there a coherent visual narrative, or is imagery applied inconsistently?
-
-8. Audience Optimization
-Synthesize observations from all prior dimensions to render a verdict on how well the site serves the audiences identified in Step 1. Does the site demonstrate a genuine understanding of those audiences, their needs, language, and decision-making context, or does it prioritize internal messaging over external relevance?
-
-Step 4: Brand Consciousness Attribute Mapping
-Based on your website observations, provide specific evidence relevant to each of these 8 brand consciousness attributes:
-
-AWAKE (Narrative Leadership): Does the website show evidence of thought leadership, original perspectives, or industry-shaping content? Are there research reports, frameworks, or positions that establish narrative authority?
-
-AWARE (Audience Understanding): Does the site demonstrate deep knowledge of its audiences? Are there feedback mechanisms, community elements, or content that shows genuine listening and trust-building?
-
-REFLECTIVE (Brand Authenticity): Is there alignment between brand claims and demonstrated evidence? Are employees, culture, and leadership visible? Does the site feel authentic or corporate?
-
-ATTENTIVE (Experience Excellence): Is the experience consistent, polished, and error-free? Does quality extend across all pages and elements? Are there accessibility considerations?
-
-COGENT (Strategic Intelligence): Is there evidence of data-driven thinking? SEO optimization? Structured content? Conversion paths? Measurement infrastructure?
-
-SENTIENT (Emotional Connection): Does the site create emotional resonance? Is the creative distinctive? Does it inspire action beyond rational consideration?
-
-VISIONARY (Meaningful Purpose): Is there a clear purpose beyond profit? Does the brand point toward something meaningful? Are stakeholder benefits articulated?
-
-INTENTIONAL (Substance & Confidence): Does the site project confidence through decisive positioning? Is leadership visible? Are claims substantiated? Is professionalism consistent?
-
-Step 5: Brand Strength Assessment
-Drawing on everything observed across the site, including message clarity, design quality, content credibility, audience alignment, and overall execution, provide a holistic assessment of brand strength as expressed through this digital presence. Is the brand coming across as confident, differentiated, and credible? Or does the site reveal gaps between what the brand claims and what it actually demonstrates? Be specific about where brand strength is evident and where it breaks down.
-
-Tone instruction: Be direct and critical where the evidence warrants it. Do not soften findings out of diplomacy. If the site has weak content, inconsistent design, or fails its audiences, name it plainly and explain the consequence. Every assessment must be evidence-based; cite specific pages, sections, copy, or design elements to support your conclusions. Where something cannot be observed directly, do not comment on it.
-
-Conclude with an Overall Website Brand Score (1 to 10), a 2 to 3 sentence executive summary of the site's brand effectiveness, and the single most important improvement priority that would have the greatest impact on brand strength and audience experience.`;
-
-      const result = await callClaude(prompt, apiKey);
-      setAssessmentData({ ...assessmentData, autoAssessContent: result });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsAutoAssessing(false);
-    }
-  };
-
-  const runSeoAssessment = async () => {
-    if (!apiKey) {
-      setError('API key required for SEO assessment');
-      return;
-    }
-    setIsAssessingSeo(true);
-    setError(null);
-    try {
-      const prompt = `You are an SEO expert assessing ${project.brandName}'s likely search visibility.
-
-BRAND: ${project.brandName}
-WEBSITE: ${project.websiteUrl}
-INDUSTRY: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
-
-${websiteContent ? `WEBSITE CONTENT PROVIDED:\n${websiteContent}\n` : ''}
-${pagesReviewed ? `PAGES REVIEWED: ${pagesReviewed}\n` : ''}
-${credentialsContent ? `RECOGNITION & CREDENTIALS: ${credentialsContent}\n` : ''}
-
-Provide a comprehensive SEO visibility assessment:
-
-1. TARGET KEYWORDS (identify 5-6 keywords this brand should rank for):
-   - List specific keywords based on their industry, services, and positioning
-   - Include a mix of branded, service-based, and industry terms
-   - Note the likely competitiveness of each keyword
-
-2. BRAND SEARCHABILITY ASSESSMENT:
-   - Is the brand name unique/distinctive or generic/common?
-   - Are there likely naming conflicts with other companies?
-   - Would someone searching the brand name easily find them?
-
-3. CONTENT & TECHNICAL SEO SIGNALS:
-   - Based on the website content, assess keyword optimization
-   - Note content depth and topical authority signals
-   - Identify any obvious SEO gaps or opportunities
-
-4. COMPETITIVE LANDSCAPE:
-   - How competitive is SEO in their industry?
-   - What challenges might they face ranking for key terms?
-
-5. SEO VISIBILITY RATING:
-   Provide an estimated SEO visibility score (0-100) based on:
-   - Brand name searchability (unique vs generic)
-   - Content quality and depth signals
-   - Industry competitiveness
-   - Likely keyword ranking potential
-
-Format: "SEO VISIBILITY SCORE: XX/100"
-
-6. KEY RECOMMENDATIONS:
-   - 2-3 specific, actionable SEO improvements
-
-Keep the assessment concise but insightful. Focus on qualitative analysis since you cannot access live search rankings.`;
-
-      const result = await callClaude(prompt, apiKey);
-      setSeoAssessment(result);
-      setAssessmentData({ ...assessmentData, seoAssessment: result });
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setIsAssessingSeo(false);
-    }
-  };
-
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
-    
-    const remainingSlots = 4 - images.length;
-    const filesToProcess = files.slice(0, remainingSlots);
-    
-    if (filesToProcess.length === 0) {
-      setError('Maximum 4 images allowed');
-      return;
-    }
-    
-    setIsCompressing(true);
-    
-    Promise.all(filesToProcess.map(file => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result;
-          // Always compress to ensure we stay under 5MB API limit
-          compressImage(dataUrl, 3.5).then(resolve).catch(() => resolve(dataUrl));
-        };
-        reader.readAsDataURL(file);
-      });
-    })).then(newImages => {
-      const updatedImages = [...images, ...newImages].slice(0, 4);
-      setImages(updatedImages);
-      setAssessmentData({ ...assessmentData, images: updatedImages });
-      setIsCompressing(false);
-    });
-  };
-
-  const removeImage = (index) => {
-    const updatedImages = images.filter((_, i) => i !== index);
-    setImages(updatedImages);
-    setAssessmentData({ ...assessmentData, images: updatedImages });
-  };
-
-  const runAnalysis = async () => {
-    setIsProcessing(true);
-    setError(null);
-    try {
-      const prompt = `You are conducting a comprehensive website assessment for ${project.brandName}.
-
-WEBSITE URL: ${project.websiteUrl}
-
-PAGES REVIEWED BY ASSESSOR:
-${pagesReviewed || 'Homepage and key pages (see screenshots)'}
-
-WEBSITE CONTENT PROVIDED BY ASSESSOR:
-${websiteContent || '[No additional content pasted - analyze based on screenshots]'}
-
-${credentialsContent ? `RECOGNITION & CREDENTIALS OBSERVED:\n${credentialsContent}\n` : ''}
-
-SCREENSHOTS PROVIDED: ${images.length} image(s) showing key pages
-
-${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
-
-${assessmentData.autoAssessContent ? `AUTO-ASSESS WEBSITE ANALYSIS (previously generated - integrate these findings):\n${assessmentData.autoAssessContent}\n` : ''}
-
-${seoAssessment ? `SEO VISIBILITY ASSESSMENT (previously generated):\n${seoAssessment}\n` : ''}
-
-${assessmentData.techAudit && (assessmentData.techAudit.scores.performance !== '' || assessmentData.techAudit.scores.accessibility !== '') ? `TECHNICAL PERFORMANCE AUDIT (PageSpeed):
-- Performance: ${assessmentData.techAudit.scores.performance !== '' ? assessmentData.techAudit.scores.performance + '/100' : 'N/A'}
-- Accessibility: ${assessmentData.techAudit.scores.accessibility !== '' ? assessmentData.techAudit.scores.accessibility + '/100' : 'N/A'}
-- Best Practices: ${assessmentData.techAudit.scores.bestPractices !== '' ? assessmentData.techAudit.scores.bestPractices + '/100' : 'N/A'}
-- Technical SEO: ${assessmentData.techAudit.scores.seo !== '' ? assessmentData.techAudit.scores.seo + '/100' : 'N/A'}
-` : ''}
-
-Based on the screenshots and content provided, deliver a comprehensive website assessment covering:
-
-1. BRAND STRATEGY AND POSITIONING
-   - How clear and differentiated is the brand positioning?
-   - What is the core value proposition? Is it immediately apparent?
-   - How well does the visual identity support and reinforce the brand?
-   - Is there a consistent brand voice across pages?
-   - CRITICAL: Compare brand presentation across screenshots - is the brand identity cohesive?
-
-2. BRAND ARCHITECTURE & HIERARCHY
-   - Identify the brand architecture model used:
-     * SINGLE BRAND: One unified brand identity across all offerings
-     * HOUSE OF BRANDS: Multiple distinct brands with little connection to parent
-     * ENDORSED STRUCTURE: Sub-brands endorsed by master brand (e.g., "X by Company")
-     * SUB-BRAND STRUCTURE: Extensions clearly tied to master brand (e.g., "Company X")
-     * UNCLEAR/INCONSISTENT: No discernible structure or confusing hierarchy
-   - How clearly is the relationship between parent brand, sub-brands, and products communicated?
-   - Are naming conventions consistent and logical?
-   - Is there visual hierarchy that clarifies brand/product relationships?
-   - Does the architecture support or confuse audience understanding?
-   - CRITICAL: Note any confusion between what is the brand vs. products vs. services vs. sub-brands
-
-3. MESSAGING AND STORYTELLING
-   - Analyze the headline/hero messaging effectiveness
-   - Is there a compelling narrative arc across the site?
-   - Does the content create emotional resonance?
-   - How well does the messaging speak to the target audience?
-
-4. CONTENT QUALITY AND CONSISTENCY
-   - Evaluate the quality and depth of written content
-   - Is content benefit-focused or feature-focused?
-   - Is there consistency in tone, style, and messaging across pages?
-   - Are there content gaps or areas that need strengthening?
-
-5. INFORMATION ARCHITECTURE
-   - How logical and intuitive is the site structure?
-   - Is content organized in a way that matches user mental models?
-   - Are related pages properly linked and grouped?
-   - How easy is it to find key information (pricing, contact, services)?
-   - Is there clear hierarchy from primary to secondary to tertiary content?
-
-6. USER INTERFACE (UI) DESIGN & VISUAL CONSISTENCY
-   - How professional, modern, and polished is the interface?
-   - CRITICAL: Evaluate design consistency across all screenshots - are colors, fonts, spacing, and visual treatments consistent page-to-page?
-   - Are interactive elements (buttons, forms, links) styled consistently throughout?
-   - Is there appropriate use of whitespace and visual breathing room?
-   - How effective is the typography hierarchy (headings, body, captions)?
-   - Are images and media high quality and purposeful?
-   - Is the design responsive and mobile-friendly (if visible)?
-   - Note any inconsistencies in: color palette, button styles, heading treatments, spacing patterns, or visual language
-
-7. USER EXPERIENCE (UX) AND NAVIGATION
-   - How intuitive is the navigation structure?
-   - Is the visual hierarchy clear and effective?
-   - Are calls-to-action prominent, compelling, and well-placed?
-   - How well does the site guide users toward conversion?
-   - Are there any friction points or confusing elements?
-
-8. ACCESSIBILITY (WCAG 2.1 Level AA Compliance)
-   - Estimate the percentage of WCAG 2.1 Level AA compliance based on visible elements (0-100%)
-   - Is there sufficient color contrast between text and backgrounds (4.5:1 for normal text, 3:1 for large text)?
-   - Are fonts legible and appropriately sized (minimum 16px for body text)?
-   - Do images appear to have alt text considerations?
-   - Are interactive elements large enough for easy clicking/tapping (minimum 44x44px touch targets)?
-   - Is the content structure logical for screen readers (proper heading hierarchy H1→H2→H3)?
-   - Are form labels properly associated with inputs?
-   - Are there any obvious accessibility barriers (text over busy images, low contrast buttons, missing skip links)?
-   - Would keyboard-only navigation likely work (focus states, tab order)?
-   - Provide a specific accessibility compliance percentage estimate and explain your reasoning
-
-9. SEO & SEARCH VISIBILITY
-   - Based on visible content structure, how well-optimized is this site for search?
-   - Are key brand messages and value propositions likely to rank for relevant keywords?
-   - Is content structured for discoverability (headings, meta-likely content)?
-   - How well could AI systems understand and represent this brand?
-${seoAssessment ? `   - INTEGRATE the SEO Visibility Assessment findings above into your analysis
-   - Reference the target keywords identified and assess if the website content supports ranking for them
-   - Consider the brand searchability assessment in your evaluation` : '   - Note: No SEO visibility assessment was run - provide general observations only'}
-
-Write in flowing prose with specific observations. Be concrete about what you see in the screenshots. Compare elements across different pages to identify consistency or inconsistency.
-
-End with:
-- BRAND ARCHITECTURE TYPE: Identify which model (Single Brand, House of Brands, Endorsed, Sub-brand, or Unclear) with brief explanation
-- DESIGN CONSISTENCY RATING (1-10): Rate overall visual consistency across pages with brief explanation
-${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, rate how well the site is positioned for search visibility' : ''}
-- 3-5 KEY STRENGTHS (what the website does well)
-- 3-5 PRIORITY IMPROVEMENTS (specific, actionable recommendations including brand architecture if unclear)`;
-
-      const result = await callClaude(prompt, apiKey, images[0], images.slice(1));
-      setAssessmentData({ 
-        ...assessmentData, 
-        status: 'complete', 
-        content: result, 
-        images, 
-        pagesReviewed, 
-        websiteContent,
-        credentialsContent,
-        seoAssessment // Preserve SEO assessment
-      });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const isComplete = assessmentData.status === 'complete';
-
-  // Completion tracking
-  const completionItems = [
-    { label: 'Auto-Assess', done: !!assessmentData.autoAssessContent },
-    { label: 'SEO Check', done: !!seoAssessment },
-    { label: 'Screenshots', done: images.length > 0 },
-    { label: 'Pages Listed', done: !!pagesReviewed },
-    { label: 'Analysis', done: isComplete },
-  ];
-
-  // Required checks before proceeding - ALL items mandatory
-  const canProceed = isComplete && !!assessmentData.autoAssessContent && !!seoAssessment && images.length > 0 && !!pagesReviewed;
-  const [proceedError, setProceedError] = useState(null);
-
-  const handleProceed = () => {
-    if (!assessmentData.autoAssessContent) {
-      setProceedError('Please complete the Auto-Assess Website check before proceeding.');
-      return;
-    }
-    if (!seoAssessment) {
-      setProceedError('Please complete the SEO Visibility Assessment before proceeding.');
-      return;
-    }
-    if (images.length === 0) {
-      setProceedError('Please upload at least one screenshot of the website before proceeding.');
-      return;
-    }
-    if (!pagesReviewed) {
-      setProceedError('Please list the pages you reviewed before proceeding.');
-      return;
-    }
-    if (!isComplete) {
-      setProceedError('Please run the Website Analysis before proceeding.');
-      return;
-    }
-    setProceedError(null);
-    onNext();
-  };
-
-  return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-      <MobileAssessmentBanner />
-      <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#E53935]/10 rounded-xl flex items-center justify-center">
-          <Globe className="w-6 h-6 text-[#E53935]" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-[#1A1A1A]">Website Assessment</h2>
-          <p className="text-sm text-[#666666]">{project.brandName} · {project.websiteUrl}</p>
-        </div>
-      </div>
-
-      <CompletionIndicator items={completionItems} />
-
-      {/* Auto-Assess Website */}
-      <div className="card p-5 mb-4 border-l-4 border-[#E53935]">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#E53935]" />
-              Auto-Assess Website
-            </h3>
-            <p className="text-xs text-[#666666]">
-              AI-powered comprehensive analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization.
-            </p>
-          </div>
-          <button 
-            onClick={runAutoAssess} 
-            disabled={isAutoAssessing} 
-            className="btn-secondary text-sm py-2 px-4 flex items-center gap-2 flex-shrink-0"
-          >
-            {isAutoAssessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Assessing...</> : <><Bot className="w-4 h-4" /> Auto-Assess</>}
-          </button>
-        </div>
-        
-        {assessmentData.autoAssessContent && (
-          <div className="mt-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#10B981]" />
-              <span className="text-sm font-medium text-[#1A1A1A]">Website Assessment Complete</span>
-            </div>
-            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Pages Reviewed */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Pages Reviewed</h3>
-        <p className="text-sm text-[#666666] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
-        <input 
-          type="text" 
-          value={pagesReviewed} 
-          onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ ...assessmentData, pagesReviewed: e.target.value }); }}
-          placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact"
-          className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
-        />
-      </div>
-
-      {/* Recognition & Credentials */}
-      <div className="card p-5 mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-[#1A1A1A]">Recognition & Credentials (Optional)</h3>
-          <button 
-            onClick={runCredentialsAssess} 
-            disabled={isAssessingCredentials || !project.brandName}
-            className="px-3 py-1.5 bg-[#8B5CF6] text-white text-xs font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {isAssessingCredentials ? (
-              <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</>
-            ) : (
-              <><Sparkles className="w-3 h-3" /> Auto-Search</>
-            )}
-          </button>
-        </div>
-        <p className="text-sm text-[#666666] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
-        <textarea 
-          value={credentialsContent} 
-          onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ ...assessmentData, credentialsContent: e.target.value }); }}
-          placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor..."
-          className={`w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none ${credentialsContent ? 'bg-[#F0EEEA]' : ''}`}
-        />
-        {credentialsContent && (
-          <p className="text-xs text-[#059669] mt-1">✓ Recognition data captured</p>
-        )}
-      </div>
-
-      {/* Screenshots */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2 flex items-center gap-2">
-          <Image className="w-5 h-5" /> Website Screenshots (up to 4)
-        </h3>
-        <p className="text-sm text-[#666666] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
-        
-        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
-        
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {images.map((img, index) => (
-            <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#D9D6D0]" />
-              <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100">
-                <X className="w-4 h-4" />
-              </button>
-              <div className="absolute bottom-2 left-2 bg-[#1A1A1A] text-white text-xs px-2 py-1 rounded">
-                {index + 1}
-              </div>
-            </div>
-          ))}
-          
-          {images.length < 4 && (
-            <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#E53935] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#E53935]/5 transition-colors">
-              {isCompressing ? (
-                <><Loader2 className="w-6 h-6 text-[#E53935] animate-spin" /><span className="text-sm text-[#E53935]">Compressing...</span></>
-              ) : (
-                <><Upload className="w-6 h-6 text-[#E53935]" /><span className="text-sm text-[#E53935] font-medium">Add Screenshot</span><span className="text-xs text-[#666666]">{4 - images.length} remaining</span></>
-              )}
-            </button>
-          )}
-        </div>
-        
-        {images.length > 0 && (
-          <div className="text-sm text-green-600">
-            {images.length} screenshot(s) ready for analysis
-          </div>
-        )}
-      </div>
-
-      {/* Website Content */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Website Content (Optional)</h3>
-        <p className="text-sm text-[#666666] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
-        <textarea 
-          value={websiteContent} 
-          onChange={(e) => { setWebsiteContent(e.target.value); setAssessmentData({ ...assessmentData, websiteContent: e.target.value }); }}
-          placeholder="Paste key website copy here...
-
-Example:
-HOMEPAGE HEADLINE: 'Transform Your Business with AI'
-TAGLINE: 'Enterprise solutions for the modern era'
-ABOUT: 'Founded in 2015, we help companies...'
-VALUE PROP: 'Reduce costs by 40% while improving...'
-..."
-          className="w-full h-28 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
-        />
-      </div>
-
-      {/* SEO Visibility Assessment */}
-      <div className="card p-5 mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold text-[#1A1A1A]">SEO Visibility Assessment</h3>
-            <p className="text-sm text-[#666666]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
-          </div>
-        </div>
-
-        {!seoAssessment ? (
-          <div>
-            <p className="text-sm text-[#666666] mb-4">
-              Claude will analyze {project.brandName}'s likely SEO visibility based on brand name uniqueness, 
-              industry competitiveness, content signals, and identify target keywords they should rank for.
-            </p>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-              <p className="text-sm text-yellow-800">
-                <strong>💡 Tip:</strong> Run this before the main Website Analysis for best results. 
-                SEO insights will be automatically integrated into the full assessment.
-              </p>
-            </div>
-            <button 
-              onClick={runSeoAssessment} 
-              disabled={isAssessingSeo || !apiKey}
-              className="btn-secondary flex items-center gap-2"
-            >
-              {isAssessingSeo ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing SEO Visibility...</>
-              ) : (
-                <><Play className="w-4 h-4" /> Auto-Assess SEO Visibility</>
-              )}
-            </button>
-          </div>
-        ) : (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
-                <Check className="w-4 h-4 text-green-600" /> SEO Assessment Complete
-                <span className="text-xs text-[#666666] font-normal">(will be included in Website Analysis)</span>
-              </span>
-              <button 
-                onClick={runSeoAssessment} 
-                disabled={isAssessingSeo}
-                className="text-sm text-[#E53935] hover:underline flex items-center gap-1"
-              >
-                {isAssessingSeo ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                Regenerate Analysis
-              </button>
-            </div>
-            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-64 overflow-y-auto">
-              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{seoAssessment}</pre>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Technical Performance Audit */}
-      <TechnicalAuditSection 
-        websiteUrl={project.websiteUrl} 
-        assessmentData={assessmentData}
-        setAssessmentData={setAssessmentData}
-      />
-
-      {/* Assessor Observations */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
-        <p className="text-sm text-[#666666] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your observations about:
-- Brand alignment issues
-- Storytelling strengths/weaknesses  
-- Consistency across pages
-- Navigation or UX concerns
-- Content gaps
-- Competitive positioning..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
-      </div>
-
-      {!isComplete && (
-        <button onClick={runAnalysis} disabled={isProcessing || images.length === 0 || isCompressing} className="btn-primary flex items-center gap-2 mb-6">
-          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing Website...</> : 
-           isCompressing ? <><Loader2 className="w-4 h-4 animate-spin" /> Compressing Images...</> :
-           <><Play className="w-4 h-4" /> {images.length > 0 ? 'Run Website Analysis' : 'Upload Screenshots First'}</>}
-        </button>
-      )}
-
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
-
-      {isComplete && (
-        <div className="card p-5 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#E53935]" /> Analysis Complete
-            </h3>
-            <button 
-              onClick={() => {
-                runAnalysis();
-                if (onClearScores) onClearScores();
-              }} 
-              disabled={isProcessing} 
-              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
-            </button>
-          </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
-          </div>
-        </div>
-      )}
-
-      {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          {proceedError}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
-      </div>
-    </div>
-  );
-}
-
-// Social Media Assessment with all platforms and image uploads
-function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isCompressing, setIsCompressing] = useState(false);
-  const [isAutoChecking, setIsAutoChecking] = useState(false);
-  const [isSearchingWipo, setIsSearchingWipo] = useState(false);
-  const [error, setError] = useState(null);
-  const [socialHealthCheck, setSocialHealthCheck] = useState(assessmentData.socialHealthCheck || '');
-  const [inputs, setInputs] = useState({
-    linkedinUrl: assessmentData.linkedinUrl || '',
-    linkedinAbout: assessmentData.linkedinAbout || '',
-    linkedinPosts: assessmentData.linkedinPosts || '',
-    linkedinArticles: assessmentData.linkedinArticles || '',
-    linkedinFollowers: assessmentData.linkedinFollowers || '',
-    employeeAdvocacy: assessmentData.employeeAdvocacy || '',
-    awardsRecognition: assessmentData.awardsRecognition || '',
-    xUrl: assessmentData.xUrl || '',
-    xContent: assessmentData.xContent || '',
-    instagramContent: assessmentData.instagramContent || '',
-    youtubeContent: assessmentData.youtubeContent || '',
-    hasYouTube: assessmentData.hasYouTube ?? true,
-    redditAnswersContent: assessmentData.redditAnswersContent || '',
-    wikipediaContent: assessmentData.wikipediaContent || '',
-    glassdoorContent: assessmentData.glassdoorContent || '',
-    wipoContent: assessmentData.wipoContent || '',
-    hashtagContent: assessmentData.hashtagContent || '',
-    paidMediaContent: assessmentData.paidMediaContent || '',
-  });
-  const [images, setImages] = useState(assessmentData.socialImages || []);
-  const [instagramImages, setInstagramImages] = useState(assessmentData.instagramImages || []);
-  const fileInputRef = useRef(null);
-  const instagramFileInputRef = useRef(null);
-
-  const updateInput = (key, value) => {
-    setInputs(prev => ({ ...prev, [key]: value }));
-    setAssessmentData({ ...assessmentData, [key]: value });
-  };
-
-  // Social Media Health Check - comprehensive brand presence analysis
-  const runAutoCheck = async () => {
-    setIsAutoChecking(true);
-    setError(null);
-    try {
-      const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown';
-      
-      const prompt = `Conduct a comprehensive Social Media Health Check for ${project.brandName}.
-
-Website: ${project.websiteUrl}
-Industry: ${industryName}
-
-Search the web for current information about this brand's social media presence and provide a detailed health assessment covering:
-
-1. CHANNEL PRESENCE AUDIT
-For each major platform (LinkedIn, X/Twitter, Instagram, Facebook, YouTube, TikTok), determine:
-- Does the brand have an official/verified presence?
-- Channel URL if found
-- Approximate follower/subscriber count
-- Mark as "Not Found" if no presence detected
-
-2. POSTING ACTIVITY & CONSISTENCY
-- How frequently is the brand posting on each active channel?
-- When was the most recent post on each platform?
-- Is posting regular and consistent or sporadic?
-- Are there any abandoned/dormant accounts?
-
-3. ENGAGEMENT HEALTH
-- What engagement levels are visible? (likes, comments, shares relative to follower count)
-- Are they responding to comments and mentions?
-- Is there genuine community interaction or one-way broadcasting?
-- Benchmark: 1-3% engagement rate is average, 3-6% is good, 6%+ is excellent
-
-4. CONTENT QUALITY & BRAND CONSISTENCY
-- Is visual branding consistent across platforms?
-- Is the brand voice/tone consistent?
-- What content themes dominate?
-- Is content original or mostly reshared?
-
-5. THIRD-PARTY COVERAGE & MENTIONS
-- Are others talking about the brand on social media?
-- What is the sentiment of mentions? (positive/neutral/negative)
-- Any notable influencers or media outlets mentioning them?
-- User-generated content presence?
-
-6. REPUTATION & TRUST SIGNALS
-- What do reviews, comments, and discussions reveal about brand perception?
-- Any visible complaints, controversies, or PR issues?
-- Employee advocacy signals (employees sharing brand content)?
-- Trust indicators (verified accounts, response rates, transparency)?
-
-7. COMPETITIVE VISIBILITY
-- How does their social presence compare to typical brands in ${industryName}?
-- Are they visible in industry conversations?
-- Share of voice assessment
-
-8. AI SEARCH VISIBILITY
-- How is this brand represented in AI search results?
-- Is brand information accurate and favorable in AI summaries?
-
-FORMAT YOUR RESPONSE AS:
-Start with a 2-3 sentence EXECUTIVE SUMMARY of overall social media health.
-
-Then provide findings for each section above with specific evidence.
-
-End with:
-- OVERALL HEALTH SCORE: X/10
-- TOP 3 STRENGTHS
-- TOP 3 PRIORITY IMPROVEMENTS
-
-Be direct and evidence-based. If information is limited or not found, say so clearly.`;
-
-      const response = await fetch('/api/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          useWebSearch: true
-        })
-      });
-
-      if (!response.ok) throw new Error('Health check failed');
-      const data = await response.json();
-      const result = data.content?.[0]?.text || data.text || '';
-      
-      // Store the health check result
-      setSocialHealthCheck(result);
-      setAssessmentData({ ...assessmentData, socialHealthCheck: result });
-
-      // Also fetch YouTube data from API for enhanced accuracy
-      try {
-        const ytResponse = await fetch(`/api/youtube?query=${encodeURIComponent(project.brandName)}&website=${encodeURIComponent(project.websiteUrl || '')}`);
-        const ytData = await ytResponse.json();
-        
-        if (!ytData.error && !inputs.youtubeContent?.includes('[API Data]')) {
-          let ytStats = '[API Data]\n\n';
-          
-          if (ytData.hasBrandedChannel && ytData.brandedChannel) {
-            const ch = ytData.brandedChannel;
-            const stats = ytData.brandedChannelStats;
-            ytStats += `═══ OFFICIAL CHANNEL FOUND ═══
-Channel: ${ch.channelTitle}
-URL: ${ch.channelUrl || ch.customUrl}
-Subscribers: ${stats?.subscriberCount?.toLocaleString() || 'Hidden'} (${ytData.summary?.subscriberTier})
-Videos: ${stats?.videoCount?.toLocaleString() || 0}
-Total Views: ${stats?.viewCount?.toLocaleString() || 0}
-Created: ${ch.publishedAt ? new Date(ch.publishedAt).toLocaleDateString() : 'Unknown'}
-`;
-          } else {
-            ytStats += `═══ NO OFFICIAL CHANNEL FOUND ═══
-No YouTube channel matching "${project.brandName}" was identified.
-`;
-          }
-          
-          ytStats += `\n═══ THIRD-PARTY COVERAGE (${ytData.summary?.thirdPartyCoverage || 'Unknown'}) ═══\n`;
-          
-          if (ytData.thirdPartyCoverage && ytData.thirdPartyCoverage.length > 0) {
-            ytData.thirdPartyCoverage.forEach((video, i) => {
-              ytStats += `\n${i + 1}. "${video.title}"
-   Channel: ${video.channelTitle}
-   URL: ${video.videoUrl}\n`;
-            });
-          } else {
-            ytStats += `No third-party videos found.\n`;
-          }
-          updateInput('youtubeContent', ytStats);
-        }
-
-        // Knowledge Graph API - check entity status
-        const kgResponse = await fetch(`/api/knowledge-graph?query=${encodeURIComponent(project.brandName)}`);
-        const kgData = await kgResponse.json();
-        if (kgData.found && kgData.bestMatch && !inputs.wikipediaContent?.includes('[Knowledge Graph]')) {
-          const kgInfo = `[Knowledge Graph] Entity Status: ${kgData.knowledgeGraphSignal}
-${kgData.bestMatch.name ? `Name: ${kgData.bestMatch.name}` : ''}
-${kgData.bestMatch.type?.length ? `Type: ${kgData.bestMatch.type.join(', ')}` : ''}
-${kgData.bestMatch.description ? `Description: ${kgData.bestMatch.description}` : ''}
-${kgData.bestMatch.url ? `Wikipedia: ${kgData.bestMatch.url}` : ''}`;
-          
-          const existingWiki = inputs.wikipediaContent || '';
-          updateInput('wikipediaContent', `${kgInfo}\n\n${existingWiki}`);
-        }
-      } catch (apiErr) {
-        console.log('Google API enhancement failed (non-critical):', apiErr.message);
-      }
-
-    } catch (err) {
-      setError('Health check failed: ' + err.message);
-    } finally {
-      setIsAutoChecking(false);
-    }
-  };
-
-  // WIPO Trademark Auto-Search using Claude web search
-  const runWipoSearch = async () => {
-    setIsSearchingWipo(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: `Search for trademark registrations for "${project.brandName}".
-
-Look for:
-1. WIPO Global Brand Database registrations (branddb.wipo.int)
-2. USPTO trademark registrations (for US)
-3. EUIPO trademark registrations (for EU)
-4. Any other national trademark registrations
-
-For each registration found, note:
-- Registration number
-- Jurisdictions/countries covered
-- Nice classification(s)
-- Status (registered, pending, expired)
-- Owner name
-
-Also check for:
-- Any similar/conflicting marks
-- Name disputes or opposition proceedings
-- Protection coverage gaps
-
-Format as a concise summary. If no trademark registrations are found, state that clearly.`,
-          useWebSearch: true
-        })
-      });
-
-      if (!response.ok) throw new Error('Search failed');
-      const data = await response.json();
-      const result = data.content?.[0]?.text || data.text || '';
-      
-      if (result) {
-        updateInput('wipoContent', `[Auto-searched] ${result}`);
-      }
-    } catch (err) {
-      setError('WIPO search failed - please search manually');
-    } finally {
-      setIsSearchingWipo(false);
-    }
-  };
-
-  // Instagram image upload handler
-  const handleInstagramImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
-    
-    const remainingSlots = 4 - instagramImages.length;
-    const filesToProcess = files.slice(0, remainingSlots);
-    
-    if (filesToProcess.length === 0) {
-      setError('Maximum 4 Instagram images allowed');
-      return;
-    }
-    
-    setIsCompressing(true);
-    
-    Promise.all(filesToProcess.map(file => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result;
-          // Always compress to ensure we stay under 5MB API limit
-          compressImage(dataUrl, 3.5).then(resolve).catch(() => resolve(dataUrl));
-        };
-        reader.readAsDataURL(file);
-      });
-    })).then(newImages => {
-      const updatedImages = [...instagramImages, ...newImages];
-      setInstagramImages(updatedImages);
-      setAssessmentData({ ...assessmentData, instagramImages: updatedImages });
-      setIsCompressing(false);
-    });
-  };
-
-  const removeInstagramImage = (index) => {
-    const updatedImages = instagramImages.filter((_, i) => i !== index);
-    setInstagramImages(updatedImages);
-    setAssessmentData({ ...assessmentData, instagramImages: updatedImages });
-  };
-
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
-    
-    const remainingSlots = 4 - images.length;
-    const filesToProcess = files.slice(0, remainingSlots);
-    
-    if (filesToProcess.length === 0) {
-      setError('Maximum 4 images allowed');
-      return;
-    }
-    
-    setIsCompressing(true);
-    
-    Promise.all(filesToProcess.map(file => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result;
-          // Always compress to ensure we stay under 5MB API limit
-          compressImage(dataUrl, 3.5).then(resolve).catch(() => resolve(dataUrl));
-        };
-        reader.readAsDataURL(file);
-      });
-    })).then(newImages => {
-      const updatedImages = [...images, ...newImages].slice(0, 4);
-      setImages(updatedImages);
-      setAssessmentData({ ...assessmentData, socialImages: updatedImages });
-      setIsCompressing(false);
-    });
-  };
-
-  const removeImage = (index) => {
-    const updatedImages = images.filter((_, i) => i !== index);
-    setImages(updatedImages);
-    setAssessmentData({ ...assessmentData, socialImages: updatedImages });
-  };
-
-  const runAnalysis = async () => {
-    setIsProcessing(true);
-    setError(null);
-    try {
-      const prompt = `Analyze ${project.brandName}'s social media and reputation presence based on the content provided below.
-
-=== LINKEDIN DATA ===
-About Section:
-${inputs.linkedinAbout || '[Not provided]'}
-
-Recent Posts (with engagement metrics):
-${inputs.linkedinPosts || '[Not provided]'}
-
-Articles:
-${inputs.linkedinArticles || '[Not provided]'}
-
-Employee Advocacy:
-${inputs.employeeAdvocacy || '[Not assessed - look for evidence of employees sharing brand content]'}
-
-Awards & Recognition:
-${inputs.awardsRecognition || '[Not provided - note any awards, certifications, or industry recognition visible]'}
-
-=== X (TWITTER) DATA ===
-${inputs.xContent || '[Not provided]'}
-
-=== INSTAGRAM DATA ===
-${inputs.instagramContent || '[Not provided]'}
-${instagramImages.length > 0 ? `\n${instagramImages.length} Instagram screenshot(s) provided for visual reference.` : ''}
-
-=== YOUTUBE DATA ===
-${inputs.hasYouTube ? (inputs.youtubeContent || '[User indicated they have YouTube but no content provided]') : '[Brand does not have a YouTube channel]'}
-${inputs.youtubeContent?.includes('[API Data]') ? '\nNote: YouTube data above includes verified API data (subscriber count, video count, views, third-party coverage).' : ''}
-
-=== REDDIT ANSWERS (AI Search Visibility) ===
-${inputs.redditAnswersContent || '[Not checked - Reddit Answers shows how AI perceives brand reputation]'}
-
-=== WIKIPEDIA & KNOWLEDGE GRAPH ===
-${inputs.wikipediaContent || '[Not provided - please note if ' + project.brandName + ' has a Wikipedia page]'}
-${inputs.wikipediaContent?.includes('[Knowledge Graph]') ? '\nNote: Knowledge Graph data above shows Google entity recognition status.' : ''}
-
-=== GLASSDOOR (Employer Reputation) ===
-${inputs.glassdoorContent || '[Not reviewed - Glassdoor reviews impact brand self-awareness and Reflective score]'}
-
-=== WIPO TRADEMARK STATUS ===
-${inputs.wipoContent || '[Not checked - Trademark registration impacts brand professionalism and Intentional score]'}
-
-=== HASHTAG STRATEGY & EFFECTIVENESS ===
-${inputs.hashtagContent || '[Not assessed - Check branded hashtag usage across platforms]'}
-
-=== PAID MEDIA PRESENCE ===
-${inputs.paidMediaContent || '[Not checked - Review Meta Ad Library, Google Ads Transparency, LinkedIn Ad Library for active campaigns]'}
-
-${images.length > 0 ? `\n${images.length} screenshot(s) of social media pages have been provided for visual reference.` : ''}
-
-${assessmentData.observations ? `\nASSESSOR OBSERVATIONS TO CONSIDER:\n${assessmentData.observations}` : ''}
-
-Based on the content provided above, deliver a comprehensive social media and reputation assessment:
-
-1. LinkedIn Presence: Analyze the About section messaging, post content quality, engagement rates (benchmark: 2-4% is good), thought leadership positioning, content mix, and employee advocacy signals
-
-2. X/Twitter Presence: Evaluate voice/tone, content strategy, engagement levels, and brand consistency
-
-3. Instagram Presence: Assess visual brand consistency, content themes, engagement, and audience connection
-
-4. YouTube Presence: ${inputs.hasYouTube ? 'Assess channel content strategy, subscriber tier, video count, third-party coverage, and recommendations for improvement. If API data is provided, use the verified metrics.' : 'The brand does not have YouTube - provide recommendation on whether they should based on their industry and audience'}
-
-5. Reddit Answers (AI Search): Analyze how Reddit's AI summarizes the brand. This indicates how AI search engines perceive brand reputation, credibility, and trust. This is a critical signal for COGENT scoring.
-
-6. Wikipedia & Knowledge Graph: Does the brand have a Wikipedia page? Is it recognized as a Google Knowledge Graph entity? How does this impact their credibility and AI search visibility?
-
-7. Glassdoor & Employer Reputation: Analyze employee reviews, ratings, and sentiment. How self-aware is the brand about its culture and reputation?
-
-8. Trademark Protection (WIPO): Is the brand name properly protected? Are there any conflicts or risks?
-
-9. Hashtag Strategy: Evaluate branded hashtag usage and effectiveness across platforms. Is there a clear hashtag strategy? Are customers adopting branded hashtags? How does this impact discoverability?
-
-10. Paid Media Presence: Based on ad library findings, assess paid media investment signals. What creative themes dominate? Is messaging consistent with organic content? Does ad volume suggest serious market investment (COGENT, INTENTIONAL)? Is creative distinctive or generic (SENTIENT)?
-
-11. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
-
-12. AI/Search Visibility: How does their social presence impact discoverability in AI search engines? Consider YouTube third-party coverage, Knowledge Graph status, and Reddit Answers perception.
-
-Write in flowing prose with specific observations from the content provided. End with key strengths and priority improvements.`;
-
-      const allImages = [...images, ...instagramImages];
-      const result = await callClaude(prompt, apiKey, allImages[0], allImages.slice(1));
-      setAssessmentData({ ...assessmentData, status: 'complete', content: result, ...inputs, socialImages: images, instagramImages });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const isComplete = assessmentData.status === 'complete';
-  const hasMinimumContent = inputs.linkedinAbout || inputs.linkedinPosts || inputs.xContent || inputs.youtubeContent || inputs.instagramContent;
-
-  // Accordion state
-  const [expanded, setExpanded] = useState({ linkedin: true, x: false, instagram: false, other: false, hashtag: false, paidMedia: false, reputation: false });
-  const toggleSection = (section) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
-
-  // Status badges for auto-check
-  const autoCheckStatus = {
-    youtube: !!inputs.youtubeContent?.includes('[API Data]') || !!inputs.youtubeContent?.includes('[Auto-searched]'),
-    glassdoor: !!inputs.glassdoorContent?.includes('[Auto-searched]'),
-  };
-  const autoCheckCount = Object.values(autoCheckStatus).filter(Boolean).length;
-
-  // Completion tracking
-  const completionItems = [
-    { label: 'Screenshots', done: images.length > 0 },
-    { label: 'Health Check', done: !!socialHealthCheck },
-    { label: 'LinkedIn', done: !!(inputs.linkedinAbout || inputs.linkedinPosts) },
-    { label: 'X/Twitter', done: !!inputs.xContent },
-    { label: 'WIPO', done: !!inputs.wipoContent },
-    { label: 'Analysis', done: isComplete },
-  ];
-
-  // Required checks before proceeding
-  const canProceed = isComplete && !!inputs.wipoContent && !!(inputs.linkedinAbout || inputs.linkedinPosts) && !!inputs.xContent && images.length > 0;
-  const [proceedError, setProceedError] = useState(null);
-
-  const handleProceed = () => {
-    if (images.length === 0) {
-      setProceedError('Please upload at least one screenshot of social media profiles before proceeding.');
-      return;
-    }
-    if (!(inputs.linkedinAbout || inputs.linkedinPosts)) {
-      setProceedError('Please add LinkedIn information before proceeding.');
-      return;
-    }
-    if (!inputs.xContent) {
-      setProceedError('Please add X/Twitter information before proceeding.');
-      return;
-    }
-    if (!inputs.wipoContent) {
-      setProceedError('Please check WIPO trademark registration before proceeding.');
-      return;
-    }
-    if (!isComplete) {
-      setProceedError('Please run the Social Media Analysis before proceeding.');
-      return;
-    }
-    setProceedError(null);
-    onNext();
-  };
-
-  // Accordion Header Component
-  const AccordionHeader = ({ title, icon: Icon, isOpen, onClick, badge, hasContent }) => (
-    <button 
-      onClick={onClick}
-      className={`w-full flex items-center justify-between p-4 rounded-lg transition-colors ${isOpen ? 'bg-[#F0EEEA]' : 'bg-white hover:bg-[#F8F7F5]'} border border-[#E8E6E1]`}
-    >
-      <div className="flex items-center gap-3">
-        <Icon className="w-5 h-5 text-[#666666]" />
-        <span className="font-medium text-[#1A1A1A]">{title}</span>
-        {badge && <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">{badge}</span>}
-        {hasContent && <Check className="w-4 h-4 text-[#059669]" />}
-      </div>
-      <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-    </button>
-  );
-
-  return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-      <MobileAssessmentBanner />
-      <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#8B5CF6]/10 rounded-xl flex items-center justify-center">
-          <Users className="w-6 h-6 text-[#8B5CF6]" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-[#1A1A1A]">Social Media Assessment</h2>
-          <p className="text-sm text-[#666666]">{project.brandName}'s social presence</p>
-        </div>
-      </div>
-
-      <CompletionIndicator items={completionItems} />
-
-      {/* Social Media Health Check Section */}
-      <div className="card p-4 mb-4 border-l-4 border-[#8B5CF6]">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
-              Social Media Health Check
-            </h3>
-            <p className="text-xs text-[#666666]">AI-powered analysis: presence, engagement, reputation, sentiment, trust signals</p>
-          </div>
-          <button 
-            onClick={runAutoCheck} 
-            disabled={isAutoChecking}
-            className="btn-primary text-sm py-2 px-4 flex items-center gap-2"
-          >
-            {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Bot className="w-4 h-4" /> Run Health Check</>}
-          </button>
-        </div>
-        
-        {socialHealthCheck && (
-          <div className="mt-3 border-t border-[#E8E6E1] pt-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#059669]" />
-              <span className="text-sm font-medium text-[#1A1A1A]">Health Check Complete</span>
-            </div>
-            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{socialHealthCheck}</pre>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Screenshots - Matching Website Style */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2 flex items-center gap-2">
-          <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) <span className="text-red-500">*</span>
-        </h3>
-        <p className="text-sm text-[#666666] mb-4">Upload screenshots of key social profiles for visual analysis. Required to proceed.</p>
-        
-        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
-        
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {images.map((img, index) => (
-            <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#D9D6D0]" />
-              <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100">
-                <X className="w-4 h-4" />
-              </button>
-              <div className="absolute bottom-2 left-2 bg-[#1A1A1A] text-white text-xs px-2 py-1 rounded">
-                {index + 1}
-              </div>
-            </div>
-          ))}
-          
-          {images.length < 4 && (
-            <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#E53935] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#E53935]/5 transition-colors">
-              {isCompressing ? (
-                <><Loader2 className="w-6 h-6 text-[#E53935] animate-spin" /><span className="text-sm text-[#E53935]">Compressing...</span></>
-              ) : (
-                <><Upload className="w-6 h-6 text-[#E53935]" /><span className="text-sm text-[#E53935] font-medium">Add Screenshot</span><span className="text-xs text-[#666666]">{4 - images.length} remaining</span></>
-              )}
-            </button>
-          )}
-        </div>
-        
-        {images.length > 0 && (
-          <div className="text-sm text-green-600">
-            {images.length} screenshot(s) ready for analysis
-          </div>
-        )}
-      </div>
-
-      {/* LinkedIn Section - Expanded by default */}
-      <div className="mb-3">
-        <AccordionHeader 
-          title="LinkedIn" 
-          icon={ExternalLink} 
-          isOpen={expanded.linkedin} 
-          onClick={() => toggleSection('linkedin')}
-          hasContent={!!(inputs.linkedinAbout || inputs.linkedinPosts)}
-        />
-        {expanded.linkedin && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
-            <div className="flex gap-2">
-              <input type="url" value={inputs.linkedinUrl} onChange={(e) => updateInput('linkedinUrl', e.target.value)}
-                placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
-              {inputs.linkedinUrl && (
-                <a href={inputs.linkedinUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#0A66C2] text-white rounded-lg text-xs hover:bg-[#004182] flex items-center gap-1">
-                  <ExternalLink className="w-3 h-3" /> Open
-                </a>
-              )}
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[#666666] mb-1 block">Follower Count</label>
-              <input type="text" value={inputs.linkedinFollowers} onChange={(e) => updateInput('linkedinFollowers', e.target.value)}
-                placeholder="e.g., 15,432 followers" className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[#666666] mb-1 block">Company Profile & About Section</label>
-              <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
-                placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[#666666] mb-1 block">Recent Posts & Engagement</label>
-              <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
-                placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* X/Twitter Section */}
-      <div className="mb-3">
-        <AccordionHeader 
-          title="X (Twitter)" 
-          icon={ExternalLink} 
-          isOpen={expanded.x} 
-          onClick={() => toggleSection('x')}
-          hasContent={!!inputs.xContent}
-        />
-        {expanded.x && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
-            <div className="flex gap-2">
-              <input type="url" value={inputs.xUrl} onChange={(e) => updateInput('xUrl', e.target.value)}
-                placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
-              {inputs.xUrl && (
-                <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#1A1A1A] text-white rounded-lg text-xs hover:bg-[#333] flex items-center gap-1">
-                  <ExternalLink className="w-3 h-3" /> Open
-                </a>
-              )}
-            </div>
-            <textarea value={inputs.xContent} onChange={(e) => updateInput('xContent', e.target.value)}
-              placeholder="Bio, follower count, 5-10 recent tweets with engagement..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-          </div>
-        )}
-      </div>
-
-      {/* Instagram Section */}
-      <div className="mb-3">
-        <AccordionHeader 
-          title="Instagram" 
-          icon={Image} 
-          isOpen={expanded.instagram} 
-          onClick={() => toggleSection('instagram')}
-          hasContent={!!inputs.instagramContent}
-        />
-        {expanded.instagram && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white">
-            <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
-              placeholder="Bio, follower count, content themes (lifestyle, product, behind-scenes), posting frequency, engagement patterns, visual consistency..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-          </div>
-        )}
-      </div>
-
-      {/* YouTube */}
-      <div className="mb-3">
-        <AccordionHeader 
-          title="YouTube" 
-          icon={Play} 
-          isOpen={expanded.other} 
-          onClick={() => toggleSection('other')}
-          hasContent={!!inputs.youtubeContent}
-        />
-        {expanded.other && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
-            <div>
-              <div className="flex items-center justify-end mb-1">
-                <div className="flex items-center gap-2">
-                  {autoCheckStatus.youtube && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
-                  <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                     className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-medium rounded hover:bg-red-200 transition-colors flex items-center gap-1">
-                    Verify <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-              </div>
-              <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
-                placeholder="Channel exists? Content themes, posting frequency, engagement quality... (verify metrics at YouTube)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Reputation Section (Glassdoor, WIPO) */}
-      <div className="mb-4">
-        <AccordionHeader 
-          title="Reputation & Trust Signals" 
-          icon={Shield} 
-          isOpen={expanded.reputation} 
-          onClick={() => toggleSection('reputation')}
-          badge="Score Impact"
-          hasContent={!!(inputs.glassdoorContent || inputs.wipoContent)}
-        />
-        {expanded.reputation && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#666666]">Glassdoor <span className="text-purple-600">(→ Reflective)</span></label>
-                <div className="flex items-center gap-2">
-                  {autoCheckStatus.glassdoor && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
-                  <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
-                     className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium rounded hover:bg-purple-200 transition-colors flex items-center gap-1">
-                    Verify <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-              </div>
-              <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
-                placeholder="Rating (out of 5), CEO approval %, # of reviews, culture themes, pros/cons patterns..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-            </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-blue-800">WIPO Trademark <span className="font-normal">(→ Intentional)</span></label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={runWipoSearch}
-                    disabled={isSearchingWipo || !project.brandName}
-                    className="px-3 py-1 bg-[#8B5CF6] text-white text-xs font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-1 disabled:opacity-50"
-                  >
-                    {isSearchingWipo ? <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</> : <><Sparkles className="w-3 h-3" /> Auto-Search</>}
-                  </button>
-                  <a href="https://branddb.wipo.int/en/similarname" target="_blank" rel="noopener noreferrer" 
-                     className="px-3 py-1 bg-[#0067B9] text-white text-xs font-medium rounded-lg hover:bg-[#005299] transition-colors flex items-center gap-1">
-                    Manual <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-              {inputs.wipoContent?.includes('[Auto-searched]') && (
-                <p className="text-xs text-green-600 mb-2">✓ Trademark data auto-searched</p>
-              )}
-              <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
-                placeholder={`Trademark status for ${project.brandName}: registrations found, jurisdictions covered, any similar/conflicting marks, protection status...`}
-                className={`w-full h-20 px-3 py-2 border border-blue-300 rounded-lg bg-white resize-none text-sm ${inputs.wipoContent ? 'bg-blue-50' : ''}`} />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Hashtag Effectiveness Check */}
-      <div className="mb-3">
-        <AccordionHeader 
-          title="Hashtag Effectiveness" 
-          icon={Hash} 
-          isOpen={expanded.hashtag} 
-          onClick={() => toggleSection('hashtag')}
-          hasContent={!!inputs.hashtagContent}
-        />
-        {expanded.hashtag && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
-            <p className="text-xs text-[#666666] mb-2">
-              Check how effectively the brand uses hashtags across platforms to increase discoverability and engagement.
-            </p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
-                <span>Instagram #</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://www.tiktok.com/tag/${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-1">
-                <span>TikTok #</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://www.linkedin.com/search/results/content/?keywords=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-[#0A66C2] text-white text-xs font-medium rounded-lg hover:bg-[#004182] transition-colors flex items-center justify-center gap-1">
-                <span>LinkedIn #</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://twitter.com/search?q=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}&src=typed_query`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-[#1A1A1A] text-white text-xs font-medium rounded-lg hover:bg-[#333] transition-colors flex items-center justify-center gap-1">
-                <span>X/Twitter #</span> <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-            <textarea value={inputs.hashtagContent} onChange={(e) => updateInput('hashtagContent', e.target.value)}
-              placeholder={`Document hashtag usage and effectiveness:
-
-• Branded hashtag: Do they have one? (#${project.brandName?.replace(/\s+/g, '') || 'BrandName'})
-• Usage volume: How many posts use their branded hashtag on each platform?
-• Campaign hashtags: Any specific campaign or product hashtags?
-• Industry hashtags: Are they using relevant industry hashtags effectively?
-• User adoption: Are customers/followers using the branded hashtag?
-• Consistency: Same hashtag strategy across all platforms?
-• N/A if no hashtag strategy observed...`} 
-              className="w-full h-32 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-          </div>
-        )}
-      </div>
-
-      {/* Paid Media Presence */}
-      <div className="mb-4">
-        <AccordionHeader 
-          title="Paid Media Presence" 
-          icon={Target} 
-          isOpen={expanded.paidMedia} 
-          onClick={() => toggleSection('paidMedia')}
-          hasContent={!!inputs.paidMediaContent}
-        />
-        {expanded.paidMedia && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
-            <p className="text-xs text-[#666666] mb-2">
-              {project.businessModel === 'b2b'
-                ? 'For B2B, LinkedIn Ads and Google Search are typically most important. Check Meta and TikTok for awareness campaigns if relevant.'
-                : project.businessModel === 'b2c'
-                ? 'Check all consumer platforms - Meta (FB/IG), TikTok, Google, and YouTube are typically high priority.'
-                : 'Check both B2B channels (LinkedIn, Google Search) and consumer channels (Meta, TikTok) for hybrid brands.'}
-            </p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <a href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q="${encodeURIComponent(project.brandName)}"&search_type=keyword_exact_phrase`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-[#1877F2] text-white text-xs font-medium rounded-lg hover:bg-[#166FE5] transition-colors flex items-center justify-center gap-1">
-                <span>Meta Ad Library</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://adstransparency.google.com/?region=anywhere&text="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-[#4285F4] text-white text-xs font-medium rounded-lg hover:bg-[#3367D6] transition-colors flex items-center justify-center gap-1">
-                <span>Google Ads</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://www.linkedin.com/ad-library/search?accountOwner="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                 className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#0A66C2] hover:bg-[#004182] ring-2 ring-[#0A66C2] ring-offset-1' : 'bg-[#0A66C2] hover:bg-[#004182]'}`}>
-                <span>LinkedIn Ads{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                 className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : project.businessModel === 'b2c' ? 'bg-black hover:bg-gray-800 ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-gray-800'}`}>
-                <span>TikTok Ads{project.businessModel === 'b2b' ? ' (optional)' : project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-            <textarea value={inputs.paidMediaContent} onChange={(e) => updateInput('paidMediaContent', e.target.value)}
-              placeholder={project.businessModel === 'b2b'
-                ? `Document paid media presence from ad libraries:
-
-• LinkedIn (PRIORITY): Sponsored content? InMail campaigns? Lead gen ads?
-• Google Ads: Search ads for key terms? Display/remarketing?
-• Meta (FB/IG): Brand awareness campaigns? Retargeting?
-• Trade publication sponsorships or programmatic placements?
-• Conference/webinar sponsorships advertised?
-• Messaging: What pain points or solutions are they promoting?
-• N/A if no paid media found...`
-                : `Document paid media presence from ad libraries:
-
-• Meta (FB/IG): Active ads? How many? Creative themes? Target signals?
-• TikTok: Video ads? Spark ads? Creative quality?
-• Google Ads: Search/display/YouTube ads running? Volume?
-• Creative quality: Distinctive or generic? Consistent with brand?
-• Messaging: What value props are they paying to promote?
-• Sponsorships: Podcast, event, or sports sponsorships visible?
-• N/A if no paid media found...`} 
-              className="w-full h-32 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-          </div>
-        )}
-      </div>
-
-      {/* Observations - Simplified */}
-      <div className="card p-4 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Notes</h3>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-      </div>
-
-      {/* Analysis Button & Results */}
-      {!isComplete && (
-        <button onClick={runAnalysis} disabled={isProcessing || !hasMinimumContent} className="btn-primary flex items-center gap-2 mb-4">
-          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> Run Social Analysis</>}
-        </button>
-      )}
-
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
-
-      {isComplete && (
-        <div className="card p-5 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
-            </h3>
-            <button 
-              onClick={() => { runAnalysis(); if (onClearScores) onClearScores(); }} 
-              disabled={isProcessing} 
-              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
-            </button>
-          </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
-          </div>
-        </div>
-      )}
-
-      {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          {proceedError}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-4 border-t border-[#D9D6D0]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
-      </div>
-    </div>
-  );
-}
-
-// AI Reputation Page
-function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
-  const [manualInput, setManualInput] = useState({
-    claude: assessmentData.claudeManual || '',
-    gemini: assessmentData.geminiManual || '',
-    chatgpt: assessmentData.chatgptManual || '',
-    perplexity: assessmentData.perplexityManual || '',
-    copilot: assessmentData.copilotManual || '',
-  });
-  const [isProcessing, setIsProcessing] = useState({});
-  const [error, setError] = useState(null);
-  const [reputationFlags, setReputationFlags] = useState(assessmentData.reputationFlags || '');
-  const [wikipediaContent, setWikipediaContent] = useState(assessmentData.wikipediaContent || '');
-  const [redditContent, setRedditContent] = useState(assessmentData.redditAnswersContent || '');
-
-  const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
-
-  // Helper: copy text to clipboard
-  const copyToClipboard = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta); ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-  };
-
-  // Comprehensive AI Brand Perception Prompt
-  const aiPerceptionPrompt = `You are simulating what a potential customer, partner, or investor would discover when researching a brand online. Please search for and gather current information about this brand to provide a comprehensive assessment.
-
-The brand is ${project.brandName}, operating in the ${industryName} sector.
-
-Research this brand thoroughly and answer each section below based on what you find. If information on any point is limited or unavailable online, say so directly — identifying gaps in a brand's digital presence is valuable insight.
-
-1. Brand Understanding
-What does this brand do? Describe its core offering, the problem it solves, and the market it operates in. How clearly does the brand communicate what it actually is?
-
-2. Purpose & Mission
-What does this brand exist to do beyond its commercial function? Is there a stated or clearly implied mission, cause, or reason for being that goes beyond making money? What purpose statements or values content can you find?
-
-3. How They Work
-What can you discover about how this brand operates — its model, method, approach, or process? This might include how it delivers its product or service, how it goes to market, how it treats clients or customers, or what makes its way of working distinctive.
-
-4. Personality & Voice
-Based on their website, social media, content, and any coverage you find, how would you characterise this brand's personality? How does it express itself — its tone, style, and manner of engagement? Be specific about what sources informed this impression.
-
-5. Values
-What values does this brand appear to hold or actively promote? Are these values demonstrated through observable actions and decisions, or do they appear to exist primarily as stated claims? Where you find evidence of values in action, describe it.
-
-6. Reputation
-What is this brand's reputation based on what you can find online? Consider reviews, testimonials, press coverage, social media sentiment, employee reviews (Glassdoor), and industry commentary. Is the reputation broadly consistent, or are there tensions or contradictions? Report what you find — positive, negative, or mixed.
-
-7. Authenticity
-Based on everything you've found, does this brand come across as authentic — meaning that its stated identity, values, and purpose appear to be consistent with how it actually behaves and is perceived externally? Where you see alignment, describe it. Where you see gaps between claim and reality, name them plainly.
-
-8. Credibility
-How credible is this brand in its field? Is it regarded as knowledgeable, trustworthy, and authoritative? Look for credibility signals — awards, certifications, client logos, case studies, thought leadership, media coverage, peer recognition, track record — and describe what you find.
-
-9. Digital Presence & Findability
-How easy was it to find information about this brand? Is their digital footprint strong or weak? Are they present across multiple channels (website, LinkedIn, news, reviews) or hard to research? This reflects what a prospect would experience when doing due diligence.
-
-Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis of how this brand appears to someone researching them online: what they stand for, how they are regarded, and any gaps or concerns a prospect might notice. Then provide an AI Discoverability Score from 1–10 reflecting how well-represented and clearly understood this brand is in online search, with a brief rationale for the score.${reputationFlags ? `
-
-IMPORTANT CONTEXT — KNOWN REPUTATION FLAGS:
-The following issues have been identified in ${project.brandName}'s public record. Please address these directly in your response — particularly in sections 6 (Reputation) and 7 (Authenticity). Do not omit or minimise them:
-${reputationFlags}` : ''}`;
-
-  const redditPrompt = `What do people on Reddit actually think of ${project.brandName}? I want honest community perception, not their marketing. Specifically: What do they do? Are they credible — do actions match messaging? What's their reputation and reach across Reddit communities? Are their values seen as genuine or performative? And what's the perception of their environmental and social impact — positive, negative, or indifferent?`;
-
-  // AI engines config
-  const engines = [
-    { key: 'claude',      name: 'Claude',             brand: 'Anthropic',       url: 'https://claude.ai/new',          color: '#8B5CF6', hover: '#7C3AED' },
-    { key: 'chatgpt',     name: 'ChatGPT',            brand: 'OpenAI',          url: 'https://chatgpt.com/',           color: '#10A37F', hover: '#0D8A6A' },
-    { key: 'gemini',      name: 'Gemini',             brand: 'Google',          url: 'https://gemini.google.com/app',  color: '#4285F4', hover: '#3367D6' },
-    { key: 'perplexity',  name: 'Perplexity',         brand: 'Perplexity AI',   url: 'https://www.perplexity.ai/',     color: '#20B2AA', hover: '#178C84' },
-    { key: 'copilot',     name: 'Copilot',            brand: 'Microsoft',       url: 'https://copilot.microsoft.com/', color: '#0078D4', hover: '#005A9E' },
-  ];
-
-  const filledCount = engines.filter(e => !!manualInput[e.key]).length;
-  const canSynthesize = filledCount >= 3;
-  const isComplete = assessmentData.status === 'complete';
-
-  const generateSynthesis = async () => {
-    setIsProcessing(p => ({ ...p, synthesis: true }));
-    setError(null);
-    try {
-      const engineSections = engines
-        .filter(e => manualInput[e.key])
-        .map(e => `${e.name.toUpperCase()}: ${manualInput[e.key]}`)
-        .join('\n\n');
-
-      const prompt = `Analyze these AI system responses about ${project.brandName}:
-
-${engineSections}
-
-${reputationFlags ? `REPUTATION FLAGS — CRITICAL CONTEXT:\nThe following issues were identified before running AI queries. These flags must be addressed directly in your analysis — do not omit or minimise them:\n${reputationFlags}\n` : ''}
-${wikipediaContent ? `WIKIPEDIA PRESENCE:\n${wikipediaContent}\n` : ''}
-${redditContent ? `REDDIT COMMUNITY PERCEPTION:\n${redditContent}\n` : ''}
-${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
-
-Provide a comprehensive AI reputation assessment:
-1. Convergence — Where do the AI systems agree? (likely accurate signals)
-2. Divergence — Where do they differ, and what might explain it?
-3. Sentiment — Overall tone and brand framing across systems
-4. Gaps — What can't any AI answer about this brand? What's absent?
-${reputationFlags ? `5. Reputation Risks — How do the identified flags (${reputationFlags.substring(0, 100)}...) affect AI-surfaced perception? Are the AI responses acknowledging, downplaying, or ignoring these issues?\n6. Recommendations — Specific steps to improve AI representation and discoverability` : '5. Recommendations — Specific steps to improve AI representation and discoverability'}
-
-Write in flowing prose. If reputation flags were provided, they must be woven throughout the analysis — not confined to a single section.`;
-
-      const result = await callClaude(prompt, apiKey);
-      setAssessmentData({
-        ...assessmentData,
-        status: 'complete',
-        content: result,
-        claudeManual: manualInput.claude,
-        geminiManual: manualInput.gemini,
-        chatgptManual: manualInput.chatgpt,
-        perplexityManual: manualInput.perplexity,
-        copilotManual: manualInput.copilot,
-        reputationFlags,
-        wikipediaContent,
-        redditAnswersContent: redditContent,
-      });
-    } catch (e) { setError(e.message); }
-    finally { setIsProcessing(p => ({ ...p, synthesis: false })); }
-  };
-
-  const completionItems = [
-    ...engines.map(e => ({ label: e.name, done: !!manualInput[e.key] })),
-    { label: 'Wikipedia', done: !!wikipediaContent },
-    { label: 'Reddit', done: !!redditContent },
-    { label: 'Synthesis', done: isComplete },
-  ];
-
-  const canProceed = isComplete && canSynthesize;
-  const [proceedError, setProceedError] = useState(null);
-
-  const handleProceed = () => {
-    if (filledCount < 3) {
-      setProceedError('Please run the prompt in at least 3 AI engines before proceeding.');
-      return;
-    }
-    if (!isComplete) {
-      setProceedError('Please generate the AI Reputation Synthesis before proceeding.');
-      return;
-    }
-    setProceedError(null);
-    onNext();
-  };
-
-  return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-      <MobileAssessmentBanner />
-      <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#3B82F6]/10 rounded-xl flex items-center justify-center">
-          <Bot className="w-6 h-6 text-[#3B82F6]" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-[#1A1A1A]">AI Reputation Assessment</h2>
-          <p className="text-sm text-[#666666]">What prospects discover when researching {project.brandName}</p>
-        </div>
-      </div>
-
-      <CompletionIndicator items={completionItems} />
-
-      {/* Reputation Triggers */}
-      <div className="card p-4 mb-4 border-l-4 border-[#F59E0B]">
-        <div className="flex items-start gap-3 mb-3">
-          <AlertCircle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-0.5">Reputation Triggers — check before running AI queries</h3>
-            <p className="text-xs text-[#666666]">Search for anything charged in the brand's public record that AI models may surface. Note flags here so you can account for them when reading AI responses.</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {[
-            { label: 'Google News', url: `https://news.google.com/search?q=${encodeURIComponent(project.brandName)}` },
-            { label: 'Google Search', url: `https://www.google.com/search?q=${encodeURIComponent('"' + project.brandName + '" controversy OR lawsuit OR scandal OR criticism')}` },
-            { label: 'Trustpilot', url: `https://www.trustpilot.com/search?query=${encodeURIComponent(project.brandName)}` },
-          ].map(link => (
-            <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer"
-               className="px-3 py-1.5 bg-[#FEF3C7] text-[#92400E] text-xs font-medium rounded-lg hover:bg-[#FDE68A] transition-colors flex items-center gap-1">
-              {link.label} <ExternalLink className="w-3 h-3" />
-            </a>
-          ))}
-        </div>
-        <textarea
-          value={reputationFlags}
-          onChange={(e) => { setReputationFlags(e.target.value); setAssessmentData({ ...assessmentData, reputationFlags: e.target.value }); }}
-          placeholder={`Note any legal issues, negative press, social controversies, or leadership concerns found for ${project.brandName}. These become context when interpreting AI responses.`}
-          className="w-full h-16 px-3 py-2 border border-[#FDE68A] rounded-lg bg-[#FFFBEB] resize-none text-sm"
-        />
-      </div>
-
-      {/* AI Brand Perception Prompt */}
-      <div className="card p-4 mb-4 border-l-4 border-[#3B82F6]">
-        <div className="flex items-start justify-between mb-2">
-          <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-0.5">AI Brand Research Prompt</h3>
-            <p className="text-xs text-[#666666]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
-          </div>
-        </div>
-        <div className="bg-[#F8F7F5] rounded-lg p-3 max-h-32 overflow-y-auto mb-2">
-          <pre className="text-xs text-[#333333] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 400)}...</pre>
-        </div>
-        <p className="text-xs text-[#999999]">Customised for <strong>{project.brandName}</strong> · {industryName}</p>
-      </div>
-
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
-
-      {/* AI Engine Cards — uniform pattern */}
-      <div className="space-y-3 mb-4">
-        {engines.map(engine => (
-          <div key={engine.key} className={`card p-4 ${manualInput[engine.key] ? 'bg-[#F0EEEA]' : ''}`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
-                  {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
-                </div>
-                <div>
-                  <h4 className="font-medium">{engine.name}</h4>
-                  <p className="text-sm text-[#666666]">{engine.brand}</p>
-                </div>
-              </div>
-              <a
-                href={engine.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => copyToClipboard(aiPerceptionPrompt)}
-                className="px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1"
-                style={{ backgroundColor: engine.color }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = engine.hover}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = engine.color}
-              >
-                <Copy className="w-3 h-3" /> Copy & Open {engine.name} <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-            <textarea
-              value={manualInput[engine.key]}
-              onChange={(e) => {
-                const val = e.target.value;
-                setManualInput(m => ({ ...m, [engine.key]: val }));
-                setAssessmentData({ ...assessmentData, [`${engine.key}Manual`]: val });
-              }}
-              placeholder={`Paste ${engine.name}'s response here...`}
-              className={`w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm ${manualInput[engine.key] ? 'bg-[#F0EEEA]' : 'bg-white'}`}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* AI Training Sources */}
-      <div className="card p-4 mb-4 border-l-4 border-[#6366F1]">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">AI Training Sources</h3>
-        <p className="text-xs text-[#666666] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
-        <div className="space-y-3">
-          {/* Wikipedia */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#666666]">Wikipedia</label>
-              <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer"
-                 className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium rounded hover:bg-gray-200 transition-colors flex items-center gap-1">
-                Search Wikipedia <ExternalLink className="w-2.5 h-2.5" />
-              </a>
-            </div>
-            <textarea
-              value={wikipediaContent}
-              onChange={(e) => { setWikipediaContent(e.target.value); setAssessmentData({ ...assessmentData, wikipediaContent: e.target.value }); }}
-              placeholder={`Does ${project.brandName} have a Wikipedia page? Record what it says — or note its absence.`}
-              className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
-            />
-          </div>
-          {/* Reddit Answers */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-orange-800">Reddit Answers <span className="text-[#666666] font-normal">(AI search visibility)</span></label>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => copyToClipboard(redditPrompt)}
-                  className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium rounded hover:bg-orange-200 transition-colors flex items-center gap-1"
-                >
-                  <Copy className="w-2.5 h-2.5" /> Copy prompt
+              {/* Create User */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Users ({activeUsers.length})</h3>
+                <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-2 px-4 py-2 bg-[#12161E] text-white rounded-xl text-sm font-semibold hover:bg-gray-800 transition-colors">
+                  <UserPlus className="w-4 h-4" />{showCreate ? 'Cancel' : 'Add User'}
                 </button>
-                <a href="https://www.reddit.com/answers/" target="_blank" rel="noopener noreferrer"
-                   className="px-2 py-0.5 bg-[#FF4500] text-white text-[10px] font-medium rounded hover:bg-[#E03D00] transition-colors flex items-center gap-1">
-                  Open Reddit Answers <ExternalLink className="w-2.5 h-2.5" />
-                </a>
               </div>
-            </div>
-            <textarea
-              value={redditContent}
-              onChange={(e) => { setRedditContent(e.target.value); setAssessmentData({ ...assessmentData, redditAnswersContent: e.target.value }); }}
-              placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation and community perception...`}
-              className="w-full h-24 px-3 py-2 border border-orange-200 rounded-lg bg-orange-50 resize-none text-sm"
-            />
-          </div>
-        </div>
-      </div>
 
-      {/* Assessor Observations */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
-        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the synthesis.</p>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
-      </div>
-
-      {canSynthesize && !isComplete && (
-        <button onClick={generateSynthesis} disabled={isProcessing.synthesis} className="btn-primary flex items-center gap-2 mb-6">
-          {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Play className="w-4 h-4" /> Generate Synthesis ({filledCount} engines)</>}
-        </button>
-      )}
-
-      {isComplete && (
-        <div className="card p-5 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#3B82F6]" /> Synthesis Complete
-            </h3>
-            <button
-              onClick={() => { generateSynthesis(); if (onClearScores) onClearScores(); }}
-              disabled={isProcessing.synthesis}
-              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
-            </button>
-          </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-64 overflow-y-auto text-sm text-[#333333]">{assessmentData.content}</div>
-        </div>
-      )}
-
-      {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          {proceedError}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
-      </div>
-    </div>
-  );
-}
-
-
-// Earned Media Assessment with paste field
-function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isAutoAssessing, setIsAutoAssessing] = useState(false);
-  const [error, setError] = useState(null);
-  const [coveragePaste, setCoveragePaste] = useState(assessmentData.coveragePaste || '');
-
-  const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
-
-  // Auto-assess earned media performance
-  const runAutoAssess = async () => {
-    setIsAutoAssessing(true);
-    setError(null);
-    try {
-      const prompt = `You are a senior brand intelligence analyst specializing in earned media evaluation. Your task is to conduct a comprehensive earned media performance assessment for ${project.brandName}, operating in the ${industryName} sector.
-
-Using any available information about this brand's media presence, including news articles, press mentions, analyst commentary, podcast appearances, awards, influencer coverage, and third-party reviews, evaluate performance across the following dimensions:
-
-1. Coverage Quality
-Assess the caliber and credibility of outlets and sources covering the brand. Are mentions appearing in authoritative, respected publications or primarily low-tier aggregators? Is coverage substantive (featured stories, interviews, deep analysis) or superficial (brief mentions, press release reposts)?
-
-2. Reach & Amplification
-Estimate the breadth and scale of earned media exposure. Which channels are generating the most coverage: digital news, print, broadcast, podcasts, social amplification of press? Is coverage geographically and demographically reaching the markets that matter for this brand?
-
-3. Sentiment Analysis
-Characterize the overall tone of coverage as positive, neutral, or negative. Identify recurring positive themes and any persistent negative narratives or reputational risks surfacing in third-party coverage.
-
-4. Share of Voice
-Compare the brand's earned media presence against its primary competitors. Is the brand driving the conversation in its category, keeping pace, or being outpaced? Where does the brand appear to be winning or losing mindshare?
-
-5. Message Consistency
-Evaluate whether earned media coverage accurately and consistently reflects the brand's intended positioning, values, and key messages. Are journalists, analysts, and influencers echoing the brand's narrative, or is a different story taking hold externally?
-
-6. Industry Influence & Thought Leadership
-Assess the degree to which the brand is shaping broader industry conversation. Is the brand cited as a reference point, a category innovator, or a thought leader? Are executives, spokespeople, or brand content being quoted, referenced, or credited in industry discourse?
-
-7. Audience Relevance
-Based on your knowledge of the brand's likely customer base and market positioning, evaluate how well earned media coverage is reaching and resonating with the audiences that matter most. Are the outlets, creators, and voices generating coverage trusted and consumed by the right people? Is coverage appearing in the channels where those audiences are most active?
-
-For each dimension, provide: a qualitative assessment, a performance score from 1 to 10 with rationale, specific examples or evidence where possible, and 1 to 2 actionable recommendations to improve performance.
-
-8. Brand Consciousness Attribute Mapping
-Based on your earned media observations, provide specific evidence relevant to each of these 8 brand consciousness attributes:
-
-AWAKE (Narrative Leadership): Is the brand shaping industry discourse or just participating? Are they cited as thought leaders? Do competitors respond to their positions? Are they keynoting major events?
-
-AWARE (Audience Understanding): Does coverage indicate the brand understands its audiences? Are they building trust systematically? Is there evidence of community engagement or customer advocacy in media?
-
-REFLECTIVE (Brand Authenticity): Does external coverage align with brand claims? Are there authenticity signals (employee advocacy, leadership visibility) or red flags (disconnect between claims and reality)?
-
-ATTENTIVE (Experience Excellence): Does coverage mention quality, consistency, or attention to detail? Are there complaints about experience or praise for excellence?
-
-COGENT (Strategic Intelligence): Is there evidence of data-driven approaches in coverage? Are they cited for research, insights, or strategic thinking?
-
-SENTIENT (Emotional Connection): Does coverage indicate emotional resonance with audiences? Are there passionate advocates or community enthusiasm visible in media?
-
-VISIONARY (Meaningful Purpose): Does coverage reference purpose, mission, or meaningful impact beyond profit? Are they associated with positive change or societal benefit?
-
-INTENTIONAL (Substance & Confidence): Does the brand show up with authority in coverage? Are executives visible and quotable? Is positioning clear and confident?
-
-Tone instruction: Be direct and critical where the evidence warrants it. Do not soften assessments out of diplomacy. If coverage is thin, sentiment is problematic, or the brand is losing share of voice to competitors, say so clearly and explain why it matters. Honest diagnosis is more valuable than a favorable framing.
-
-Conclude with an Overall Earned Media Health Score (1 to 10), a 2 to 3 sentence executive summary of the brand's earned media standing, and the single most important strategic priority for earned media improvement in the next 90 days.`;
-
-      const result = await callClaude(prompt, apiKey);
-      setAssessmentData({ ...assessmentData, autoAssessContent: result });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsAutoAssessing(false);
-    }
-  };
-
-  const runAnalysis = async () => {
-    setIsProcessing(true);
-    setError(null);
-    try {
-      const prompt = `Analyze earned media coverage for ${project.brandName}.
-
-USER-PROVIDED COVERAGE (last 3 months):
-${coveragePaste || 'No coverage provided by user'}
-
-${assessmentData.observations ? `ASSESSOR OBSERVATIONS TO CONSIDER:\n${assessmentData.observations}` : ''}
-
-${assessmentData.autoAssessContent ? `AUTO-ASSESS EARNED MEDIA ANALYSIS (previously generated - integrate these findings):\n${assessmentData.autoAssessContent}\n` : ''}
-
-Please also search for any additional earned media coverage for ${project.brandName} from the last 3 months including:
-- News articles and press mentions
-- Trade publication coverage
-- Analyst reports and mentions
-- Podcast appearances
-- Awards and recognition
-- Industry event mentions
-
-Provide a comprehensive earned media assessment:
-1. Coverage Volume and Quality - How much coverage? What tier publications?
-2. Sentiment Analysis - Positive, negative, neutral breakdown
-3. Message Penetration - Are key brand messages getting through?
-4. Spokesperson Visibility - Who's being quoted? How effective?
-5. Competitor Share of Voice - How does coverage compare to competitors?
-6. AI Search Impact - How does this coverage influence AI search results?
-7. PR Strategy Recommendations - Awareness, reputation, credibility building
-
-Write in flowing prose with specific examples. End with priority recommendations.`;
-
-      const result = await callClaude(prompt, apiKey);
-      setAssessmentData({ ...assessmentData, status: 'complete', content: result, coveragePaste });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const isComplete = assessmentData.status === 'complete';
-
-  // Completion tracking
-  const completionItems = [
-    { label: 'Auto-Assess', done: !!assessmentData.autoAssessContent },
-    { label: 'Coverage Added', done: !!coveragePaste },
-    { label: 'Analysis', done: isComplete },
-  ];
-
-  // Required checks before proceeding - ALL items mandatory
-  const canProceed = isComplete && !!assessmentData.autoAssessContent && !!coveragePaste;
-  const [proceedError, setProceedError] = useState(null);
-
-  const handleProceed = () => {
-    if (!assessmentData.autoAssessContent) {
-      setProceedError('Please complete the Auto-Assess Earned Media Performance check before proceeding.');
-      return;
-    }
-    if (!coveragePaste) {
-      setProceedError('Please add media coverage information before proceeding.');
-      return;
-    }
-    if (!isComplete) {
-      setProceedError('Please run the Earned Media Analysis before proceeding.');
-      return;
-    }
-    setProceedError(null);
-    onNext();
-  };
-
-  return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-      <MobileAssessmentBanner />
-      <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#10B981]/10 rounded-xl flex items-center justify-center">
-          <Newspaper className="w-6 h-6 text-[#10B981]" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-[#1A1A1A]">Earned Media Assessment</h2>
-          <p className="text-sm text-[#666666]">{project.brandName}'s press coverage</p>
-        </div>
-      </div>
-
-      <CompletionIndicator items={completionItems} />
-
-      {/* Coverage Paste Field */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Media Coverage (Last 3 Months)</h3>
-        <p className="text-sm text-[#666666] mb-4">
-          Paste any press coverage, news articles, mentions, or media clips from the last 3 months.
-        </p>
-        <textarea 
-          value={coveragePaste} 
-          onChange={(e) => setCoveragePaste(e.target.value)}
-          placeholder="Paste media coverage here...
-
-Example:
-- TechCrunch (Jan 15, 2026): 'Company X Raises $50M' - Featured as lead story
-- Forbes (Jan 8, 2026): CEO quoted on industry trends
-- Industry Podcast (Dec 20, 2025): 30-min interview with CTO
-- SXSW 2025: Keynote presentation on AI trends
-- Gartner Cool Vendor 2025: Named in category report
-- Inc. 5000 (2025): Ranked #234 fastest growing
-..."
-          className="w-full h-28 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
-        />
-        <p className="text-xs text-[#666666] mt-2">
-          Include: news articles, podcast appearances, conference keynotes, analyst mentions, awards announcements, industry rankings
-        </p>
-      </div>
-
-      {/* Auto-Assess Earned Media Performance */}
-      <div className="card p-5 mb-4 border-l-4 border-[#10B981]">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#10B981]" />
-              Auto-Assess Earned Media Performance
-            </h3>
-            <p className="text-xs text-[#666666]">
-              AI-powered comprehensive analysis across 7 dimensions: Coverage Quality, Reach, Sentiment, Share of Voice, Message Consistency, Thought Leadership, and Audience Relevance.
-            </p>
-          </div>
-          <button 
-            onClick={runAutoAssess} 
-            disabled={isAutoAssessing} 
-            className="btn-secondary text-sm py-2 px-4 flex items-center gap-2 flex-shrink-0"
-          >
-            {isAutoAssessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Assessing...</> : <><Bot className="w-4 h-4" /> Auto-Assess</>}
-          </button>
-        </div>
-        
-        {assessmentData.autoAssessContent && (
-          <div className="mt-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#10B981]" />
-              <span className="text-sm font-medium text-[#1A1A1A]">Performance Assessment Complete</span>
-            </div>
-            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Assessor Observations - before analysis button */}
-      <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
-        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the analysis and final report.</p>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
-      </div>
-
-      {!isComplete && (
-        <button onClick={runAnalysis} disabled={isProcessing} className="btn-primary flex items-center gap-2 mb-6">
-          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> Run Earned Media Analysis</>}
-        </button>
-      )}
-
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
-
-      {isComplete && (
-        <div className="card p-5 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#10B981]" /> Analysis Complete
-            </h3>
-            <button 
-              onClick={() => {
-                runAnalysis();
-                if (onClearScores) onClearScores();
-              }} 
-              disabled={isProcessing} 
-              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
-            </button>
-          </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
-          </div>
-        </div>
-      )}
-
-      {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          {proceedError}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
-      </div>
-    </div>
-  );
-}
-// Report Page
-function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onPrev, profile }) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [isScoring, setIsScoring] = useState(false);
-  const [scoringError, setScoringError] = useState(null);
-  const [scoringProgress, setScoringProgress] = useState(0);
-  const [scoringStage, setScoringStage] = useState('');
-  const [expandedSections, setExpandedSections] = useState({
-    attributes: true,
-    recommendations: true,
-    services: true,
-    conclusions: true,
-    justification: false,
-    evaluated: false,
-    readouts: false,
-    readoutWebsite: false,
-    readoutSocial: false,
-    readoutAI: false,
-    readoutEarned: false,
-  });
-  const [animatedScore, setAnimatedScore] = useState(0);
-  const chartRef = useRef(null);
-  
-  const isReadonly = profile?.is_readonly && !profile?.is_admin;
-
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
-  };
-
-  // Scoring logic with progress
-  const runScoring = async () => {
-    if (!apiKey) {
-      setScoringError('API key is required. Please go back to Setup and enter your Anthropic API key.');
-      return;
-    }
-    setIsScoring(true);
-    setScoringError(null);
-    setScoringProgress(0);
-    
-    // Simulate progress stages
-    const progressStages = [
-      { progress: 10, stage: 'Absorbing website data...' },
-      { progress: 25, stage: 'Absorbing social media data...' },
-      { progress: 40, stage: 'Absorbing AI reputation data...' },
-      { progress: 55, stage: 'Absorbing earned media data...' },
-      { progress: 70, stage: 'Scoring performance across 8 attributes...' },
-      { progress: 85, stage: 'Generating recommendations...' },
-      { progress: 95, stage: 'Finalizing report...' },
-    ];
-    
-    let stageIndex = 0;
-    const progressInterval = setInterval(() => {
-      if (stageIndex < progressStages.length) {
-        setScoringProgress(progressStages[stageIndex].progress);
-        setScoringStage(progressStages[stageIndex].stage);
-        stageIndex++;
-      }
-    }, 800);
-
-    try {
-    // Helper: truncate long text to keep prompt lean. Returns '' for empty so template literals don't render "null".
-    const cap = (text, limit = 1200) => {
-      if (!text || text === 'None' || text === 'Not specified') return '';
-      return text.length > limit ? text.slice(0, limit) + '... [truncated]' : text;
-    };
-    const field = (label, value) => {
-      const v = typeof value === 'string' ? value.trim() : value;
-      return v && !['Not assessed','Not checked','Not reviewed','Not noted','Not provided','None noted',''].includes(v) ? `${label}: ${v}` : null;
-    };
-
-    const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}.
-
-ASSESSMENT DATA:
-
-WEBSITE:
-${cap(assessments.website.content)}
-${cap(assessments.website.seoAssessment, 600) ? `SEO: ${cap(assessments.website.seoAssessment, 600)}` : ''}
-${assessments.website.techAudit ? `Technical: Performance ${assessments.website.techAudit.scores.performance}/100, Accessibility ${assessments.website.techAudit.scores.accessibility}/100, SEO ${assessments.website.techAudit.scores.seo}/100, Best Practices ${assessments.website.techAudit.scores.bestPractices}/100` : ''}
-${[field('Pages', assessments.website.pagesReviewed), field('Credentials', cap(assessments.website.credentialsContent, 300)), field('Notes', assessments.website.observations)].filter(Boolean).join('\n')}
-
-SOCIAL MEDIA:
-${cap(assessments.social.content)}
-${[field('Glassdoor', cap(assessments.social.glassdoorContent, 400)), field('Employee Advocacy', cap(assessments.social.employeeAdvocacy, 300)), field('Paid Media', cap(assessments.social.paidMediaContent, 300)), field('Awards', cap(assessments.social.awardsRecognition, 300)), field('WIPO', assessments.social.wipoContent), field('Notes', assessments.social.observations)].filter(Boolean).join('\n')}
-YouTube: ${assessments.social.youtubeContent?.includes('[API Data]') ? 'Verified metrics included' : 'Manual only'}
-
-AI REPUTATION:
-${(() => {
-  const ai = assessments.aiReputation;
-  const engines = [
-    ['Claude', ai?.claudeManual],
-    ['Gemini', ai?.geminiManual],
-    ['ChatGPT', ai?.chatgptManual],
-    ['Perplexity', ai?.perplexityManual],
-    ['Copilot', ai?.copilotManual],
-  ].filter(([, v]) => v);
-  const parts = [];
-  if (ai?.reputationFlags) parts.push(`FLAGS (known reputation risks — must be weighted against REFLECTIVE, INTENTIONAL, and AWAKE scores): ${cap(ai.reputationFlags, 400)}`);
-  if (engines.length) parts.push(engines.map(([name, val]) => `[${name}] ${cap(val, 500)}`).join('\n\n'));
-  if (ai?.wikipediaContent) parts.push(`Wikipedia: ${cap(ai.wikipediaContent, 400)}`);
-  if (ai?.redditAnswersContent) parts.push(`Reddit: ${cap(ai.redditAnswersContent, 400)}`);
-  if (ai?.content) parts.push(`Synthesis: ${cap(ai.content, 600)}`);
-  if (ai?.observations) parts.push(`Notes: ${ai.observations}`);
-  return parts.length ? parts.join('\n\n') : 'Not completed';
-})()}
-
-EARNED MEDIA:
-${cap(assessments.earnedMedia.content)}
-${field('Notes', assessments.earnedMedia.observations) || ''}
-
-SCORING RUBRIC v2.8 — Score each attribute 0-100:
-
-${ATTRIBUTES.map(a => `${a.id} (${a.fullName})
-Q: ${a.question}
-Strong (70-100): ${a.signals.strong.join('; ')}
-Moderate (40-69): ${a.signals.moderate.join('; ')}
-Weak (0-39): ${a.signals.weak.join('; ')}`).join('\n\n')}
-
-SCORE RANGE DEFINITIONS (use these anchors for consistency):
-- 0-25 (Pre-Foundational): Cannot answer the fundamental question positively. Significant gaps, minimal evidence.
-- 26-39 (Foundational): Weak answer to fundamental question. Basic presence but major improvements needed.
-- 40-55 (Establishing): Partial answer to fundamental question. Moderate capability with clear room for growth.
-- 56-69 (Differentiating): Good answer to fundamental question. Above average, showing intentional effort.
-- 70-84 (Leading): Strong answer to fundamental question. Industry-competitive performance.
-- 85-100 (Transforming): Exceptional answer to fundamental question. Category-defining excellence.
-
-CRITICAL SCORING REQUIREMENTS:
-1. ANSWER THE QUESTION: Each score must directly answer the attribute's fundamental question with evidence
-2. EVIDENCE-BASED: Every score MUST be justified by specific, observable evidence from the assessment data
-3. CITE SOURCES: Reference the exact source of evidence (e.g., "Website About page states...", "LinkedIn post from [date]...", "Forbes article mentioned...")
-4. SIGNAL MATCHING: Compare observed evidence against the strong/moderate/weak signals for each attribute
-5. RECENCY MATTERS: Weight recent evidence (last 3 months) more heavily than older content
-6. CONFIDENCE LEVEL: Indicate confidence based on quantity and quality of evidence available
-7. IDENTIFY GAPS: List specific missing elements that would improve the score
-8. CONSISTENCY: The same evidence patterns should always produce the same score range (plus or minus 3 points)
-
-EVIDENCE STRENGTH GUIDELINES:
-- Tier 1 (Strong): Major publications, verified awards, clear data/metrics, official certifications
-- Tier 2 (Moderate): Industry publications, social proof, consistent messaging across channels
-- Tier 3 (Weak): Self-reported claims without verification, outdated content, single instances
-
-SCORING NOTES:
-- ATTENTIVE: 70% qualitative + 30% technical metrics (if available). COGENT: 80% qualitative + 20% technical SEO.
-- Glassdoor impacts REFLECTIVE. WIPO impacts INTENTIONAL. Wikipedia absence/thin = gap in COGENT+INTENTIONAL.
-- Reddit perception: REFLECTIVE + COGENT. Reputation flags: must be reflected in REFLECTIVE + INTENTIONAL scores.
-- AI engine convergence = strong discoverability (COGENT+INTENTIONAL). Vagueness/divergence = penalise both.
-- Business model: ${project.businessModel.toUpperCase()}. ${project.businessModel === 'b2b' ? 'LinkedIn 3x. Trade press over mainstream. Long-form over short-form. Low TikTok weight.' : project.businessModel === 'b2c' ? 'All consumer social weighted. TikTok relevant if <40 audience. Consumer reviews critical. Mainstream media over trade press.' : 'Weight LinkedIn for B2B, consumer channels for B2C. Both trade and mainstream press matter.'}
-- Recency: weight last 3 months more heavily. Evidence tiers: major publications/verified data (strong), industry/social proof (moderate), self-reported/single instance (weak).
-
-SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
-- AWAKE: Executive Visibility, PR & Media Relations, Thought Leadership Content
-- AWARE: Audience Research, Social Media Strategy, Community Management, Influencer & Creator Strategy, GEO
-- REFLECTIVE: Brand Strategy, Brand Expression, Crisis Communications, Brand Training
-- ATTENTIVE: Website Strategy & Development, Creative Production, Brand Guidelines
-- COGENT: SEO Strategy, Measurement & Analytics, Paid Media Strategy, GEO, Marketing Strategy
-- SENTIENT: Creative Campaigns, Brand Expression, Content Strategy, Events
-- VISIONARY: Brand Strategy, Impact Communications, Executive Visibility
-- INTENTIONAL: Brand Strategy, Brand Assets & Guidelines, Website Development, Communications Training
-
-Return valid JSON only — no prose before or after. Schema:
-{
-  "headline": "Single pithy sentence (max 20 words) capturing brand state and primary opportunity. Specific, not generic.",
-  "conclusion": "2-3 sentences naming the specific transformation available. Reference actual findings. No generic phrases.",
-  "justification": "Under 150 words. Why the overall score is what it is. Call out notably high/low scores with evidence.",
-  "AWAKE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "Cited evidence, under 100 words.", "gaps": ["max 3 items"], "opportunity": "Relevant service area recommendation." },
-  "AWARE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "REFLECTIVE": { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "ATTENTIVE":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "COGENT":     { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "SENTIENT":   { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "VISIONARY":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "INTENTIONAL":{ "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." }
-}`;
-
-      const result = await callClaude(prompt, apiKey, null, [], 0, true, 8000);
-      clearInterval(progressInterval);
-      setScoringProgress(100);
-      setScoringStage('Complete!');
-      const match = result.match(/\{[\s\S]*\}/);
-      if (match) {
-        try {
-          const parsed = JSON.parse(match[0]);
-          const hasAtLeastOneScore = ATTRIBUTES.some(attr => 
-            parsed[attr.id] && typeof parsed[attr.id].score === 'number'
-          );
-          if (hasAtLeastOneScore) {
-            setScores(parsed);
-          } else {
-            setScoringError('AI response was missing score data. Please try again.');
-            console.error('Parsed but missing scores:', parsed);
-          }
-        } catch (parseErr) {
-          setScoringError(`Failed to parse AI response: ${parseErr.message}. Please try again.`);
-          console.error('JSON parse error:', parseErr.message);
-          console.error('Raw match (first 800 chars):', match[0].substring(0, 800));
-          console.error('Raw match (last 200 chars):', match[0].slice(-200));
-        }
-      } else {
-        setScoringError('AI response did not contain valid scoring data. Please try again.');
-        console.error('No JSON match found in result:', result.substring(0, 500));
-      }
-    } catch (e) { 
-      clearInterval(progressInterval);
-      setScoringError(e.message); 
-    }
-    finally { setIsScoring(false); }
-  };
-
-  // Calculate scores early for hooks (before any returns)
-  const validScoreEntries = scores ? Object.entries(scores)
-    .filter(([key, val]) => val && typeof val.score === 'number') : [];
-  
-  const calculatedOverall = validScoreEntries.length > 0 
-    ? Math.round(validScoreEntries.reduce((a, [, v]) => a + v.score, 0) / 8)
-    : 0;
-
-  // Animate score counting up on page load - must be before any returns
-  useEffect(() => {
-    if (calculatedOverall > 0) {
-      const duration = 3000; // 3 seconds to match spider chart
-      const steps = 60;
-      const increment = calculatedOverall / steps;
-      let current = 0;
-      
-      const timer = setInterval(() => {
-        current += increment;
-        if (current >= calculatedOverall) {
-          setAnimatedScore(calculatedOverall);
-          clearInterval(timer);
-        } else {
-          setAnimatedScore(Math.round(current));
-        }
-      }, duration / steps);
-      
-      return () => clearInterval(timer);
-    }
-  }, [calculatedOverall]);
-
-  // Validate scores has actual data
-  const hasValidScores = scores && Object.keys(scores).length > 0 && 
-    ATTRIBUTES.some(attr => scores[attr.id]?.score !== undefined);
-
-  // If no scores yet, show scoring prompt
-  if (!hasValidScores) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
-        <div className="flex items-start gap-4 mb-8">
-          <div className="w-14 h-14 bg-[#E53935]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-            <BarChart3 className="w-7 h-7 text-[#E53935]" />
-          </div>
-          <div>
-            <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Generate Brand Report</h2>
-            <p className="text-[#333333] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
-          </div>
-        </div>
-
-        <div className="card p-6 md:p-8 text-center mb-6">
-          {isScoring ? (
-            <div className="max-w-lg mx-auto">
-              <Loader2 className="w-16 h-16 text-[#E53935] mx-auto mb-6 animate-spin" />
-              <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Generating Report...</h3>
-              <p className="text-[#666666] mb-6">{scoringStage}</p>
-              
-              {/* Progress bar */}
-              <div className="w-full bg-[#E8E6E1] rounded-full h-3 mb-2">
-                <div 
-                  className="bg-[#E53935] h-3 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${scoringProgress}%` }}
-                />
-              </div>
-              <p className="text-sm text-[#666666] mb-8">{scoringProgress}% complete</p>
-              
-              {/* Progress steps - centered */}
-              <div className="space-y-3">
-                {/* Data Collection */}
-                <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 25 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
-                    {scoringProgress >= 25 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
-                    <span>Website</span>
+              {showCreate && (
+                <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-2xl">
+                  <h4 className="font-semibold text-gray-900 mb-4">New User</h4>
+                  {error && <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div><label className="block text-xs font-semibold text-gray-700 mb-1">Full Name *</label><input value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} placeholder="Jane Smith" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 outline-none" /></div>
+                    <div><label className="block text-xs font-semibold text-gray-700 mb-1">Email *</label><input value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} placeholder="jane@antennagroup.com" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 outline-none" /></div>
+                    <div><label className="block text-xs font-semibold text-gray-700 mb-1">Password *</label><input type="text" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} placeholder="Temporary password" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 outline-none" /></div>
+                    <div><label className="block text-xs font-semibold text-gray-700 mb-1">Role *</label>
+                      <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 outline-none bg-white">
+                        {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label} — {r.description}</option>)}
+                      </select>
+                    </div>
                   </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 40 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
-                    {scoringProgress >= 40 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
-                    <span>Social</span>
-                  </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 55 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
-                    {scoringProgress >= 55 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
-                    <span>AI Rep</span>
-                  </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 70 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
-                    {scoringProgress >= 70 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
-                    <span>Earned</span>
-                  </div>
+                  <button onClick={handleCreate} disabled={saving} className="px-6 py-2.5 bg-[#12161E] text-white rounded-xl text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors flex items-center gap-2">
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}Create User
+                  </button>
                 </div>
-                
-                {/* Processing */}
-                <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 85 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
-                    {scoringProgress >= 85 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
-                    <span>Scoring</span>
-                  </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 95 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
-                    {scoringProgress >= 95 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
-                    <span>Recommendations</span>
-                  </div>
+              )}
+
+              {/* Role Access Guide */}
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                <p className="text-xs font-semibold text-blue-800 mb-2">Role Access Summary</p>
+                <div className="grid grid-cols-4 gap-3">
+                  {Object.entries(USER_ROLES).map(([role, info]) => (
+                    <div key={role} className="text-xs text-blue-700">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-semibold border text-[10px] mb-1 ${info.color}`}>{info.label}</span>
+                      <p className="text-gray-600 leading-snug">{info.description}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          ) : (
-            <>
-              <Compass className="w-16 h-16 text-[#E53935] mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Assessment Complete</h3>
-              <p className="text-[#666666] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
-              
-              <button 
-                onClick={runScoring} 
-                disabled={isScoring}
-                className="btn-primary flex items-center gap-2 mx-auto text-lg px-8 py-3"
-              >
-                <Play className="w-5 h-5" /> Generate Brand Report
-              </button>
+
+              {/* Users Table */}
+              <div className="border border-gray-200 rounded-2xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">User</th>
+                      <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Role</th>
+                      <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
+                      <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Password</th>
+                      <th className="text-right px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {users.map(user => {
+                      const roleInfo = USER_ROLES[user.role] || USER_ROLES.growth;
+                      const isMe = user.id === currentUser.id;
+                      const isEditing = editingId === user.id;
+                      return (
+                        <tr key={user.id} className={`${isMe ? 'bg-blue-50/40' : 'bg-white'} hover:bg-gray-50 transition-colors`}>
+                          <td className="px-5 py-4">
+                            {isEditing ? (
+                              <div className="space-y-1.5">
+                                <input value={editUser.name || ''} onChange={e => setEditUser({ ...editUser, name: e.target.value })} placeholder="Name" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm" />
+                                <input value={editUser.email || ''} onChange={e => setEditUser({ ...editUser, email: e.target.value })} placeholder="Email" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm" />
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="font-semibold text-gray-900">{user.name} {isMe && <span className="text-xs text-blue-600">(you)</span>}</p>
+                                <p className="text-xs text-gray-500">{user.email}</p>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-5 py-4">
+                            {isEditing ? (
+                              <select value={editUser.role || user.role} onChange={e => setEditUser({ ...editUser, role: e.target.value })} className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">
+                                {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                              </select>
+                            ) : (
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${roleInfo.color}`}>{roleInfo.label}</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${user.active !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {user.active !== false ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            {isEditing ? (
+                              <input type="text" value={editUser.newPassword || ''} onChange={e => setEditUser({ ...editUser, newPassword: e.target.value })} placeholder="New password (leave blank to keep)" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm" />
+                            ) : (
+                              <span className="text-xs text-gray-400 font-mono">••••••••</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center justify-end gap-1">
+                              {isEditing ? (
+                                <>
+                                  <button onClick={() => handleSaveEdit(user.id)} disabled={saving} className="px-3 py-1.5 bg-[#12161E] text-white rounded-lg text-xs font-medium hover:bg-gray-800 disabled:opacity-50 flex items-center gap-1">
+                                    {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : null}Save
+                                  </button>
+                                  <button onClick={() => { setEditingId(null); setError(''); }} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">Cancel</button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => { setEditingId(user.id); setEditUser({ name: user.name, email: user.email, role: user.role, active: user.active, newPassword: '' }); setError(''); }} className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" title="Edit"><Edit3 className="w-3.5 h-3.5" /></button>
+                                  {!isMe && <button onClick={() => handleToggleActive(user)} className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" title={user.active !== false ? 'Deactivate' : 'Activate'}>{user.active !== false ? <ToggleRight className="w-3.5 h-3.5 text-green-600" /> : <ToggleLeft className="w-3.5 h-3.5" />}</button>}
+                                  {!isMe && <button onClick={() => handleDelete(user.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>}
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {error && !showCreate && <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>}
             </>
           )}
-          
-          {scoringError && (
-            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
-              {scoringError}
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-between">
-          <button onClick={onPrev} className="btn-secondary flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" /> {isReadonly ? 'Back' : 'Back to Earned Media'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Validate scores before render
-  
-  const overall = calculatedOverall;
-  
-  // Safety check - if overall is 0 or NaN, show error
-  if (!overall || isNaN(overall)) {
-    return (
-      <div className="max-w-4xl mx-auto p-8">
-        <div className="card p-6 text-center">
-          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">Report Generation Issue</h3>
-          <p className="text-[#666666] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
-          <button onClick={() => setScores(null)} className="btn-primary">
-            Try Again
-          </button>
-          <details className="mt-4 text-left text-xs text-[#999999]">
-            <summary className="cursor-pointer">Debug Info</summary>
-            <pre className="mt-2 p-2 bg-[#F0EEEA] rounded overflow-auto max-h-40">
-              {JSON.stringify(scores, null, 2)}
-            </pre>
-          </details>
-        </div>
-      </div>
-    );
-  }
-  
-  const stage = getMaturityStage(overall);
-  const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
-
-  const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
-  
-  // Generate 12 recommendations from lowest scoring attributes
-  const recommendations = [];
-  let attrIndex = 0;
-  let recIndex = 0;
-  while (recommendations.length < 12 && attrIndex < sortedAttrs.length) {
-    const attr = sortedAttrs[attrIndex];
-    const attrRecs = SERVICE_RECOMMENDATIONS[attr.id] || [];
-    if (recIndex < attrRecs.length) {
-      const rec = attrRecs[recIndex];
-      recommendations.push({ 
-        attr: attr.name, 
-        attrId: attr.id, 
-        title: rec.title,
-        description: rec.description,
-        impact: rec.impact,
-        attributes: rec.attributes,
-        score: attr.score 
-      });
-      recIndex++;
-    } else {
-      attrIndex++;
-      recIndex = 0;
-    }
-  }
-
-  // Collect all assessor observations
-  const allObservations = [
-    assessments.website?.observations,
-    assessments.social?.observations,
-    assessments.aiReputation?.observations,
-    assessments.earnedMedia?.observations
-  ].filter(Boolean);
-
-  // Build what we evaluated text
-  const evaluatedInputs = [];
-  
-  // Website Assessment inputs
-  if (assessments.website?.pagesReviewed) {
-    evaluatedInputs.push(`Website pages (${assessments.website.pagesReviewed})`);
-  } else if (assessments.website?.images?.length > 0) {
-    evaluatedInputs.push('Website homepage and key pages');
-  }
-  if (assessments.website?.websiteContent) evaluatedInputs.push('website content and messaging');
-  if (assessments.website?.images?.length > 0) evaluatedInputs.push(`${assessments.website.images.length} website screenshot(s) analyzed for brand alignment, storytelling, and visual consistency`);
-  
-  // Social Media inputs
-  if (assessments.social?.linkedinAbout) evaluatedInputs.push('LinkedIn company profile and positioning');
-  if (assessments.social?.linkedinPosts) evaluatedInputs.push('LinkedIn posts and engagement metrics');
-  if (assessments.social?.xContent) evaluatedInputs.push('X (Twitter) content and voice');
-  if (assessments.social?.instagramContent) evaluatedInputs.push('Instagram presence and visual brand');
-  if (assessments.social?.youtubeContent) evaluatedInputs.push('YouTube channel and video content');
-  if (assessments.social?.socialImages?.length > 0) evaluatedInputs.push(`${assessments.social.socialImages.length} social media screenshot(s)`);
-  
-  // AI Reputation inputs
-  if (assessments.aiReputation?.reputationFlags) evaluatedInputs.push('Reputation trigger search (news, controversy, reviews)');
-  if (assessments.aiReputation?.claudeManual) evaluatedInputs.push('Claude AI brand perception');
-  if (assessments.aiReputation?.geminiManual) evaluatedInputs.push('Gemini AI brand perception');
-  if (assessments.aiReputation?.chatgptManual) evaluatedInputs.push('ChatGPT brand perception');
-  if (assessments.aiReputation?.perplexityManual) evaluatedInputs.push('Perplexity AI brand perception');
-  if (assessments.aiReputation?.copilotManual) evaluatedInputs.push('Microsoft Copilot brand perception');
-  if (assessments.aiReputation?.wikipediaContent) evaluatedInputs.push('Wikipedia presence and AI training signal');
-  if (assessments.aiReputation?.redditAnswersContent) evaluatedInputs.push('Reddit Answers AI search visibility');
-  
-  // Earned Media inputs
-  if (assessments.earnedMedia?.coveragePaste) evaluatedInputs.push('3 months earned media coverage and press mentions');
-
-  // Build comprehensive evaluation description
-  const websiteEvalDescription = assessments.website?.pagesReviewed 
-    ? `Website analysis covered ${assessments.website.pagesReviewed}, examining brand positioning, messaging and storytelling, information architecture, UI design, user experience, accessibility, and AI search readability.`
-    : 'Website analysis examined homepage and key pages for brand positioning, messaging, information architecture, UI/UX design, accessibility compliance, and AI search readability.';
-
-  // Copy Report Text to clipboard
-  const copyReportText = () => {
-    const divider = '═'.repeat(60);
-    const subDivider = '─'.repeat(40);
-    
-    // Build attribute scores text
-    const attrScoresText = ATTRIBUTES.map(attr => {
-      const score = scores[attr.id]?.score || 0;
-      return `  ${attr.name}: ${score}/100`;
-    }).join('\n');
-    
-    // Build strengths and opportunities
-    const strengths = sortedAttrs.slice(-3).reverse().map(a => `  • ${a.name} (${a.score}/100)`).join('\n');
-    const opportunities = sortedAttrs.slice(0, 3).map(a => `  • ${a.name} (${a.score}/100)`).join('\n');
-    
-    // Build recommendations text
-    const recsText = recommendations.slice(0, 6).map((rec, i) => 
-      `  ${i + 1}. ${rec.title}\n     ${rec.description}\n     Benefit: ${rec.impact}`
-    ).join('\n\n');
-
-    let reportText = `
-${divider}
-CONSCIOUS COMPASS ASSESSMENT REPORT
-${divider}
-
-Brand: ${project.brandName}
-Industry: ${industryName}
-Website: ${project.websiteUrl}
-Business Model: ${project.businessModel.toUpperCase()}
-Date: ${new Date().toLocaleDateString()}
-
-${divider}
-OVERALL SCORE: ${overall}/100
-Maturity Stage: ${stage.name}
-${divider}
-
-${subDivider}
-ATTRIBUTE SCORES
-${subDivider}
-${attrScoresText}
-
-${subDivider}
-KEY STRENGTHS
-${subDivider}
-${strengths}
-
-${subDivider}
-GROWTH OPPORTUNITIES
-${subDivider}
-${opportunities}
-
-${subDivider}
-TOP RECOMMENDATIONS
-${subDivider}
-${recsText}
-
-${divider}
-ASSESSMENT READOUTS
-${divider}
-`;
-
-    // Add Website Assessment
-    if (assessments.website?.autoAssessContent || assessments.website?.seoAssessment || assessments.website?.content) {
-      reportText += `
-${subDivider}
-WEBSITE ASSESSMENT
-${subDivider}
-`;
-      if (assessments.website?.autoAssessContent) {
-        reportText += `
-[Auto-Assess Analysis]
-${assessments.website.autoAssessContent}
-`;
-      }
-      if (assessments.website?.seoAssessment) {
-        reportText += `
-[SEO Visibility Assessment]
-${assessments.website.seoAssessment}
-`;
-      }
-      if (assessments.website?.content) {
-        reportText += `
-[Full Website Analysis]
-${assessments.website.content}
-`;
-      }
-    }
-
-    // Add Social Media Assessment
-    if (assessments.social?.redditAnswersContent || assessments.social?.content) {
-      reportText += `
-${subDivider}
-SOCIAL MEDIA ASSESSMENT
-${subDivider}
-`;
-      if (assessments.social?.redditAnswersContent) {
-        reportText += `
-[Reddit Answers - AI Search Visibility]
-${assessments.social.redditAnswersContent}
-`;
-      }
-      if (assessments.social?.content) {
-        reportText += `
-[Full Social Media Analysis]
-${assessments.social.content}
-`;
-      }
-    }
-
-    // Add AI Reputation Assessment
-    if (assessments.aiReputation?.content) {
-      reportText += `
-${subDivider}
-AI REPUTATION ASSESSMENT
-${subDivider}
-
-${assessments.aiReputation.content}
-`;
-    }
-
-    // Add Earned Media Assessment
-    if (assessments.earnedMedia?.autoAssessContent || assessments.earnedMedia?.content) {
-      reportText += `
-${subDivider}
-EARNED MEDIA ASSESSMENT
-${subDivider}
-`;
-      if (assessments.earnedMedia?.autoAssessContent) {
-        reportText += `
-[Auto-Assess Earned Media Performance]
-${assessments.earnedMedia.autoAssessContent}
-`;
-      }
-      if (assessments.earnedMedia?.content) {
-        reportText += `
-[Full Earned Media Analysis]
-${assessments.earnedMedia.content}
-`;
-      }
-    }
-
-    reportText += `
-${divider}
-METHODOLOGY
-${divider}
-${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice.
-
-Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${FRAMEWORK_VERSION}
-`;
-
-    navigator.clipboard.writeText(reportText.trim()).then(() => {
-      alert('Report copied to clipboard!');
-    }).catch(() => {
-      // Fallback for browsers that don't support clipboard API
-      const textArea = document.createElement('textarea');
-      textArea.value = reportText.trim();
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      alert('Report copied to clipboard!');
-    });
-  };
-
-  const generatePdf = async () => {
-    setIsGeneratingPdf(true);
-    try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const contentWidth = pageWidth - (margin * 2);
-      let y = margin;
-
-      // Simple helper to add text and handle page breaks
-      const checkPage = () => {
-        if (y > pageHeight - 25) {
-          pdf.addPage();
-          y = margin;
-        }
-      };
-
-      const addParagraph = (text, size = 10) => {
-        const lines = pdf.splitTextToSize(text, contentWidth);
-        pdf.setFontSize(size);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(0, 0, 0);
-        lines.forEach(line => {
-          checkPage();
-          pdf.text(line, margin, y);
-          y += size * 0.45;
-        });
-        y += 3;
-      };
-
-      const addSection = (title) => {
-        y += 8;
-        checkPage();
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(229, 57, 53);
-        pdf.text(title, margin, y);
-        y += 8;
-      };
-
-      // ========== TITLE ==========
-      pdf.setFontSize(24);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(project.brandName, margin, y);
-      y += 10;
-
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(100, 100, 100);
-      pdf.text('Conscious Compass Assessment Report', margin, y);
-      y += 6;
-
-      pdf.setFontSize(10);
-      pdf.text(`${project.date || new Date().toLocaleDateString()} | ${industryName} | ${project.businessModel.toUpperCase()}`, margin, y);
-      y += 12;
-
-      // ========== OVERALL SCORE ==========
-      pdf.setFontSize(18);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(229, 57, 53);
-      pdf.text(`Overall Score: ${overall}/100`, margin, y);
-      y += 8;
-
-      pdf.setFontSize(14);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(`Maturity Stage: ${stage.name}`, margin, y);
-      y += 6;
-
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(stage.description, margin, y);
-      y += 8;
-
-      pdf.setTextColor(5, 150, 105);
-      pdf.text(`Strengths: ${sortedAttrs.slice(-2).map(a => a.name).join(', ')}`, margin, y);
-      y += 5;
-      pdf.setTextColor(220, 38, 38);
-      pdf.text(`Opportunities: ${sortedAttrs.slice(0, 2).map(a => a.name).join(', ')}`, margin, y);
-      y += 8;
-      
-      // Headline
-      if (scores.headline) {
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'italic');
-        pdf.setTextColor(51, 51, 51);
-        const headlineLines = pdf.splitTextToSize(`"${scores.headline}"`, contentWidth);
-        headlineLines.forEach(line => {
-          pdf.text(line, margin, y);
-          y += 5;
-        });
-        y += 4;
-      }
-
-      // ========== SPIDER CHART IMAGE ==========
-      if (chartRef.current) {
-        try {
-          const canvas = await html2canvas(chartRef.current, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-            logging: false,
-          });
-          const imgData = canvas.toDataURL('image/png');
-          const imgWidth = 160;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          
-          // Center the chart
-          const imgX = (pageWidth - imgWidth) / 2;
-          pdf.addImage(imgData, 'PNG', imgX, y, imgWidth, imgHeight);
-          y += imgHeight + 8;
-        } catch (err) {
-          console.warn('Could not capture chart:', err);
-          y += 5;
-        }
-      }
-
-      // ========== ATTRIBUTE SCORES LIST ==========
-      addSection('ATTRIBUTE SCORES');
-      
-      ATTRIBUTES.forEach(attr => {
-        const score = scores[attr.id]?.score || 0;
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(0, 0, 0);
-        pdf.text(`${attr.name}: ${score}/100`, margin, y);
-        y += 6;
-      });
-
-      // ========== EXECUTIVE SUMMARY ==========
-      addSection('EXECUTIVE SUMMARY');
-      addParagraph(`${project.brandName} achieved an overall Brand Consciousness Score of ${overall}/100, placing them in the "${stage.name}" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in ${sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in ${sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.`);
-
-      // ========== ATTRIBUTE ANALYSIS ==========
-      addSection('ATTRIBUTE ANALYSIS');
-
-      ATTRIBUTES.forEach(attr => {
-        const score = scores[attr.id]?.score || 0;
-        const findings = scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description;
-        const opportunity = scores[attr.id]?.opportunity;
-
-        checkPage();
-
-        // Attribute name and score
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(0, 0, 0);
-        pdf.text(`${attr.name}: ${score}/100`, margin, y);
-        y += 6;
-
-        // Findings
-        if (findings) {
-          const lines = pdf.splitTextToSize(findings, contentWidth);
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(50, 50, 50);
-          lines.forEach(line => {
-            checkPage();
-            pdf.text(line, margin, y);
-            y += 4;
-          });
-        }
-
-        // Opportunity
-        if (opportunity) {
-          y += 2;
-          const oppLines = pdf.splitTextToSize('Opportunity: ' + opportunity, contentWidth);
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'italic');
-          pdf.setTextColor(5, 150, 105);
-          oppLines.forEach(line => {
-            checkPage();
-            pdf.text(line, margin, y);
-            y += 4;
-          });
-        }
-
-        y += 8;
-      });
-
-      // ========== RECOMMENDATIONS ==========
-      addSection('TOP RECOMMENDATIONS');
-
-      recommendations.slice(0, 6).forEach((r, i) => {
-        checkPage();
-
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(0, 0, 0);
-        pdf.text(`${i + 1}. ${r.title}`, margin, y);
-        y += 6;
-
-        const descLines = pdf.splitTextToSize(r.description, contentWidth);
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(50, 50, 50);
-        descLines.forEach(line => {
-          checkPage();
-          pdf.text(line, margin, y);
-          y += 4;
-        });
-
-        // Add benefit
-        const benefitLines = pdf.splitTextToSize(`Benefit: ${r.impact}`, contentWidth);
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'italic');
-        pdf.setTextColor(229, 57, 53); // Red accent
-        benefitLines.forEach(line => {
-          checkPage();
-          pdf.text(line, margin, y);
-          y += 4;
-        });
-
-        pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`Impacts: ${r.attributes.join(', ')}`, margin, y);
-        y += 8;
-      });
-
-      // ========== RECOMMENDED ANTENNA GROUP SERVICES ==========
-      const forceInclude = getForceIncludeServicesFromAIReputation(assessments?.aiReputation?.content, assessments);
-      const serviceRecs = getAllRecommendations(scores, { forceIncludeServices: forceInclude });
-      const topServices = serviceRecs.slice(0, 6);
-      
-      if (topServices.length > 0) {
-        addSection('RECOMMENDED ANTENNA GROUP SERVICES');
-        
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(100, 100, 100);
-        pdf.text('Based on the assessment, these services would have the greatest impact:', margin, y);
-        y += 8;
-
-        topServices.forEach((rec, i) => {
-          checkPage();
-          const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
-
-          pdf.setFontSize(11);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(0, 0, 0);
-          pdf.text(`${i + 1}. ${rec.service.name}`, margin, y);
-          y += 5;
-
-          pdf.setFontSize(8);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(100, 100, 100);
-          pdf.text(`${rec.service.category} | Improves ${attr?.name || 'brand'} | ${formatBudget(rec.service)}`, margin, y);
-          y += 5;
-
-          const rationaleLines = pdf.splitTextToSize(rec.rationale, contentWidth);
-          pdf.setFontSize(9);
-          pdf.setTextColor(50, 50, 50);
-          rationaleLines.forEach(line => {
-            checkPage();
-            pdf.text(line, margin, y);
-            y += 4;
-          });
-          y += 4;
-        });
-      }
-
-      // ========== CONCLUSIONS ==========
-      addSection('CONCLUSIONS');
-      const conclusionText = scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`;
-      addParagraph(conclusionText);
-      
-      // ========== SCORE JUSTIFICATION ==========
-      if (scores.justification) {
-        addSection('SCORE JUSTIFICATION');
-        addParagraph(scores.justification);
-      }
-
-      // ========== METHODOLOGY ==========
-      addSection('METHODOLOGY');
-      addParagraph(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`);
-
-      // ========== FOOTER ==========
-      const pageCount = pdf.internal.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        pdf.setPage(i);
-        pdf.setFontSize(8);
-        pdf.setTextColor(150, 150, 150);
-        pdf.text(`Conscious Compass by Antenna Group | Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-      }
-
-      pdf.save(`${project.brandName.replace(/\s+/g, '_')}_Conscious_Compass_Report.pdf`);
-    } catch (e) {
-      console.error('PDF generation error:', e);
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
-
-
-  const generateDocx = async () => {
-    console.log('generateDocx called');
-    setIsGenerating(true);
-    try {
-      console.log('Starting DOCX generation...');
-      // Color helper - convert hex to DOCX color format (without #)
-      const hexColor = (hex) => hex.replace('#', '');
-      
-      // Get service recommendations (with AI reputation-based force-includes)
-      const forceIncludeDocx = getForceIncludeServicesFromAIReputation(assessments?.aiReputation?.content, assessments);
-      const serviceRecs = getAllRecommendations(scores, { forceIncludeServices: forceIncludeDocx });
-      const topServices = serviceRecs.slice(0, 6);
-      
-      // Build website evaluation description
-      const websiteEvalDescription = assessments.website?.pagesReviewed
-        ? `Website analysis covered ${assessments.website.pagesReviewed}, examining brand positioning, messaging and storytelling, information architecture, UI design, user experience, accessibility, and AI search readability.`
-        : 'Website analysis examined brand positioning, messaging, design, and user experience.';
-      
-      const doc = new Document({
-        styles: {
-          default: {
-            document: { run: { font: 'Inter', size: 22 } },
-            heading1: { run: { font: 'Inter', size: 48, bold: true, color: '1A1A1A' } },
-            heading2: { run: { font: 'Inter', size: 28, bold: true, color: 'E53935' } },
-          }
-        },
-        sections: [{
-          properties: { 
-            page: { 
-              size: { width: 12240, height: 15840 }, 
-              margin: { top: 1080, right: 1080, bottom: 1080, left: 1080 } 
-            } 
-          },
-          children: [
-            // ========== TITLE SECTION ==========
-            new Paragraph({ 
-              spacing: { after: 100 },
-              children: [
-                new TextRun({ text: project.brandName.toUpperCase(), bold: true, size: 56 }),
-                new TextRun({ text: ' BRAND', size: 56, color: '666666' }),
-              ] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 100 },
-              children: [new TextRun({ text: 'COMPASS ASSESSMENT', size: 40, bold: true })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 600 },
-              children: [new TextRun({ text: `Assessment Date: ${project.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`, size: 22, color: '666666' })] 
-            }),
-            
-            // ========== EXECUTIVE SUMMARY ==========
-            new Paragraph({ 
-              heading: HeadingLevel.HEADING_2, 
-              spacing: { after: 200 },
-              children: [new TextRun({ text: 'EXECUTIVE SUMMARY', color: '1A1A1A', size: 32 })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 200 },
-              children: [new TextRun({ 
-                text: scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined below, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience. The journey toward greater brand consciousness is ongoing, and with strategic focus, ${project.brandName} is well positioned to become a more consequential presence in its industry.`, 
-                size: 22 
-              })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 400 },
-              children: [new TextRun({ text: 'Assessment Inputs:', bold: true, size: 22 })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 200 },
-              children: [new TextRun({ 
-                text: `This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions.`, 
-                size: 20 
-              })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 100 },
-              children: [
-                new TextRun({ text: 'Website analysis ', bold: true, size: 20 }),
-                new TextRun({ text: `covered ${assessments.website?.pagesReviewed || 'key pages'}, examining brand positioning, messaging and storytelling, information architecture, UI design, user experience, accessibility, and AI search readability.`, size: 20 }),
-              ] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 100 },
-              children: [
-                new TextRun({ text: 'Social media presence ', bold: true, size: 20 }),
-                new TextRun({ text: 'was analyzed across LinkedIn, X, Instagram, YouTube, Reddit, and Wikipedia for brand consistency and engagement.', size: 20 }),
-              ] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 100 },
-              children: [
-                new TextRun({ text: 'AI reputation ', bold: true, size: 20 }),
-                new TextRun({ text: 'was assessed by querying Claude, Gemini, and ChatGPT to understand how AI systems perceive and represent the brand.', size: 20 }),
-              ] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 600 },
-              children: [
-                new TextRun({ text: 'Earned media ', bold: true, size: 20 }),
-                new TextRun({ text: `coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, size: 20 }),
-              ] 
-            }),
-            
-            // ========== SCORE SUMMARY ==========
-            new Paragraph({ 
-              heading: HeadingLevel.HEADING_2, 
-              spacing: { after: 300 },
-              children: [new TextRun({ text: 'SCORE SUMMARY', color: '1A1A1A', size: 32 })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 200 },
-              children: [
-                new TextRun({ text: `${project.brandName} demonstrates strength in `, size: 22 }),
-                new TextRun({ text: sortedAttrs.slice(-2).map(a => a.name).join(' and '), size: 22, color: '059669' }),
-                new TextRun({ text: ', with opportunities to grow in ', size: 22 }),
-                new TextRun({ text: sortedAttrs.slice(0, 2).map(a => a.name).join(' and '), size: 22, color: 'E53935' }),
-                new TextRun({ text: '.', size: 22 }),
-              ] 
-            }),
-            // Headline quote if available
-            ...(scores.headline ? [new Paragraph({ 
-              spacing: { after: 400 },
-              children: [new TextRun({ text: `"${scores.headline}"`, size: 22, italics: true, color: '333333' })]
-            })] : []),
-            // Attribute scores list
-            ...ATTRIBUTES.map(attr => {
-              const score = scores[attr.id]?.score || 0;
-              return new Paragraph({ 
-                spacing: { after: 50 },
-                children: [
-                  new TextRun({ text: `${attr.name}: `, bold: true, size: 22 }),
-                  new TextRun({ text: `${score}`, size: 22, color: hexColor(attr.color) }),
-                ] 
-              });
-            }),
-            new Paragraph({ children: [new TextRun('')] }),
-            
-            // ========== BRAND CONSCIOUSNESS MATURITY ==========
-            new Paragraph({ 
-              spacing: { before: 200, after: 100 },
-              children: [new TextRun({ text: 'Brand Consciousness Maturity', bold: true, size: 24 })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 100 },
-              children: [
-                new TextRun({ text: `Overall Score: `, size: 22 }),
-                new TextRun({ text: `${overall}/100`, bold: true, size: 28, color: hexColor(stage.color) }),
-              ] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 100 },
-              children: [
-                new TextRun({ text: `Stage: `, size: 22 }),
-                new TextRun({ text: stage.name, bold: true, size: 22 }),
-              ] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 100 },
-              children: [new TextRun({ text: stage.description, size: 20, italics: true, color: '666666' })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 400 },
-              children: [new TextRun({ text: `${Math.min(100, MATURITY_STAGES.find(s => s.min > overall)?.min || 100) - overall} points to next level`, size: 20, color: '059669' })] 
-            }),
-            
-            // ========== ATTRIBUTE ANALYSIS ==========
-            new Paragraph({ 
-              heading: HeadingLevel.HEADING_2, 
-              pageBreakBefore: true,
-              spacing: { after: 300 },
-              children: [new TextRun({ text: 'ATTRIBUTE ANALYSIS', color: '1A1A1A', size: 32 })] 
-            }),
-            ...ATTRIBUTES.flatMap(attr => {
-              const score = scores[attr.id]?.score || 0;
-              const findings = scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description;
-              const opportunity = scores[attr.id]?.opportunity;
-              return [
-                // Score and attribute name
-                new Paragraph({ 
-                  spacing: { before: 300, after: 50 },
-                  children: [
-                    new TextRun({ text: `${score} `, bold: true, size: 32, color: hexColor(attr.color) }),
-                    new TextRun({ text: attr.name.toUpperCase(), bold: true, size: 28 }),
-                  ] 
-                }),
-                // Full name subtitle
-                new Paragraph({ 
-                  spacing: { after: 100 },
-                  children: [new TextRun({ text: attr.fullName, bold: true, size: 20, color: '666666' })] 
-                }),
-                // Findings paragraph
-                new Paragraph({ 
-                  spacing: { after: 100 },
-                  children: [new TextRun({ text: findings, size: 20 })] 
-                }),
-                // Opportunity arrow (if available)
-                ...(opportunity ? [new Paragraph({ 
-                  spacing: { after: 200 },
-                  children: [new TextRun({ text: `→ ${opportunity}`, size: 20, color: 'E53935' })] 
-                })] : []),
-              ];
-            }),
-            
-            // ========== TOP RECOMMENDATIONS ==========
-            new Paragraph({ 
-              heading: HeadingLevel.HEADING_2, 
-              pageBreakBefore: true,
-              spacing: { after: 300 },
-              children: [new TextRun({ text: 'TOP RECOMMENDATIONS', color: '1A1A1A', size: 32 })] 
-            }),
-            ...recommendations.slice(0, 12).flatMap((r, i) => [
-              // Recommendation title with number
-              new Paragraph({ 
-                spacing: { before: 200, after: 100 },
-                children: [
-                  new TextRun({ text: `${i + 1} `, bold: true, size: 24 }),
-                  new TextRun({ text: r.title, bold: true, size: 24 }),
-                ] 
-              }),
-              // Description bullet
-              new Paragraph({ 
-                spacing: { after: 50 },
-                bullet: { level: 0 },
-                children: [new TextRun({ text: r.description, size: 20 })] 
-              }),
-              // Benefit bullet
-              new Paragraph({ 
-                spacing: { after: 50 },
-                bullet: { level: 0 },
-                children: [
-                  new TextRun({ text: 'Benefit: ', bold: true, size: 20 }),
-                  new TextRun({ text: r.impact, size: 20 }),
-                ] 
-              }),
-              // Impacts bullet
-              new Paragraph({ 
-                spacing: { after: 150 },
-                bullet: { level: 0 },
-                children: [
-                  new TextRun({ text: 'IMPACTS: ', bold: true, size: 20 }),
-                  new TextRun({ text: r.attributes.join(', '), size: 20 }),
-                ] 
-              }),
-            ]),
-            
-            // ========== RECOMMENDED ANTENNA GROUP SERVICES ==========
-            new Paragraph({ 
-              heading: HeadingLevel.HEADING_2, 
-              pageBreakBefore: true,
-              spacing: { after: 200 },
-              children: [new TextRun({ text: 'RECOMMENDED ANTENNA GROUP SERVICES', color: '1A1A1A', size: 32 })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 300 },
-              children: [new TextRun({ text: 'Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:', size: 20 })] 
-            }),
-            ...topServices.flatMap((rec) => {
-              const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
-              const attrScore = scores[rec.attributeId]?.score || 0;
-              const budgetStr = rec.service.budget 
-                ? `$${(rec.service.budget.low / 1000).toFixed(0)}K - $${(rec.service.budget.high / 1000).toFixed(0)}K`
-                : 'Contact for pricing';
-              const weeksStr = rec.service.weeks 
-                ? `${rec.service.weeks.low}-${rec.service.weeks.high} weeks`
-                : '';
-              
-              return [
-                // Service name
-                new Paragraph({ 
-                  spacing: { before: 200, after: 50 },
-                  children: [new TextRun({ text: rec.service.name, bold: true, size: 24 })] 
-                }),
-                // What it includes (if available)
-                ...(rec.service.includes && rec.service.includes.length > 0 ? [new Paragraph({ 
-                  spacing: { after: 50 },
-                  bullet: { level: 0 },
-                  children: [new TextRun({ text: rec.service.includes.slice(0, 3).join(', ') + (rec.service.includes.length > 3 ? '...' : ''), size: 20, color: '666666' })] 
-                })] : []),
-                // Recommended: Improves X (currently Y)
-                new Paragraph({ 
-                  spacing: { after: 50 },
-                  bullet: { level: 0 },
-                  children: [
-                    new TextRun({ text: 'Recommended: ', size: 20 }),
-                    new TextRun({ text: `Improves ${attr?.name || 'multiple attributes'} (currently ${attrScore})`, size: 20 }),
-                  ] 
-                }),
-                // Budget
-                new Paragraph({ 
-                  spacing: { after: 150 },
-                  bullet: { level: 0 },
-                  children: [new TextRun({ text: budgetStr, size: 20 })] 
-                }),
-              ];
-            }),
-            
-            // ========== CONCLUSIONS ==========
-            new Paragraph({ 
-              heading: HeadingLevel.HEADING_2, 
-              pageBreakBefore: true,
-              spacing: { after: 200 },
-              children: [new TextRun({ text: 'CONCLUSIONS', color: '1A1A1A', size: 32 })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 400 },
-              children: [new TextRun({ 
-                text: scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`, 
-                size: 22 
-              })] 
-            }),
-            
-            // ========== WHAT WE EVALUATED ==========
-            new Paragraph({ 
-              heading: HeadingLevel.HEADING_2, 
-              spacing: { before: 400, after: 200 },
-              children: [new TextRun({ text: 'WHAT WE EVALUATED', color: '1A1A1A', size: 32 })] 
-            }),
-            new Paragraph({ 
-              spacing: { after: 400 },
-              children: [new TextRun({ 
-                text: `This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`, 
-                size: 20 
-              })] 
-            }),
-            
-            // ========== SCORE JUSTIFICATION ==========
-            ...(scores.justification ? [
-              new Paragraph({ 
-                heading: HeadingLevel.HEADING_2, 
-                spacing: { before: 400, after: 200 },
-                children: [new TextRun({ text: 'SCORE JUSTIFICATION', color: '1A1A1A', size: 32 })] 
-              }),
-              new Paragraph({ 
-                spacing: { after: 400 },
-                children: [new TextRun({ text: scores.justification, size: 20 })] 
-              }),
-            ] : []),
-            
-            // ========== FOOTER ==========
-            new Paragraph({ 
-              spacing: { before: 600 },
-              alignment: AlignmentType.CENTER,
-              children: [new TextRun({ text: `© Antenna Group | Conscious Compass Assessment | Brand Consciousness Framework v${FRAMEWORK_VERSION}`, size: 16, color: '999999' })] 
-            }),
-          ]
-        }]
-      });
-
-      const blob = await Packer.toBlob(doc);
-      saveAs(blob, `${project.brandName.replace(/\s+/g, '_')}_Conscious_Compass_Report.docx`);
-    } catch (e) { 
-      console.error('DOCX generation error:', e);
-      alert('Error generating DOCX: ' + e.message);
-    }
-    finally { setIsGenerating(false); }
-  };
-
-  return (
-    <div className="max-w-5xl mx-auto p-8 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div className="flex items-center gap-4">
-          {isReadonly && (
-            <button onClick={onPrev} className="btn-secondary flex items-center gap-2 flex-shrink-0">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-          )}
-          <div className="min-w-0">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1A1A] leading-tight">{project.brandName}</h2>
-            <p className="text-sm text-[#666666] mt-0.5">Conscious Compass Assessment Report | {industryName}</p>
-          </div>
-        </div>
-        {!isReadonly ? (
-          <div className="flex flex-wrap gap-2 flex-shrink-0">
-            <button onClick={copyReportText} className="btn-secondary flex items-center gap-2 text-sm"><Copy className="w-4 h-4" /> Copy Report</button>
-            <button onClick={onSave} className="btn-secondary flex items-center gap-2 text-sm"><Save className="w-4 h-4" /> Save</button>
-            <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-2 text-sm">
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} DOCX
-            </button>
-          </div>
-        ) : (
-          <span className="text-sm text-[#666666] bg-[#F0EEEA] px-3 py-1.5 rounded-full self-start">Viewing Report</span>
-        )}
-      </div>
-
-      {/* Hero Section - Score & Chart Side by Side */}
-      <div className="card p-6 mb-6">
-        <div className="grid md:grid-cols-2 gap-6 items-start">
-          {/* Left: Score & Summary */}
-          <div>
-            <div className="flex items-start gap-4 mb-4">
-              <div className="text-center flex-shrink-0">
-                <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold" style={{ backgroundColor: stage.color }}>
-                  {animatedScore}
-                </div>
-                <div className="text-xs text-[#666666] mt-1">out of 100</div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-lg font-bold text-[#1A1A1A] mb-1">{stage.name}</div>
-                <p className="text-sm text-[#666666] leading-relaxed">{stage.description}</p>
-              </div>
-            </div>
-            <div className="border-t border-[#E8E6E1] pt-4">
-              {scores.headline && (
-                <p className="text-base font-medium text-[#1A1A1A] mb-3 italic">
-                  "{scores.headline}"
-                </p>
-              )}
-              <p className="text-sm text-[#333333] leading-relaxed">
-                <strong>{project.brandName}</strong> demonstrates strength in <span className="text-[#059669] font-medium">{sortedAttrs.slice(-2).map(a => a.name).join(' and ')}</span>, with opportunities to grow in <span className="text-[#E53935] font-medium">{sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}</span>.
-              </p>
-            </div>
-          </div>
-          
-          {/* Right: Spider Chart */}
-          <div ref={chartRef} className="w-full max-w-sm mx-auto">
-            <SpiderChart scores={scores} size={420} />
-          </div>
-        </div>
-      </div>
-
-      {/* Score Grid - Compact */}
-      <div className="grid grid-cols-4 md:grid-cols-8 gap-2 mb-6">
-        {ATTRIBUTES.map(attr => (
-          <div key={attr.id} className="card p-3 text-center">
-            <div className="text-xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-            <div className="text-[9px] text-[#666666] uppercase tracking-wide leading-tight break-words">{attr.name}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Maturity Continuum */}
-      <MaturityContinuum score={overall} />
-
-      {/* Attribute Analysis - Collapsible */}
-      <div className="mt-6 mb-6">
-        <button 
-          onClick={() => toggleSection('attributes')} 
-          className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
-        >
-          <span>ATTRIBUTE ANALYSIS</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.attributes ? 'rotate-180' : ''}`} />
-        </button>
-        {expandedSections.attributes && (
-          <div className="grid md:grid-cols-2 gap-3 animate-fade-in">
-            {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="card p-4 border-l-4" style={{ borderLeftColor: attr.color }}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
-                  <div>
-                    <h4 className="font-semibold text-[#1A1A1A] text-sm">{attr.name}</h4>
-                    <p className="text-xs text-[#666666]">{attr.fullName}</p>
-                  </div>
-                </div>
-                <p className="text-xs text-[#333333] leading-relaxed">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
-                {scores[attr.id]?.opportunity && (
-                  <p className="text-xs text-[#E53935] mt-2 italic">→ {scores[attr.id].opportunity}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Recommendations - Collapsible */}
-      <div className="mb-6">
-        <button 
-          onClick={() => toggleSection('recommendations')} 
-          className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
-        >
-          <span>RECOMMENDATIONS</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.recommendations ? 'rotate-180' : ''}`} />
-        </button>
-        {expandedSections.recommendations && (
-          <div className="animate-fade-in">
-            <div className="grid md:grid-cols-2 gap-3">
-              {recommendations.slice(0, 6).map((r, i) => (
-                <div key={i} className="card p-4">
-                  <div className="flex gap-3 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-[#1A1A1A] text-sm">{r.title}</h4>
-                    </div>
-                  </div>
-                  <p className="text-xs text-[#666666] leading-relaxed mb-2">{r.description}</p>
-                  <div className="bg-[#F0EEEA] rounded-lg p-2 mb-2">
-                    <p className="text-xs text-[#333333] leading-relaxed"><span className="font-medium text-[#E53935]">Benefit:</span> {r.impact}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {r.attributes.slice(0, 3).map((attr, j) => (
-                      <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E53935]/10 text-[#E53935] rounded-full">{attr}</span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {recommendations.length > 6 && (
-              <details className="mt-3">
-                <summary className="text-sm text-[#E53935] cursor-pointer hover:underline">View {recommendations.length - 6} more recommendations</summary>
-                <div className="grid md:grid-cols-2 gap-3 mt-3">
-                  {recommendations.slice(6).map((r, i) => (
-                    <div key={i + 6} className="card p-4">
-                      <div className="flex gap-3 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-[#E53935]/20 text-[#E53935] flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 7}</div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-[#1A1A1A] text-sm">{r.title}</h4>
-                        </div>
-                      </div>
-                      <p className="text-xs text-[#666666] leading-relaxed mb-2">{r.description}</p>
-                      <div className="bg-[#F0EEEA] rounded-lg p-2 mb-2">
-                        <p className="text-xs text-[#333333] leading-relaxed"><span className="font-medium text-[#E53935]">Benefit:</span> {r.impact}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {r.attributes.slice(0, 3).map((attr, j) => (
-                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E53935]/10 text-[#E53935] rounded-full">{attr}</span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Antenna Group Services - Collapsible */}
-      {(() => {
-        const forceIncludeUI = getForceIncludeServicesFromAIReputation(assessments?.aiReputation?.content, assessments);
-        const serviceRecs = getAllRecommendations(scores, { forceIncludeServices: forceIncludeUI });
-        const topServices = serviceRecs.slice(0, 6);
-        if (topServices.length === 0) return null;
-        
-        return (
-          <div className="mb-6">
-            <button 
-              onClick={() => toggleSection('services')} 
-              className="w-full flex items-center justify-between text-xl font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
-            >
-              <span>RECOMMENDED ANTENNA GROUP SERVICES</span>
-              <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.services ? 'rotate-180' : ''}`} />
-            </button>
-            {expandedSections.services && (
-              <div className="animate-fade-in">
-                <p className="text-[#666666] mb-4 text-sm md:text-base">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {topServices.map((rec, i) => {
-                    const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
-                    return (
-                      <div key={i} className="card p-4 md:p-5 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h4 className="font-semibold text-[#1A1A1A] text-sm md:text-base">{rec.service.name}</h4>
-                            <p className="text-xs text-[#666666]">{rec.service.category}</p>
-                          </div>
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            rec.priorityLevel === 'critical' ? 'bg-red-100 text-red-700' :
-                            rec.priorityLevel === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-green-100 text-green-700'
-                          }`}>
-                            {rec.priorityLevel === 'critical' ? 'High Priority' : 
-                             rec.priorityLevel === 'moderate' ? 'Recommended' : 'Opportunity'}
-                          </span>
-                        </div>
-                        <p className="text-xs md:text-sm text-[#333333] mb-3">{rec.rationale}</p>
-                        <div className="flex items-center justify-between text-xs text-[#666666]">
-                          <span className="flex items-center gap-1">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr?.color || '#E53935' }}></span>
-                            Improves {attr?.name} (currently {rec.attributeScore})
-                          </span>
-                          <span className="font-medium">{formatBudget(rec.service)}</span>
-                        </div>
-                        {rec.service.note && (
-                          <p className="text-xs text-[#999999] mt-2 italic">{rec.service.note}</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* Conclusions - Collapsible */}
-      <div className="mb-6">
-        <button 
-          onClick={() => toggleSection('conclusions')} 
-          className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
-        >
-          <span>CONCLUSIONS</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.conclusions ? 'rotate-180' : ''}`} />
-        </button>
-        {expandedSections.conclusions && (
-          <div className="card p-4 md:p-6 animate-fade-in">
-            <p className="text-sm md:text-base text-[#333333] leading-relaxed">
-              {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Justification - Collapsible */}
-      {scores.justification && (
-        <div className="mb-6">
-          <button 
-            onClick={() => toggleSection('justification')} 
-            className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
-          >
-            <span>SCORE JUSTIFICATION</span>
-            <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.justification ? 'rotate-180' : ''}`} />
-          </button>
-          {expandedSections.justification && (
-            <div className="card p-4 md:p-6 animate-fade-in bg-[#FAFAF9]">
-              <p className="text-sm text-[#333333] leading-relaxed">
-                {scores.justification}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* What We Evaluated - Collapsible */}
-      <div className="mb-8">
-        <button 
-          onClick={() => toggleSection('evaluated')} 
-          className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
-        >
-          <span>WHAT WE EVALUATED</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.evaluated ? 'rotate-180' : ''}`} />
-        </button>
-        {expandedSections.evaluated && (
-          <div className="card p-4 md:p-6 animate-fade-in">
-            <p className="text-sm md:text-base text-[#333333] leading-relaxed">
-              This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Assessment Readouts - Collapsible */}
-      <div className="mb-8">
-        <button 
-          onClick={() => toggleSection('readouts')} 
-          className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
-        >
-          <span>ASSESSMENT READOUTS</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.readouts ? 'rotate-180' : ''}`} />
-        </button>
-        {expandedSections.readouts && (
-          <div className="space-y-3 animate-fade-in">
-            {/* Website Assessment Readout */}
-            <div className="card overflow-hidden">
-              <button 
-                onClick={() => toggleSection('readoutWebsite')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#E53935]/10 rounded-lg flex items-center justify-center">
-                    <Globe className="w-5 h-5 text-[#E53935]" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="font-medium text-[#1A1A1A]">Website Assessment</h4>
-                    <p className="text-xs text-[#666666]">Auto-assess, SEO visibility, and full analysis</p>
-                  </div>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutWebsite ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.readoutWebsite && (
-                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
-                  {assessments.website?.autoAssessContent && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#E53935] mb-2">Auto-Assess Analysis</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.website.autoAssessContent}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {assessments.website?.seoAssessment && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#E53935] mb-2">SEO Visibility Assessment</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.website.seoAssessment}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {assessments.website?.content && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#E53935] mb-2">Full Website Analysis</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.website.content}</pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Social Media Assessment Readout */}
-            <div className="card overflow-hidden">
-              <button 
-                onClick={() => toggleSection('readoutSocial')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#8B5CF6]/10 rounded-lg flex items-center justify-center">
-                    <Users className="w-5 h-5 text-[#8B5CF6]" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="font-medium text-[#1A1A1A]">Social Media Assessment</h4>
-                    <p className="text-xs text-[#666666]">Platform analysis and Reddit Answers AI visibility</p>
-                  </div>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutSocial ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.readoutSocial && (
-                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
-                  {assessments.social?.redditAnswersContent && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Reddit Answers (AI Search Visibility)</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.social.redditAnswersContent}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {assessments.social?.content && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Full Social Media Analysis</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.social.content}</pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* AI Reputation Assessment Readout */}
-            <div className="card overflow-hidden">
-              <button 
-                onClick={() => toggleSection('readoutAI')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#3B82F6]/10 rounded-lg flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-[#3B82F6]" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="font-medium text-[#1A1A1A]">AI Reputation Assessment</h4>
-                    <p className="text-xs text-[#666666]">AI engine reputation synthesis</p>
-                  </div>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutAI ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.readoutAI && (
-                <div className="border-t border-[#E8E6E1] p-4 bg-[#FAFAF9]">
-                  {assessments.aiReputation?.content ? (
-                    <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                      <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[#666666]">No synthesis generated yet.</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Earned Media Assessment Readout */}
-            <div className="card overflow-hidden">
-              <button 
-                onClick={() => toggleSection('readoutEarned')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#10B981]/10 rounded-lg flex items-center justify-center">
-                    <Newspaper className="w-5 h-5 text-[#10B981]" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="font-medium text-[#1A1A1A]">Earned Media Assessment</h4>
-                    <p className="text-xs text-[#666666]">Auto-assess performance and coverage analysis</p>
-                  </div>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutEarned ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.readoutEarned && (
-                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
-                  {assessments.earnedMedia?.autoAssessContent && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#10B981] mb-2">Auto-Assess Earned Media Performance</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earnedMedia.autoAssessContent}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {assessments.earnedMedia?.content && (
-                    <div>
-                      <h5 className="text-sm font-medium text-[#10B981] mb-2">Full Earned Media Analysis</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earnedMedia.content}</pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center justify-start pt-6 border-t border-[#D9D6D0]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-      </div>
-    </div>
-  );
-}
-
-// Compass Results Page - Summary grid of all assessments
-function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateResults, profile, user }) {
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [expandedRows, setExpandedRows] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterIndustry, setFilterIndustry] = useState('all');
-  const [filterMaturity, setFilterMaturity] = useState('all');
-  const [filterBusinessModel, setFilterBusinessModel] = useState('all');
-  const [manualEntry, setManualEntry] = useState({
-    brandName: '',
-    businessModel: 'b2b',
-    industry: 'other',
-    totalScore: 50,
-    scores: { AWAKE: 50, AWARE: 50, REFLECTIVE: 50, ATTENTIVE: 50, COGENT: 50, SENTIENT: 50, VISIONARY: 50, INTENTIONAL: 50 },
-  });
-
-  // Filter results based on search and filters
-  const filteredResults = useMemo(() => {
-    return results.filter(r => {
-      // Search filter
-      if (searchTerm && !r.brandName?.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false;
-      }
-      // Industry filter
-      if (filterIndustry !== 'all' && r.industry !== filterIndustry) {
-        return false;
-      }
-      // Maturity filter
-      if (filterMaturity !== 'all' && r.maturityLevel !== filterMaturity) {
-        return false;
-      }
-      // Business model filter
-      if (filterBusinessModel !== 'all' && r.businessModel !== filterBusinessModel) {
-        return false;
-      }
-      return true;
-    });
-  }, [results, searchTerm, filterIndustry, filterMaturity, filterBusinessModel]);
-
-  // Get unique values for filter dropdowns
-  const uniqueIndustries = useMemo(() => {
-    const industries = [...new Set(results.map(r => r.industry).filter(Boolean))];
-    return industries.sort();
-  }, [results]);
-
-  const uniqueMaturityLevels = useMemo(() => {
-    const levels = [...new Set(results.map(r => r.maturityLevel).filter(Boolean))];
-    return MATURITY_STAGES.filter(s => levels.includes(s.name)).map(s => s.name);
-  }, [results]);
-
-  const clearFilters = () => {
-    setSearchTerm('');
-    setFilterIndustry('all');
-    setFilterMaturity('all');
-    setFilterBusinessModel('all');
-  };
-
-  const hasActiveFilters = searchTerm || filterIndustry !== 'all' || filterMaturity !== 'all' || filterBusinessModel !== 'all';
-
-  const toggleRow = (id) => {
-    setExpandedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]);
-  };
-
-  const industries = INDUSTRIES;
-
-  const handleExportCSV = () => {
-    if (results.length === 0) {
-      alert('No results to export');
-      return;
-    }
-    
-    const headers = ['Brand Name', 'Business Model', 'Industry', 'Total Score', 'Maturity Level', 
-      'AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL',
-      'Assessor', 'Date', 'Rubric Version', 'Manual Entry'];
-    
-    const rows = results.map(r => [
-      r.brandName,
-      r.businessModel?.toUpperCase() || '',
-      r.industry || '',
-      r.totalScore,
-      r.maturityLevel,
-      r.scores?.AWAKE || 0,
-      r.scores?.AWARE || 0,
-      r.scores?.REFLECTIVE || 0,
-      r.scores?.ATTENTIVE || 0,
-      r.scores?.COGENT || 0,
-      r.scores?.SENTIENT || 0,
-      r.scores?.VISIONARY || 0,
-      r.scores?.INTENTIONAL || 0,
-      r.assessorName || 'Paul Newton',
-      r.savedAt ? new Date(r.savedAt).toLocaleDateString() : '',
-      r.rubricVersion || '2.3',
-      r.isManual ? 'Yes' : 'No',
-    ]);
-    
-    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `compass-results-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
-
-  const handleAddManual = async () => {
-    if (!manualEntry.brandName.trim()) {
-      alert('Please enter a brand name');
-      return;
-    }
-    
-    const stage = getMaturityStage(manualEntry.totalScore);
-    
-    const newResult = {
-      brandName: manualEntry.brandName,
-      businessModel: manualEntry.businessModel,
-      industry: manualEntry.industry,
-      totalScore: manualEntry.totalScore,
-      maturityLevel: stage.name,
-      scores: { ...manualEntry.scores },
-      servicesRecommended: [],
-      isManual: true,
-      assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
-      rubricVersion: FRAMEWORK_VERSION,
-    };
-    
-    // Save to Supabase
-    await saveCompassResult(newResult);
-    
-    // Reload results will be handled by parent
-    onUpdateResults(null); // Signal to reload
-    setShowAddModal(false);
-    setManualEntry({
-      brandName: '',
-      businessModel: 'b2b',
-      industry: 'other',
-      totalScore: 50,
-      scores: { AWAKE: 50, AWARE: 50, REFLECTIVE: 50, ATTENTIVE: 50, COGENT: 50, SENTIENT: 50, VISIONARY: 50, INTENTIONAL: 50 },
-    });
-  };
-
-  const handleDelete = async (id) => {
-    if (confirm('Delete this result?')) {
-      await deleteCompassResult(id);
-      onUpdateResults(null); // Signal to reload
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#F5F4F0]">
-      <div className="max-w-7xl mx-auto p-4 md:p-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 md:mb-8 gap-4">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="btn-secondary flex items-center gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Compass Results</h1>
-              <span className="text-sm text-[#666666]">{results.length} assessments</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {profile?.is_admin && (
-              <button onClick={() => setShowAddModal(true)} className="btn-secondary flex items-center gap-2">
-                <Plus className="w-4 h-4" /> Add Manual Entry
-              </button>
-            )}
-            <button onClick={handleExportCSV} disabled={results.length === 0} className="btn-primary flex items-center gap-2">
-              <Download className="w-4 h-4" /> Export CSV
-            </button>
-          </div>
-        </div>
-
-        {/* Search and Filters */}
-        {results.length > 0 && (
-          <div className="card p-4 mb-6">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#999999]" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search brands..."
-                  className="w-full pl-9 pr-4 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
-                />
-              </div>
-
-              {/* Industry Filter */}
-              <select
-                value={filterIndustry}
-                onChange={(e) => setFilterIndustry(e.target.value)}
-                className="px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
-              >
-                <option value="all">All Industries</option>
-                {uniqueIndustries.map(ind => (
-                  <option key={ind} value={ind}>{ind}</option>
-                ))}
-              </select>
-
-              {/* Maturity Filter */}
-              <select
-                value={filterMaturity}
-                onChange={(e) => setFilterMaturity(e.target.value)}
-                className="px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
-              >
-                <option value="all">All Maturity Levels</option>
-                {uniqueMaturityLevels.map(level => (
-                  <option key={level} value={level}>{level}</option>
-                ))}
-              </select>
-
-              {/* Business Model Filter */}
-              <select
-                value={filterBusinessModel}
-                onChange={(e) => setFilterBusinessModel(e.target.value)}
-                className="px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
-              >
-                <option value="all">All Models</option>
-                <option value="b2b">B2B</option>
-                <option value="b2c">B2C</option>
-                <option value="both">Both</option>
-              </select>
-
-              {/* Clear Filters */}
-              {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="px-3 py-2 text-sm text-[#E53935] hover:bg-[#E53935]/10 rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <X className="w-4 h-4" /> Clear
-                </button>
-              )}
-            </div>
-
-            {/* Results count */}
-            {hasActiveFilters && (
-              <div className="mt-3 text-sm text-[#666666]">
-                Showing {filteredResults.length} of {results.length} results
-              </div>
-            )}
-          </div>
-        )}
-
-        {results.length === 0 ? (
-          <div className="card p-12 text-center">
-            <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Results Yet</h3>
-            <p className="text-[#666666] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
-            {profile?.is_admin && (
-              <button onClick={() => setShowAddModal(true)} className="btn-primary">
-                Add Manual Entry
-              </button>
-            )}
-          </div>
-        ) : filteredResults.length === 0 ? (
-          <div className="card p-12 text-center">
-            <Search className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Matching Results</h3>
-            <p className="text-[#666666] mb-4">Try adjusting your search or filters.</p>
-            <button onClick={clearFilters} className="btn-secondary">
-              Clear Filters
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filteredResults.map((r, i) => {
-              const stage = MATURITY_STAGES.find(s => s.name === r.maturityLevel) || MATURITY_STAGES[0];
-              const isExpanded = expandedRows.includes(r.id || i);
-              const assessmentDate = r.savedAt ? new Date(r.savedAt) : null;
-              return (
-                <div key={r.id || i} className="card overflow-hidden">
-                  {/* Main Row */}
-                  <div 
-                    className="flex items-center gap-4 p-4 cursor-pointer hover:bg-[#F8F7F5] transition-colors"
-                    onClick={() => toggleRow(r.id || i)}
-                  >
-                    {/* Brand & Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-[#1A1A1A] truncate">{r.brandName}</span>
-                        {r.isManual && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">Manual</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-[#666666] mt-0.5">
-                        <span>{r.businessModel?.toUpperCase()}</span>
-                        <span>•</span>
-                        <span className="truncate">{r.industry}</span>
-                        <span>•</span>
-                        <span>v{r.rubricVersion || '2.3'}</span>
-                      </div>
-                    </div>
-                    
-                    {/* Date Badge */}
-                    {assessmentDate && (
-                      <div className="text-center px-2">
-                        <div className="text-xs font-medium text-[#666666]">
-                          {assessmentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </div>
-                        <div className="text-[10px] text-[#999999]">
-                          {assessmentDate.getFullYear()}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Score Badge */}
-                    <div className="flex items-center gap-3">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold" style={{ color: stage.color }}>{r.totalScore}</div>
-                        <div className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: `${stage.color}15`, color: stage.color }}>
-                          {r.maturityLevel}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Expand Icon */}
-                    <ChevronDown className={`w-4 h-4 text-[#666666] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                  </div>
-                  
-                  {/* Expanded Details */}
-                  {isExpanded && (
-                    <div className="border-t border-[#E8E6E1] bg-[#F8F7F5] p-4 animate-fade-in">
-                      <div className="flex flex-col md:flex-row gap-4 mb-4">
-                        {/* Mini Spider Chart */}
-                        <div className="flex-shrink-0 flex justify-center md:justify-start">
-                          <MiniSpiderChart scores={r.scores} size={120} />
-                        </div>
-                        {/* Attribute Scores Grid */}
-                        <div className="flex-1">
-                          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-                            {ATTRIBUTES.map(attr => (
-                              <div key={attr.id} className="text-center p-2 bg-white rounded-lg">
-                                <div className="text-lg font-bold" style={{ color: attr.color }}>{r.scores?.[attr.id] || 0}</div>
-                                <div className="text-[10px] text-[#666666] truncate">{attr.name}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Meta Info */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#666666]">
-                        <span><strong>Assessor:</strong> {r.assessorName || 'Unknown'}</span>
-                        <span><strong>Full Date:</strong> {r.savedAt ? new Date(r.savedAt).toLocaleString() : '-'}</span>
-                        {profile?.is_admin && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} 
-                            className="text-red-500 hover:text-red-700 flex items-center gap-1 ml-auto"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Add Manual Entry Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-[#D9D6D0]">
-              <h3 className="text-xl font-bold text-[#1A1A1A]">Add Manual Entry</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-[#666666] hover:text-[#1A1A1A]">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Brand Name *</label>
-                <input
-                  type="text"
-                  value={manualEntry.brandName}
-                  onChange={(e) => setManualEntry({ ...manualEntry, brandName: e.target.value })}
-                  placeholder="Enter brand name"
-                  className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Business Model</label>
-                  <select
-                    value={manualEntry.businessModel}
-                    onChange={(e) => setManualEntry({ ...manualEntry, businessModel: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg"
-                  >
-                    <option value="b2b">B2B</option>
-                    <option value="b2c">B2C</option>
-                    <option value="b2b2c">B2B2C</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Industry</label>
-                  <select
-                    value={manualEntry.industry}
-                    onChange={(e) => setManualEntry({ ...manualEntry, industry: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg"
-                  >
-                    {industries.map(ind => (
-                      <option key={ind.id} value={ind.id}>{ind.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              {/* Total Compass Score */}
-              <div className="bg-[#F0EEEA] rounded-lg p-4">
-                <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Total Compass Score (0-100) *</label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={manualEntry.totalScore}
-                    onChange={(e) => setManualEntry({ ...manualEntry, totalScore: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
-                    className="w-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-center text-lg font-bold"
-                  />
-                  <span className="text-sm text-[#666666]">
-                    Weighted score (not auto-calculated from attributes)
-                  </span>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-[#1A1A1A] mb-3">Attribute Scores (0-100)</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {ATTRIBUTES.map(attr => (
-                    <div key={attr.id} className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }}></span>
-                      <span className="text-sm text-[#666666] w-24">{attr.name}</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={manualEntry.scores[attr.id]}
-                        onChange={(e) => setManualEntry({
-                          ...manualEntry,
-                          scores: { ...manualEntry.scores, [attr.id]: parseInt(e.target.value) || 0 }
-                        })}
-                        className="w-20 px-2 py-1 border border-[#D9D6D0] rounded text-center"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-sm text-yellow-800">
-                  <strong>Note:</strong> Manual entries will be flagged as such in the results grid.
-                </p>
-              </div>
-            </div>
-            <div className="p-6 border-t border-[#D9D6D0] flex justify-end gap-3">
-              <button onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
-              <button onClick={handleAddManual} className="btn-primary">Add Entry</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Onboarding Tour Component
-function OnboardingTour({ onComplete }) {
-  const [step, setStep] = useState(0);
-  
-  const steps = [
-    {
-      title: "Welcome to Conscious Compass",
-      description: "This tool helps you assess brands across 8 consciousness attributes to understand their market presence and identify opportunities for growth.",
-      icon: Compass,
-    },
-    {
-      title: "Four Assessment Areas",
-      description: "You'll evaluate the brand's Website presence, Social Media footprint, AI Reputation across major AI systems, and Earned Media coverage.",
-      icon: Globe,
-    },
-    {
-      title: "Upload Screenshots & Data",
-      description: "Capture screenshots of the brand's digital presence and paste relevant content. The AI will analyze everything to generate insights.",
-      icon: Image,
-    },
-    {
-      title: "Get Actionable Results",
-      description: "Receive scores across 8 attributes, specific recommendations, and suggested services to improve brand consciousness.",
-      icon: BarChart3,
-    },
-    {
-      title: "Compare & Track Progress",
-      description: "Save assessments, compare multiple brands side-by-side, and export results to track improvements over time.",
-      icon: Users,
-    },
-  ];
-
-  const currentStep = steps[step];
-  const Icon = currentStep.icon;
-
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1A1A1A] rounded-lg max-w-lg w-full overflow-hidden animate-fade-in">
-        <div className="bg-[#E8FF00] p-8 text-center">
-          <Icon className="w-16 h-16 text-[#1A1A1A] mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">{currentStep.title}</h2>
-        </div>
-        
-        <div className="p-6">
-          <p className="text-[#E8E6E1] text-center mb-6">{currentStep.description}</p>
-          
-          {/* Progress dots */}
-          <div className="flex justify-center gap-2 mb-6">
-            {steps.map((_, i) => (
-              <div 
-                key={i} 
-                className={`w-2 h-2 rounded-full transition-colors ${i === step ? 'bg-[#E8FF00]' : 'bg-[#666666]'}`}
-              />
-            ))}
-          </div>
-          
-          <div className="flex gap-3">
-            {step > 0 && (
-              <button 
-                onClick={() => setStep(step - 1)} 
-                className="flex-1 bg-transparent border border-[#E8FF00] text-[#E8FF00] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#E8FF00] hover:text-[#1A1A1A] transition-colors"
-              >
-                Back
-              </button>
-            )}
-            {step < steps.length - 1 ? (
-              <button 
-                onClick={() => setStep(step + 1)} 
-                className="flex-1 bg-[#E8FF00] text-[#1A1A1A] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
-              >
-                Next
-              </button>
-            ) : (
-              <button 
-                onClick={() => {
-                  localStorage.setItem('conscious-compass-onboarded', 'true');
-                  onComplete();
-                }} 
-                className="flex-1 bg-[#E8FF00] text-[#1A1A1A] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
-              >
-                Get Started
-              </button>
-            )}
-          </div>
-          
-          {step < steps.length - 1 && (
-            <button 
-              onClick={() => {
-                localStorage.setItem('conscious-compass-onboarded', 'true');
-                onComplete();
-              }}
-              className="w-full text-center text-sm text-[#666666] mt-4 hover:text-[#E8FF00] transition-colors"
-            >
-              Skip tour
-            </button>
-          )}
         </div>
       </div>
     </div>
   );
 }
 
-// Portfolio Insights View Component
-function InsightsView({ results, industryBenchmarks, industries }) {
-  const [aiInsights, setAiInsights] = useState(null);
-  const [loading, setLoading] = useState(false);
+function StatusBadge({ status }) {
+  const s = PROPOSAL_STATUSES.find(p => p.value === status) || PROPOSAL_STATUSES[0];
+  return <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${s.bg} ${s.text} ${s.border}`}>{s.label}</span>;
+}
+
+function StageProgress({ currentStage, opportunity, onStageClick, allowedStages = [] }) {
+  const stageOrder = PIPELINE_STAGES.map(s => s.id);
+  const currentIdx = stageOrder.indexOf(currentStage);
+  const getStageStatus = (stageId) => {
+    if (allowedStages.length > 0 && !allowedStages.includes(stageId)) return 'locked';
+    const idx = stageOrder.indexOf(stageId);
+    if (idx < currentIdx) return 'complete';
+    if (idx === currentIdx) return 'active';
+    return 'upcoming';
+  };
+  return (
+    <div className="border-b border-gray-200/80" style={{ backgroundColor: '#E8E6E1' }}>
+      <div className="max-w-7xl mx-auto px-8">
+        {/* Company breadcrumb */}
+        <div className="flex items-center gap-2 pt-3 pb-2">
+          <span className="text-xs text-gray-400">Opportunity</span>
+          <ChevronRight className="w-3 h-3 text-gray-300" />
+          <span className="text-xs font-bold text-[#12161E]">{opportunity?.companyName}</span>
+          {opportunity?.proposalStatus && currentStage === 'proposal' && <StatusBadge status={opportunity.proposalStatus} />}
+        </div>
+        {/* Tab row — exactly like Compass nav */}
+        <div className="flex items-center gap-1">
+          {PIPELINE_STAGES.map((stage, idx) => {
+            const status = getStageStatus(stage.id);
+            const isClickable = status === 'complete' || status === 'active';
+            return (
+              <button
+                key={stage.id}
+                onClick={() => isClickable && onStageClick && onStageClick(stage.id)}
+                disabled={!isClickable}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition-all -mb-px
+                  ${status === 'active'
+                    ? 'bg-white border-[#12161E] text-[#12161E]'
+                    : status === 'complete'
+                    ? 'border-transparent text-gray-500 hover:text-gray-700 cursor-pointer hover:border-gray-300'
+                    : status === 'locked'
+                    ? 'border-transparent text-gray-300 cursor-not-allowed'
+                    : 'border-transparent text-gray-300 cursor-default'}`}
+              >
+                {status === 'complete'
+                  ? <span className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center"><span className="text-white text-[9px] font-black">✓</span></span>
+                  : status === 'locked'
+                  ? <Lock className="w-3.5 h-3.5" />
+                  : <span className={`w-5 h-5 rounded-full text-xs font-black flex items-center justify-center ${status === 'active' ? 'bg-[#E8FF00] text-[#12161E]' : 'bg-gray-200 text-gray-400'}`}>{idx + 1}</span>
+                }
+                {stage.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================================
+// STAGE 1: RESEARCH VIEW
+// ============================================================================
+function ResearchView({ opportunity, onUpdate }) {
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  
-  // Calculate portfolio-wide statistics
-  const portfolioStats = useMemo(() => {
-    if (results.length === 0) return null;
-    
-    const totalBrands = results.length;
-    const avgScore = Math.round(results.reduce((sum, r) => sum + r.totalScore, 0) / totalBrands);
-    
-    // Distribution by maturity
-    const maturityDistribution = {};
-    results.forEach(r => {
-      const stage = r.maturityLevel || 'Unknown';
-      maturityDistribution[stage] = (maturityDistribution[stage] || 0) + 1;
-    });
-    
-    // Attribute averages
-    const attrAverages = {};
-    ATTRIBUTES.forEach(attr => {
-      const sum = results.reduce((s, r) => s + (r.scores?.[attr.id] || 0), 0);
-      attrAverages[attr.id] = Math.round(sum / totalBrands);
-    });
-    
-    // Find strongest and weakest attributes
-    const sortedAttrs = Object.entries(attrAverages).sort((a, b) => b[1] - a[1]);
-    const strongestAttr = sortedAttrs[0];
-    const weakestAttr = sortedAttrs[sortedAttrs.length - 1];
-    
-    // Top and bottom performers
-    const sortedBrands = [...results].sort((a, b) => b.totalScore - a.totalScore);
-    const topPerformers = sortedBrands.slice(0, 3);
-    const bottomPerformers = sortedBrands.slice(-3).reverse();
-    
-    // Industry breakdown
-    const industryBreakdown = {};
-    results.forEach(r => {
-      const ind = r.industry || 'other';
-      if (!industryBreakdown[ind]) {
-        industryBreakdown[ind] = { count: 0, totalScore: 0 };
-      }
-      industryBreakdown[ind].count++;
-      industryBreakdown[ind].totalScore += r.totalScore;
-    });
-    Object.keys(industryBreakdown).forEach(ind => {
-      industryBreakdown[ind].avgScore = Math.round(industryBreakdown[ind].totalScore / industryBreakdown[ind].count);
-    });
-    
-    // Score distribution (for histogram)
-    const scoreDistribution = [
-      { range: '0-25', label: 'Pre-Foundational', count: results.filter(r => r.totalScore <= 25).length, color: '#94A3B8' },
-      { range: '26-39', label: 'Foundational', count: results.filter(r => r.totalScore > 25 && r.totalScore <= 39).length, color: '#F59E0B' },
-      { range: '40-55', label: 'Establishing', count: results.filter(r => r.totalScore > 39 && r.totalScore <= 55).length, color: '#D97706' },
-      { range: '56-69', label: 'Differentiating', count: results.filter(r => r.totalScore > 55 && r.totalScore <= 69).length, color: '#059669' },
-      { range: '70-84', label: 'Leading', count: results.filter(r => r.totalScore > 69 && r.totalScore <= 84).length, color: '#0D9488' },
-      { range: '85-100', label: 'Transforming', count: results.filter(r => r.totalScore > 84).length, color: '#6366F1' },
-    ];
-    
-    return {
-      totalBrands,
-      avgScore,
-      maturityDistribution,
-      attrAverages,
-      strongestAttr,
-      weakestAttr,
-      topPerformers,
-      bottomPerformers,
-      industryBreakdown,
-      scoreDistribution,
-    };
-  }, [results]);
+  const [companyName, setCompanyName] = useState(opportunity.companyName || '');
+  const [companyUrl, setCompanyUrl] = useState(opportunity.companyUrl || '');
+  const [industry, setIndustry] = useState(opportunity.industry || '');
+  const [additionalContext, setAdditionalContext] = useState(opportunity.researchContext || '');
 
-  const generateInsights = async () => {
-    setLoading(true);
-    setError(null);
-    
-    // Build sector-specific data
-    const sectorData = {};
-    results.forEach(r => {
-      const sector = r.industry || 'other';
-      if (!sectorData[sector]) {
-        sectorData[sector] = { brands: [], scores: [], attrTotals: {} };
-        ATTRIBUTES.forEach(a => sectorData[sector].attrTotals[a.id] = 0);
-      }
-      sectorData[sector].brands.push(r.brandName);
-      sectorData[sector].scores.push(r.totalScore);
-      ATTRIBUTES.forEach(a => {
-        sectorData[sector].attrTotals[a.id] += (r.scores?.[a.id] || 0);
-      });
-    });
-    
-    const sectorSummaries = Object.entries(sectorData).map(([sector, data]) => {
-      const avgScore = Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length);
-      const attrAvgs = {};
-      ATTRIBUTES.forEach(a => {
-        attrAvgs[a.id] = Math.round(data.attrTotals[a.id] / data.brands.length);
-      });
-      const sortedAttrs = Object.entries(attrAvgs).sort((a, b) => b[1] - a[1]);
-      return {
-        sector,
-        brandCount: data.brands.length,
-        avgScore,
-        strongestAttr: sortedAttrs[0],
-        weakestAttr: sortedAttrs[sortedAttrs.length - 1],
-        brands: data.brands,
-      };
-    });
-    
+  // Save input fields explicitly — no reliance on unmount cleanup
+  const saveInputs = useCallback(() => {
+    onUpdate({ companyName, companyUrl, industry, researchContext: additionalContext });
+  }, [companyName, companyUrl, industry, additionalContext]);
+
+  const runResearch = async () => {
+    if (!companyName.trim()) return setError('Please enter a company name.');
+    setIsLoading(true); setError(null);
+
+    // Save inputs immediately
+    onUpdate({ companyName, companyUrl, industry, researchContext: additionalContext });
+
+    const assignmentTitle = opportunity.title || 'Not specified';
+    const owningPractice = opportunity.practice || 'Not specified';
+
     try {
-      const prompt = `You are a brand strategist at Antenna Group, a brand strategy agency. You have just run Brand Consciousness assessments on the following brands and you are identifying thought leadership storytelling opportunities — the kinds of stories Antenna Group could write, speak about, or publish based on what the data reveals.
+      const result = await callClaude({
+        useWebSearch: true,
+        maxTokens: 4000,
+        system: `You are a senior new business strategist at Antenna Group, an integrated PR and marketing agency specializing in Brand Strategy, Creative Strategy, Creative Production, Public Relations, Social & Influencer Marketing, and Performance Marketing.
+Your job is to prepare a business development professional for an intake call with a prospective client. You MUST use web search to research the company before generating any output.
 
-Brand Consciousness is a proprietary framework with 8 attributes:
-AWAKE (Narrative Leadership), AWARE (Audience Understanding), REFLECTIVE (Authenticity), ATTENTIVE (Experience Quality), COGENT (Strategic Intelligence), SENTIENT (Emotional Connection), VISIONARY (Future Vision), INTENTIONAL (Organisational Credibility).
+RESEARCH — search for and assess:
+1. What the company does and their value proposition
+2. Website: messaging clarity, design quality, brand expression
+3. Earned media: coverage volume, outlet quality, recency
+4. Social presence: platform activity, content quality
+5. Business signals: growth indicators, recent announcements, competitive position
 
-ASSESSMENT DATA (${results.length} brands):
-Portfolio average: ${portfolioStats.avgScore}/100
-Strongest attribute across portfolio: ${portfolioStats.strongestAttr[0]} (avg ${portfolioStats.strongestAttr[1]})
-Weakest attribute across portfolio: ${portfolioStats.weakestAttr[0]} (avg ${portfolioStats.weakestAttr[1]})
+OUTPUT RULES — apply these to everything you write:
+- Write for a smart person in a hurry
+- No fluff, no filler sentences, no restating the obvious
+- Every sentence must earn its place
+- The entire response should fit on one printed page
+- Never use em dashes (-- or the character). Use commas or plain hyphens (-) instead.`,
+        userMessage: `Prepare a client snapshot and intake questions for the following prospect:
 
-Attribute averages:
-${Object.entries(portfolioStats.attrAverages).map(([k, v]) => `${k}: ${v}`).join(', ')}
+**Company Name:** ${companyName}
+**Assignment Title:** ${assignmentTitle}
+**Owning Practice:** ${owningPractice}
+**Website:** ${companyUrl || 'Not provided — search for it'}
+**Industry:** ${industry || 'Infer from research'}
+${additionalContext ? `**Additional Context:** ${additionalContext}` : ''}
 
-Brands assessed:
-${results.map(r => `${r.brandName} (${r.industry || 'unspecified'}, ${r.businessModel || ''}, score: ${r.totalScore})`).join('\n')}
+Search the web before responding. Make every question specific to this company. Keep the entire response tight — it should work as a single reference page.
 
-Sector breakdown:
-${sectorSummaries.map(s => `${s.sector}: ${s.brandCount} brand(s), avg score ${s.avgScore}, strongest ${s.strongestAttr[0]} (${s.strongestAttr[1]}), weakest ${s.weakestAttr[0]} (${s.weakestAttr[1]})`).join('\n')}
+---
+## CLIENT SNAPSHOT
 
-Based on this data, identify 3 to 5 thought leadership stories Antenna Group could tell. Each story should be grounded in a specific pattern, tension, or insight from the data — not generic marketing advice. These should be publishable angles: blog posts, talks, LinkedIn articles, or POV pieces.
+**Who They Are**
+2–3 sentences maximum. What they do, who they serve, what makes them distinct. Written as a cold briefing.
 
-For each story write:
-- A punchy headline (max 12 words)
-- A 2-3 sentence summary of what the story argues and why the data supports it
+**Website**
+1–2 sentences. Honest assessment of messaging and brand expression. Be direct.
 
-Write in plain text. Number each story. No JSON, no bullet sub-lists, no headers beyond the story number and headline.`;
+**Earned Media & PR**
+1–2 sentences. Are they visible, dormant, or inconsistent? Note any notable coverage or gaps.
 
-      const storedKey = localStorage.getItem('conscious-compass-apikey');
-      const useProxy = !storedKey || storedKey === 'PROXY';
-      let responseText;
+**Social & Digital**
+1 sentence. Are they showing up meaningfully or going through the motions?
 
-      if (useProxy) {
-        const response = await fetch('/api/claude', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, max_tokens: 1500, temperature: 0 })
-        });
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || `Request failed (${response.status})`);
-        }
-        const data = await response.json();
-        responseText = data.text || data.content?.[0]?.text || '';
-      } else {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': storedKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 1500,
-            temperature: 0,
-            messages: [{ role: 'user', content: prompt }],
-          }),
-        });
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `Request failed (${response.status})`);
-        }
-        const data = await response.json();
-        responseText = data.content[0].text;
-      }
+**The One Thing**
+1 sentence only. The single most important thing the BD team should know walking in — a tension, gap, or opportunity that should shape the conversation.
 
-      if (!responseText?.trim()) throw new Error('Empty response. Please try again.');
+---
+## 10 INTAKE QUESTIONS
 
-      // Parse numbered stories from plain text
-      const storyBlocks = responseText.split(/\n(?=\d+\.)/).map(s => s.trim()).filter(Boolean);
-      const parsed = storyBlocks.map(block => {
-        const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-        const headlineLine = lines[0].replace(/^\d+\.\s*/, '');
-        const body = lines.slice(1).join(' ');
-        return { headline: headlineLine, body };
-      }).filter(s => s.headline && s.body);
+Rules for every question:
+- Maximum 2 sentences. Shorter is better.
+- Specific to this company — never generic
+- Opens a conversation, does not close one
+- Follow each question with a rationale of 10 words or fewer
 
-      if (parsed.length === 0) throw new Error('Could not parse stories from response. Please try again.');
-      setAiInsights(parsed);
-    } catch (err) {
-      setError(`Failed to generate insights: ${err.message}`);
-      console.error('Insights error:', err);
-    }
-    
-    setLoading(false);
+**1. Business Context**
+[Company-specific question about the business situation driving this conversation]
+*Rationale: [10 words max]*
+
+**2. The Real Problem**
+[Company-specific question about the underlying challenge]
+*Rationale: [10 words max]*
+
+**3. Success Definition**
+[Company-specific question about what a win looks like in 12 months]
+*Rationale: [10 words max]*
+
+**4. Past Agency Experience**
+[Company-specific question about what's worked before and where agency relationships have broken down]
+*Rationale: [10 words max]*
+
+**5. Internal Dynamics**
+[Company-specific question about who has final say and how approval works]
+*Rationale: [10 words max]*
+
+**6. Appetite for Bold Work**
+[Company-specific question about whether they want safe and steady or something their competitors wouldn't do]
+*Rationale: [10 words max]*
+
+**7. Channel or Service Priority**
+[Company-specific question about where they see the biggest leverage point right now]
+*Rationale: [10 words max]*
+
+**8. Investment Tolerance**
+[Company-specific question about budget and how they think about marketing as investment vs cost]
+*Rationale: [10 words max]*
+
+**9. Urgency**
+[Company-specific question about what's driving the timing]
+*Rationale: [10 words max]*
+
+**10. The Decision**
+[Company-specific question about what would make them move forward or walk away]
+*Rationale: [10 words max]*
+
+CRITICAL: Replace each template question above with a version specific to this company based on your research. The templates show the topic area only — the actual questions must reference what you found.`
+      });
+
+      // Parse questions from ## 10 INTAKE QUESTIONS section
+      const questionMatch = result.match(/## 10 INTAKE QUESTIONS([\s\S]*?)(?:$)/);
+      const questionsRaw = questionMatch ? questionMatch[1] : '';
+      const questions = questionsRaw
+        .split('\n')
+        .filter(l => /^\*\*\d+\./.test(l.trim()))
+        .map(l => l.replace(/^\*\*\d+\.\s*/, '').replace(/\*\*$/, '').trim())
+        .filter(Boolean);
+
+      // Also extract rationales for richer display
+      const rationaleMatches = [...questionsRaw.matchAll(/\*Rationale:\s*([^*\n]+)\*/g)];
+      const rationales = rationaleMatches.map(m => m[1].trim());
+
+      onUpdate({
+        companyName, companyUrl, industry,
+        researchContext: additionalContext,
+        researchSummary: result,
+        intakeQuestions: questions,
+        intakeRationales: rationales,
+        researchComplete: true,
+        currentStage: 'research',
+      });
+    } catch (e) { setError(e.message); }
+    finally { setIsLoading(false); }
   };
 
-  if (!portfolioStats) {
-    return (
-      <div className="card p-12 text-center">
-        <TrendingUp className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Data for Insights</h3>
-        <p className="text-[#666666]">Add some brand assessments to see portfolio insights.</p>
-      </div>
-    );
-  }
+  const { researchSummary, intakeQuestions = [], intakeRationales = [], researchComplete } = opportunity;
 
-  const maxCount = Math.max(...portfolioStats.scoreDistribution.map(d => d.count), 1);
+  // Split snapshot from questions for display
+  const snapshotText = researchSummary
+    ? researchSummary.split('## 10 INTAKE QUESTIONS')[0].replace('## CLIENT SNAPSHOT', '').trim()
+    : '';
 
   return (
-    <div className="space-y-6">
-      {/* Portfolio Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card p-5 text-center">
-          <div className="text-4xl font-bold text-[#1A1A1A] mb-1">{portfolioStats.totalBrands}</div>
-          <div className="text-sm text-[#666666]">Brands Assessed</div>
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="w-12 h-12 bg-[#12161E] rounded-xl flex items-center justify-center mb-4">
+          <Search className="w-6 h-6 text-white" />
         </div>
-        <div className="card p-5 text-center">
-          <div className="text-4xl font-bold mb-1" style={{ color: getMaturityStage(portfolioStats.avgScore).color }}>
-            {portfolioStats.avgScore}
-          </div>
-          <div className="text-sm text-[#666666]">Portfolio Average</div>
-        </div>
-        <div className="card p-5 text-center">
-          <div className="text-lg font-bold text-[#059669] mb-1 flex items-center justify-center gap-1">
-            <TrendingUp className="w-5 h-5" />
-            {ATTRIBUTES.find(a => a.id === portfolioStats.strongestAttr[0])?.name}
-          </div>
-          <div className="text-sm text-[#666666]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
-        </div>
-        <div className="card p-5 text-center">
-          <div className="text-lg font-bold text-[#F59E0B] mb-1 flex items-center justify-center gap-1">
-            <TrendingDown className="w-5 h-5" />
-            {ATTRIBUTES.find(a => a.id === portfolioStats.weakestAttr[0])?.name}
-          </div>
-          <div className="text-sm text-[#666666]">Growth Opportunity ({portfolioStats.weakestAttr[1]})</div>
-        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-1">Company Research</h2>
+        <p className="text-gray-500 text-sm">AI-powered discovery to understand the prospect, identify marketing gaps, and generate smart intake questions.</p>
       </div>
 
-      {/* Score Distribution Visualization */}
-      <div className="card p-6">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Portfolio Maturity Distribution</h3>
-        <div className="flex items-end gap-3 mb-4" style={{ height: '160px' }}>
-          {portfolioStats.scoreDistribution.map((bucket, idx) => {
-            const barHeight = bucket.count > 0 ? Math.max((bucket.count / maxCount) * 140, 16) : 8;
-            return (
-              <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full">
-                <div className="text-sm font-medium text-[#1A1A1A] mb-2">{bucket.count}</div>
-                <div 
-                  className="w-full rounded-t-lg transition-all duration-500"
-                  style={{ 
-                    backgroundColor: bucket.color,
-                    height: `${barHeight}px`,
-                    opacity: bucket.count > 0 ? 1 : 0.3
-                  }}
-                />
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex gap-3">
-          {portfolioStats.scoreDistribution.map((bucket, idx) => (
-            <div key={idx} className="flex-1 text-center">
-              <div className="text-xs text-[#666666]">{bucket.label}</div>
-              <div className="text-[10px] text-[#999999]">{bucket.range}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Attribute Radar / Bar Chart */}
-      <div className="card p-6">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Performance Overview</h3>
-        <div className="space-y-3">
-          {ATTRIBUTES.map(attr => {
-            const score = portfolioStats.attrAverages[attr.id];
-            return (
-              <div key={attr.id} className="flex items-center gap-3">
-                <div className="w-24 text-sm text-[#666666] flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }} />
-                  {attr.name}
-                </div>
-                <div className="flex-1 h-6 bg-[#F0EEEA] rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2"
-                    style={{ 
-                      width: `${score}%`, 
-                      backgroundColor: attr.color,
-                    }}
-                  >
-                    <span className="text-xs font-medium text-white">{score}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Top & Bottom Performers */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-            <Star className="w-5 h-5 text-[#F59E0B]" /> Top Performers
-          </h3>
-          <div className="space-y-3">
-            {portfolioStats.topPerformers.map((brand, idx) => (
-              <div key={brand.id || idx} className="flex items-center justify-between p-3 bg-[#F0EEEA] rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#059669] text-white flex items-center justify-center font-bold text-sm">
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <div className="font-medium text-[#1A1A1A]">{brand.brandName}</div>
-                    <div className="text-xs text-[#666666]">{brand.maturityLevel}</div>
-                  </div>
-                </div>
-                <div className="text-xl font-bold" style={{ color: getMaturityStage(brand.totalScore).color }}>
-                  {brand.totalScore}
-                </div>
-              </div>
-            ))}
+      {/* Input panel — always visible */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <div className="grid sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-1.5">Company Name *</label>
+            <input value={companyName} onChange={e => setCompanyName(e.target.value)} onBlur={saveInputs}
+              placeholder="e.g. Cartography Capital"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
           </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-[#F59E0B]" /> Growth Opportunities
-          </h3>
-          <div className="space-y-3">
-            {portfolioStats.bottomPerformers.map((brand, idx) => (
-              <div key={brand.id || idx} className="flex items-center justify-between p-3 bg-[#F0EEEA] rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#F59E0B] text-white flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-[#1A1A1A]">{brand.brandName}</div>
-                    <div className="text-xs text-[#666666]">{brand.maturityLevel}</div>
-                  </div>
-                </div>
-                <div className="text-xl font-bold" style={{ color: getMaturityStage(brand.totalScore).color }}>
-                  {brand.totalScore}
-                </div>
-              </div>
-            ))}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-1.5">Website URL</label>
+            <input value={companyUrl} onChange={e => setCompanyUrl(e.target.value)} onBlur={saveInputs}
+              placeholder="https://example.com"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
           </div>
-        </div>
-      </div>
-
-      {/* AI Insights Section */}
-      <div className="card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
-            <Lightbulb className="w-5 h-5 text-[#E8FF00]" style={{filter: 'drop-shadow(0 0 2px #E8FF00)'}} /> Story Opportunities
-          </h3>
-          <button
-            onClick={generateInsights}
-            disabled={loading}
-            className="btn-primary flex items-center gap-2 text-sm"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {loading ? 'Generating...' : aiInsights ? 'Regenerate' : 'Generate Stories'}
-          </button>
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-1.5">Industry / Sector</label>
+            <input value={industry} onChange={e => setIndustry(e.target.value)} onBlur={saveInputs}
+              placeholder="e.g. Fintech, Healthcare, Climate Tech"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-1.5">Additional Context</label>
+            <input value={additionalContext} onChange={e => setAdditionalContext(e.target.value)} onBlur={saveInputs}
+              placeholder="How they reached us, existing relationship, specific focus..."
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
+          </div>
         </div>
 
         {error && (
-          <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4">
-            {error}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />{error}
           </div>
         )}
 
-        {!aiInsights && !loading && !error && (
-          <div className="text-center py-8 text-[#666666]">
-            <Lightbulb className="w-12 h-12 mx-auto mb-3 text-[#D9D6D0]" />
-            <p className="text-sm">Generate 3–5 thought leadership story opportunities based on what your assessment data reveals.</p>
-          </div>
-        )}
-
-        {aiInsights && (
-          <div className="space-y-4">
-            {aiInsights.map((story, idx) => (
-              <div key={idx} className="p-5 bg-[#1A1A1A] rounded-xl">
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-full bg-[#E8FF00] text-[#1A1A1A] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white mb-2 leading-snug">{story.headline}</div>
-                    <div className="text-sm text-[#9CA3AF] leading-relaxed">{story.body}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          <AntennaButton onClick={runResearch} loading={isLoading} loadingText="Researching…" icon={Search} disabled={!companyName.trim()}>
+            {researchComplete ? 'Re-run Research' : 'Run Research'}
+          </AntennaButton>
+          {researchComplete && (
+            <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+              <CheckCircle className="w-4 h-4" />Research complete
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Results */}
+      {researchSummary && (
+        <div className="grid lg:grid-cols-2 gap-6 mb-6">
+
+          {/* Client Snapshot */}
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-[#12161E] rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-3.5 h-3.5 text-white" />
+                </div>
+                <span className="font-bold text-gray-900">Client Snapshot</span>
+              </div>
+              <CopyButton text={snapshotText} />
+            </div>
+            <div className="p-5 overflow-y-auto" style={{ maxHeight: '520px' }}>
+              <div className="space-y-4">
+                {snapshotText.split('\n\n').filter(Boolean).map((block, i) => {
+                  const isBold = block.startsWith('**');
+                  if (isBold) {
+                    const titleMatch = block.match(/^\*\*([^*]+)\*\*/);
+                    const title = titleMatch ? titleMatch[1] : '';
+                    const body = block.replace(/^\*\*[^*]+\*\*\s*/, '').trim();
+                    return (
+                      <div key={i}>
+                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
+                        <p className="text-sm text-gray-700 leading-relaxed">{body}</p>
+                      </div>
+                    );
+                  }
+                  return <p key={i} className="text-sm text-gray-600 leading-relaxed">{block}</p>;
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Intake Questions */}
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-[#E8FF00] rounded-lg flex items-center justify-center">
+                  <FileQuestion className="w-3.5 h-3.5 text-[#12161E]" />
+                </div>
+                <span className="font-bold text-gray-900">Intake Questions</span>
+                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">{intakeQuestions.length || 10}</span>
+              </div>
+              <CopyButton text={intakeQuestions.map((q, i) => `${i+1}. ${q}`).join('\n')} />
+            </div>
+            <div className="p-5 overflow-y-auto" style={{ maxHeight: '520px' }}>
+              {/* Parse and display questions with rationales from raw text if structured parsing failed */}
+              {intakeQuestions.length > 0 ? (
+                <div className="space-y-4">
+                  {intakeQuestions.map((q, i) => (
+                    <div key={i} className="flex gap-3">
+                      <span className="w-6 h-6 rounded-full bg-[#12161E] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i+1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-800 leading-relaxed font-medium">{q}</p>
+                        {intakeRationales[i] && (
+                          <p className="text-xs text-gray-400 mt-1 italic">{intakeRationales[i]}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // Fallback: render raw questions section as text
+                <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed font-sans">
+                  {researchSummary.split('## 10 INTAKE QUESTIONS')[1] || ''}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {researchComplete && (
+        <AntennaButton
+          onClick={() => onUpdate({
+            currentStage: 'brief',
+            companyName, companyUrl, industry,
+            researchContext: additionalContext,
+            researchSummary: opportunity.researchSummary,
+            intakeQuestions: opportunity.intakeQuestions,
+            intakeRationales: opportunity.intakeRationales,
+            researchComplete: true,
+          })}
+          icon={ArrowRight} className="w-full">
+          Proceed to Return Brief →
+        </AntennaButton>
+      )}
     </div>
   );
 }
 
-// Brand Comparison Page
-function ComparisonPage({ results, onBack }) {
-  const [selectedBrands, setSelectedBrands] = useState([]);
-  const [filterIndustry, setFilterIndustry] = useState('all');
-  const [filterBusinessModel, setFilterBusinessModel] = useState('all');
-  const [viewMode, setViewMode] = useState('brands'); // 'brands' or 'industry'
-  const [chartType, setChartType] = useState('radar'); // 'radar' or 'bars'
-  const [showIndustryAvg, setShowIndustryAvg] = useState(false);
-  const maxComparison = 6;
-  const maxRadar = 4;
+// ============================================================================
+// STAGE 2: BRIEF VIEW
+// ============================================================================
+function BriefView({ opportunity, onUpdate }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [transcript, setTranscript] = useState(opportunity.transcript || '');
+  const [briefNotes, setBriefNotes] = useState(opportunity.briefNotes || '');
+  const [contactName, setContactName] = useState(opportunity.contactName || '');
+  const [contactRole, setContactRole] = useState(opportunity.contactRole || '');
+  const [callDate, setCallDate] = useState(opportunity.callDate || '');
+  const [compassAssessment, setCompassAssessment] = useState(opportunity.compassAssessment || '');
+  const [fitArchetypes, setFitArchetypes] = useState(opportunity.fitArchetypes || (opportunity.fitArchetype ? [opportunity.fitArchetype] : []));
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedBrief, setEditedBrief] = useState(opportunity.returnBrief || '');
+  const [showCompass, setShowCompass] = useState(!!(opportunity.compassAssessment));
 
-  const industries = [
-    { id: 'all', name: 'All Industries' },
-    ...INDUSTRIES
-  ];
-
-  const businessModels = [
-    { id: 'all', name: 'All Models' },
-    { id: 'b2b', name: 'B2B' },
-    { id: 'b2c', name: 'B2C' },
-    { id: 'b2b2c', name: 'B2B2C' },
-  ];
-
-  // Filter results
-  const filteredResults = results.filter(r => {
-    if (filterIndustry !== 'all' && r.industry !== filterIndustry) return false;
-    if (filterBusinessModel !== 'all' && r.businessModel !== filterBusinessModel) return false;
-    return true;
-  });
-
-  // Get unique industries with data
-  const industriesWithData = [...new Set(results.map(r => r.industry).filter(Boolean))];
-
-  // Calculate industry benchmarks
-  const getIndustryBenchmarks = () => {
-    const benchmarks = {};
-    industriesWithData.forEach(industry => {
-      const industryBrands = results.filter(r => r.industry === industry);
-      if (industryBrands.length > 0) {
-        const avgScore = Math.round(industryBrands.reduce((sum, b) => sum + b.totalScore, 0) / industryBrands.length);
-        const attrAvgs = {};
-        ATTRIBUTES.forEach(attr => {
-          attrAvgs[attr.id] = Math.round(
-            industryBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / industryBrands.length
-          );
-        });
-        benchmarks[industry] = {
-          avgScore,
-          attrAvgs,
-          count: industryBrands.length,
-          industryName: industries.find(i => i.id === industry)?.name || industry,
-        };
-      }
+  const toggleFit = (id) => {
+    setFitArchetypes(prev => {
+      if (prev.includes(id)) return prev.filter(a => a !== id);
+      if (prev.length >= 2) return [prev[1], id]; // replace oldest with new
+      return [...prev, id];
     });
-    return benchmarks;
   };
 
-  const industryBenchmarks = getIndustryBenchmarks();
+  // Save brief inputs explicitly on blur — no unmount cleanup needed
+  const saveBriefInputs = useCallback(() => {
+    onUpdate({ transcript, briefNotes, contactName, contactRole, callDate, compassAssessment, fitArchetypes });
+  }, [transcript, briefNotes, contactName, contactRole, callDate, compassAssessment, fitArchetypes]);
 
-  const toggleBrand = (brand) => {
-    if (selectedBrands.find(b => b.id === brand.id)) {
-      setSelectedBrands(selectedBrands.filter(b => b.id !== brand.id));
-    } else if (selectedBrands.length < maxComparison) {
-      setSelectedBrands([...selectedBrands, brand]);
-    }
+  const generateBrief = async () => {
+    if (!transcript.trim()) return setError('Please paste the call transcript.');
+    setIsLoading(true); setError(null);
+
+    // Save inputs immediately before async call
+    onUpdate({ transcript, briefNotes, contactName, contactRole, callDate, compassAssessment, fitArchetypes });
+
+    // Build FIT result string
+    const fitResult = fitArchetypes.length > 0
+      ? fitArchetypes.map(id => {
+          const a = FIT_ARCHETYPES[id];
+          if (!a) return '';
+          const pct = fitArchetypes.length === 2
+            ? (fitArchetypes[0] === id ? '60%' : '40%')
+            : '100%';
+          return `${a.title.toUpperCase()} ${pct}`;
+        }).filter(Boolean).join(' / ')
+      : 'Not completed';
+
+    const compassResult = compassAssessment.trim() || 'Not completed';
+    const clientLine = [
+      opportunity.companyName,
+      contactName && contactRole ? `${contactName}, ${contactRole}` : contactName || contactRole || null,
+      callDate ? `Call date: ${callDate}` : null,
+    ].filter(Boolean).join(' | ');
+
+    try {
+      const result = await callClaude({
+        maxTokens: 3000,
+        system: `You are a senior strategist at Antenna Group. Write a Return Brief — a short client-facing document sent after a discovery call to confirm what was heard before a proposal is written.
+
+Its only job: make the client feel understood and give them the chance to correct anything.
+
+RULES:
+- Written to the client, not about them
+- Every section: 2-3 sentences or 3 bullets maximum
+- No jargon, no filler, no repetition
+- If a section has no data, omit it entirely
+- The whole document must be readable in 90 seconds
+- Output plain text only -- no markdown, no asterisks, no hashes
+- Never use em dashes (-- or the character). Use commas, colons, or plain hyphens (-) instead.`,
+
+        userMessage: `Write a Return Brief using the information below. Omit any section where no data exists.
+
+CLIENT: ${clientLine}
+
+TRANSCRIPT / NOTES:
+${transcript}
+
+FIT RESULT:
+${fitResult}
+
+COMPASS RESULT:
+${compassResult}
+
+BD TEAM NOTES:
+${briefNotes.trim() || 'None'}
+
+---
+
+Use this EXACT output format:
+
+RETURN BRIEF
+
+Client:          ${opportunity.companyName}
+Prepared for:    ${contactName ? `${contactName}${contactRole ? `, ${contactRole}` : ''}` : '[Contact]'}
+From:            Antenna Group
+Date:            ${callDate || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+
+────────────────────────────────────────
+
+WHAT WE HEARD
+[2–3 sentences in the client's own language. The situation and what brought them to this conversation.]
+
+THE PROBLEM WE'RE HERE TO SOLVE
+[1–2 sentences. The real underlying challenge, not the surface ask.]
+
+WHAT SUCCESS LOOKS LIKE
+- [Outcome 1]
+- [Outcome 2]
+- [Outcome 3]
+
+HOW YOU LIKE TO WORK
+[Only include if FIT data was provided. Format: [Archetype name(s)] — [2 sentences on what this means practically for how we'll work together.]]
+
+WHAT WE'VE LEARNT ABOUT YOUR BRAND
+[Only include if Compass data was provided. Format:
+Overall: [Maturity stage] ([Score])
+The areas that matter most for this engagement: [2–3 attributes only, one line each.]]
+
+WHAT A PROPOSAL SHOULD FOCUS ON
+- [Service / priority 1] — [one line why]
+- [Service / priority 2] — [one line why]
+- [Service / priority 3] — [one line why]
+
+YOUR MANDATORIES
+- [Non-negotiable 1]
+- [Non-negotiable 2]
+- [Non-negotiable 3]
+
+BEFORE WE GO FURTHER
+[One clarifying question — the single thing that would most sharpen the proposal.]
+
+────────────────────────────────────────
+Does this reflect what we discussed? Reply with any corrections before we begin.
+
+---INTERNAL---
+
+TRIGGER ANALYSIS (Internal — Do Not Share)
+[List which Antenna service categories were detected and why. Confirm or suggest a FIT archetype with reasoning. Note any strategic observations about this opportunity.]`,
+      });
+
+      onUpdate({ transcript, briefNotes, contactName, contactRole, callDate, compassAssessment, fitArchetypes, returnBrief: result, briefComplete: true, currentStage: 'brief' });
+      setEditedBrief(result);
+    } catch (e) { setError(e.message); }
+    finally { setIsLoading(false); }
   };
 
-  const selectAllInIndustry = (industry) => {
-    const industryBrands = results.filter(r => r.industry === industry).slice(0, maxComparison);
-    setSelectedBrands(industryBrands);
-  };
+  const handleSaveEdit = () => { onUpdate({ returnBrief: editedBrief }); setIsEditing(false); };
 
-  const exportComparison = () => {
-    if (viewMode === 'brands' && selectedBrands.length < 2) {
-      alert('Select at least 2 brands to export comparison');
-      return;
-    }
-    
-    if (viewMode === 'brands') {
-      const headers = ['Attribute', ...selectedBrands.map(b => b.brandName)];
-      const rows = ATTRIBUTES.map(attr => [
-        attr.name,
-        ...selectedBrands.map(b => b.scores?.[attr.id] || 0)
-      ]);
-      rows.unshift(['Overall Score', ...selectedBrands.map(b => b.totalScore)]);
-      rows.push(['Maturity Level', ...selectedBrands.map(b => b.maturityLevel)]);
-      
-      const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `brand-comparison-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-    } else {
-      // Export industry benchmarks
-      const benchmarkEntries = Object.entries(industryBenchmarks);
-      if (benchmarkEntries.length === 0) {
-        alert('No industry data to export');
-        return;
-      }
-      const headers = ['Attribute', ...benchmarkEntries.map(([, b]) => `${b.industryName} (n=${b.count})`)];
-      const rows = ATTRIBUTES.map(attr => [
-        attr.name,
-        ...benchmarkEntries.map(([, b]) => b.attrAvgs[attr.id])
-      ]);
-      rows.unshift(['Average Score', ...benchmarkEntries.map(([, b]) => b.avgScore)]);
-      
-      const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `industry-benchmarks-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-    }
-  };
+  // Split brief from internal analysis at the sentinel
+  const briefText = opportunity.returnBrief || '';
+  const internalSplit = briefText.indexOf('---INTERNAL---');
+  // Also handle legacy format
+  const legacySplit = briefText.indexOf('## TRIGGER ANALYSIS');
+  const splitIndex = internalSplit > 0 ? internalSplit : legacySplit > 0 ? legacySplit : -1;
+  const publicBrief = splitIndex > 0 ? briefText.substring(0, splitIndex).trim() : briefText;
+  const internalAnalysis = splitIndex > 0 ? briefText.substring(splitIndex).replace('---INTERNAL---', '').replace('## TRIGGER ANALYSIS (Internal — Do Not Share)', '').trim() : '';
 
   return (
-    <div className="min-h-screen bg-[#F5F4F0]">
-      <div className="max-w-7xl mx-auto p-4 md:p-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="btn-secondary flex items-center gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      <div className="grid lg:grid-cols-2 gap-8">
+        {/* Left: Input */}
+        <div>
+          <div className="mb-6">
+            <div className="w-12 h-12 bg-[#12161E] rounded-xl flex items-center justify-center mb-4">
+              <MessageSquare className="w-6 h-6 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">Return Brief</h2>
+            <p className="text-gray-500 text-sm">Paste your call transcript. We'll produce a concise client-facing brief to confirm what was heard — ready to send before the proposal.</p>
+          </div>
+
+          <div className="space-y-4 mb-6">
+
+            {/* Contact details row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">Contact Name <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input value={contactName} onChange={e => setContactName(e.target.value)} onBlur={saveBriefInputs}
+                  placeholder="e.g. Sarah Chen"
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">Role <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input value={contactRole} onChange={e => setContactRole(e.target.value)} onBlur={saveBriefInputs}
+                  placeholder="e.g. CMO"
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
+              </div>
+            </div>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Compare</h1>
-              <p className="text-sm text-[#666666]">Compare brands or view industry benchmarks</p>
+              <label className="block text-sm font-semibold text-gray-900 mb-1.5">Call Date <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input type="date" value={callDate} onChange={e => setCallDate(e.target.value)} onBlur={saveBriefInputs}
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900 text-sm" />
+            </div>
+
+            {/* FIT Archetype Selector */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-bold text-gray-900">Client FIT Archetype</label>
+                <span className="text-xs text-gray-400">{fitArchetypes.length}/2 selected</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.values(FIT_ARCHETYPES).map(arch => {
+                  const isSelected = fitArchetypes.includes(arch.id);
+                  const isDisabled = !isSelected && fitArchetypes.length >= 2;
+                  return (
+                    <button
+                      key={arch.id}
+                      onClick={() => toggleFit(arch.id)}
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all ${
+                        isSelected
+                          ? 'border-[#12161E] bg-[#12161E] text-white'
+                          : isDisabled
+                          ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
+                          : 'border-gray-200 hover:border-gray-400 bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-lg leading-none mt-0.5 flex-shrink-0">{arch.emoji}</span>
+                      <div className="min-w-0">
+                        <p className={`text-xs font-bold leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>{arch.title}</p>
+                        <p className={`text-[10px] mt-0.5 leading-tight ${isSelected ? 'text-gray-300' : 'text-gray-400'}`}>{arch.short}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {fitArchetypes.length > 0 && (
+                <p className="mt-2 text-xs text-gray-500 italic">
+                  {fitArchetypes.map(id => FIT_ARCHETYPES[id]?.description).join(' · ')}
+                </p>
+              )}
+              {fitArchetypes.length === 2 && (
+                <p className="mt-1 text-xs text-amber-600 font-medium">Blended archetype — brief will reflect both working styles</p>
+              )}
+            </div>
+
+            {/* Transcript */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-1.5">Call Transcript <span className="text-red-400">*</span></label>
+              <textarea
+                value={transcript}
+                onChange={e => setTranscript(e.target.value)}
+                onBlur={saveBriefInputs}
+                placeholder="Paste the full transcript of your client discovery call here..."
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900 placeholder:text-gray-400 min-h-[220px] resize-y font-mono text-sm"
+              />
+            </div>
+
+            {/* BD Team Notes */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-1.5">BD Team Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+              <textarea
+                value={briefNotes}
+                onChange={e => setBriefNotes(e.target.value)}
+                onBlur={saveBriefInputs}
+                placeholder="Anything not in the transcript — gut reads, room dynamics, things implied but not said, relationship context, red flags..."
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 outline-none text-gray-900 placeholder:text-gray-400 min-h-[80px] resize-y text-sm"
+              />
+            </div>
+
+            {/* Compass Assessment — toggleable */}
+            <div>
+              <button
+                onClick={() => setShowCompass(!showCompass)}
+                className="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors group"
+              >
+                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${showCompass ? 'bg-[#12161E] border-[#12161E]' : 'border-gray-400 group-hover:border-gray-600'}`}>
+                  {showCompass && <span className="text-white text-[9px] font-black">✓</span>}
+                </div>
+                Include Compass Brand Assessment
+                <span className="text-xs text-gray-400 font-normal">(optional)</span>
+              </button>
+              {showCompass && (
+                <div className="mt-2">
+                  <textarea
+                    value={compassAssessment}
+                    onChange={e => setCompassAssessment(e.target.value)}
+                    onBlur={saveBriefInputs}
+                    placeholder="Paste the Compass brand assessment output here — brand positioning, perception gaps, competitive context, or any strategic brand context from the assessment..."
+                    className="w-full px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl focus:ring-2 focus:ring-amber-400 outline-none text-gray-900 placeholder:text-gray-400 min-h-[120px] resize-y text-sm"
+                    autoFocus
+                  />
+                  <p className="mt-1.5 text-xs text-amber-700">Compass context will be woven into the brief's Brand section and inform service recommendations.</p>
+                </div>
+              )}
             </div>
           </div>
-          <button 
-            onClick={exportComparison} 
-            disabled={viewMode === 'brands' ? selectedBrands.length < 2 : Object.keys(industryBenchmarks).length === 0}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" /> Export {viewMode === 'brands' ? 'Comparison' : 'Benchmarks'}
-          </button>
+
+          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />{error}</div>}
+
+          <AntennaButton onClick={generateBrief} loading={isLoading} loadingText="Generating Brief…" icon={FileText} disabled={!transcript.trim()}>
+            {opportunity.briefComplete ? 'Regenerate Brief' : 'Generate Return Brief'}
+          </AntennaButton>
+
+          {opportunity.briefComplete && (
+            <p className="text-xs text-gray-500 text-center mt-3">Brief generated. Review and edit on the right before sending to the client.</p>
+          )}
         </div>
 
-        {/* View Mode Toggle */}
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setViewMode('brands')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              viewMode === 'brands' 
-                ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
-            }`}
-          >
-            Compare Brands
-          </button>
-          <button
-            onClick={() => setViewMode('industry')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              viewMode === 'industry' 
-                ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
-            }`}
-          >
-            Industry Benchmarks
-          </button>
-          <button
-            onClick={() => setViewMode('insights')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              viewMode === 'insights' 
-                ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
-            }`}
-          >
-            ✨ Insights
-          </button>
-        </div>
-
-        {results.length === 0 ? (
-          <div className="card p-12 text-center">
-            <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Results to Compare</h3>
-            <p className="text-[#666666]">Complete some assessments first to compare brands.</p>
-          </div>
-        ) : viewMode === 'industry' ? (
-          /* Industry Benchmarks View */
-          <div className="space-y-6">
-            {Object.keys(industryBenchmarks).length === 0 ? (
-              <div className="card p-12 text-center">
-                <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Industry Data</h3>
-                <p className="text-[#666666]">Add industry information to your assessments to see benchmarks.</p>
+        {/* Right: Output */}
+        <div>
+          {!opportunity.briefComplete ? (
+            <div className="h-full flex flex-col items-center justify-center text-center py-20 px-8">
+              <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-6">
+                <FileText className="w-10 h-10 text-gray-300" />
               </div>
-            ) : (
-              <>
-                {/* Industry Overview */}
-                <div className="card p-6">
-                  <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Industry Average Scores</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {Object.entries(industryBenchmarks).map(([industry, data]) => {
-                      const stage = getMaturityStage(data.avgScore);
-                      return (
-                        <div key={industry} className="text-center p-4 bg-[#F0EEEA] rounded-lg">
-                          <div 
-                            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl"
-                            style={{ backgroundColor: stage.color }}
-                          >
-                            {data.avgScore}
-                          </div>
-                          <div className="font-medium text-sm text-[#1A1A1A]">{data.industryName}</div>
-                          <div className="text-xs text-[#666666]">{data.count} brand{data.count !== 1 ? 's' : ''}</div>
-                        </div>
-                      );
-                    })}
+              <h3 className="text-lg font-semibold text-gray-400 mb-2">Return Brief will appear here</h3>
+              <p className="text-sm text-gray-400">Paste your transcript and generate to produce a client-ready brief document.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* FIT badge if set */}
+              {fitArchetypes.length > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl flex-wrap">
+                  {fitArchetypes.map(id => FIT_ARCHETYPES[id]).filter(Boolean).map(arch => (
+                    <div key={arch.id} className="flex items-center gap-1.5">
+                      <span className="text-base">{arch.emoji}</span>
+                      <span className="text-xs font-bold text-gray-900">{arch.title}</span>
+                      <span className="text-xs text-gray-400">{arch.short}</span>
+                    </div>
+                  ))}
+                  {fitArchetypes.length === 2 && <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium ml-auto">Blended</span>}
+                  {compassAssessment && <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">Compass included</span>}
+                </div>
+              )}
+
+              {/* Brief card */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="font-semibold text-gray-900">Return Brief</span>
+                    {isEditing
+                      ? <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Editing</span>
+                      : <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Ready to send</span>
+                    }
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!isEditing && <CopyButton text={publicBrief} />}
+                    <button
+                      onClick={() => { setIsEditing(!isEditing); setEditedBrief(briefText); }}
+                      className={`text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 font-medium ${
+                        isEditing
+                          ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          : 'bg-[#12161E] text-white hover:bg-gray-800'
+                      }`}>
+                      <Edit3 className="w-3 h-3" />{isEditing ? 'Cancel Edit' : 'Edit Brief'}
+                    </button>
+                    {!isEditing && (
+                      <button onClick={() => downloadDocx(publicBrief, `${opportunity.companyName}_Return_Brief.docx`, { title: `Return Brief: ${opportunity.companyName}`, client: opportunity.companyName })} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1.5">
+                        <Download className="w-3 h-3" />Download
+                      </button>
+                    )}
                   </div>
                 </div>
-
-                {/* Attribute Comparison by Industry — rows = attributes, cols = industries */}
-                {(() => {
-                  const benchmarkEntries = Object.entries(industryBenchmarks);
-                  const scoreColor = (s) => {
-                    if (s >= 70) return { bg: '#1A1A1A', text: '#FFFFFF' };
-                    if (s >= 55) return { bg: '#4A4A4A', text: '#FFFFFF' };
-                    if (s >= 40) return { bg: '#8A8A8A', text: '#FFFFFF' };
-                    if (s >= 25) return { bg: '#D0CEC9', text: '#1A1A1A' };
-                    return { bg: '#F0EEEA', text: '#666666' };
-                  };
-                  return (
-                    <div className="card p-6">
-                      <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-[#1A1A1A]">Attribute Performance by Industry</h3>
-                        <p className="text-xs text-[#666666] mt-0.5">Average score per attribute across each industry</p>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs border-collapse">
-                          <thead>
-                            <tr>
-                              <th className="text-left py-2 pr-4 font-medium text-[#666666] w-28">Attribute</th>
-                              {benchmarkEntries.map(([ind, data]) => (
-                                <th key={ind} className="text-center py-2 px-1 font-medium text-[#1A1A1A] min-w-[80px]">
-                                  <div className="truncate max-w-[90px] mx-auto" title={data.industryName}>{data.industryName}</div>
-                                  <div className="text-[10px] text-[#999] font-normal">{data.count}b</div>
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {ATTRIBUTES.map((attr, i) => (
-                              <tr key={attr.id} className={i % 2 === 0 ? 'bg-[#F9F8F6]' : ''}>
-                                <td className="py-2 pr-4 font-medium text-[#1A1A1A]">{attr.name}</td>
-                                {benchmarkEntries.map(([ind, data]) => {
-                                  const s = data.attrAvgs[attr.id] || 0;
-                                  const c = scoreColor(s);
-                                  return (
-                                    <td key={ind} className="py-1.5 px-1 text-center">
-                                      <span
-                                        className="inline-block w-10 rounded text-center py-0.5 font-semibold tabular-nums"
-                                        style={{ backgroundColor: c.bg, color: c.text }}
-                                      >
-                                        {s}
-                                      </span>
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <div className="flex items-center gap-3 mt-4 pt-3 border-t border-[#E8E6E1]">
-                        <span className="text-[10px] text-[#999]">Score key:</span>
-                        {[['70+','#1A1A1A','#FFFFFF','Leading'],['55–69','#4A4A4A','#FFFFFF','Differentiating'],['40–54','#8A8A8A','#FFFFFF','Establishing'],['25–39','#D0CEC9','#1A1A1A','Foundational'],['0–24','#F0EEEA','#666666','Pre-Foundational']].map(([range, bg, fg, label]) => (
-                          <div key={range} className="flex items-center gap-1">
-                            <span className="inline-block w-8 text-center rounded text-[10px] font-semibold py-0.5" style={{ backgroundColor: bg, color: fg }}>{range}</span>
-                            <span className="text-[10px] text-[#999] hidden sm:inline">{label}</span>
-                          </div>
-                        ))}
-                      </div>
+                {isEditing ? (
+                  <div className="p-5">
+                    <p className="text-xs text-gray-500 mb-3">Edit the brief below. Changes are saved when you click Save — the original will be replaced.</p>
+                    <textarea
+                      value={editedBrief}
+                      onChange={e => setEditedBrief(e.target.value)}
+                      className="w-full text-sm text-gray-800 border border-gray-200 rounded-lg p-4 min-h-[480px] resize-y font-mono leading-relaxed focus:ring-2 focus:ring-gray-900 outline-none bg-gray-50"
+                    />
+                    <div className="mt-3 flex items-center gap-3">
+                      <button onClick={handleSaveEdit} className="px-4 py-2 bg-[#12161E] text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors">Save Changes</button>
+                      <button onClick={() => setIsEditing(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+                      <CopyButton text={editedBrief} />
                     </div>
-                  );
-                })()}
-
-                {/* Industry Comparison by Attribute — rows = industries, cols = attributes */}
-                {(() => {
-                  const benchmarkEntries = Object.entries(industryBenchmarks);
-                  const scoreColor = (s) => {
-                    if (s >= 70) return { bg: '#1A1A1A', text: '#FFFFFF' };
-                    if (s >= 55) return { bg: '#4A4A4A', text: '#FFFFFF' };
-                    if (s >= 40) return { bg: '#8A8A8A', text: '#FFFFFF' };
-                    if (s >= 25) return { bg: '#D0CEC9', text: '#1A1A1A' };
-                    return { bg: '#F0EEEA', text: '#666666' };
-                  };
-                  return (
-                    <div className="card p-6">
-                      <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-[#1A1A1A]">Industry Performance by Attribute</h3>
-                        <p className="text-xs text-[#666666] mt-0.5">How each industry tracks across the eight dimensions</p>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs border-collapse">
-                          <thead>
-                            <tr>
-                              <th className="text-left py-2 pr-4 font-medium text-[#666666] w-36">Industry</th>
-                              {ATTRIBUTES.map(attr => (
-                                <th key={attr.id} className="text-center py-2 px-1 font-medium text-[#1A1A1A] min-w-[56px]">
-                                  {attr.name}
-                                </th>
-                              ))}
-                              <th className="text-center py-2 px-1 font-medium text-[#666666] min-w-[56px]">Avg</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {benchmarkEntries.map(([ind, data], i) => {
-                              const c = scoreColor(data.avgScore);
-                              return (
-                                <tr key={ind} className={i % 2 === 0 ? 'bg-[#F9F8F6]' : ''}>
-                                  <td className="py-2 pr-4">
-                                    <div className="font-medium text-[#1A1A1A] truncate max-w-[130px]" title={data.industryName}>{data.industryName}</div>
-                                    <div className="text-[10px] text-[#999]">{data.count} brand{data.count !== 1 ? 's' : ''}</div>
-                                  </td>
-                                  {ATTRIBUTES.map(attr => {
-                                    const s = data.attrAvgs[attr.id] || 0;
-                                    const ac = scoreColor(s);
-                                    return (
-                                      <td key={attr.id} className="py-1.5 px-1 text-center">
-                                        <span
-                                          className="inline-block w-10 rounded text-center py-0.5 font-semibold tabular-nums"
-                                          style={{ backgroundColor: ac.bg, color: ac.text }}
-                                        >
-                                          {s}
-                                        </span>
-                                      </td>
-                                    );
-                                  })}
-                                  <td className="py-1.5 px-1 text-center">
-                                    <span
-                                      className="inline-block w-10 rounded text-center py-0.5 font-bold tabular-nums"
-                                      style={{ backgroundColor: c.bg, color: c.text }}
-                                    >
-                                      {data.avgScore}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
-            )}
-          </div>
-        ) : viewMode === 'insights' ? (
-          /* AI Insights View */
-          <InsightsView results={results} industryBenchmarks={industryBenchmarks} industries={industries} />
-        ) : (
-          /* Brand Comparison View */
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Brand Selection with Filters */}
-            <div className="lg:col-span-1 space-y-4">
-              {/* Filters */}
-              <div className="card p-4">
-                <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Filters</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs text-[#666666] mb-1 block">Industry</label>
-                    <select
-                      value={filterIndustry}
-                      onChange={(e) => setFilterIndustry(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#D9D6D0] rounded text-sm"
-                    >
-                      {industries.map(ind => (
-                        <option key={ind.id} value={ind.id}>{ind.name}</option>
-                      ))}
-                    </select>
                   </div>
-                  <div>
-                    <label className="text-xs text-[#666666] mb-1 block">Business Model</label>
-                    <select
-                      value={filterBusinessModel}
-                      onChange={(e) => setFilterBusinessModel(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#D9D6D0] rounded text-sm"
-                    >
-                      {businessModels.map(bm => (
-                        <option key={bm.id} value={bm.id}>{bm.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Quick select by industry */}
-                {industriesWithData.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-[#E8E6E1]">
-                    <label className="text-xs text-[#666666] mb-2 block">Quick Select Industry</label>
-                    <div className="flex flex-wrap gap-1">
-                      {industriesWithData.slice(0, 5).map(industry => (
-                        <button
-                          key={industry}
-                          onClick={() => selectAllInIndustry(industry)}
-                          className="text-xs px-2 py-1 bg-[#F0EEEA] hover:bg-[#E8E6E1] rounded transition-colors"
-                        >
-                          {industries.find(i => i.id === industry)?.name || industry}
-                        </button>
-                      ))}
-                    </div>
+                ) : (
+                  <div className="p-6 max-h-[560px] overflow-y-auto">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed font-mono">{publicBrief}</pre>
                   </div>
                 )}
               </div>
 
-              {/* Brand List */}
-              <div className="card p-4">
-                <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">
-                  Select Brands ({selectedBrands.length}/{maxComparison})
-                  {filteredResults.length !== results.length && (
-                    <span className="text-xs font-normal text-[#666666] ml-2">
-                      Showing {filteredResults.length} of {results.length}
-                    </span>
-                  )}
+              {/* Internal Analysis */}
+              {internalAnalysis && (
+                <CollapsibleSection title="Trigger Analysis (Internal Only)" icon={Lightbulb}>
+                  <pre className="whitespace-pre-wrap text-sm text-gray-600 leading-relaxed font-sans">{internalAnalysis.replace('## TRIGGER ANALYSIS (Internal — Do Not Share)', '').trim()}</pre>
+                </CollapsibleSection>
+              )}
+
+              <AntennaButton onClick={() => onUpdate({
+                currentStage: 'proposal',
+                transcript, briefNotes, contactName, contactRole, callDate,
+                compassAssessment, fitArchetypes,
+                returnBrief: opportunity.returnBrief,
+                briefComplete: opportunity.briefComplete,
+              })} icon={ArrowRight} className="w-full">
+                Proceed to Proposal →
+              </AntennaButton>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================================
+// SERVICE SELECTION CARD (for Stage 3)
+// ============================================================================
+function ServiceCard({ trigger, selectedServices, onToggleService, onToggleBundle }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const serviceNames = getServiceNames(trigger);
+  const selectedCount = serviceNames.filter(s => selectedServices.includes(s)).length;
+
+  const organizeServices = () => {
+    const bundles = {}, standalone = [];
+    for (const service of trigger.services) {
+      const name = getServiceName(service);
+      const bundleName = service.pricing?.bundle;
+      if (bundleName) {
+        if (!bundles[bundleName]) bundles[bundleName] = { name: bundleName, services: [], pricing: null };
+        bundles[bundleName].services.push({ name, service });
+        if (service.pricing?.budgetLow) bundles[bundleName].pricing = service.pricing;
+      } else { standalone.push({ name, service }); }
+    }
+    return { bundles: Object.values(bundles), standalone };
+  };
+
+  const { bundles, standalone } = organizeServices();
+  const isBundleSelected = (bundle) => bundle.services.every(s => selectedServices.includes(s.name));
+
+  const formatPricing = (pricing) => {
+    if (!pricing) return null;
+    const fc = (n) => n >= 1000 ? `$${(n/1000).toFixed(0)}K` : `$${n}`;
+    const term = pricing.termLow && pricing.termHigh ? (pricing.termLow === pricing.termHigh ? (pricing.termLow === 52 ? 'Annual' : `${pricing.termLow}w`) : `${pricing.termLow}–${pricing.termHigh}w`) : null;
+    const budget = pricing.budgetLow && pricing.budgetHigh ? `${fc(pricing.budgetLow)}–${fc(pricing.budgetHigh)}` : null;
+    return { term, budget };
+  };
+
+  return (
+    <div className={`rounded-xl border transition-all overflow-hidden ${selectedCount > 0 ? 'border-[#12161E]' : 'border-gray-200 bg-white'}`}>
+      {/* Header */}
+      <button onClick={() => setIsExpanded(!isExpanded)} className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+        <div className="flex items-center gap-3">
+          {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+          <div className="text-left">
+            <p className="font-bold text-[#12161E] text-sm">{trigger.category}</p>
+            <p className="text-xs text-gray-400">{trigger.description}</p>
+          </div>
+        </div>
+        {selectedCount > 0 && (
+          <span className="px-2.5 py-1 bg-[#12161E] text-white text-xs rounded-full font-bold flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" />{selectedCount}
+          </span>
+        )}
+      </button>
+
+      {isExpanded && (
+        <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-2 bg-white">
+          {/* Bundles */}
+          {bundles.map((bundle) => {
+            const bundleSelected = isBundleSelected(bundle);
+            const p = formatPricing(bundle.pricing);
+            return (
+              <div key={bundle.name} className={`rounded-lg border p-3 transition-all ${bundleSelected ? 'border-[#12161E] bg-gray-50' : 'border-gray-100'}`}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={bundleSelected} onChange={() => onToggleBundle(bundle.services.map(s => s.name), !bundleSelected)}
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#12161E] focus:ring-[#12161E]" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-[#12161E]">{bundle.name}</span>
+                      <span className="text-xs text-gray-400">({bundle.services.length} services)</span>
+                      {p?.budget && <span className="text-xs px-2 py-0.5 bg-[#E8FF00] text-[#12161E] rounded font-bold">{p.budget}</span>}
+                      {p?.term && <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">{p.term}</span>}
+                    </div>
+                    {bundleSelected && (
+                      <div className="mt-2 grid grid-cols-2 gap-1">
+                        {bundle.services.map(svc => (
+                          <div key={svc.name} className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <Check className="w-3 h-3 text-green-500 flex-shrink-0" />
+                            <span className="truncate">{svc.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </label>
+              </div>
+            );
+          })}
+          {/* Standalone services */}
+          {standalone.map(({ name, service }) => {
+            const isSelected = selectedServices.includes(name);
+            const p = formatPricing(service.pricing);
+            const isConditional = service.recommend === 'conditional';
+            return (
+              <label key={name} className={`flex items-start gap-3 cursor-pointer rounded-lg border px-3 py-2.5 transition-all ${isSelected ? 'border-[#12161E] bg-gray-50' : 'border-gray-100 hover:border-gray-300'}`}>
+                <input type="checkbox" checked={isSelected} onChange={() => onToggleService(name)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#12161E] focus:ring-[#12161E]" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-[#12161E]">{name}</span>
+                    {isConditional && <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-600 rounded font-medium">Conditional</span>}
+                    {p?.budget && isSelected && <span className="text-xs px-2 py-0.5 bg-[#E8FF00] text-[#12161E] rounded font-bold">{p.budget}</span>}
+                    {p?.term && isSelected && <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{p.term}</span>}
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ============================================================================
+// STAGE 3: PROPOSAL VIEW
+// ============================================================================
+const ENGAGEMENT_TYPES = [
+  { value: 'fixed_fee', label: 'Fixed Fee', description: 'Defined deliverables, set price' },
+  { value: 'retainer', label: 'Retainer', description: 'Ongoing monthly engagement' },
+  { value: 'tm', label: 'Time & Materials', description: 'Hourly with minimum commitment' },
+  { value: 'integrated', label: 'Integrated', description: 'Multi-phase, mixed models' },
+  { value: 'tm_cap', label: 'T&M with Cap', description: 'Hourly with maximum (client request only)' },
+];
+
+function ProposalView({ opportunity, onUpdate }) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [error, setError] = useState(null);
+  const [draftNotes, setDraftNotes] = useState(opportunity.draftNotes || '');
+  const [isEditingProposal, setIsEditingProposal] = useState(false);
+  const [editedProposal, setEditedProposal] = useState(opportunity.proposalDraft || '');
+  const [proposalIteration, setProposalIteration] = useState('');
+  const [isIterating, setIsIterating] = useState(false);
+  const [activeTab, setActiveTab] = useState('services');
+
+  // Save local state when navigating away — use onBlur not unmount cleanup
+  const saveProposalInputs = useCallback(() => { onUpdate({ draftNotes }); }, [draftNotes]);
+
+  // Debounced auto-save for draftNotes — catches navigation without blur
+  useEffect(() => {
+    const t = setTimeout(() => { if (draftNotes !== (opportunity.draftNotes || '')) onUpdate({ draftNotes }); }, 800);
+    return () => clearTimeout(t);
+  }, [draftNotes]);
+
+  const selectedServices = opportunity.selectedServices || [];
+  const selectedArchetypes = opportunity.selectedArchetypes || [];
+  const draftEngagementType = opportunity.draftEngagementType || 'fixed_fee';
+
+  const setSelectedServices = (fn) => onUpdate({ selectedServices: typeof fn === 'function' ? fn(selectedServices) : fn });
+  const setSelectedArchetypes = (fn) => onUpdate({ selectedArchetypes: typeof fn === 'function' ? fn(selectedArchetypes) : fn });
+  const setDraftEngagementType = (v) => onUpdate({ draftEngagementType: v });
+
+  const toggleService = (name) => setSelectedServices(prev => prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name]);
+  const toggleBundle = (names, shouldSelect) => setSelectedServices(prev => shouldSelect ? [...prev, ...names.filter(n => !prev.includes(n))] : prev.filter(n => !names.includes(n)));
+  const toggleArchetype = (id) => setSelectedArchetypes(prev => prev.includes(id) ? prev.filter(a => a !== id) : prev.length < 2 ? [...prev, id] : [prev[1], id]);
+
+  const pricingTotal = calculatePricingTotal(selectedServices);
+
+  const detectServices = async () => {
+    setIsDetecting(true); setError(null);
+    try {
+      const context = `${opportunity.returnBrief || ''}\n\n${opportunity.transcript || ''}`.substring(0, 4000);
+      const categoryList = SERVICE_TRIGGERS.map(t => `${t.id}: ${t.category} — triggers: ${(t.triggerPatterns.direct || []).concat(t.triggerPatterns.indirect || []).slice(0,4).join(', ')}`).join('\n');
+      const result = await callClaude({
+        maxTokens: 1500,
+        system: 'You are a marketing services expert. Identify which service categories are relevant based on context. Return ONLY a JSON array of category IDs.',
+        userMessage: `Based on this client context, identify relevant service categories.\n\nCONTEXT:\n${context}\n\nAVAILABLE CATEGORIES:\n${categoryList}\n\nReturn ONLY valid JSON array of category IDs that are relevant, e.g.: ["brand","pr","website"]`
+      });
+      const match = result.match(/\[[\s\S]*?\]/);
+      if (match) {
+        const detectedIds = JSON.parse(match[0]);
+        const newServices = [];
+        for (const trigger of SERVICE_TRIGGERS) {
+          if (detectedIds.includes(trigger.id)) {
+            for (const service of trigger.services) {
+              const name = getServiceName(service);
+              if (service.recommend === 'always' && !selectedServices.includes(name)) newServices.push(name);
+            }
+          }
+        }
+        if (newServices.length > 0) setSelectedServices(prev => [...new Set([...prev, ...newServices])]);
+      }
+    } catch (e) { setError('Could not auto-detect services: ' + e.message); }
+    finally { setIsDetecting(false); }
+  };
+
+  const generateProposal = async () => {
+    if (selectedServices.length === 0) return;
+    setIsGenerating(true); setError(null);
+    try {
+      // Build service lines with pricing for the proposal
+      const serviceLines = SERVICE_TRIGGERS.flatMap(t =>
+        t.services.filter(s => selectedServices.includes(getServiceName(s))).map(s => {
+          const p = formatPricingForService(s);
+          const name = getServiceName(s);
+          const budget = p?.budget || 'TBC';
+          const term = p?.term ? `, ${p.term}` : '';
+          return { name, budget, term, category: t.category };
+        })
+      );
+
+      // Build the investment table with EXACT calculated numbers — no AI guessing
+      const investmentTable = serviceLines.map(s => '| ' + s.name + ' | ' + s.budget + s.term + ' |').join('\n');
+      const totalLine = pricingTotal
+        ? '\n**Total Estimated Investment: ' + pricingTotal.lowFormatted + ' - ' + pricingTotal.highFormatted + '**'
+        : '\n**Total Estimated Investment: TBC**';
+
+      // FIT context from the Return Brief stage
+      const fitArchetypes = opportunity.fitArchetypes || [];
+      const fitContext = fitArchetypes.length > 0
+        ? fitArchetypes.map(id => {
+            const a = FIT_ARCHETYPES[id];
+            return a ? a.title + ': ' + a.short + ' - ' + a.description : '';
+          }).filter(Boolean).join(' / ')
+        : 'Not specified';
+
+      const compassContext = opportunity.compassAssessment?.trim()
+        ? `\nCOMPASS BRAND ASSESSMENT:\n${opportunity.compassAssessment.substring(0, 600)}`
+        : '';
+
+      const returnBriefExcerpt = opportunity.returnBrief
+        ? opportunity.returnBrief.split('---INTERNAL---')[0].substring(0, 2000)
+        : '';
+
+      const transcriptExcerpt = opportunity.transcript
+        ? opportunity.transcript.substring(0, 1500)
+        : '';
+
+      const result = await callClaude({
+        maxTokens: 6000,
+        system: `You are a senior business development writer at Antenna Group, an integrated marketing and communications agency that works with conscious brands that have the courage to lead.
+
+Your proposals are:
+- Warm, direct, and confident -- never corporate or generic
+- Strategic, not salesy -- you demonstrate understanding before recommending
+- Specific -- you reference the client's actual situation, not generic marketing speak
+- Written in first person plural ("we") on behalf of Antenna
+- Built around genuine insight into what the client needs
+
+CRITICAL FORMATTING RULES:
+- Never use em dashes (-- or the character) anywhere in the document. Use commas, colons, or plain hyphens (-) instead.
+- Use plain text formatting. No bold except for headers.
+- The Investment section must use EXACTLY the figures provided -- do not invent or alter any numbers.`,
+
+        userMessage: `Write a compelling proposal for this client opportunity.
+
+CLIENT: ${opportunity.companyName}
+RID: ${opportunity.rid || 'TBC'}
+ENGAGEMENT TYPE: ${ENGAGEMENT_TYPES.find(t => t.value === draftEngagementType)?.label || 'Fixed Fee'}
+CLIENT FIT ARCHETYPE: ${fitContext}
+${compassContext}
+
+RETURN BRIEF (what was heard from the client):
+${returnBriefExcerpt || 'No return brief available'}
+
+CALL TRANSCRIPT EXCERPT:
+${transcriptExcerpt || 'No transcript available'}
+
+SELECTED SERVICES:
+${serviceLines.map(s => '- ' + s.name + ' (' + s.budget + s.term + ')').join('\n')}
+
+ADDITIONAL NOTES: ${draftNotes || 'None'}
+
+---
+
+Write the proposal in this exact structure:
+
+# Proposal: ${opportunity.companyName}
+Prepared by Antenna Group | RID: ${opportunity.rid || 'TBC'} | ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+
+## The Challenge
+[1-2 paragraphs. Show you've listened. Reference what came through in the brief and transcript -- their specific situation, the gap in their current approach, what's at stake. This must feel specific to them, not generic.]
+
+## What Success Looks Like
+[3-5 bullet points: specific, tangible outcomes that will tell both parties this engagement delivered. Ground these in what the client actually said.]
+
+## What We're Proposing
+
+[For each service or logical service group:]
+
+### [Service Name or Group]
+What we'll do: [1-2 sentences on the work]
+Why this matters for ${opportunity.companyName}: [1-2 sentences connecting to their specific situation]
+What you'll get: [Key output in plain language]
+
+## Investment
+
+| Service | Investment Range |
+|---|---|
+${investmentTable}
+${totalLine}
+
+[1-2 sentences about what's included and what's not in scope at this stage.]
+
+## How We Work Together
+[2-3 sentences on Antenna's working style. Reference the client's preferred approach based on their FIT archetype if provided.]
+
+## Next Steps
+1. [Specific action for the client]
+2. [Specific follow-up from Antenna]
+3. [Path to SOW]
+
+We're excited about what we can build together. Let's talk.
+
+---
+Antenna Group | www.antennagroup.com`
+      });
+
+      onUpdate({ proposalDraft: result, proposalStatus: 'draft', draftNotes });
+      setEditedProposal(result);
+    } catch (e) { setError(e.message); }
+    finally { setIsGenerating(false); }
+  };
+
+  const iterateProposal = async () => {
+    if (!proposalIteration.trim()) return;
+    setIsIterating(true);
+    try {
+      const currentDraft = isEditingProposal ? editedProposal : opportunity.proposalDraft;
+      const result = await callClaude({
+        maxTokens: 6000,
+        system: `You are refining a proposal for Antenna Group, an integrated marketing agency. Apply the requested changes while maintaining the professional, warm, direct Antenna voice.`,
+        userMessage: `Update this proposal based on the following feedback:\n\nFEEDBACK: ${proposalIteration}\n\nCURRENT PROPOSAL:\n${currentDraft}\n\nReturn the complete updated proposal.`
+      });
+      onUpdate({ proposalDraft: result });
+      setEditedProposal(result);
+      setProposalIteration('');
+    } catch (e) { setError(e.message); }
+    finally { setIsIterating(false); }
+  };
+
+  const statusInfo = PROPOSAL_STATUSES.find(s => s.value === opportunity.proposalStatus) || PROPOSAL_STATUSES[0];
+
+  return (
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
+        <div>
+          <div className="w-12 h-12 bg-[#12161E] rounded-xl flex items-center justify-center mb-4">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Proposal</h2>
+          <p className="text-gray-500">Build the service scope, generate a proposal, and track its progress.</p>
+        </div>
+        {opportunity.proposalDraft && (
+          <div className="flex flex-col items-end gap-2">
+            <span className="text-xs text-gray-500 font-medium">Proposal Status</span>
+            <select value={opportunity.proposalStatus || 'draft'} onChange={e => onUpdate({ proposalStatus: e.target.value })}
+              className={`px-4 py-2 rounded-lg border-2 text-sm font-semibold cursor-pointer focus:outline-none ${statusInfo.border} ${statusInfo.bg} ${statusInfo.text}`}>
+              {PROPOSAL_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Tabs — Compass style */}
+      <div className="flex gap-1 mb-6 border-b border-gray-200 -mt-2">
+        {[{ id: 'services', label: 'Select Services', icon: Layers }, { id: 'proposal', label: 'Proposal Document', icon: FileText }].map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border-b-2 transition-all -mb-px ${activeTab === tab.id ? 'border-[#12161E] text-[#12161E] bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <tab.icon className="w-4 h-4" />{tab.label}
+            {tab.id === 'services' && selectedServices.length > 0 && <span className="w-5 h-5 rounded-full bg-[#E8FF00] text-[#12161E] text-[10px] font-black flex items-center justify-center">{selectedServices.length}</span>}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'services' && (
+        <div>
+          {/* Budget Total Banner — always visible when services selected */}
+          {pricingTotal && (
+            <div className="flex items-center justify-between bg-[#12161E] rounded-2xl px-6 py-4 mb-6">
+              <div className="flex items-center gap-3">
+                <DollarSign className="w-5 h-5 text-[#E8FF00]" />
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Estimated Investment</p>
+                  <p className="text-2xl font-black text-white leading-none mt-0.5">{pricingTotal.lowFormatted} <span className="text-gray-400 text-base font-normal">– {pricingTotal.highFormatted}</span></p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-xs text-gray-500">{selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''} selected</span>
+                <p className="text-xs text-[#E8FF00] font-bold mt-0.5">estimated range</p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Left: Settings — Engagement Type, RID, Notes only */}
+            <div className="space-y-5">
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <h3 className="font-bold text-gray-900 mb-4">Engagement Type</h3>
+                <div className="space-y-2">
+                  {ENGAGEMENT_TYPES.map(et => (
+                    <label key={et.value} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${draftEngagementType === et.value ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input type="radio" name="engagementType" value={et.value} checked={draftEngagementType === et.value} onChange={() => setDraftEngagementType(et.value)} className="text-gray-900" />
+                      <div><p className="text-sm font-semibold text-gray-900">{et.label}</p><p className="text-xs text-gray-500">{et.description}</p></div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <h3 className="font-bold text-gray-900 mb-1 flex items-center gap-2">
+                  RID
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 bg-red-100 text-red-600 rounded">Required</span>
                 </h3>
-                <div className="space-y-2 max-h-[50vh] overflow-y-auto">
-                  {filteredResults.map((r) => {
-                    const isSelected = selectedBrands.find(b => b.id === r.id);
-                    const isDisabled = !isSelected && selectedBrands.length >= maxComparison;
-                    return (
-                      <button
-                        key={r.id}
-                        onClick={() => toggleBrand(r)}
-                        disabled={isDisabled}
-                        className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                          isSelected 
-                            ? 'border-[#E53935] bg-[#E53935]/5' 
-                            : isDisabled 
-                              ? 'border-[#E8E6E1] bg-[#F5F4F0] opacity-50 cursor-not-allowed'
-                              : 'border-[#D9D6D0] hover:border-[#E53935]/50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="font-medium text-[#1A1A1A]">{r.brandName}</span>
-                            <div className="text-xs text-[#666666]">
-                              {r.industry && <span>{industries.find(i => i.id === r.industry)?.name || r.industry}</span>}
-                              {r.industry && r.businessModel && <span> · </span>}
-                              {r.businessModel && <span>{r.businessModel.toUpperCase()}</span>}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="font-bold text-lg">{r.totalScore}</span>
-                            <div className="text-xs text-[#666666]">{r.maturityLevel}</div>
-                          </div>
+                <p className="text-xs text-gray-400 mb-3">Format: NB followed by up to 4 digits (e.g. NB9530). Required before generating.</p>
+                <input
+                  value={opportunity.rid || ''}
+                  onChange={e => {
+                    let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (!val.startsWith('NB') && val.length > 0) val = 'NB' + val.replace(/^N?B?/, '');
+                    if (val.length > 6) val = val.slice(0, 6);
+                    onUpdate({ rid: val });
+                  }}
+                  placeholder="e.g. NB9530"
+                  maxLength={6}
+                  className={`w-full px-3 py-2.5 font-mono text-sm border rounded-lg focus:ring-2 focus:ring-gray-900 outline-none ${
+                    !opportunity.rid
+                      ? 'border-amber-300 bg-amber-50'
+                      : /^NB[A-Z0-9]{1,4}$/.test(opportunity.rid)
+                      ? 'border-green-300 bg-green-50'
+                      : 'border-red-300 bg-red-50'
+                  }`}
+                />
+                {opportunity.rid && !/^NB[A-Z0-9]{1,4}$/.test(opportunity.rid) && (
+                  <p className="mt-1.5 text-xs text-red-500">Must start with NB and be 3-6 characters total</p>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <h3 className="font-bold text-gray-900 mb-3">Notes for Proposal</h3>
+                <textarea value={draftNotes} onChange={e => setDraftNotes(e.target.value)} onBlur={saveProposalInputs} placeholder="Budget constraints, specific client requests, tone notes, things to emphasise or avoid..." className="w-full text-sm px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-gray-900 text-gray-700 min-h-[100px] resize-y" />
+              </div>
+
+              {/* FIT context from brief — read-only display if set */}
+              {(opportunity.fitArchetypes || []).length > 0 && (
+                <div className="bg-gray-50 rounded-2xl border border-gray-100 p-4">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">FIT from Return Brief</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(opportunity.fitArchetypes || []).map(id => {
+                      const a = FIT_ARCHETYPES[id];
+                      return a ? (
+                        <div key={id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white rounded-lg border border-gray-200">
+                          <span>{a.emoji}</span>
+                          <span className="text-xs font-bold text-gray-700">{a.title}</span>
                         </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Services */}
+            <div className="lg:col-span-2">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-900">{selectedServices.length} Services Selected</h3>
+              <div className="flex gap-2">
+                <button onClick={detectServices} disabled={isDetecting || (!opportunity.returnBrief && !opportunity.transcript)} className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-sm font-medium hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                  {isDetecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  {isDetecting ? 'Detecting...' : 'Auto-Detect from Brief'}
+                </button>
+                {selectedServices.length > 0 && <button onClick={() => onUpdate({ selectedServices: [] })} className="px-4 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">Clear All</button>}
+              </div>
+            </div>
+            {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>}
+            <div className="space-y-3">
+              {SERVICE_TRIGGERS.map(trigger => (
+                <ServiceCard key={trigger.id} trigger={trigger} selectedServices={selectedServices} onToggleService={toggleService} onToggleBundle={toggleBundle} />
+              ))}
+            </div>
+
+            {selectedServices.length > 0 && (
+              <div className="mt-6 space-y-2">
+                {!(/^NB[A-Z0-9]{1,4}$/.test(opportunity.rid || '')) && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-xs font-medium">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    Enter a valid RID (e.g. NB9530) in the left panel before generating.
+                  </div>
+                )}
+                <AntennaButton onClick={() => { generateProposal(); setActiveTab('proposal'); }} loading={isGenerating} loadingText="Generating Proposal..." icon={Sparkles} disabled={!(/^NB[A-Z0-9]{1,4}$/.test(opportunity.rid || ''))} className="w-full" size="large">
+                  Generate Proposal
+                </AntennaButton>
+              </div>
+            )}
+          </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'proposal' && (
+        <div>
+          {!opportunity.proposalDraft ? (
+            <div className="text-center py-20">
+              <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-6 mx-auto"><Sparkles className="w-10 h-10 text-gray-300" /></div>
+              <h3 className="text-lg font-semibold text-gray-400 mb-2">No proposal generated yet</h3>
+              <p className="text-sm text-gray-400 mb-6">Select services in the Services tab, then generate your proposal.</p>
+              <button onClick={() => setActiveTab('services')} className="px-6 py-3 bg-[#12161E] text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors">← Select Services</button>
+            </div>
+          ) : (
+            <div className="grid lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-4">
+                {/* Proposal Document */}
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-gray-900">Proposal Document</span>
+                      <StatusBadge status={opportunity.proposalStatus || 'draft'} />
+                      {isEditingProposal && <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Editing</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!isEditingProposal && <CopyButton text={opportunity.proposalDraft} />}
+                      <button
+                        onClick={() => { setIsEditingProposal(!isEditingProposal); setEditedProposal(opportunity.proposalDraft); }}
+                        className={`text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-colors ${
+                          isEditingProposal ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-[#12161E] text-white hover:bg-gray-800'
+                        }`}>
+                        <Edit3 className="w-3 h-3" />{isEditingProposal ? 'Cancel Edit' : 'Edit Proposal'}
                       </button>
-                    );
-                  })}
-                  {filteredResults.length === 0 && (
-                    <div className="text-center py-8 text-[#666666] text-sm">
-                      No brands match the selected filters
+                      {!isEditingProposal && (
+                        <button onClick={() => downloadDocx(opportunity.proposalDraft, `${opportunity.companyName}_Proposal.docx`, { title: `Proposal: ${opportunity.companyName}`, client: opportunity.companyName })} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-1.5"><Download className="w-3 h-3" />Download</button>
+                      )}
+                    </div>
+                  </div>
+                  {isEditingProposal ? (
+                    <div className="p-5">
+                      <p className="text-xs text-gray-500 mb-3">Edit the proposal below. Changes are saved when you click Save.</p>
+                      <textarea value={editedProposal} onChange={e => setEditedProposal(e.target.value)} className="w-full text-sm text-gray-800 border border-gray-200 rounded-lg p-4 min-h-[600px] resize-y font-mono leading-relaxed focus:ring-2 focus:ring-gray-900 outline-none bg-gray-50" />
+                      <div className="mt-3 flex gap-3">
+                        <button onClick={() => { onUpdate({ proposalDraft: editedProposal }); setIsEditingProposal(false); }} className="px-4 py-2 bg-[#12161E] text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors">Save Changes</button>
+                        <button onClick={() => setIsEditingProposal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+                        <CopyButton text={editedProposal} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-6 max-h-[700px] overflow-y-auto">
+                      <pre className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed font-sans">{opportunity.proposalDraft}</pre>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Comparison View */}
-            <div className="lg:col-span-2">
-              {selectedBrands.length < 2 ? (
-                <div className="card p-12 text-center">
-                  <Users className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Select Brands to Compare</h3>
-                  <p className="text-[#666666]">Choose at least 2 brands from the list to see a comparison.</p>
+              {/* Right sidebar */}
+              <div className="space-y-4">
+                {/* Investment summary — matches banner total exactly */}
+                {pricingTotal && (
+                  <div className="rounded-2xl overflow-hidden border border-gray-200">
+                    <div className="bg-[#12161E] px-5 pt-5 pb-4">
+                      <div className="flex items-center gap-2 mb-2"><DollarSign className="w-3.5 h-3.5 text-[#E8FF00]" /><span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Investment Range</span></div>
+                      <p className="text-2xl font-black text-white leading-none">{pricingTotal.lowFormatted}</p>
+                      <p className="text-sm text-gray-400 mt-1">– {pricingTotal.highFormatted}</p>
+                      <p className="text-xs text-gray-500 mt-2">{selectedServices.length} services | {ENGAGEMENT_TYPES.find(t => t.value === draftEngagementType)?.label}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Iterate */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2"><RefreshCw className="w-4 h-4" />Refine Proposal</h3>
+                  <textarea value={proposalIteration} onChange={e => setProposalIteration(e.target.value)} placeholder="Describe what to change... e.g. 'Make the investment section clearer', 'Add more about our SEO approach', 'Soften the tone'" className="w-full text-sm px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-gray-900 text-gray-700 min-h-[100px] resize-y" />
+                  <button onClick={iterateProposal} disabled={isIterating || !proposalIteration.trim()} className="mt-3 w-full px-4 py-2.5 bg-[#12161E] text-white rounded-xl text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                    {isIterating ? <><Loader2 className="w-4 h-4 animate-spin" />Updating...</> : <><RefreshCw className="w-4 h-4" />Apply Changes</>}
+                  </button>
+                </div>
+
+                {/* Regenerate */}
+                <button onClick={() => generateProposal()} disabled={isGenerating} className="w-full px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:border-gray-900 hover:text-gray-900 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                  {isGenerating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Sparkles className="w-4 h-4" />Regenerate Proposal</>}
+                </button>
+
+                {/* Status */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <h3 className="font-bold text-gray-900 mb-3">Proposal Status</h3>
+                  <div className="space-y-2">
+                    {PROPOSAL_STATUSES.map(s => (
+                      <button key={s.value} onClick={() => onUpdate({ proposalStatus: s.value })} className={`w-full text-left px-3 py-2 rounded-lg border transition-all text-sm font-medium ${opportunity.proposalStatus === s.value ? `${s.bg} ${s.text} ${s.border} border-2` : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Proceed to SOW */}
+                {opportunity.proposalStatus === 'approved' && (
+                  <AntennaButton onClick={() => onUpdate({
+                    currentStage: 'sow',
+                    draftNotes,
+                    selectedServices: opportunity.selectedServices,
+                    selectedArchetypes: opportunity.selectedArchetypes,
+                    draftEngagementType: opportunity.draftEngagementType,
+                    proposalDraft: opportunity.proposalDraft,
+                    proposalStatus: opportunity.proposalStatus,
+                  })} icon={ArrowRight} className="w-full">
+                    Generate SOW →
+                  </AntennaButton>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ============================================================================
+// STAGE 4: SOW GENERATION VIEW
+// ============================================================================
+function SOWGenerateView({ opportunity, onUpdate }) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isIterating, setIsIterating] = useState(false);
+  const [error, setError] = useState(null);
+  const [sowNotes, setSOWNotes] = useState(opportunity.sowNotes || '');
+  const [iterationFeedback, setIterationFeedback] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedSOW, setEditedSOW] = useState(opportunity.sowDraft || '');
+
+  // Use onBlur saves, not unmount cleanup (cleanup is unreliable with React state)
+
+
+  const engagementLabel = ENGAGEMENT_TYPES.find(t => t.value === opportunity.draftEngagementType)?.label || 'Fixed Fee';
+
+  const generateSOW = async () => {
+    setIsGenerating(true); setError(null);
+    try {
+      const servicesText = (opportunity.selectedServices || []).join(', ') || 'Services as outlined in proposal';
+      const result = await callClaude({
+        maxTokens: 12000,
+        system: `You are a senior contracts and operations specialist at Antenna Group, an integrated marketing and communications agency. You write Statements of Work that are protective, clear, and professional. You apply the SOW best practices to produce documents that prevent scope creep, establish clear client obligations, and protect both parties.
+
+${SOW_BEST_PRACTICES}`,
+        userMessage: `Generate a complete, professional Statement of Work based on the approved proposal and brief below.
+
+CLIENT: ${opportunity.companyName}
+ENGAGEMENT TYPE: ${engagementLabel}
+SELECTED SERVICES: ${servicesText}
+PRICING NOTES: ${opportunity.draftNotes || 'None'}
+
+RETURN BRIEF:
+${(opportunity.returnBrief || '').substring(0, 2000)}
+
+PROPOSAL SUMMARY:
+${(opportunity.proposalDraft || '').substring(0, 3000)}
+
+ADDITIONAL SOW NOTES: ${sowNotes || 'None'}
+
+Generate a complete SOW that:
+1. Applies all SOW best practices (exclusions, client obligations, revision limits, change order process, assumptions with consequences)
+2. Uses decimal numbering (1., 1.1, 1.2, etc.)
+3. Is specific to the ${engagementLabel} engagement type
+4. Includes all required sections: Overview, Objectives, Scope, Out of Scope, Deliverables, Acceptance Criteria, Timeline, Roles & Responsibilities, Assumptions, Change Management, Fees & Payment Terms, Termination
+5. Uses controlled language ("up to X revisions", specific timeframes, active voice with clear responsibility)
+6. Includes a strong client obligations section with specific timeframes and consequences
+7. Is ready to be reviewed by both parties
+
+Use markdown formatting. This is a professional legal/business document — formal but not overly complex.`
+      });
+      onUpdate({ sowDraft: result, sowNotes, sowStatus: 'draft' });
+      setEditedSOW(result);
+    } catch (e) { setError(e.message); }
+    finally { setIsGenerating(false); }
+  };
+
+  const iterateSOW = async () => {
+    if (!iterationFeedback.trim()) return;
+    setIsIterating(true);
+    try {
+      const current = isEditing ? editedSOW : opportunity.sowDraft;
+      const result = await callClaude({
+        maxTokens: 12000,
+        system: `You are updating a Statement of Work for Antenna Group. Apply the requested changes while maintaining all SOW quality standards.`,
+        userMessage: `Update this SOW based on the following feedback:\n\nFEEDBACK: ${iterationFeedback}\n\nCURRENT SOW:\n${current}\n\nReturn the complete updated SOW.`
+      });
+      onUpdate({ sowDraft: result });
+      setEditedSOW(result);
+      setIterationFeedback('');
+    } catch (e) { setError(e.message); }
+    finally { setIsIterating(false); }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      <div className="mb-8">
+        <div className="w-12 h-12 bg-[#12161E] rounded-xl flex items-center justify-center mb-4">
+          <PenTool className="w-6 h-6 text-white" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Statement of Work</h2>
+        <p className="text-gray-500">Generate a complete, protective SOW from the approved proposal and return brief.</p>
+      </div>
+
+      {opportunity.proposalStatus !== 'approved' && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Proposal not yet approved</p>
+            <p className="text-xs text-amber-700 mt-1">The proposal status is currently <strong>{PROPOSAL_STATUSES.find(s => s.value === opportunity.proposalStatus)?.label || 'Draft'}</strong>. You can still generate an SOW, but typically you'd wait for approval. <button onClick={() => onUpdate({ currentStage: 'proposal' })} className="underline">→ Go to Proposal</button></p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Left: Controls */}
+        <div className="space-y-5">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <h3 className="font-bold text-gray-900 mb-3">SOW Parameters</h3>
+            <div className="space-y-3">
+              <div><p className="text-xs text-gray-500 mb-1">Client</p><p className="text-sm font-semibold text-gray-900">{opportunity.companyName}</p></div>
+              <div><p className="text-xs text-gray-500 mb-1">Engagement Type</p><p className="text-sm font-semibold text-gray-900">{engagementLabel}</p></div>
+              <div><p className="text-xs text-gray-500 mb-1">Services</p><p className="text-sm text-gray-700">{(opportunity.selectedServices || []).length} services selected</p></div>
+            </div>
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-gray-900 mb-1.5">Additional SOW Notes</label>
+              <textarea value={sowNotes} onChange={e => setSOWNotes(e.target.value)} onBlur={() => onUpdate({ sowNotes })} placeholder="Payment schedule preferences, specific legal requirements, special terms..." className="w-full text-sm px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-gray-900 text-gray-700 min-h-[80px] resize-y" />
+            </div>
+          </div>
+
+          {error && <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />{error}</div>}
+
+          <AntennaButton onClick={generateSOW} loading={isGenerating} loadingText="Generating SOW..." icon={PenTool} disabled={false} className="w-full">
+            {opportunity.sowDraft ? 'Regenerate SOW' : 'Generate SOW'}
+          </AntennaButton>
+
+          {/* Iterate */}
+          {opportunity.sowDraft && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2"><RefreshCw className="w-4 h-4" />Iterate</h3>
+              <textarea value={iterationFeedback} onChange={e => setIterationFeedback(e.target.value)} placeholder="'Add stronger revision limits', 'Update payment to net 45', 'Add a stop work clause'..." className="w-full text-sm px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-gray-900 text-gray-700 min-h-[80px] resize-y" />
+              <button onClick={iterateSOW} disabled={isIterating || !iterationFeedback.trim()} className="mt-3 w-full px-4 py-2.5 bg-[#12161E] text-white rounded-xl text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                {isIterating ? <><Loader2 className="w-4 h-4 animate-spin" />Updating...</> : <><RefreshCw className="w-4 h-4" />Update SOW</>}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Right: SOW Document */}
+        <div className="lg:col-span-2">
+          {!opportunity.sowDraft ? (
+            <div className="h-full flex flex-col items-center justify-center text-center py-20 px-8 bg-white rounded-2xl border border-gray-200">
+              <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-6"><PenTool className="w-10 h-10 text-gray-300" /></div>
+              <h3 className="text-lg font-semibold text-gray-400 mb-2">SOW will appear here</h3>
+              <p className="text-sm text-gray-400">Generate your Statement of Work from the approved proposal.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="font-semibold text-gray-900">Statement of Work</span>
+                  <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Generated</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CopyButton text={isEditing ? editedSOW : opportunity.sowDraft} />
+                  <button onClick={() => { setIsEditing(!isEditing); setEditedSOW(opportunity.sowDraft); }} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-1.5"><Edit3 className="w-3 h-3" />{isEditing ? 'Cancel' : 'Edit'}</button>
+                  <button onClick={() => downloadDocx(opportunity.sowDraft, `${opportunity.companyName}_SOW.docx`, { title: `Statement of Work: ${opportunity.companyName}`, client: opportunity.companyName })} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-1.5"><Download className="w-3 h-3" />Download</button>
+                </div>
+              </div>
+              {isEditing ? (
+                <div className="p-5">
+                  <textarea value={editedSOW} onChange={e => setEditedSOW(e.target.value)} className="w-full text-sm text-gray-700 border border-gray-200 rounded-lg p-3 min-h-[600px] resize-y font-mono focus:ring-2 focus:ring-gray-900 outline-none" />
+                  <button onClick={() => { onUpdate({ sowDraft: editedSOW }); setIsEditing(false); }} className="mt-3 px-4 py-2 bg-[#12161E] text-white rounded-lg text-sm font-medium">Save Changes</button>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {/* Overall Score Comparison */}
-                  <div className="card p-4 md:p-6">
-                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <h3 className="text-sm font-medium text-[#1A1A1A]">Overall Scores</h3>
-                      {/* Chart type toggle — only show if ≤ maxRadar brands */}
-                      {selectedBrands.length <= maxRadar && (
-                        <div className="flex gap-1 text-xs">
-                          <button
-                            onClick={() => setChartType('radar')}
-                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'radar' ? 'bg-[#1A1A1A] text-white' : 'bg-[#F0EEEA] text-[#666666] hover:bg-[#E8E6E1]'}`}
-                          >
-                            Radar
-                          </button>
-                          <button
-                            onClick={() => setChartType('bars')}
-                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'bars' ? 'bg-[#1A1A1A] text-white' : 'bg-[#F0EEEA] text-[#666666] hover:bg-[#E8E6E1]'}`}
-                          >
-                            Bars
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-4 mb-4">
-                      {selectedBrands.map((brand, bi) => {
-                        const stage = MATURITY_STAGES.find(s => s.name === brand.maturityLevel) || MATURITY_STAGES[0];
-                        const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : stage.color;
-                        return (
-                          <div key={brand.id} className="text-center">
-                            <div 
-                              className="w-14 h-14 md:w-18 md:h-18 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-lg md:text-xl border-4"
-                              style={{ backgroundColor: color, borderColor: color + '60', width: '64px', height: '64px' }}
-                            >
-                              {brand.totalScore}
-                            </div>
-                            <div className="font-medium text-xs text-[#1A1A1A] truncate max-w-[80px]">{brand.brandName}</div>
-                            <div className="text-[10px] text-[#666666]">{brand.maturityLevel}</div>
-                          </div>
-                        );
-                      })}
-                      <div className="text-center border-l-2 border-[#D9D6D0] pl-4">
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl bg-[#1A1A1A]">
-                          {Math.round(selectedBrands.reduce((sum, b) => sum + b.totalScore, 0) / selectedBrands.length)}
-                        </div>
-                        <div className="font-medium text-xs text-[#1A1A1A]">AVG</div>
-                        <div className="text-[10px] text-[#666666]">{selectedBrands.length} brands</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Radar Chart (when ≤ maxRadar brands selected and chartType is radar) */}
-                  {selectedBrands.length <= maxRadar && chartType === 'radar' && (() => {
-                    // Build industry average if available and toggle is on
-                    const commonIndustry = selectedBrands.length >= 2 && selectedBrands.every(b => b.industry === selectedBrands[0].industry)
-                      ? selectedBrands[0].industry : null;
-                    const indBrands = commonIndustry ? results.filter(r => r.industry === commonIndustry) : [];
-                    const indAvg = (showIndustryAvg && indBrands.length > 0) ? (() => {
-                      const avg = {};
-                      ATTRIBUTES.forEach(a => { avg[a.id] = Math.round(indBrands.reduce((sum, b) => sum + (b.scores?.[a.id] || 0), 0) / indBrands.length); });
-                      return avg;
-                    })() : null;
-
-                    return (
-                      <div className="card p-4 md:p-6">
-                        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                          <h3 className="text-sm font-medium text-[#1A1A1A]">Radar Comparison</h3>
-                          {commonIndustry && (
-                            <button
-                              onClick={() => setShowIndustryAvg(!showIndustryAvg)}
-                              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${showIndustryAvg ? 'bg-[#F0EEEA] border-[#9CA3AF] text-[#666666]' : 'border-[#D9D6D0] text-[#999999] hover:border-[#999999]'}`}
-                            >
-                              {showIndustryAvg ? '✓ ' : ''}Industry avg overlay
-                            </button>
-                          )}
-                        </div>
-                        <ComparisonSpiderChart brands={selectedBrands} size={300} industryAvg={indAvg} />
-                      </div>
-                    );
-                  })()}
-
-                  {/* Bar chart view (always shown when chartType === 'bars', or when > maxRadar brands) */}
-                  {(chartType === 'bars' || selectedBrands.length > maxRadar) && (
-                    <div className="card p-4 md:p-6">
-                      <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Comparison</h3>
-                      <div className="overflow-x-auto">
-                        <div style={{ minWidth: `${Math.max(400, selectedBrands.length * 80 + 120)}px` }}>
-                          {/* Brand labels header */}
-                          <div className="flex items-center gap-2 mb-3 text-xs text-[#666666]">
-                            <div className="w-24 flex-shrink-0"></div>
-                            <div className="flex-1 flex gap-1">
-                              {selectedBrands.map((brand, bi) => (
-                                <div key={brand.id} className="flex-1 truncate text-center font-medium" style={{ color: selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#1A1A1A' }}>{brand.brandName}</div>
-                              ))}
-                              <div className="flex-1 text-center font-medium text-[#1A1A1A]">AVG</div>
-                            </div>
-                          </div>
-                          <div className="space-y-3">
-                            {ATTRIBUTES.map((attr) => {
-                              const avgScore = Math.round(selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length);
-                              return (
-                                <div key={attr.id} className="flex items-center gap-2">
-                                  <div className="w-24 flex-shrink-0 flex items-center gap-2">
-                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
-                                    <span className="text-xs font-medium text-[#1A1A1A] truncate">{attr.name}</span>
-                                  </div>
-                                  <div className="flex-1 flex gap-1">
-                                    {selectedBrands.map((brand) => {
-                                      const score = brand.scores?.[attr.id] || 0;
-                                      return (
-                                        <div key={brand.id} className="flex-1 relative">
-                                          <div className="h-5 bg-[#E8E6E1] rounded overflow-hidden">
-                                            <div className="h-full rounded transition-all duration-500" style={{ width: `${score}%`, backgroundColor: attr.color }} />
-                                          </div>
-                                          <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{score}</div>
-                                        </div>
-                                      );
-                                    })}
-                                    <div className="flex-1 relative">
-                                      <div className="h-5 bg-[#E8E6E1] rounded overflow-hidden">
-                                        <div className="h-full rounded transition-all duration-500 bg-[#1A1A1A]" style={{ width: `${avgScore}%` }} />
-                                      </div>
-                                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{avgScore}</div>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Consciousness Profile */}
-                  <div className="card p-4 md:p-6">
-                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-4">Consciousness Profiles</h3>
-                    <div className="space-y-4">
-                      {selectedBrands.map((brand, bi) => {
-                        const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#1A1A1A';
-                        const attrScores = ATTRIBUTES.map(a => ({ ...a, score: brand.scores?.[a.id] || 0 }));
-                        const strongest = attrScores.reduce((a, b) => a.score > b.score ? a : b);
-                        const weakest = attrScores.reduce((a, b) => a.score < b.score ? a : b);
-                        // Most differentiated = highest gap vs group average
-                        const mostDiff = attrScores.reduce((best, a) => {
-                          const groupAvg = selectedBrands.reduce((sum, b2) => sum + (b2.scores?.[a.id] || 0), 0) / selectedBrands.length;
-                          const diff = a.score - groupAvg;
-                          return diff > best.diff ? { ...a, diff } : best;
-                        }, { diff: -Infinity, name: '-', score: 0 });
-                        return (
-                          <div key={brand.id} className="flex items-start gap-3 p-3 rounded-lg bg-[#F8F7F5]">
-                            <div className="w-2 h-12 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: color }} />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-sm text-[#1A1A1A] mb-2">{brand.brandName}</div>
-                              <div className="grid grid-cols-3 gap-2 text-xs">
-                                <div>
-                                  <div className="text-[#9CA3AF] mb-0.5">Strongest</div>
-                                  <div className="font-medium text-[#059669]">{strongest.name} <span className="text-[#9CA3AF]">({strongest.score})</span></div>
-                                </div>
-                                <div>
-                                  <div className="text-[#9CA3AF] mb-0.5">Weakest</div>
-                                  <div className="font-medium text-[#E53935]">{weakest.name} <span className="text-[#9CA3AF]">({weakest.score})</span></div>
-                                </div>
-                                <div>
-                                  <div className="text-[#9CA3AF] mb-0.5">Most distinct</div>
-                                  <div className="font-medium text-[#1976D2]">{mostDiff.name} <span className="text-[#9CA3AF]">(+{Math.round(mostDiff.diff)})</span></div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Head-to-Head (only when exactly 2 brands) */}
-                  {selectedBrands.length === 2 && (() => {
-                    const [a, b] = selectedBrands;
-                    const aWins = ATTRIBUTES.filter(attr => (a.scores?.[attr.id] || 0) > (b.scores?.[attr.id] || 0));
-                    const bWins = ATTRIBUTES.filter(attr => (b.scores?.[attr.id] || 0) > (a.scores?.[attr.id] || 0));
-                    const tied = ATTRIBUTES.filter(attr => (a.scores?.[attr.id] || 0) === (b.scores?.[attr.id] || 0));
-                    return (
-                      <div className="card p-4 md:p-6">
-                        <h3 className="text-sm font-medium text-[#1A1A1A] mb-4">Head to Head</h3>
-                        <div className="grid grid-cols-3 gap-3 text-center mb-4">
-                          <div className="bg-[#F0EEEA] rounded-lg p-3">
-                            <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
-                            <div className="text-xs text-[#666666] mt-1 truncate">{a.brandName} leads</div>
-                          </div>
-                          <div className="bg-[#F0EEEA] rounded-lg p-3">
-                            <div className="text-2xl font-bold text-[#9CA3AF]">{tied.length}</div>
-                            <div className="text-xs text-[#666666] mt-1">Tied</div>
-                          </div>
-                          <div className="bg-[#F0EEEA] rounded-lg p-3">
-                            <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
-                            <div className="text-xs text-[#666666] mt-1 truncate">{b.brandName} leads</div>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          {ATTRIBUTES.map(attr => {
-                            const aScore = a.scores?.[attr.id] || 0;
-                            const bScore = b.scores?.[attr.id] || 0;
-                            const diff = aScore - bScore;
-                            const winner = diff > 0 ? 0 : diff < 0 ? 1 : null;
-                            return (
-                              <div key={attr.id} className="flex items-center gap-2 text-xs">
-                                <div className="flex-1 text-right">
-                                  <span className={`font-bold ${winner === 0 ? 'text-[#E53935]' : 'text-[#9CA3AF]'}`}>{aScore}</span>
-                                </div>
-                                <div className="w-20 text-center flex-shrink-0">
-                                  <div className="flex items-center gap-1 justify-center">
-                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: attr.color }} />
-                                    <span className="text-[#666666]">{attr.name}</span>
-                                  </div>
-                                </div>
-                                <div className="flex-1">
-                                  <span className={`font-bold ${winner === 1 ? 'text-[#1976D2]' : 'text-[#9CA3AF]'}`}>{bScore}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Quick Insights */}
-                  <div className="card p-4 md:p-6">
-                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Quick Insights</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                      <div className="bg-[#F0EEEA] rounded-lg p-3">
-                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Highest Overall Score</div>
-                        <div className="text-[#E53935] font-bold text-sm">
-                          {selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).brandName}
-                          <span className="text-[#666666] font-normal ml-2 text-xs">({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})</span>
-                        </div>
-                      </div>
-                      <div className="bg-[#F0EEEA] rounded-lg p-3">
-                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Largest Attribute Gap</div>
-                        {(() => {
-                          let maxGap = 0, gapAttr = ATTRIBUTES[0];
-                          ATTRIBUTES.forEach(attr => {
-                            const scores = selectedBrands.map(b => b.scores?.[attr.id] || 0);
-                            const gap = Math.max(...scores) - Math.min(...scores);
-                            if (gap > maxGap) { maxGap = gap; gapAttr = attr; }
-                          });
-                          return <div className="text-[#E53935] font-bold text-sm">{gapAttr.name} <span className="text-[#666666] font-normal text-xs">({maxGap} pts spread)</span></div>;
-                        })()}
-                      </div>
-                      <div className="bg-[#F0EEEA] rounded-lg p-3">
-                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Collective Strength</div>
-                        {(() => {
-                          let maxAvg = 0, strongAttr = ATTRIBUTES[0];
-                          ATTRIBUTES.forEach(attr => {
-                            const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
-                            if (avg > maxAvg) { maxAvg = avg; strongAttr = attr; }
-                          });
-                          return <div className="text-[#059669] font-bold text-sm">{strongAttr.name} <span className="text-[#666666] font-normal text-xs">({Math.round(maxAvg)} avg)</span></div>;
-                        })()}
-                      </div>
-                      <div className="bg-[#F0EEEA] rounded-lg p-3">
-                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Collective Weakness</div>
-                        {(() => {
-                          let minAvg = 100, weakAttr = ATTRIBUTES[0];
-                          ATTRIBUTES.forEach(attr => {
-                            const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
-                            if (avg < minAvg) { minAvg = avg; weakAttr = attr; }
-                          });
-                          return <div className="text-[#F57C00] font-bold text-sm">{weakAttr.name} <span className="text-[#666666] font-normal text-xs">({Math.round(minAvg)} avg)</span></div>;
-                        })()}
-                      </div>
-                    </div>
-                  </div>
+                <div className="p-5 max-h-[700px] overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed font-sans">{opportunity.sowDraft}</pre>
+                </div>
+              )}
+              {/* Proceed to Handover */}
+              {opportunity.sowDraft && (
+                <div className="px-5 pb-5">
+                  <AntennaButton onClick={() => onUpdate({
+                    currentStage: 'handover',
+                    sowNotes,
+                    sowDraft: opportunity.sowDraft,
+                    sowStatus: opportunity.sowStatus,
+                  })} icon={ArrowRight} className="w-full">
+                    Proceed to Sales Handover →
+                  </AntennaButton>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// Assessment Status Indicator - shows completion status for each assessment area
-function AssessmentStatusIndicator({ assessments }) {
-  const getStatus = (assessment, type) => {
-    if (type === 'website') {
-      const hasContent = assessment.content || assessment.images?.length > 0;
-      const hasExtra = assessment.pagesReviewed || assessment.websiteContent || assessment.seoAssessment;
-      if (hasContent && hasExtra) return 'complete';
-      if (hasContent || hasExtra) return 'partial';
-      return 'empty';
+// ============================================================================
+// STAGE 5: SOW REVIEW VIEW (standalone, no opportunity required)
+// ============================================================================
+function SOWReviewView() {
+  const [file, setFile] = useState(null);
+  const [fileContent, setFileContent] = useState(null);
+  const [engagementType, setEngagementType] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
+  const [rawResponse, setRawResponse] = useState('');
+  const [error, setError] = useState(null);
+  const [isDrafting, setIsDrafting] = useState(false);
+  const [draftedSOW, setDraftedSOW] = useState(null);
+  const [selectedRecs, setSelectedRecs] = useState({ critical: [], recommended: [], redFlags: [] });
+  const fileInputRef = useRef(null);
+
+  const handleFileUpload = async (uploadedFile) => {
+    setFile(uploadedFile);
+    setAnalysis(null);
+    setDraftedSOW(null);
+    setError(null);
+    const ext = uploadedFile.name.split('.').pop().toLowerCase();
+    if (ext === 'txt') {
+      const text = await uploadedFile.text();
+      setFileContent({ type: 'text', data: text });
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target.result.split(',')[1];
+        setFileContent({ type: ext === 'pdf' ? 'pdf' : 'docx', data: base64 });
+      };
+      reader.readAsDataURL(uploadedFile);
     }
-    if (type === 'social') {
-      const fields = [assessment.linkedinAbout, assessment.linkedinPosts, assessment.xContent, 
-                      assessment.instagramContent, assessment.youtubeContent, assessment.redditAnswersContent,
-                      assessment.wikipediaContent, assessment.glassdoorContent];
-      const filled = fields.filter(Boolean).length;
-      if (assessment.content && filled >= 3) return 'complete';
-      if (assessment.content || filled > 0) return 'partial';
-      return 'empty';
-    }
-    if (type === 'aiReputation') {
-      const hasContent = assessment.content;
-      if (hasContent) return 'complete';
-      return 'empty';
-    }
-    if (type === 'earnedMedia') {
-      const hasContent = assessment.content || assessment.coveragePaste;
-      if (hasContent) return 'complete';
-      return 'empty';
-    }
-    return 'empty';
   };
 
-  const statuses = {
-    website: getStatus(assessments.website, 'website'),
-    social: getStatus(assessments.social, 'social'),
-    aiReputation: getStatus(assessments.aiReputation, 'aiReputation'),
-    earnedMedia: getStatus(assessments.earnedMedia, 'earnedMedia'),
+  const analyzeSOW = async () => {
+    if (!fileContent) return;
+    setIsAnalyzing(true); setError(null); setAnalysis(null);
+    try {
+      const engLabel = ENGAGEMENT_TYPES.find(t => t.value === engagementType)?.label || 'Not specified';
+      const promptText = `You are a senior agency contracts specialist reviewing a Statement of Work against Antenna Group quality standards.
+
+ENGAGEMENT TYPE: ${engLabel}
+
+${SOW_BEST_PRACTICES}
+
+Review this SOW and provide:
+
+## CRITICAL ISSUES
+[Issues that MUST be fixed before this SOW can be issued. Each as: Section X.X: [Current language/situation] → [Recommended fix] — Why: [brief reason]]
+
+## RECOMMENDED IMPROVEMENTS
+[Issues that should be fixed. Same format as above.]
+
+## RED FLAGS
+[Problematic phrases found: "[exact phrase]" in Section X.X → "[recommended replacement using 'up to' language"]
+
+## STRUCTURAL COMPLIANCE
+[✓ Present or ✗ Missing for each required element]
+
+## PRICING VALIDATION
+[Compare fees against standard agency rates. Flag underpriced or overpriced items.]
+
+## BUDGET VERIFICATION
+[Check arithmetic and billing schedule alignment]
+
+## OVERALL ASSESSMENT
+Compliance Score: [X/10]
+Top 3 Priorities: [list]
+What's working well: [brief notes]`;
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: MODEL, max_tokens: 8000,
+          messages: [{
+            role: 'user',
+            content: fileContent.type === 'text'
+              ? `${promptText}\n\n=== SOW ===\n${fileContent.data}`
+              : [{ type: 'document', source: { type: 'base64', media_type: fileContent.type === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', data: fileContent.data } }, { type: 'text', text: promptText }]
+          }]
+        })
+      });
+
+      if (!response.ok) { const e = await response.json(); throw new Error(e.error?.message || 'API error'); }
+      const data = await response.json();
+      const text = data.content[0].text;
+      setRawResponse(text);
+
+      const parseSection = (t, start, ends) => {
+        const s = Array.isArray(start) ? start : [start];
+        let startIdx = -1, len = 0;
+        for (const m of s) { const i = t.indexOf(m); if (i !== -1 && (startIdx === -1 || i < startIdx)) { startIdx = i; len = m.length; } }
+        if (startIdx === -1) return [];
+        let endIdx = t.length;
+        for (const m of ends) { const i = t.indexOf(m, startIdx + len); if (i !== -1 && i < endIdx) endIdx = i; }
+        const section = t.slice(startIdx + len, endIdx).trim();
+        return section.split(/\n\n+/).map(s => s.trim()).filter(s => s.length > 40);
+      };
+
+      setAnalysis({
+        critical: parseSection(text, ['## CRITICAL ISSUES', '1. CRITICAL ISSUES'], ['## RECOMMENDED', '## RED FLAGS', '2. RECOMMENDED']),
+        recommended: parseSection(text, ['## RECOMMENDED IMPROVEMENTS', '2. RECOMMENDED'], ['## RED FLAGS', '3. RED FLAGS', '## STRUCTURAL']),
+        redFlags: parseSection(text, ['## RED FLAGS', '3. RED FLAGS'], ['## STRUCTURAL', '## PRICING', '4. STRUCTURAL']),
+        compliance: parseSection(text, ['## STRUCTURAL COMPLIANCE', '4. STRUCTURAL'], ['## PRICING', '## BUDGET', '5. PRICING']).join('\n\n'),
+        pricing: parseSection(text, ['## PRICING VALIDATION', '5. PRICING'], ['## BUDGET', '## OVERALL', '6. BUDGET']).join('\n\n'),
+        budget: parseSection(text, ['## BUDGET VERIFICATION', '6. BUDGET'], ['## OVERALL', '7. OVERALL']).join('\n\n'),
+        overall: parseSection(text, ['## OVERALL ASSESSMENT', '7. OVERALL'], []).join('\n\n'),
+      });
+      setSelectedRecs({
+        critical: parseSection(text, ['## CRITICAL ISSUES', '1. CRITICAL ISSUES'], ['## RECOMMENDED', '## RED FLAGS', '2. RECOMMENDED']).map((_, i) => i),
+        recommended: parseSection(text, ['## RECOMMENDED IMPROVEMENTS', '2. RECOMMENDED'], ['## RED FLAGS', '3. RED FLAGS', '## STRUCTURAL']).map((_, i) => i),
+        redFlags: parseSection(text, ['## RED FLAGS', '3. RED FLAGS'], ['## STRUCTURAL', '## PRICING', '4. STRUCTURAL']).map((_, i) => i),
+      });
+    } catch (e) { setError(e.message); }
+    finally { setIsAnalyzing(false); }
+  };
+
+  const generateRevised = async () => {
+    if (!analysis) return;
+    setIsDrafting(true);
+    try {
+      const selectedCritical = (analysis.critical || []).filter((_, i) => selectedRecs.critical.includes(i));
+      const selectedRecommended = (analysis.recommended || []).filter((_, i) => selectedRecs.recommended.includes(i));
+      const selectedRedFlags = (analysis.redFlags || []).filter((_, i) => selectedRecs.redFlags.includes(i));
+      const draftPrompt = `Based on ONLY the selected changes below, create a COMPLETE REVISED VERSION of this SOW. Mark modified sections [REVISED] and new sections [NEW].\n\nCritical fixes:\n${selectedCritical.join('\n\n') || 'None'}\n\nRecommended improvements:\n${selectedRecommended.join('\n\n') || 'None'}\n\nRed flags to replace:\n${selectedRedFlags.join('\n') || 'None'}`;
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: MODEL, max_tokens: 16000,
+          messages: [{ role: 'user', content: fileContent.type === 'text' ? `${draftPrompt}\n\n=== ORIGINAL SOW ===\n${fileContent.data}` : [{ type: 'document', source: { type: 'base64', media_type: fileContent.type === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', data: fileContent.data } }, { type: 'text', text: draftPrompt }] }]
+        })
+      });
+      const data = await response.json();
+      setDraftedSOW(data.content[0].text);
+    } catch (e) { setError(e.message); }
+    finally { setIsDrafting(false); }
+  };
+
+  const toggleRec = (type, idx) => {
+    setSelectedRecs(prev => {
+      const current = prev[type] || [];
+      return { ...prev, [type]: current.includes(idx) ? current.filter(i => i !== idx) : [...current, idx] };
+    });
   };
 
   return (
-    <div className="flex items-center gap-1">
-      {Object.entries(statuses).map(([key, status]) => (
-        <div 
-          key={key}
-          className={`w-2 h-2 rounded-full ${
-            status === 'complete' ? 'bg-green-500' : 
-            status === 'partial' ? 'bg-yellow-500' : 
-            'bg-[#D9D6D0]'
-          }`}
-          title={`${key}: ${status}`}
-        />
-      ))}
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      <div className="mb-8">
+        <div className="w-12 h-12 bg-[#12161E] rounded-xl flex items-center justify-center mb-4">
+          <ShieldCheck className="w-6 h-6 text-white" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">SOW Review</h2>
+        <p className="text-gray-500">Upload any existing SOW for a quality assessment against Antenna Group best practices.</p>
+        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+          <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+          <span className="text-xs text-amber-700 font-medium">Senior reviewer tool — for experienced team members</span>
+        </div>
+      </div>
+
+      {/* Upload */}
+      <div className="grid lg:grid-cols-3 gap-8 mb-8">
+        <div className="space-y-5">
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFileUpload(f); }}
+            className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-900 transition-colors cursor-pointer group"
+          >
+            <Upload className="w-10 h-10 text-gray-300 group-hover:text-gray-500 mx-auto mb-4 transition-colors" />
+            {file ? <p className="font-semibold text-gray-900 text-sm">{file.name}</p> : <><p className="font-semibold text-gray-900 text-sm mb-1">Upload SOW</p><p className="text-xs text-gray-500">PDF, DOCX, or TXT</p></>}
+            <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt" className="hidden" onChange={e => { if (e.target.files[0]) handleFileUpload(e.target.files[0]); }} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">Engagement Type</label>
+            <select value={engagementType} onChange={e => setEngagementType(e.target.value)} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 outline-none text-gray-900">
+              <option value="">Not specified</option>
+              {ENGAGEMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+
+          {error && <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>}
+
+          <AntennaButton onClick={analyzeSOW} loading={isAnalyzing} loadingText="Analyzing..." icon={Search} disabled={!file || !fileContent} className="w-full">
+            Review SOW
+          </AntennaButton>
+        </div>
+
+        {/* Analysis */}
+        <div className="lg:col-span-2">
+          {!analysis ? (
+            <div className="h-full flex flex-col items-center justify-center text-center py-20 bg-white rounded-2xl border border-gray-200">
+              <ShieldCheck className="w-12 h-12 text-gray-200 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-400 mb-2">Upload and review a SOW</h3>
+              <p className="text-sm text-gray-400">Quality assessment will appear here after analysis.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {analysis.critical?.length > 0 && (
+                <CollapsibleSection title="Critical Issues" variant="critical" icon={AlertCircle} count={analysis.critical.length} defaultOpen>
+                  <div className="space-y-3">
+                    {analysis.critical.map((issue, i) => (
+                      <label key={i} className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${selectedRecs.critical.includes(i) ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200 opacity-60'}`}>
+                        <input type="checkbox" checked={selectedRecs.critical.includes(i)} onChange={() => toggleRec('critical', i)} className="mt-0.5 w-4 h-4 text-red-600" />
+                        <p className="text-sm text-gray-800 leading-relaxed">{issue}</p>
+                      </label>
+                    ))}
+                  </div>
+                </CollapsibleSection>
+              )}
+              {analysis.recommended?.length > 0 && (
+                <CollapsibleSection title="Recommended Improvements" variant="recommended" icon={AlertTriangle} count={analysis.recommended.length} defaultOpen>
+                  <div className="space-y-3">
+                    {analysis.recommended.map((issue, i) => (
+                      <label key={i} className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${selectedRecs.recommended.includes(i) ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200 opacity-60'}`}>
+                        <input type="checkbox" checked={selectedRecs.recommended.includes(i)} onChange={() => toggleRec('recommended', i)} className="mt-0.5 w-4 h-4 text-amber-600" />
+                        <p className="text-sm text-gray-800 leading-relaxed">{issue}</p>
+                      </label>
+                    ))}
+                  </div>
+                </CollapsibleSection>
+              )}
+              {analysis.redFlags?.length > 0 && (
+                <CollapsibleSection title="Red Flag Language" icon={AlertTriangle} count={analysis.redFlags.length}>
+                  <div className="space-y-2">
+                    {analysis.redFlags.map((flag, i) => (
+                      <label key={i} className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${selectedRecs.redFlags.includes(i) ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-100 opacity-60'}`}>
+                        <input type="checkbox" checked={selectedRecs.redFlags.includes(i)} onChange={() => toggleRec('redFlags', i)} className="mt-0.5 w-4 h-4" />
+                        <p className="text-sm text-gray-700 font-mono">{flag}</p>
+                      </label>
+                    ))}
+                  </div>
+                </CollapsibleSection>
+              )}
+              {analysis.compliance && <CollapsibleSection title="Structural Compliance"><pre className="whitespace-pre-wrap text-sm text-gray-700">{analysis.compliance}</pre></CollapsibleSection>}
+              {analysis.pricing && <CollapsibleSection title="Pricing Validation"><pre className="whitespace-pre-wrap text-sm text-gray-700">{analysis.pricing}</pre></CollapsibleSection>}
+              {analysis.overall && <CollapsibleSection title="Overall Assessment" defaultOpen><pre className="whitespace-pre-wrap text-sm text-gray-900">{analysis.overall}</pre></CollapsibleSection>}
+
+              {/* Generate Revised */}
+              <div className="mt-6 bg-[#12161E] rounded-2xl p-6">
+                <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-[#E8FF00]" />Generate Revised SOW</h3>
+                <p className="text-gray-400 text-sm mb-4">Create an updated draft incorporating your selected recommendations.</p>
+                {!draftedSOW ? (
+                  <AntennaButton onClick={generateRevised} loading={isDrafting} loadingText="Generating..." icon={Sparkles} disabled={selectedRecs.critical.length === 0 && selectedRecs.recommended.length === 0 && selectedRecs.redFlags.length === 0} variant="secondary" className="bg-white hover:bg-gray-100">
+                    Draft Revised SOW
+                  </AntennaButton>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex gap-3">
+                      <span className="px-3 py-1.5 bg-green-900/30 border border-green-500/40 rounded-full text-green-300 text-sm flex items-center gap-2"><CheckCircle className="w-4 h-4" />Draft Generated</span>
+                      <button onClick={() => downloadDocx(draftedSOW, `${file?.name?.replace(/\.[^.]+$/, '') || 'SOW'}_REVISED.docx`, { title: 'Revised Statement of Work' })} className="flex items-center gap-2 px-4 py-1.5 bg-white text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"><Download className="w-4 h-4" />Download</button>
+                    </div>
+                    <div className="bg-gray-900 rounded-xl p-4 max-h-96 overflow-auto">
+                      <pre className="whitespace-pre-wrap text-sm text-gray-100 font-mono">{draftedSOW}</pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-// Saved Assessments Page
-function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore, profile }) {
-  const fileInputRef = useRef(null);
-  const isReadonly = profile?.is_readonly && !profile?.is_admin;
-  const [search, setSearch] = useState('');
-  const [filterStage, setFilterStage] = useState('');
-  const [filterIndustry, setFilterIndustry] = useState('');
-  const [sortBy, setSortBy] = useState('date-desc');
 
-  const handleFileImport = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target.result);
-        if (data.project && data.scores) {
-          onImport(data);
-        } else {
-          alert('Invalid assessment file format');
+// ============================================================================
+// HANDOVER VIEW — Stage 5
+// ============================================================================
+function HandoverView({ opportunity, onUpdate }) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isIterating, setIsIterating] = useState(false);
+  const [error, setError] = useState(null);
+  const [handoverNotes, setHandoverNotes] = useState(opportunity.handoverNotes || '');
+  const [feedback, setFeedback] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedHandover, setEditedHandover] = useState(opportunity.handoverDraft || '');
+
+  // Use onBlur saves, not unmount cleanup
+
+
+  const engagementLabel = ENGAGEMENT_TYPES.find(t => t.value === opportunity.draftEngagementType)?.label || 'Fixed Fee';
+
+  const pricingTotal = (() => {
+    try {
+      const services = opportunity.selectedServices || [];
+      if (!services.length) return null;
+      let low = 0, high = 0;
+      services.forEach(name => {
+        for (const cat of SERVICE_TRIGGERS) {
+          const svc = cat.services?.find(s => s.name === name);
+          if (svc?.pricing) {
+            low += svc.pricing.budgetLow || 0;
+            high += svc.pricing.budgetHigh || 0;
+            break;
+          }
         }
-      } catch (err) {
-        alert('Error reading file: ' + err.message);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+      });
+      if (!low && !high) return null;
+      const fmt = (n) => n >= 1000000 ? `$${(n/1000000).toFixed(1)}M` : `$${(n/1000).toFixed(0)}K`;
+      return { low, high, lowFmt: fmt(low), highFmt: fmt(high) };
+    } catch { return null; }
+  })();
+
+  const generateHandover = async () => {
+    setIsGenerating(true); setError(null);
+    try {
+      const pricing = pricingTotal ? `${pricingTotal.lowFmt} – ${pricingTotal.highFmt}` : 'See proposal for details';
+      const result = await callClaude({
+        maxTokens: 6000,
+        system: `You are a senior business development lead at Antenna Group, an integrated marketing and communications agency. You write clear, concise internal sales handover documents that give the delivery team everything they need to hit the ground running. Your writing is confident, pithy, and free of fluff. You write in plain English — no buzzwords, no filler.`,
+        userMessage: `Write a 2–3 page internal Sales Handover document for the delivery team. This is NOT a client-facing document — it is a crisp internal briefing that transfers knowledge from sales to delivery.
+
+CLIENT: ${opportunity.companyName}
+RID: ${opportunity.rid || 'TBC'}
+PRACTICE: ${opportunity.practice || 'Not specified'}
+ENGAGEMENT TYPE: ${engagementLabel}
+SERVICES: ${(opportunity.selectedServices || []).join(', ') || 'See proposal'}
+ESTIMATED INVESTMENT: ${pricing}
+
+RETURN BRIEF (key client context):
+${(opportunity.returnBrief || '').substring(0, 2000)}
+
+PROPOSAL SUMMARY:
+${(opportunity.proposalDraft || '').substring(0, 2000)}
+
+SOW HIGHLIGHTS:
+${(opportunity.sowDraft || '').substring(0, 2000)}
+
+ADDITIONAL NOTES: ${handoverNotes || 'None'}
+
+Write the handover document with these exact sections, in this order:
+
+## The Assignment
+One crisp paragraph: what we've been asked to do, why now, and what the client is trying to achieve. No more than 5 sentences.
+
+## Client Background
+Key facts about the company — who they are, their market position, what makes them tick. Surface anything from the brief that the delivery team needs to understand the client. 3–5 bullet points max.
+
+## The Brief in Plain English
+What problem are we actually solving? Write this as if you're telling a colleague over coffee — direct, clear, no jargon. Include the client's stated goals, any tensions or constraints, and what the client cares most about.
+
+## Services & Scope
+List the agreed services and what's included. Note any scope boundaries or explicit exclusions the team needs to respect.
+
+## What Success Looks Like
+3–5 specific, measurable outcomes the client will judge us on. Be precise — avoid generic statements like "increase brand awareness."
+
+## Budget & Commercial
+- Estimated investment range
+- Engagement type (${engagementLabel})
+- Key commercial terms (payment milestones, notice period, etc.) from the SOW if available
+- Any budget sensitivities flagged in the brief
+
+## Key Relationships & Stakeholders
+Who are we working with? Decision-maker, day-to-day contact, internal champions, potential detractors. Note any political dynamics flagged during the sales process.
+
+## Watch Outs
+2–4 honest bullets about risks, sensitivities, or things the team should know before their first meeting. What would have been good to know on day one?
+
+## Immediate Next Steps
+3 concrete actions for the delivery team in the first two weeks.
+
+Format: Use markdown with ## headers. Keep the whole document tight — every sentence should earn its place. This document should be readable in under 5 minutes.`
+      });
+      onUpdate({ handoverDraft: result, handoverNotes, handoverStatus: 'draft' });
+      setEditedHandover(result);
+    } catch (e) { setError(e.message); }
+    finally { setIsGenerating(false); }
   };
 
-  // Enrich each assessment with computed values once
-  const enriched = assessments.map((a, i) => {
-    const overallScore = a.scores ? Math.round(
-      Object.entries(a.scores)
-        .filter(([, val]) => val && typeof val.score === 'number')
-        .reduce((sum, [, v]) => sum + v.score, 0) / 8
-    ) : null;
-    const maturity = overallScore !== null ? getMaturityStage(overallScore) : null;
-    const industryName = a.project.industry && a.project.industry !== 'other'
-      ? INDUSTRIES.find(ind => ind.id === a.project.industry)?.name || a.project.industry
-      : null;
-    return { a, i, overallScore, maturity, industryName };
-  });
+  const iterateHandover = async () => {
+    if (!feedback.trim()) return;
+    setIsIterating(true);
+    try {
+      const current = isEditing ? editedHandover : opportunity.handoverDraft;
+      const result = await callClaude({
+        maxTokens: 6000,
+        system: `You are updating an internal sales handover document. Apply the requested changes while keeping the document pithy, direct, and under 3 pages.`,
+        userMessage: `Update this handover document based on the following feedback:\n\nFEEDBACK: ${feedback}\n\nCURRENT DOCUMENT:\n${current}\n\nReturn the complete updated document.`
+      });
+      onUpdate({ handoverDraft: result });
+      setEditedHandover(result);
+      setFeedback('');
+    } catch (e) { setError(e.message); }
+    finally { setIsIterating(false); }
+  };
 
-  // Unique industries and stages for filter dropdowns
-  const usedIndustries = [...new Set(enriched.map(e => e.industryName).filter(Boolean))].sort();
-  const usedStages = [...new Set(enriched.map(e => e.maturity?.name).filter(Boolean))];
-
-  // Filter + sort
-  const filtered = enriched
-    .filter(({ a, maturity, industryName }) => {
-      if (search && !a.project.brandName.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterStage && maturity?.name !== filterStage) return false;
-      if (filterIndustry && industryName !== filterIndustry) return false;
-      return true;
-    })
-    .sort((x, y) => {
-      if (sortBy === 'date-desc') return (y.a.project.date || '').localeCompare(x.a.project.date || '');
-      if (sortBy === 'date-asc') return (x.a.project.date || '').localeCompare(y.a.project.date || '');
-      if (sortBy === 'score-desc') return (y.overallScore || 0) - (x.overallScore || 0);
-      if (sortBy === 'score-asc') return (x.overallScore || 0) - (y.overallScore || 0);
-      if (sortBy === 'name') return a.project.brandName.localeCompare(y.a.project.brandName);
-      return 0;
-    });
-
-  const hasFilters = search || filterStage || filterIndustry;
+  const hasPrereqs = opportunity.proposalDraft && opportunity.sowDraft;
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Saved Assessments</h2>
-          <p className="text-sm text-[#666666]">Your assessments are stored securely in the cloud</p>
+    <div className="max-w-7xl mx-auto px-8 py-10">
+      <div className="mb-8">
+        <div className="w-12 h-12 bg-[#12161E] rounded-xl flex items-center justify-center mb-4">
+          <ClipboardList className="w-6 h-6 text-white" />
         </div>
-        <div className="flex gap-2 flex-shrink-0">
-          {!isReadonly && (
-            <>
-              <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
-              <button onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
-                <Upload className="w-4 h-4" /> Import
-              </button>
-            </>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Sales Handover</h2>
+        <p className="text-gray-500">Generate the internal briefing document that transfers this opportunity from sales to delivery.</p>
+      </div>
+
+      {!hasPrereqs && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Complete earlier stages first</p>
+            <p className="text-xs text-amber-700 mt-1">A proposal and SOW are needed before generating the handover document.</p>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
+        </div>
+      )}
+
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Left panel */}
+        <div className="space-y-5">
+          {/* Summary card */}
+          <div className="bg-[#12161E] rounded-2xl p-5 text-white">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Assignment Summary</p>
+            <div className="space-y-3">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Client</p>
+                <p className="font-bold text-lg leading-tight">{opportunity.companyName}</p>
+              </div>
+              {opportunity.rid && (
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">RID</p>
+                  <p className="font-mono text-[#E8FF00] font-bold">{opportunity.rid}</p>
+                </div>
+              )}
+              {opportunity.practice && (
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Practice</p>
+                  <p className="text-sm text-gray-300">{opportunity.practice}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Engagement</p>
+                <p className="text-sm text-gray-300">{engagementLabel}</p>
+              </div>
+              {pricingTotal && (
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Investment Range</p>
+                  <p className="text-xl font-black text-[#E8FF00]">{pricingTotal.lowFmt}</p>
+                  <p className="text-xs text-gray-500">– {pricingTotal.highFmt}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Services</p>
+                <div className="flex flex-wrap gap-1">
+                  {(opportunity.selectedServices || []).slice(0, 6).map(s => (
+                    <span key={s} className="text-[10px] px-1.5 py-0.5 bg-white/10 rounded text-gray-300">{s}</span>
+                  ))}
+                  {(opportunity.selectedServices || []).length > 6 && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-white/10 rounded text-gray-400">+{opportunity.selectedServices.length - 6} more</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <h3 className="font-bold text-gray-900 mb-3">Notes for Handover</h3>
+            <textarea
+              value={handoverNotes}
+              onChange={e => setHandoverNotes(e.target.value)}
+              onBlur={() => onUpdate({ handoverNotes })}
+              placeholder="Key context for the delivery team, relationship notes, sensitivities..."
+              className="w-full text-sm px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-gray-900 text-gray-700 min-h-[100px] resize-y"
+            />
+          </div>
+
+          {/* Generate */}
+          {!opportunity.handoverDraft ? (
+            <AntennaButton
+              onClick={generateHandover}
+              loading={isGenerating}
+              loadingText="Generating Handover..."
+              icon={ClipboardList}
+              disabled={!hasPrereqs}
+              size="large"
+              className="w-full"
+            >
+              Generate Handover Doc
+            </AntennaButton>
+          ) : (
+            <div className="space-y-3">
+              <AntennaButton onClick={generateHandover} loading={isGenerating} loadingText="Regenerating..." icon={RotateCcw} size="default" className="w-full" variant="secondary">
+                Regenerate
+              </AntennaButton>
+              <div className="bg-white rounded-2xl border border-gray-200 p-4">
+                <h4 className="text-xs font-bold text-gray-700 mb-2">Iterate with Feedback</h4>
+                <textarea
+                  value={feedback}
+                  onChange={e => setFeedback(e.target.value)}
+                  placeholder="e.g. Sharpen the Watch Outs section, add more detail on budget..."
+                  className="w-full text-sm px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-gray-900 text-gray-700 min-h-[70px] resize-y mb-2"
+                />
+                <AntennaButton onClick={iterateHandover} loading={isIterating} loadingText="Updating..." disabled={!feedback.trim()} icon={RefreshCw} size="small" className="w-full">
+                  Apply Feedback
+                </AntennaButton>
+              </div>
+            </div>
           )}
-          <button onClick={onBack}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Back
+        </div>
+
+        {/* Right: Document */}
+        <div className="lg:col-span-2">
+          {!opportunity.handoverDraft ? (
+            <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-dashed border-gray-200">
+              <ClipboardList className="w-12 h-12 text-gray-200 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-400 mb-2">No handover document yet</h3>
+              <p className="text-sm text-gray-400 text-center max-w-xs">Add any notes in the left panel and generate the handover doc.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-gray-900">Sales Handover Document</span>
+                  <span className="text-xs px-2 py-0.5 bg-[#E8FF00] text-[#12161E] font-bold rounded">Internal</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CopyButton text={isEditing ? editedHandover : opportunity.handoverDraft} />
+                  <button
+                    onClick={() => { setIsEditing(!isEditing); setEditedHandover(opportunity.handoverDraft); }}
+                    className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-1.5"
+                  >
+                    <Edit3 className="w-3 h-3" />{isEditing ? 'Cancel' : 'Edit'}
+                  </button>
+                  <button
+                    onClick={() => downloadDocx(
+                      opportunity.handoverDraft,
+                      `${opportunity.companyName}_SalesHandover.docx`,
+                      { title: `Sales Handover: ${opportunity.companyName}`, client: opportunity.companyName }
+                    )}
+                    className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-1.5"
+                  >
+                    <Download className="w-3 h-3" />Download
+                  </button>
+                </div>
+              </div>
+              {isEditing ? (
+                <div className="p-5">
+                  <textarea
+                    value={editedHandover}
+                    onChange={e => setEditedHandover(e.target.value)}
+                    className="w-full text-sm text-gray-700 border border-gray-200 rounded-lg p-3 min-h-[600px] resize-y font-mono focus:ring-2 focus:ring-gray-900 outline-none"
+                  />
+                  <button
+                    onClick={() => { onUpdate({ handoverDraft: editedHandover }); setIsEditing(false); }}
+                    className="mt-3 px-4 py-2 bg-[#12161E] text-white rounded-lg text-sm font-medium"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              ) : (
+                <div className="p-6 max-h-[700px] overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed font-sans">{opportunity.handoverDraft}</pre>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================================
+// QUALIFICATION MODAL — Smartsheet integration
+// ============================================================================
+const SMARTSHEET_COLUMNS = [
+  { key: 'CLIENT', label: 'Client' },
+  { key: 'Assignment Title', label: 'Assignment' },
+  { key: 'QUALIFIED BY', label: 'Qualified By' },
+  { key: 'REQUEST TYPE', label: 'Request Type' },
+  { key: 'RECOMMENDATION', label: 'Recommendation' },
+  { key: 'QUALIFICATION SCORE (OUT OF 80)', label: 'Score /80' },
+  { key: 'Workflow Status', label: 'Status' },
+  { key: 'Owning Ecosystem', label: 'Ecosystem' },
+  { key: 'CONFLICT', label: 'Conflict' },
+  { key: 'Modified', label: 'Date Qualified' },
+];
+
+function QualificationModal({ onClose }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+  const [filterRec, setFilterRec] = useState('');
+  const [filterEco, setFilterEco] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [sortCol, setSortCol] = useState('QUALIFICATION SCORE (OUT OF 80)');
+  const [sortDir, setSortDir] = useState('desc');
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setLoading(true); setError('');
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('smartsheet-proxy', {
+        body: { sheetId: '5750175070900100' },
+      });
+      if (fnError || data?.error) {
+        setError(data?.error || fnError?.message || 'Could not load qualification data.');
+      } else if (data?.rows) {
+        setRows(data.rows);
+      }
+    } catch (e) {
+      setError(e.message || 'Failed to connect to Smartsheet.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const recommendations = [...new Set(rows.map(r => r['RECOMMENDATION']).filter(Boolean))];
+  const ecosystems = [...new Set(rows.map(r => r['Owning Ecosystem']).filter(Boolean))];
+  const statuses = [...new Set(rows.map(r => r['Workflow Status']).filter(Boolean))];
+
+  const filtered = rows.filter(r => {
+    const q = searchQ.toLowerCase();
+    const matchSearch = !q ||
+      (r['CLIENT'] || '').toLowerCase().includes(q) ||
+      (r['Assignment Title'] || '').toLowerCase().includes(q) ||
+      (r['QUALIFIED BY'] || '').toLowerCase().includes(q);
+    const matchRec = !filterRec || r['RECOMMENDATION'] === filterRec;
+    const matchEco = !filterEco || r['Owning Ecosystem'] === filterEco;
+    const matchStatus = !filterStatus || r['Workflow Status'] === filterStatus;
+    return matchSearch && matchRec && matchEco && matchStatus;
+  }).sort((a, b) => {
+    const av = a[sortCol] ?? '';
+    const bv = b[sortCol] ?? '';
+    if (typeof av === 'number' && typeof bv === 'number') {
+      return sortDir === 'asc' ? av - bv : bv - av;
+    }
+    const as = String(av).toLowerCase();
+    const bs = String(bv).toLowerCase();
+    return sortDir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as);
+  });
+
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('desc'); }
+  };
+
+  const recStyle = (rec) => {
+    if (!rec) return 'bg-gray-100 text-gray-500';
+    const r = rec.toUpperCase();
+    if (r === 'PROCEED') return 'bg-green-100 text-green-700';
+    if (r === 'DECLINE') return 'bg-red-100 text-red-700';
+    if (r === 'PROCEED WITH CAUTION') return 'bg-amber-100 text-amber-700';
+    return 'bg-gray-100 text-gray-600';
+  };
+
+  const scoreBar = (score) => {
+    if (!score && score !== 0) return null;
+    const pct = Math.min(100, (score / 80) * 100);
+    const color = pct >= 70 ? '#6B9E4A' : pct >= 50 ? '#E8C23D' : '#E8553D';
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+        </div>
+        <span className="text-xs font-bold" style={{ color }}>{score}</span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+      <div className="absolute inset-4 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-5 border-b border-gray-200 bg-[#12161E] flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-[#E8FF00] rounded-xl flex items-center justify-center">
+              <TableProperties className="w-5 h-5 text-[#12161E]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Qualification Board</h2>
+              <p className="text-xs text-gray-400">Live from Smartsheet · {rows.length} opportunities</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={loadData} disabled={loading} className="p-2 text-gray-400 hover:text-white transition-colors">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={onClose} className="p-2 text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3 px-8 py-4 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              value={searchQ} onChange={e => setSearchQ(e.target.value)}
+              placeholder="Search client, assignment, qualifier..."
+              className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+            {searchQ && <button onClick={() => setSearchQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"><X className="w-3.5 h-3.5" /></button>}
+          </div>
+          <select value={filterRec} onChange={e => setFilterRec(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none text-gray-700">
+            <option value="">All Recommendations</option>
+            {recommendations.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <select value={filterEco} onChange={e => setFilterEco(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none text-gray-700">
+            <option value="">All Ecosystems</option>
+            {ecosystems.map(e => <option key={e} value={e}>{e}</option>)}
+          </select>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none text-gray-700">
+            <option value="">All Statuses</option>
+            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {(searchQ || filterRec || filterEco || filterStatus) && (
+            <button onClick={() => { setSearchQ(''); setFilterRec(''); setFilterEco(''); setFilterStatus(''); }} className="text-xs px-3 py-2 border border-gray-200 bg-white rounded-xl text-gray-500 hover:bg-gray-50">Clear</button>
+          )}
+          <span className="text-xs text-gray-400 ml-auto">{filtered.length} of {rows.length}</span>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto px-8 py-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-24">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-400">Loading from Smartsheet...</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-24">
+              <AlertCircle className="w-10 h-10 text-red-300 mb-4" />
+              <p className="text-sm text-red-600 font-medium mb-2">Could not load data</p>
+              <p className="text-xs text-gray-400 mb-4">{error}</p>
+              <button onClick={loadData} className="px-4 py-2 bg-[#12161E] text-white rounded-xl text-sm font-medium">Retry</button>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-24">
+              <p className="text-gray-400">No results match your filters.</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b-2 border-gray-200">
+                  {SMARTSHEET_COLUMNS.map(col => (
+                    <th key={col.key}
+                      onClick={() => handleSort(col.key)}
+                      className="text-left py-2.5 px-3 text-xs font-bold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-900 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1">
+                        {col.label}
+                        {sortCol === col.key && (
+                          <ChevronDown className={`w-3 h-3 transition-transform ${sortDir === 'asc' ? 'rotate-180' : ''}`} />
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((row, i) => (
+                  <tr key={i} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-3 font-semibold text-gray-900 w-36 max-w-[144px]">
+                      <p className="truncate" title={row['CLIENT']}>{row['CLIENT'] || '—'}</p>
+                    </td>
+                    <td className="py-3 px-3 text-gray-700 max-w-[180px]">
+                      <p className="truncate">{row['Assignment Title'] || '—'}</p>
+                    </td>
+                    <td className="py-3 px-3 text-gray-500 whitespace-nowrap text-xs">{row['QUALIFIED BY'] || '—'}</td>
+                    <td className="py-3 px-3 max-w-[160px]">
+                      <p className="text-xs text-gray-500 line-clamp-2">{row['REQUEST TYPE'] || '—'}</p>
+                    </td>
+                    <td className="py-3 px-3">
+                      {row['RECOMMENDATION'] ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${recStyle(row['RECOMMENDATION'])}`}>
+                          {row['RECOMMENDATION']}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="py-3 px-3 w-32">
+                      {scoreBar(row['QUALIFICATION SCORE (OUT OF 80)'])}
+                    </td>
+                    <td className="py-3 px-3">
+                      {row['Workflow Status'] ? (
+                        <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium whitespace-nowrap">{row['Workflow Status']}</span>
+                      ) : '—'}
+                    </td>
+                    <td className="py-3 px-3 text-xs text-gray-500 whitespace-nowrap">{row['Owning Ecosystem'] || '—'}</td>
+                    <td className="py-3 px-3">
+                      {row['CONFLICT'] && row['CONFLICT'].toString().toLowerCase() !== 'no' && row['CONFLICT'].toString().toLowerCase() !== 'none' ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600">
+                          <XCircle className="w-3 h-3" />Yes
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                          <CheckCircle className="w-3 h-3" />No
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-xs text-gray-400 whitespace-nowrap">
+                      {row['Modified'] ? new Date(row['Modified']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-8 py-3 border-t border-gray-100 bg-gray-50 flex-shrink-0 flex items-center justify-between">
+          <p className="text-xs text-gray-400">Data sourced live from Smartsheet. Refresh to see latest.</p>
+          <a href={`https://app.smartsheet.com/sheets/5750175070900100`} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 transition-colors">
+            Open in Smartsheet <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================================
+// HOME / DASHBOARD VIEW
+// ============================================================================
+function HomeView({ opportunities, onSelectOpportunity, onCreateOpportunity, onDeleteOpportunity, onOpenReview, onOpenQualification, currentUser, roleInfo }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+  const [newUrl, setNewUrl] = useState('');
+  const [newIndustry, setNewIndustry] = useState('');
+  const [newPractice, setNewPractice] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+  const [filterStage, setFilterStage] = useState('');
+  const [filterPractice, setFilterPractice] = useState('');
+
+  const handleCreate = () => {
+    if (!newName.trim() || !newTitle.trim()) return;
+    const opp = createOpportunity(newName.trim(), newUrl.trim(), newIndustry.trim(), newPractice, newTitle.trim());
+    onCreateOpportunity(opp);
+    setShowCreate(false);
+    setNewName(''); setNewTitle(''); setNewUrl(''); setNewIndustry(''); setNewPractice('');
+  };
+
+  const getStageLabel = (opp) => PIPELINE_STAGES.find(s => s.id === opp.currentStage)?.label || 'Research';
+
+  const getProgress = (opp) => {
+    const stages = ['research', 'brief', 'proposal', 'sow', 'handover'];
+    const idx = stages.indexOf(opp.currentStage);
+    if (opp.currentStage === 'handover' && opp.handoverDraft) return 100;
+    if (opp.currentStage === 'sow' && opp.sowDraft) return 85;
+    return Math.round(((idx + 0.5) / stages.length) * 100);
+  };
+
+  const getBudgetRange = (opp) => {
+    try {
+      const services = opp.selectedServices || [];
+      if (!services.length) return null;
+      let low = 0, high = 0;
+      services.forEach(name => {
+        for (const cat of SERVICE_TRIGGERS) {
+          const svc = cat.services?.find(s => s.name === name);
+          if (svc?.pricing) { low += svc.pricing.budgetLow || 0; high += svc.pricing.budgetHigh || 0; break; }
+        }
+      });
+      if (!low && !high) return null;
+      const fmt = n => n >= 1000000 ? `$${(n/1000000).toFixed(1)}M` : `$${(n/1000).toFixed(0)}K`;
+      return `${fmt(low)}–${fmt(high)}`;
+    } catch { return null; }
+  };
+
+  const exportToExcel = () => {
+    const rows = filtered.map(o => ({
+      'Opp #': o.oppNumber || '',
+      'Company': o.companyName,
+      'Title': o.title || '',
+      'Practice': o.practice || '',
+      'RID': o.rid || '',
+      'Industry': o.industry || '',
+      'Stage': getStageLabel(o),
+      'Progress': `${getProgress(o)}%`,
+      'Budget Range': getBudgetRange(o) || '',
+      'Status': PROPOSAL_STATUSES.find(s => s.value === o.proposalStatus)?.label || '',
+      'Created': new Date(o.createdAt).toLocaleDateString(),
+    }));
+    const header = Object.keys(rows[0] || {});
+    const csv = [header.join(','), ...rows.map(r => header.map(h => `"${(r[h] || '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    saveAs(blob, `AG_Opportunities_${new Date().toISOString().slice(0,10)}.csv`);
+  };
+
+  const allActive = opportunities.filter(o => o.proposalStatus !== 'evaporated');
+  const evaporated = opportunities.filter(o => o.proposalStatus === 'evaporated');
+
+  const q = searchQ.toLowerCase().trim();
+  const filtered = allActive.filter(o => {
+    const matchSearch = !q ||
+      o.companyName.toLowerCase().includes(q) ||
+      (o.title || '').toLowerCase().includes(q) ||
+      (o.rid || '').toLowerCase().includes(q) ||
+      (o.oppNumber || '').toLowerCase().includes(q) ||
+      (o.practice || '').toLowerCase().includes(q) ||
+      (o.industry || '').toLowerCase().includes(q);
+    const matchStage = !filterStage || o.currentStage === filterStage;
+    const matchPractice = !filterPractice || o.practice === filterPractice;
+    return matchSearch && matchStage && matchPractice;
+  });
+
+  const stagePill = (stageId) => ({
+    research: { bg: '#FFF3E8', color: '#C26B1E', border: '#F5C89A' },
+    brief:    { bg: '#FEF9EC', color: '#A08018', border: '#EDD98A' },
+    proposal: { bg: '#EEF5E8', color: '#4A7A30', border: '#9DC87A' },
+    sow:      { bg: '#E8EEF5', color: '#2A5A8A', border: '#7AAAC8' },
+    handover: { bg: '#F0EBF8', color: '#6B3FA0', border: '#C3A8E8' },
+  }[stageId] || { bg: '#F5F5F5', color: '#666', border: '#DDD' });
+
+  const stageColors = ['#E8853D', '#E8C23D', '#6B9E4A', '#4A7AAC', '#9B59B6'];
+
+  return (
+    <div className="max-w-7xl mx-auto px-8 pb-16">
+
+      {/* Hero */}
+      <div className="mb-10">
+        <p className="text-xs font-bold tracking-widest text-gray-400 uppercase mb-2">Antenna Group · Internal Tools</p>
+        <h1 className="text-5xl lg:text-6xl font-black text-[#12161E] leading-none mb-4 tracking-tight">SOW Workbench</h1>
+        <p className="text-base text-gray-500 max-w-2xl leading-relaxed mb-8">
+          We diagnose before we prescribe! This tool helps you identify an opportunity and ensure that we can move fast and recommend the right services to solve our clients' problems.
+        </p>
+        {/* Action buttons — unified style */}
+        <div className="flex flex-wrap gap-3">
+          {roleInfo?.canCreateOpportunities !== false && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-5 py-3 bg-[#12161E] text-white rounded-xl font-semibold text-sm hover:bg-[#2a3040] transition-all shadow-sm"
+            >
+              <Plus className="w-4 h-4" />New Opportunity
+            </button>
+          )}
+          {onOpenReview && (
+            <button
+              onClick={onOpenReview}
+              className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold text-sm hover:border-[#12161E] hover:text-[#12161E] transition-all shadow-sm"
+            >
+              <ShieldCheck className="w-4 h-4" />Review Existing SOW
+            </button>
+          )}
+          <button
+            onClick={onOpenQualification}
+            className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold text-sm hover:border-[#12161E] hover:text-[#12161E] transition-all shadow-sm"
+          >
+            <TableProperties className="w-4 h-4" />Check If Your Opportunity Is Qualified
           </button>
         </div>
       </div>
 
-      {/* Sharing tip */}
-      {!isReadonly && (
-        <div className="bg-[#F0F7FF] border border-[#BFDBFE] rounded-lg px-4 py-3 mb-5">
-          <p className="text-xs text-[#1E40AF]">
-            <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup.
-          </p>
+      {/* Pipeline stage cards — single row of 5 */}
+      <div className="grid grid-cols-5 gap-3 mb-10">
+        {PIPELINE_STAGES.map((stage, idx) => {
+          const stageCount = allActive.filter(o => o.currentStage === stage.id).length;
+          const isActive = filterStage === stage.id;
+          return (
+            <button key={stage.id} onClick={() => setFilterStage(isActive ? '' : stage.id)}
+              className={`bg-white rounded-xl border p-5 text-left transition-all ${isActive ? 'border-[#12161E] ring-2 ring-[#12161E]/10 shadow-sm' : 'border-gray-200 hover:border-gray-400 hover:shadow-sm'}`}>
+              <div className="flex items-start justify-between mb-3">
+                <span className="text-xs font-bold tracking-widest text-gray-300 uppercase">{String(idx + 1).padStart(2,'0')}</span>
+                {stageCount > 0 && <span className="text-2xl font-black leading-none" style={{ color: stageColors[idx] }}>{stageCount}</span>}
+              </div>
+              <h3 className="font-black text-[#12161E] text-base leading-tight mb-1">{stage.label}</h3>
+              <p className="text-xs text-gray-400 leading-snug">{stage.description}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Create Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-2xl border border-gray-200 p-8 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">New Opportunity</h3>
+              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-900 transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">Company Name <span className="text-red-400">*</span></label>
+                <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && newName.trim() && handleCreate()} placeholder="e.g. Pacific Fusion" autoFocus className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#12161E] outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">Assignment Title <span className="text-red-500">*</span></label>
+                <input value={newTitle} onChange={e => setNewTitle(e.target.value)}
+                  placeholder="e.g. Q4 Integrated Campaign"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#12161E] outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">Owning Practice</label>
+                <select value={newPractice} onChange={e => setNewPractice(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#12161E] outline-none text-gray-900 bg-white text-sm">
+                  <option value="">Select practice...</option>
+                  {PRACTICES.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">Website <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="https://example.com" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#12161E] outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">Industry <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input value={newIndustry} onChange={e => setNewIndustry(e.target.value)} placeholder="e.g. Climate Tech" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#12161E] outline-none text-gray-900 placeholder:text-gray-400 text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowCreate(false)} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={handleCreate} disabled={!newName.trim() || !newTitle.trim()} className="flex-1 px-4 py-2.5 bg-[#12161E] text-white rounded-xl font-semibold text-sm disabled:opacity-40 hover:bg-[#2a3040] transition-colors flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4" />Create Opportunity
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {assessments.length === 0 ? (
-        <div className="card p-12 text-center">
-          <FileText className="w-12 h-12 text-[#D9D6D0] mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">No Saved Assessments</h3>
-          <p className="text-[#666666] mb-4">Complete an assessment and click Save to store it here.</p>
-          <p className="text-sm text-[#9CA3AF]">Or import a previously exported assessment using the Import button above.</p>
+      {/* Opportunities List */}
+      {opportunities.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+          <Building2 className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-400 mb-2">No opportunities yet</h3>
+          <p className="text-sm text-gray-400 mb-6">Create your first opportunity to begin the pipeline.</p>
+          {roleInfo?.canCreateOpportunities !== false && (
+            <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#12161E] text-white rounded-xl font-semibold text-sm hover:bg-[#2a3040] transition-colors">
+              <Plus className="w-4 h-4" />New Opportunity
+            </button>
+          )}
         </div>
       ) : (
-        <>
-          {/* Search + filters */}
-          <div className="flex flex-col sm:flex-row gap-2 mb-4">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
-              <input
-                type="text"
-                placeholder="Search brands…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#1A1A1A]">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+        <div>
+          {/* Section title + search row */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-[#12161E]">Opportunities</h2>
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <span>{filtered.length} of {allActive.length}</span>
             </div>
-            {/* Stage filter */}
-            {usedStages.length > 1 && (
-              <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
-                className="px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#444444]">
-                <option value="">All stages</option>
-                {usedStages.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            )}
-            {/* Industry filter */}
-            {usedIndustries.length > 1 && (
-              <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
-                className="px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#444444]">
-                <option value="">All industries</option>
-                {usedIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
-              </select>
-            )}
-            {/* Sort */}
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-              className="px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#444444]">
-              <option value="date-desc">Newest first</option>
-              <option value="date-asc">Oldest first</option>
-              <option value="score-desc">Highest score</option>
-              <option value="score-asc">Lowest score</option>
-              <option value="name">Brand name</option>
-            </select>
           </div>
 
-          {/* Results count when filtering */}
-          {hasFilters && (
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-[#666666]">{filtered.length} of {assessments.length} assessments</p>
-              <button onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); }}
-                className="text-xs text-[#E53935] hover:underline">Clear filters</button>
+          {/* Search + Filter bar */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <input
+                value={searchQ} onChange={e => setSearchQ(e.target.value)}
+                placeholder="Search company, title, RID, practice..."
+                className="w-full pl-9 pr-8 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#12161E] outline-none placeholder:text-gray-400"
+              />
+              {searchQ && <button onClick={() => setSearchQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"><X className="w-3.5 h-3.5" /></button>}
+            </div>
+            <select value={filterPractice} onChange={e => setFilterPractice(e.target.value)} className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#12161E] outline-none text-gray-700">
+              <option value="">All Practices</option>
+              {PRACTICES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            {(searchQ || filterStage || filterPractice) && (
+              <button onClick={() => { setSearchQ(''); setFilterStage(''); setFilterPractice(''); }} className="text-xs px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-gray-500 hover:bg-gray-50 transition-colors">Clear</button>
+            )}
+            {filtered.length > 0 && (
+              <button onClick={exportToExcel} className="ml-auto flex items-center gap-1.5 text-xs px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-gray-600 hover:border-[#12161E] hover:text-[#12161E] transition-all font-medium">
+                <Download className="w-3.5 h-3.5" />Export to Excel
+              </button>
+            )}
+          </div>
+
+          {/* Column headers */}
+          <div className="grid grid-cols-12 gap-3 px-4 mb-2">
+            <span className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">Opp #</span>
+            <span className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Company & Title</span>
+            <span className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:block">Practice / RID</span>
+            <span className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:block">Stage</span>
+            <span className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:block">Progress</span>
+            <span className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:block">Budget</span>
+            <span className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:block">Modified By</span>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-200">
+              <p className="text-gray-400 text-sm">No opportunities match your filters.</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {filtered.map((opp) => {
+                const progress = getProgress(opp);
+                const budget = getBudgetRange(opp);
+                const initials = opp.companyName.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+                const pill = stagePill(opp.currentStage);
+                return (
+                  <div key={opp.id} className="relative group/row">
+                    <button onClick={() => onSelectOpportunity(opp)}
+                      className="w-full bg-white rounded-xl border border-gray-200 hover:border-[#12161E] hover:shadow-sm transition-all p-4 text-left group grid grid-cols-12 gap-3 items-center">
+                    {/* Opp # */}
+                    <div className="col-span-1">
+                      <span className="text-[10px] font-mono text-gray-400 group-hover:text-gray-600 transition-colors">{opp.oppNumber || '—'}</span>
+                    </div>
+                    {/* Company + Title */}
+                    <div className="col-span-3 flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 bg-[#12161E] group-hover:bg-[#E8FF00] rounded-lg flex items-center justify-center flex-shrink-0 transition-colors">
+                        <span className="text-xs font-black text-white group-hover:text-[#12161E] transition-colors">{initials}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-[#12161E] leading-tight truncate text-sm">{opp.companyName}</p>
+                        {opp.title
+                          ? <p className="text-xs text-gray-500 mt-0.5 truncate">{opp.title}</p>
+                          : <p className="text-xs text-gray-300 mt-0.5 truncate">{opp.industry || opp.companyUrl || '—'}</p>
+                        }
+                      </div>
+                    </div>
+                    {/* Practice + RID */}
+                    <div className="col-span-2 hidden sm:flex flex-col gap-0.5 min-w-0">
+                      {opp.practice && <span className="text-xs font-semibold text-gray-700 truncate">{opp.practice}</span>}
+                      {opp.rid && <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded w-fit">{opp.rid}</span>}
+                      {!opp.practice && !opp.rid && <span className="text-xs text-gray-300">—</span>}
+                    </div>
+                    {/* Stage */}
+                    <div className="col-span-2 hidden sm:block">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border"
+                        style={{ backgroundColor: pill.bg, color: pill.color, borderColor: pill.border }}>
+                        {getStageLabel(opp)}
+                      </span>
+                    </div>
+                    {/* Progress */}
+                    <div className="col-span-2 hidden sm:block">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#e5e5e5' }}>
+                          <div className="h-full rounded-full transition-all" style={{
+                            width: `${progress}%`,
+                            background: progress < 40 ? 'linear-gradient(90deg,#888,#E8853D)' :
+                                        progress < 70 ? 'linear-gradient(90deg,#E8853D,#6B9E4A)' :
+                                                        'linear-gradient(90deg,#6B9E4A,#4A7AAC)'
+                          }} />
+                        </div>
+                        <span className="text-xs font-bold text-gray-400 w-8 text-right">{progress}%</span>
+                      </div>
+                    </div>
+                    {/* Budget + Modified By + arrow */}
+                    <div className="col-span-1 hidden sm:block">
+                      {budget
+                        ? <span className="text-xs font-semibold text-gray-700">{budget}</span>
+                        : <span className="text-xs text-gray-300">—</span>}
+                    </div>
+                    <div className="col-span-1 hidden sm:flex items-center justify-between gap-1">
+                      <span className="text-[10px] text-gray-400 truncate" title={opp.lastModifiedBy || ''}>
+                        {opp.lastModifiedBy ? opp.lastModifiedBy.split('@')[0] : '—'}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#12161E] transition-colors flex-shrink-0" />
+                    </div>
+                  </button>
+                  {/* Admin delete button — appears on row hover */}
+                  {roleInfo?.canAccessAdmin && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${opp.companyName} — ${opp.title || ''}"? This cannot be undone.`)) onDeleteOpportunity(opp.id); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/row:opacity-100 transition-opacity p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600"
+                      title="Delete opportunity"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                );
+              })}
             </div>
           )}
 
-          {filtered.length === 0 ? (
-            <div className="card p-8 text-center">
-              <p className="text-[#666666]">No assessments match your filters.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filtered.map(({ a, i, overallScore, maturity, industryName }) => (
-                <div key={i} className="card px-4 py-3 hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-3">
-                    {/* Score badge */}
-                    {overallScore !== null && (
-                      <div className="w-11 h-11 rounded-lg flex-shrink-0 flex items-center justify-center"
-                        style={{ backgroundColor: (maturity?.color || '#E53935') + '18' }}>
-                        <span className="text-base font-bold" style={{ color: maturity?.color || '#E53935' }}>{overallScore}</span>
-                      </div>
-                    )}
-
-                    {/* Brand info */}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-[#1A1A1A] text-sm leading-tight">{a.project.brandName}</h4>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                        <span className="text-xs text-[#9CA3AF] whitespace-nowrap">{a.project.date || '—'}</span>
-                        {industryName && <><span className="text-xs text-[#9CA3AF]">·</span><span className="text-xs text-[#666666]">{industryName}</span></>}
-                        {maturity && <><span className="text-xs text-[#9CA3AF]">·</span><span className="text-xs font-medium" style={{ color: maturity.color }}>{maturity.name}</span></>}
-                      </div>
-                    </div>
-
-                    {/* Actions — right-aligned on desktop, visible always */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {!isReadonly && (
-                        <>
-                          <button onClick={() => onShare(a)} title="Share link"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#9CA3AF] hover:text-[#E53935] hover:bg-[#E5393508] rounded transition-colors">
-                            <Share2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => onExport(a)} title="Export JSON"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => onRescore(a)}
-                            className="px-3 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors whitespace-nowrap hidden sm:block">
-                            Rescore
-                          </button>
-                        </>
-                      )}
-                      <button onClick={() => onLoad(a)}
-                        className="px-4 py-1.5 text-xs font-semibold bg-[#1A1A1A] text-white hover:bg-[#333333] rounded transition-colors whitespace-nowrap">
-                        Load
+          {evaporated.length > 0 && (
+            <div className="mt-6">
+              <CollapsibleSection title={`Evaporated (${evaporated.length})`} icon={Archive}>
+                <div className="space-y-1.5">
+                  {evaporated.map(opp => (
+                    <div key={opp.id} className="relative group/row flex items-center">
+                      <button onClick={() => onSelectOpportunity(opp)} className="flex-1 flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                        <div>
+                          <span className="text-sm text-gray-500 font-medium">{opp.companyName}</span>
+                          {opp.title && <span className="text-xs text-gray-400 ml-2">{opp.title}</span>}
+                          {opp.oppNumber && <span className="text-[10px] font-mono text-gray-400 ml-2">{opp.oppNumber}</span>}
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300" />
                       </button>
-                      {!isReadonly && (
-                        <button onClick={() => onDelete(i)} title="Delete"
-                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#D9D6D0] hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                      {roleInfo?.canAccessAdmin && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${opp.companyName}"? This cannot be undone.`)) onDeleteOpportunity(opp.id); }}
+                          className="ml-2 p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors flex-shrink-0"
+                          title="Delete opportunity"
+                        >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
-                  </div>
-
-                  {/* Mobile-only secondary actions */}
-                  {!isReadonly && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#F0EEEA] sm:hidden">
-                      <button onClick={() => onShare(a)} title="Share"
-                        className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#E53935] rounded transition-colors">
-                        <Share2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => onExport(a)} title="Export"
-                        className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A1A] rounded transition-colors">
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => onRescore(a)}
-                        className="px-3 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
-                        Rescore
-                      </button>
-                      <button onClick={() => onDelete(i)} title="Delete"
-                        className="w-8 h-8 flex items-center justify-center text-[#D9D6D0] hover:text-red-500 rounded transition-colors ml-auto">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
+                  ))}
                 </div>
-              ))}
+              </CollapsibleSection>
             </div>
           )}
-
-          <p className="text-center text-sm text-[#9CA3AF] mt-8">
-            {assessments.length} assessment{assessments.length !== 1 ? 's' : ''} saved
-          </p>
-        </>
+        </div>
       )}
-    </div>
-  );
-}
 
-// Shared Report View (read-only view for shared links)
-function SharedReportView({ report, onClose }) {
-  const { project, scores } = report;
-  const overall = Math.round(
-    Object.entries(scores)
-      .filter(([key, val]) => val && typeof val.score === 'number')
-      .reduce((a, [, v]) => a + v.score, 0) / 8
-  );
-  const stage = getMaturityStage(overall);
-  const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
-  const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
-
-  // Generate recommendations for shared view
-  const recommendations = [];
-  let attrIndex = 0;
-  let recIndex = 0;
-  while (recommendations.length < 12 && attrIndex < sortedAttrs.length) {
-    const attr = sortedAttrs[attrIndex];
-    const attrRecs = SERVICE_RECOMMENDATIONS[attr.id] || [];
-    if (recIndex < attrRecs.length) {
-      const rec = attrRecs[recIndex];
-      recommendations.push({ 
-        attr: attr.name, 
-        attrId: attr.id, 
-        title: rec.title,
-        description: rec.description,
-        impact: rec.impact,
-        attributes: rec.attributes,
-        score: attr.score 
-      });
-      recIndex++;
-    } else {
-      attrIndex++;
-      recIndex = 0;
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-[#E8E6E1]">
-      {/* Header */}
-      <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-5 px-6">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
-            <div className="h-6 w-px bg-[#1A1A1A]" />
-            <span className="text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-[#666666] bg-[#F0EEEA] px-3 py-1 rounded-full">Shared Report (Read-only)</span>
-            <button onClick={onClose} className="btn-secondary text-sm">
-              Start New Assessment
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-4xl mx-auto p-8 animate-fade-in">
-        {/* Report Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-[#1A1A1A] mb-2">Brand Consciousness Report</h1>
-          <p className="text-xl text-[#333333]">{project.brandName}</p>
-          <p className="text-sm text-[#666666] mt-2">{industryName} | {project.businessModel?.toUpperCase() || 'B2B'} | {project.date || 'No date'}</p>
-        </div>
-
-        {/* Overall Score */}
-        <div className="card p-8 mb-8 text-center bg-gradient-to-br from-[#E53935]/5 to-[#E53935]/10">
-          <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-[#E53935] text-white mb-4">
-            <span className="text-5xl font-bold">{overall}</span>
-          </div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A] mb-2">{stage.name}</h2>
-          <p className="text-[#333333] mb-4">{stage.description}</p>
-          {scores.headline && (
-            <p className="text-lg italic text-[#1A1A1A] border-t border-[#E8E6E1] pt-4 mt-4">
-              "{scores.headline}"
-            </p>
-          )}
-        </div>
-
-        {/* Spider Chart */}
-        <div className="card p-6 mb-8">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4 text-center">Brand Consciousness Profile</h3>
-          <SpiderChart scores={scores} size={450} animate={false} />
-        </div>
-
-        {/* Executive Summary */}
-        <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">EXECUTIVE SUMMARY</h3>
-          <p className="text-[#333333] leading-relaxed">
-            {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
-          </p>
-        </div>
-
-        {/* Score Summary */}
-        <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">SCORE SUMMARY</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="text-center p-3 bg-[#F0EEEA] rounded-lg">
-                <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-                <div className="text-xs text-[#666666] mt-1">{attr.name}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Maturity Continuum */}
-        <MaturityContinuum score={overall} />
-
-        {/* Maturity Stage Context */}
-        <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">MATURITY STAGE CONTEXT</h3>
-          <p className="text-[#333333] leading-relaxed">
-            With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
-          </p>
-        </div>
-
-        {/* Signal Conflicts */}
-        {(() => {
-          const s = (id) => scores[id]?.score || 0;
-          const conflicts = [];
-
-          // Awake vs Intentional: narrative leadership without credibility infrastructure
-          if (s('AWAKE') >= 60 && s('INTENTIONAL') < 45) {
-            conflicts.push({
-              title: 'Narrative leadership without credibility infrastructure',
-              attributes: ['Awake', 'Intentional'],
-              scores: [s('AWAKE'), s('INTENTIONAL')],
-              tension: `${project.brandName} scores well for shaping narratives (${s('AWAKE')}) but lacks the credibility infrastructure — trademarks, awards, executive visibility, client evidence — to sustain that authority (${s('INTENTIONAL')}). Audiences encounter a brand that sounds like a leader but cannot prove it. The gap erodes trust at the moment of consideration.`,
-              signal: 'High ambition, thin proof.',
-            });
-          }
-
-          // Reflective vs Aware: authentic internally but disconnected from audiences
-          if (s('REFLECTIVE') >= 60 && s('AWARE') < 45) {
-            conflicts.push({
-              title: 'Internal authenticity disconnected from audience understanding',
-              attributes: ['Reflective', 'Aware'],
-              scores: [s('REFLECTIVE'), s('AWARE')],
-              tension: `The brand demonstrates authentic self-expression (${s('REFLECTIVE')}) but shows limited evidence of genuinely understanding its audiences (${s('AWARE')}). Authenticity without audience insight becomes self-indulgence. The brand says what it believes, not necessarily what its audiences need to hear.`,
-              signal: 'Inward-facing brand, outward-facing blind spot.',
-            });
-          }
-
-          // Cogent vs Attentive: data-driven thinking but poor experience delivery
-          if (s('COGENT') >= 60 && s('ATTENTIVE') < 45) {
-            conflicts.push({
-              title: 'Strategic intelligence undermined by poor experience delivery',
-              attributes: ['Cogent', 'Attentive'],
-              scores: [s('COGENT'), s('ATTENTIVE')],
-              tension: `${project.brandName} shows evidence of data-driven marketing thinking (${s('COGENT')}) but the experience audiences actually encounter falls short (${s('ATTENTIVE')}). Smart strategy means nothing if the touchpoints fail. Audiences judge the brand by what they experience, not what its marketers intended.`,
-              signal: 'Good thinking, poor execution.',
-            });
-          }
-
-          // Visionary vs Reflective: purpose claims without authentic expression
-          if (s('VISIONARY') >= 60 && s('REFLECTIVE') < 45) {
-            conflicts.push({
-              title: 'Purpose claims not backed by authentic expression',
-              attributes: ['Visionary', 'Reflective'],
-              scores: [s('VISIONARY'), s('REFLECTIVE')],
-              tension: `The brand articulates meaningful purpose (${s('VISIONARY')}) but external signals suggest a disconnect between stated values and observable behaviour (${s('REFLECTIVE')}). Purpose without authenticity reads as marketing. Audiences are increasingly skilled at identifying the gap.`,
-              signal: 'Aspirational positioning, unconvincing reality.',
-            });
-          }
-
-          // Sentient vs Cogent: emotional resonance without strategic grounding
-          if (s('SENTIENT') >= 65 && s('COGENT') < 45) {
-            conflicts.push({
-              title: 'Emotional resonance without strategic intelligence',
-              attributes: ['Sentient', 'Cogent'],
-              scores: [s('SENTIENT'), s('COGENT')],
-              tension: `The brand creates emotional connection and distinctive creative (${s('SENTIENT')}) but appears to lack the data-driven strategic infrastructure behind it (${s('COGENT')}). Creative that isn't grounded in audience insight and measurement is hard to sustain and harder to scale. Without evidence of what's working, the energy dissipates.`,
-              signal: 'Inspired execution, unclear direction.',
-            });
-          }
-
-          // Awake vs Aware: thought leadership without audience connection
-          if (s('AWAKE') >= 65 && s('AWARE') < 45) {
-            conflicts.push({
-              title: 'Thought leadership broadcast into a vacuum',
-              attributes: ['Awake', 'Aware'],
-              scores: [s('AWAKE'), s('AWARE')],
-              tension: `${project.brandName} produces thought leadership and shapes industry discourse (${s('AWAKE')}) but shows limited evidence of two-way audience engagement (${s('AWARE')}). Leadership without listening becomes broadcasting. The brand talks at its audience rather than with them.`,
-              signal: 'Loud voice, limited conversation.',
-            });
-          }
-
-          // Attentive vs Sentient: polished experience but no emotional resonance  
-          if (s('ATTENTIVE') >= 65 && s('SENTIENT') < 40) {
-            conflicts.push({
-              title: 'Polished execution with no emotional impact',
-              attributes: ['Attentive', 'Sentient'],
-              scores: [s('ATTENTIVE'), s('SENTIENT')],
-              tension: `The brand delivers technically consistent, well-executed touchpoints (${s('ATTENTIVE')}) but fails to create genuine emotional connection or memorable creative distinction (${s('SENTIENT')}). Competence without resonance is forgettable. Audiences find nothing to feel or remember.`,
-              signal: 'Professional, but unmemorable.',
-            });
-          }
-
-          // Intentional vs Visionary: credible and present but no meaningful direction
-          if (s('INTENTIONAL') >= 65 && s('VISIONARY') < 40) {
-            conflicts.push({
-              title: 'Established presence with no sense of direction',
-              attributes: ['Intentional', 'Visionary'],
-              scores: [s('INTENTIONAL'), s('VISIONARY')],
-              tension: `${project.brandName} projects credibility and professional substance (${s('INTENTIONAL')}) but offers audiences no compelling sense of where it is headed or why it exists beyond commercial purpose (${s('VISIONARY')}). Credibility tells people what to trust. Purpose tells them why it matters. Without the latter, the brand competes on features and price alone.`,
-              signal: 'Respected, but not inspiring.',
-            });
-          }
-
-          if (conflicts.length === 0) return null;
-
-          return (
-            <div className="card p-5 mb-4 border-l-4 border-[#F59E0B]">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0" />
-                <h3 className="text-lg font-semibold text-[#1A1A1A]">SIGNAL CONFLICTS</h3>
-              </div>
-              <p className="text-sm text-[#666666] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
-              <div className="space-y-4">
-                {conflicts.map((c, i) => (
-                  <div key={i} className="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2 gap-3">
-                      <h4 className="font-semibold text-[#92400E] text-sm leading-snug">{c.title}</h4>
-                      <div className="flex gap-1.5 flex-shrink-0">
-                        {c.attributes.map((attr, ai) => (
-                          <span key={attr} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E]">
-                            {attr} {c.scores[ai]}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-sm text-[#78350F] leading-relaxed mb-2">{c.tension}</p>
-                    <p className="text-xs font-semibold text-[#B45309] italic">{c.signal}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Attribute Analysis */}
-        <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
-        <div className="space-y-4 mb-8">
-          {ATTRIBUTES.map(attr => (
-            <div key={attr.id} className="card p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: attr.color }}>
-                    {scores[attr.id]?.score || 0}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-[#1A1A1A]">{attr.name}</h4>
-                    <p className="text-sm text-[#666666]">{attr.fullName}</p>
-                  </div>
-                </div>
-              </div>
-              <p className="text-sm text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
-              {scores[attr.id]?.opportunity && (
-                <p className="text-sm text-[#E53935] italic">{scores[attr.id].opportunity}</p>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Recommendations */}
-        <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
-        <p className="text-[#666666] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
-        <div className="space-y-4 mb-6">
-          {recommendations.map((r, i) => (
-            <div key={i} className="card p-5">
-              <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-[#1A1A1A] mb-2">{r.title}</h4>
-                  <p className="text-sm text-[#333333] leading-relaxed mb-2">
-                    {r.description} {r.impact}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {r.attributes.map((attr, j) => (
-                      <span key={j} className="text-xs px-2 py-1 bg-[#E53935]/10 text-[#E53935] rounded-full font-medium">{attr}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Antenna Group Services */}
-        {(() => {
-          const forceInclude = report.assessmentSummary?.forceIncludeServices || [];
-          const serviceRecs = getAllRecommendations(scores, { forceIncludeServices: forceInclude });
-          const topServices = serviceRecs.slice(0, 6);
-          if (topServices.length === 0) return null;
-          
-          return (
-            <>
-              <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">RECOMMENDED ANTENNA GROUP SERVICES</h3>
-              <p className="text-[#666666] mb-4">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
-              <div className="grid md:grid-cols-2 gap-4 mb-8">
-                {topServices.map((rec, i) => {
-                  const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
-                  const attrScore = scores[rec.attributeId]?.score || 0;
-                  const budgetStr = rec.service.budget 
-                    ? `$${(rec.service.budget.low / 1000).toFixed(0)}K - $${(rec.service.budget.high / 1000).toFixed(0)}K`
-                    : 'Contact for pricing';
-                  
-                  return (
-                    <div key={i} className="card p-4 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
-                      <h4 className="font-semibold text-[#1A1A1A] mb-2">{rec.service.name}</h4>
-                      <p className="text-xs text-[#666666] mb-2">{rec.service.category}</p>
-                      <p className="text-sm text-[#333333] mb-2">
-                        Improves <span style={{ color: attr?.color }}>{attr?.name}</span> (currently {attrScore})
-                      </p>
-                      <p className="text-sm font-medium text-[#059669]">{budgetStr}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          );
-        })()}
-
-        {/* Conclusions */}
-        <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">CONCLUSIONS</h3>
-          <p className="text-[#333333] leading-relaxed">
-            {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
-          </p>
-        </div>
-
-        {/* What We Evaluated */}
-        <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">WHAT WE EVALUATED</h3>
-          <p className="text-[#333333] leading-relaxed mb-4">
-            This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model ({project.businessModel?.toUpperCase() || 'B2B'}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
-          </p>
-          {report.assessmentSummary && (
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div className="bg-[#F0EEEA] p-3 rounded-lg">
-                <h4 className="font-semibold text-[#1A1A1A] mb-2">Website Analysis</h4>
-                <p className="text-[#666666]">
-                  {report.assessmentSummary.pagesReviewed || 'Key pages reviewed'}
-                </p>
-              </div>
-              <div className="bg-[#F0EEEA] p-3 rounded-lg">
-                <h4 className="font-semibold text-[#1A1A1A] mb-2">Social Media</h4>
-                <p className="text-[#666666]">
-                  {[
-                    report.assessmentSummary.hasLinkedIn && 'LinkedIn',
-                    report.assessmentSummary.hasX && 'X/Twitter',
-                    report.assessmentSummary.hasInstagram && 'Instagram',
-                    report.assessmentSummary.hasYouTube && 'YouTube',
-                    report.assessmentSummary.hasWikipedia && 'Wikipedia',
-                    report.assessmentSummary.hasRedditAnswers && 'Reddit Answers',
-                  ].filter(Boolean).join(', ') || 'Social platforms reviewed'}
-                </p>
-              </div>
-              <div className="bg-[#F0EEEA] p-3 rounded-lg">
-                <h4 className="font-semibold text-[#1A1A1A] mb-2">AI Reputation</h4>
-                <p className="text-[#666666]">
-                  {[
-                    report.assessmentSummary.hasClaudeAI && 'Claude',
-                    report.assessmentSummary.hasGeminiAI && 'Gemini',
-                    report.assessmentSummary.hasChatGPT && 'ChatGPT',
-                  ].filter(Boolean).join(', ') || 'AI platforms queried'}
-                </p>
-              </div>
-              <div className="bg-[#F0EEEA] p-3 rounded-lg">
-                <h4 className="font-semibold text-[#1A1A1A] mb-2">Earned Media</h4>
-                <p className="text-[#666666]">
-                  {report.assessmentSummary.hasEarnedMedia ? 'Coverage from past 3 months reviewed' : 'Media coverage analyzed'}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Score Justification */}
-        {scores.justification && (
-          <div className="card p-5 mb-4 bg-[#FAFAF9]">
-            <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">SCORE JUSTIFICATION</h3>
-            <p className="text-sm text-[#333333] leading-relaxed">
-              {scores.justification}
-            </p>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="text-center pt-8 border-t border-[#D9D6D0]">
-          <p className="text-sm text-[#9CA3AF]">
-            This report was generated using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}
-          </p>
-          <p className="text-xs text-[#9CA3AF] mt-2">
-            Shared on {report.sharedAt ? new Date(report.sharedAt).toLocaleDateString() : 'Unknown date'}
-          </p>
-        </div>
+      {/* Footer credit */}
+      <div className="mt-16 pb-6 text-center">
+        <p className="text-xs text-gray-300 tracking-wide">A Mr Newton Production</p>
+        <p className="text-[10px] text-gray-400 mt-0.5">v{APP_VERSION}</p>
       </div>
     </div>
   );
 }
 
-// Stay Conscious Page — brand intelligence feed powered by Claude
-const STAY_CONSCIOUS_CATEGORIES = ['AI Visibility', 'Digital Experience', 'Brand Strategy', 'Earned Media', 'Social Signals', 'Assessment Practice'];
-
-const CATEGORY_META = {
-  'AI Visibility':      { color: '#6366F1', bg: '#6366F115' },
-  'Digital Experience': { color: '#0EA5E9', bg: '#0EA5E915' },
-  'Brand Strategy':     { color: '#E53935', bg: '#E5393515' },
-  'Earned Media':       { color: '#F59E0B', bg: '#F59E0B15' },
-  'Social Signals':     { color: '#10B981', bg: '#10B98115' },
-  'Assessment Practice':{ color: '#8B5CF6', bg: '#8B5CF615' },
-};
-
-const STAY_CONSCIOUS_PROMPT = `You are a brand intelligence analyst advising consultants who use the Conscious Compass framework to evaluate brands based purely on publicly available signals — what audiences, prospects, and partners actually encounter. The framework measures eight attributes: Awake (narrative leadership), Aware (audience understanding), Reflective (authenticity), Attentive (experience quality), Cogent (strategic intelligence), Sentient (emotional resonance), Visionary (purpose), and Intentional (credibility).
-
-Generate exactly 6 "Stay Conscious" intelligence items that brand assessors should be aware of right now. These should be emerging trends, platform changes, new signals, shifting standards, or evolving best practices that affect how a brand is publicly experienced or how it should be rigorously assessed. Be specific and current. Avoid generic marketing platitudes. Write with conviction.
-
-Cover a spread across these categories — use each at most once: AI Visibility, Digital Experience, Brand Strategy, Earned Media, Social Signals, Assessment Practice.
-
-Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
-{"items":[{"headline":"...","category":"...","insight":"...","whyItMatters":"..."}]}
-
-Each item:
-- headline: punchy, specific, max 12 words
-- category: exactly one of: AI Visibility | Digital Experience | Brand Strategy | Earned Media | Social Signals | Assessment Practice
-- insight: 2-3 sentences. What is actually happening, with specifics where possible.
-- whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
-
-function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = null, onCacheUpdate, isAdmin }) {
-  const [items, setItems] = useState(cachedItems);
-  const [loading, setLoading] = useState(cachedItems.length === 0);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [lastRefreshed, setLastRefreshed] = useState(cachedLastRefreshed);
-  const [activeCategory, setActiveCategory] = useState('All');
-
-  const loadFromCache = () => {
-    setLoading(true);
-    setError(null);
-    fetch('/api/stay-conscious')
-      .then(r => r.json())
-      .then(data => {
-        if (data.items?.length) {
-          const refreshed = data.refreshedAt ? new Date(data.refreshedAt) : null;
-          setItems(data.items);
-          setLastRefreshed(refreshed);
-          if (onCacheUpdate) onCacheUpdate(data.items, refreshed);
-        } else {
-          setError(data.error || 'No insights available yet — check back after the first weekly refresh.');
-        }
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
-  };
-
-  const forceRefresh = () => {
-    setRefreshing(true);
-    setError(null);
-    fetch('/api/refresh-stay-conscious', { method: 'POST' })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          // Re-read the newly written cache
-          return fetch('/api/stay-conscious').then(r => r.json()).then(cached => {
-            if (cached.items?.length) {
-              const refreshed = cached.refreshedAt ? new Date(cached.refreshedAt) : new Date();
-              setItems(cached.items);
-              setLastRefreshed(refreshed);
-              if (onCacheUpdate) onCacheUpdate(cached.items, refreshed);
-            }
-          });
-        } else {
-          throw new Error(data.error || 'Refresh failed');
-        }
-      })
-      .catch(e => setError(`Refresh failed: ${e.message}`))
-      .finally(() => setRefreshing(false));
-  };
-
-  useEffect(() => {
-    if (cachedItems.length === 0) loadFromCache();
-  }, []);
-
-  const formatRefreshed = (date) => {
-    if (!date) return null;
-    return date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) +
-      ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const filteredItems = activeCategory === 'All' ? items : items.filter(i => i.category === activeCategory);
-
-  return (
-    <div className="min-h-screen bg-[#F5F4F0]">
-      <div className="max-w-5xl mx-auto p-4 md:p-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8 gap-4">
-          <div className="flex items-start gap-4">
-            <button onClick={onBack} className="btn-secondary flex items-center gap-2 flex-shrink-0">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="w-5 h-5 text-[#6366F1]" />
-                <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Stay Conscious</h1>
-              </div>
-              <p className="text-sm text-[#666666]">Brand intelligence for assessors. What's shifting, why it matters.</p>
-              {lastRefreshed ? (
-                <p className="text-xs text-[#9CA3AF] mt-0.5">Updated {formatRefreshed(lastRefreshed)} · Refreshes every Sunday</p>
-              ) : !loading && (
-                <p className="text-xs text-[#9CA3AF] mt-0.5">Refreshes every Sunday</p>
-              )}
-            </div>
-          </div>
-          {isAdmin && (
-            <button
-              onClick={forceRefresh}
-              disabled={refreshing || loading}
-              className="btn-secondary flex items-center gap-2 self-start flex-shrink-0 text-sm"
-              title="Force refresh for all users"
-            >
-              {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              {refreshing ? 'Refreshing...' : 'Force Refresh'}
-            </button>
-          )}
-        </div>
-
-        {/* Category filter */}
-        {items.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {['All', ...STAY_CONSCIOUS_CATEGORIES].map(cat => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                  activeCategory === cat
-                    ? 'bg-[#1A1A1A] text-white'
-                    : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Loading state */}
-        {(loading || refreshing) && (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-12 h-12 rounded-full bg-[#6366F1]/10 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-[#6366F1] animate-spin" />
-            </div>
-            <p className="text-sm text-[#666666]">{refreshing ? 'Generating fresh insights...' : 'Gathering brand intelligence...'}</p>
-          </div>
-        )}
-
-        {/* Error state */}
-        {error && !loading && !refreshing && (
-          <div className="card p-8 text-center">
-            <AlertCircle className="w-10 h-10 text-[#E53935] mx-auto mb-3" />
-            <p className="text-[#666666] mb-4">{error}</p>
-            <button onClick={loadFromCache} className="btn-primary">Try Again</button>
-          </div>
-        )}
-
-        {/* Items grid */}
-        {!loading && !refreshing && filteredItems.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredItems.map((item, i) => {
-              const meta = CATEGORY_META[item.category] || CATEGORY_META['Brand Strategy'];
-              return (
-                <div key={i} className="card p-5 hover:shadow-md transition-shadow flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
-                      style={{ backgroundColor: meta.bg, color: meta.color }}
-                    >
-                      {item.category}
-                    </span>
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: meta.color }} />
-                  </div>
-                  <h3 className="font-semibold text-[#1A1A1A] leading-snug">{item.headline}</h3>
-                  <p className="text-sm text-[#444444] leading-relaxed">{item.insight}</p>
-                  <div className="border-t border-[#E8E6E1] pt-3 mt-auto">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] mb-1">Why it matters for assessment</div>
-                    <p className="text-xs text-[#666666] leading-relaxed">{item.whyItMatters}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!loading && !refreshing && items.length === 0 && !error && (
-          <div className="card p-12 text-center">
-            <Sparkles className="w-10 h-10 text-[#D9D6D0] mx-auto mb-3" />
-            <p className="text-[#666666]">No insights available yet.</p>
-            {isAdmin && <p className="text-sm text-[#9CA3AF] mt-2">Use Force Refresh to generate the first set.</p>}
-          </div>
-        )}
-
-        <p className="text-center text-xs text-[#9CA3AF] mt-8">
-          Insights generated by Claude. Always apply your own professional judgement.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// Main App
-function AppContent() {
+// ============================================================================
+// MAIN APP
+// ============================================================================
+export default function App() {
+  // ---- AUTH ----
+  const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [showAdminPage, setShowAdminPage] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('conscious-compass-apikey') || DEFAULT_API_KEY);
-  const [project, setProject] = useState({
-    brandName: '', websiteUrl: '', 
-    businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0]
-  });
-  const [assessments, setAssessments] = useState({
-    website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-    social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
-    aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
-    earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
-  });
-  const [scores, setScores] = useState(null);
-  const [showSavedPage, setShowSavedPage] = useState(false);
-  const [showResultsPage, setShowResultsPage] = useState(false);
-  const [showComparisonPage, setShowComparisonPage] = useState(false);
-  const [showStayConsciousPage, setShowStayConsciousPage] = useState(false);
-  const [stayConsciousCache, setStayConsciousCache] = useState({ items: [], lastRefreshed: null });
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [savedAssessments, setSavedAssessments] = useState([]);
-  const [compassResults, setCompassResults] = useState([]);
-  const [sharedReport, setSharedReport] = useState(null);
-  const [lastAutoSave, setLastAutoSave] = useState(null);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [showQualification, setShowQualification] = useState(false);
 
-  // Check for existing session on mount
+  // Restore session from Supabase on mount
   useEffect(() => {
-    const checkSession = async () => {
+    const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: profileData } = await getProfile(session.user.id);
-        if (profileData?.is_approved) {
-          setUser(session.user);
-          setProfile(profileData);
-          loadDataFromSupabase();
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles').select('*').eq('id', session.user.id).single();
+        if (profile && profile.active !== false) {
+          setCurrentUser({ ...profile, id: session.user.id });
+        } else {
+          await supabase.auth.signOut();
         }
       }
       setAuthLoading(false);
     };
-    checkSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    init();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setProfile(null);
+        setCurrentUser(null);
+        setCurrentView('home');
+        setCurrentOpportunity(null);
+        setOpportunities([]);
       }
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadDataFromSupabase = async () => {
-    try {
-      const { data: resultsData } = await fetchCompassResults();
-      if (resultsData) {
-        const formattedResults = resultsData.map(r => ({
-          id: r.id,
-          brandName: r.brand_name,
-          businessModel: r.business_model,
-          industry: r.industry,
-          totalScore: r.total_score,
-          maturityLevel: r.maturity_level,
-          scores: r.scores,
-          servicesRecommended: r.services_recommended || [],
-          savedAt: r.created_at,
-          isManual: r.is_manual,
-          assessorName: r.assessor_name,
-          rubricVersion: r.rubric_version || '2.4',
-        }));
-        setCompassResults(formattedResults);
-      }
-
-      const { data: assessmentsData } = await fetchSavedAssessments();
-      if (assessmentsData) {
-        const formattedAssessments = assessmentsData.map(a => ({
-          id: a.id,
-          project: a.project,
-          assessments: a.assessments,
-          scores: a.scores,
-          savedAt: a.created_at,
-        }));
-        setSavedAssessments(formattedAssessments);
-      }
-    } catch (err) {
-      console.error('Error loading data:', err);
-    }
-
-    if (!localStorage.getItem('conscious-compass-onboarded')) {
-      setShowOnboarding(true);
-    }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const sharedData = urlParams.get('report');
-    if (sharedData) {
-      try {
-        const decoded = JSON.parse(atob(sharedData));
-        if (decoded.project && decoded.scores) {
-          setSharedReport(decoded);
-        }
-      } catch (err) {
-        console.error('Failed to parse shared report:', err);
-      }
-    }
-  };
-
-  const handleAuthSuccess = async (authUser, authProfile) => {
-    setUser(authUser);
-    setProfile(authProfile);
-    await loadDataFromSupabase();
-  };
+  const handleLogin = (user) => setCurrentUser(user);
 
   const handleLogout = async () => {
-    await signOut();
-    setUser(null);
-    setProfile(null);
-    setCompassResults([]);
-    setSavedAssessments([]);
+    await supabase.auth.signOut();
+    // onAuthStateChange handles state reset above
   };
 
-  // Persist API key to localStorage whenever it changes
+  // ---- PIPELINE ----
+  const [currentView, setCurrentView] = useState('home'); // home | opportunity | sow-review
+  const [currentStage, setCurrentStage] = useState('research');
+  const [currentOpportunity, setCurrentOpportunity] = useState(null);
+
+  // Opportunities — stored in Supabase opportunities table
+  const [opportunities, setOpportunities] = useState([]);
+
+  // Load user data when user changes
   useEffect(() => {
-    if (apiKey) {
-      localStorage.setItem('conscious-compass-apikey', apiKey);
-    }
-  }, [apiKey]);
+    if (!currentUser) return;
+    setCurrentView('home');
+    setCurrentOpportunity(null);
+    setCurrentStage('research');
 
-  // Auto-save draft every 30 seconds if there's data
+    supabase
+      .from('opportunities')
+      .select('id, data, created_at, updated_at')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setOpportunities(data.map(r => {
+            const opp = { ...r.data, id: r.id };
+            // Backfill oppNumber for older records that don't have one
+            if (!opp.oppNumber) {
+              opp.oppNumber = getNextOppNumber();
+              supabase.from('opportunities').update({ data: { ...r.data, oppNumber: opp.oppNumber } }).eq('id', r.id);
+            }
+            return opp;
+          }));
+        }
+      });
+  }, [currentUser?.id]);
+
+  // Keep a ref in sync with currentOpportunity
+  const currentOpportunityRef = useRef(null);
+  useEffect(() => { currentOpportunityRef.current = currentOpportunity; }, [currentOpportunity]);
+
+  // Keep a ref to currentUser for lastModifiedBy stamping
+  const currentUserRef = useRef(null);
+  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
+
+  // ---- AUTO-SAVE ----
+  // Single reliable save path: watches currentOpportunity state, debounces 1.2s, persists to Supabase.
+  // This replaces all scattered fire-and-forget saves. Any state change automatically triggers a save.
+  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+  const saveTimerRef = useRef(null);
+
   useEffect(() => {
-    const autoSaveInterval = setInterval(() => {
-      if (project.brandName && currentStep > 0) {
-        const draft = { project, assessments, currentStep, savedAt: new Date().toISOString() };
-        localStorage.setItem('conscious-compass-draft', JSON.stringify(draft));
-        setLastAutoSave(new Date());
+    if (!currentOpportunity?.id) return;
+    setSaveStatus('saving');
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const { id, ...data } = currentOpportunity;
+        const { error } = await supabase
+          .from('opportunities')
+          .update({ data })
+          .eq('id', id);
+        if (error) {
+          console.error('[SOW Workbench] Save failed:', error.message, error);
+          setSaveStatus('error');
+        } else {
+          setSaveStatus('saved');
+        }
+      } catch (err) {
+        console.error('[SOW Workbench] Save exception:', err);
+        setSaveStatus('error');
       }
-    }, 30000);
-    return () => clearInterval(autoSaveInterval);
-  }, [project, assessments, currentStep]);
+    }, 1200);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [currentOpportunity]);
 
-  const steps = [
-    { id: 'setup', name: 'Setup' },
-    { id: 'website', name: 'Website' },
-    { id: 'social', name: 'Social' },
-    { id: 'ai', name: 'AI Rep' },
-    { id: 'earned', name: 'Earned' },
-    { id: 'report', name: 'Report' },
-  ];
-
-  const handleNewAssessment = () => {
-    if (confirm('Start a new assessment? Current progress will be lost unless saved.')) {
-      setCurrentStep(0);
-      setShowSavedPage(false);
-      setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
-      setAssessments({
-        website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-        social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
-        aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
-        earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
-      });
-      setScores(null);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!project.brandName) {
-      alert('Please enter a brand name before saving.');
-      return;
-    }
-    try {
-      // Create a copy of assessments without large image data
-      const assessmentsToSave = {
-        ...assessments,
-        website: { ...assessments.website, images: [] },
-        social: { ...assessments.social, socialImages: [], instagramImages: [] },
-      };
-      
-      // Save to Supabase - saved assessments
-      const { error: saveError } = await saveAssessment({
-        project,
-        assessments: assessmentsToSave,
-        scores,
-      });
-      
-      if (saveError) throw saveError;
-
-      // Also save to compass results (summary only)
-      if (scores) {
-        const overall = Math.round(
-          Object.entries(scores)
-            .filter(([key, val]) => val && typeof val.score === 'number')
-            .reduce((a, [, v]) => a + v.score, 0) / 8
-        );
-        const stage = getMaturityStage(overall);
-        const forceIncludeSave = getForceIncludeServicesFromAIReputation(assessments?.aiReputation?.content, assessments);
-        const serviceRecs = getAllRecommendations(scores, { forceIncludeServices: forceIncludeSave });
-        
-        const resultData = {
-          brandName: project.brandName,
-          businessModel: project.businessModel,
-          industry: project.industry,
-          totalScore: overall,
-          maturityLevel: stage.name,
-          scores: {
-            AWAKE: scores.AWAKE?.score || 0,
-            AWARE: scores.AWARE?.score || 0,
-            REFLECTIVE: scores.REFLECTIVE?.score || 0,
-            ATTENTIVE: scores.ATTENTIVE?.score || 0,
-            COGENT: scores.COGENT?.score || 0,
-            SENTIENT: scores.SENTIENT?.score || 0,
-            VISIONARY: scores.VISIONARY?.score || 0,
-            INTENTIONAL: scores.INTENTIONAL?.score || 0,
-          },
-          servicesRecommended: serviceRecs.slice(0, 6).map(r => r.service?.name || '').filter(Boolean),
-          isManual: false,
-          assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
-          rubricVersion: FRAMEWORK_VERSION,
-        };
-        
-        await saveCompassResult(resultData);
-      }
-
-      // Reload data from Supabase
-      await loadDataFromSupabase();
-      
-      alert('Assessment saved!');
-    } catch (e) {
-      console.error('Save failed:', e);
-      alert('Save failed: ' + (e.message || 'Unknown error'));
-    }
-  };
-
-  const handleLoad = (data) => {
-    setProject(data.project);
-    setAssessments(data.assessments);
-    setScores(data.scores);
-    setCurrentStep(data.scores ? 6 : 0);
-    setShowSavedPage(false);
-  };
-
-  const handleRescore = (data) => {
-    if (!apiKey) {
-      const key = prompt('Please enter your Anthropic API key to regenerate scores:');
-      if (!key) {
-        alert('API key is required to regenerate scores.');
-        return;
-      }
-      setApiKey(key);
-    }
-    setProject(data.project);
-    setAssessments(data.assessments);
-    setScores(null); // Clear existing scores so user can regenerate
-    setCurrentStep(6); // Go to Report page (which now handles scoring)
-    setShowSavedPage(false);
-  };
-
-  const handleDelete = async (assessment) => {
-    if (confirm(`Delete assessment for "${assessment.project?.brandName || 'this brand'}"?`)) {
-      if (assessment.id) {
-        await deleteAssessment(assessment.id);
-        await loadDataFromSupabase();
-      }
-    }
-  };
-
-  const handleExport = (assessment) => {
-    const dataStr = JSON.stringify(assessment, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${assessment.project.brandName.replace(/\s+/g, '_')}_assessment.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImport = async (data) => {
-    if (!data.project || !data.assessments) {
-      alert('Invalid file format');
-      return;
-    }
-    
-    await saveAssessment({
-      project: data.project,
-      assessments: data.assessments,
-      scores: data.scores,
-    });
-    
-    await loadDataFromSupabase();
-    alert(`Assessment for "${data.project.brandName}" imported successfully!`);
-  };
-
-  const handleShare = (assessment) => {
-    // Check if AI reputation synthesis indicates GEO should be recommended
-    const aiRepSynthesis = assessment.assessments?.aiReputation?.content || '';
-    const forceIncludeServices = getForceIncludeServicesFromAIReputation(aiRepSynthesis, assessment.assessments);
-    
-    // Include essential assessment summary data (excluding large images)
-    const shareData = {
-      project: assessment.project,
-      scores: assessment.scores,
-      assessmentSummary: {
-        pagesReviewed: assessment.assessments?.website?.pagesReviewed || '',
-        websiteUrl: assessment.assessments?.website?.websiteUrl || assessment.project?.websiteUrl || '',
-        hasLinkedIn: !!assessment.assessments?.social?.linkedinContent,
-        hasX: !!assessment.assessments?.social?.xContent,
-        hasInstagram: !!assessment.assessments?.social?.instagramBio,
-        hasYouTube: !!assessment.assessments?.social?.youtubeContent,
-        hasWikipedia: !!assessment.assessments?.social?.wikipediaContent,
-        hasRedditAnswers: !!assessment.assessments?.social?.redditAnswersContent,
-        hasClaudeAI: !!assessment.assessments?.aiReputation?.claudeManual,
-        hasGeminiAI: !!assessment.assessments?.aiReputation?.geminiManual,
-        hasChatGPT: !!assessment.assessments?.aiReputation?.chatgptManual,
-        hasEarnedMedia: !!assessment.assessments?.earnedMedia?.earnedMediaAnalysis,
-        forceIncludeServices: forceIncludeServices, // Services to force-include based on AI reputation issues
-      },
-      sharedAt: new Date().toISOString()
+  // updateOpportunity: updates state only. The auto-save useEffect above handles persistence.
+  const updateOpportunity = useCallback((updates) => {
+    const prev = currentOpportunityRef.current;
+    if (!prev) return;
+    const user = currentUserRef.current;
+    const modifiedBy = user?.name || user?.email || 'Unknown';
+    const updated = {
+      ...prev,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+      lastModifiedBy: modifiedBy,
+      lastModifiedAt: new Date().toISOString(),
     };
-    const encoded = btoa(JSON.stringify(shareData));
-    const shareUrl = `${window.location.origin}${window.location.pathname}?report=${encoded}`;
-    
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      alert('Share link copied to clipboard!\n\nAnyone with this link can view the assessment report (read-only).');
-    }).catch(() => {
-      prompt('Copy this link to share:', shareUrl);
-    });
+    setCurrentOpportunity(updated);
+    if (updates.currentStage) setCurrentStage(updates.currentStage);
+    setOpportunities(prevOpps => prevOpps.map(o => o.id === updated.id ? updated : o));
+  }, []);
+
+  const selectOpportunity = (opp, goToStage) => {
+    setCurrentOpportunity(opp);
+    setCurrentStage(goToStage || opp.currentStage || 'research');
+    setCurrentView('opportunity');
   };
 
-  const updateAssessment = (key, data) => setAssessments(prev => ({ ...prev, [key]: { ...prev[key], ...data } }));
+  const createOpportunityAndSelect = async (opp) => {
+    if (!currentUser) return;
+    // Strip any client-generated id — Supabase will assign the real UUID
+    const { id: _ignored, ...oppData } = opp;
+    const { data: row, error } = await supabase
+      .from('opportunities')
+      .insert({ user_id: currentUser.id, data: oppData })
+      .select('id')
+      .single();
+    if (error) { console.error('Failed to create opportunity:', error.message); return; }
+    const newOpp = { ...oppData, id: row.id };
+    setOpportunities(prev => [newOpp, ...prev]);
+    setCurrentOpportunity(newOpp);
+    setCurrentStage('research');
+    setCurrentView('opportunity');
+  };
 
-  // Show loading while checking auth
+  const deleteOpportunity = async (id) => {
+    await supabase.from('opportunities').delete().eq('id', id);
+    setOpportunities(prev => prev.filter(o => o.id !== id));
+    if (currentOpportunity?.id === id) { setCurrentOpportunity(null); setCurrentView('home'); }
+  };
+
+  // ---- ROLE ACCESS GUARDS ----
+  const roleInfo = currentUser ? (USER_ROLES[currentUser.role] || USER_ROLES.growth) : null;
+
+  const canAccessStage = (stageId) => roleInfo?.allowedStages.includes(stageId) ?? false;
+
+  const renderStageView = () => {
+    if (!currentOpportunity || !roleInfo) return null;
+    if (!canAccessStage(currentStage)) {
+      return (
+        <div className="max-w-6xl mx-auto px-6 py-20 text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Lock className="w-8 h-8 text-gray-400" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+          <p className="text-gray-500 mb-6">Your <span className="font-semibold">{roleInfo.label}</span> role doesn't include access to this stage.</p>
+          <button onClick={() => { const first = roleInfo.allowedStages[0]; if (first) { setCurrentStage(first); updateOpportunity({ currentStage: first }); } else setCurrentView('home'); }} className="px-6 py-3 bg-[#12161E] text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors">
+            {roleInfo.allowedStages.length > 0 ? `Go to ${PIPELINE_STAGES.find(s => s.id === roleInfo.allowedStages[0])?.label}` : 'Back to Home'}
+          </button>
+        </div>
+      );
+    }
+    const props = { opportunity: currentOpportunity, onUpdate: updateOpportunity };
+    switch (currentStage) {
+      case 'research': return <ResearchView {...props} />;
+      case 'brief': return <BriefView {...props} />;
+      case 'proposal': return <ProposalView {...props} />;
+      case 'sow': return <SOWGenerateView {...props} />;
+      case 'handover': return <HandoverView {...props} />;
+      default: return <ResearchView {...props} />;
+    }
+  };
+
+  // ---- NOT LOGGED IN / LOADING ----
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#E8E6E1] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#E8E6E1' }}>
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#E53935]" />
-          <p className="mt-4 text-[#666666]">Loading...</p>
+          <AntennaLogo className="h-10 mx-auto mb-6 opacity-70" />
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400 mx-auto" />
         </div>
       </div>
     );
   }
+  if (!currentUser) return <LoginView onLogin={handleLogin} />;
 
-  // Show shared report if accessed via share link (BEFORE auth check - allows public viewing)
-  if (sharedReport) {
-    return <SharedReportView report={sharedReport} onClose={() => {
-      setSharedReport(null);
-      window.history.replaceState({}, '', window.location.pathname);
-    }} />;
-  }
-
-  // Show auth page if not logged in
-  if (!user || !profile) {
-    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
-  }
-
-  // Show admin page
-  if (showAdminPage) {
-    return <AdminPage currentUser={user} onBack={() => setShowAdminPage(false)} />;
-  }
-
-  // Show Stay Conscious page
-  if (showStayConsciousPage) {
+  // ---- REVIEWER ONLY LAYOUT ----
+  if (currentUser.role === 'reviewer') {
     return (
-      <div className="min-h-screen bg-[#E8E6E1]">
-        <Header 
-          onNewAssessment={handleNewAssessment}
-          onSavedAssessments={() => { setShowStayConsciousPage(false); setShowSavedPage(true); }}
-          onCompassResults={() => { setShowStayConsciousPage(false); setShowResultsPage(true); }}
-          onComparison={() => { setShowStayConsciousPage(false); setShowComparisonPage(true); }}
-          onStayConscious={() => setShowStayConsciousPage(false)}
-          activePage="stay-conscious"
-          lastAutoSave={lastAutoSave}
-          user={user}
-          profile={profile}
-          onLogout={handleLogout}
-          onAdmin={() => setShowAdminPage(true)}
-        />
-        <StayConsciousPage
-          onBack={() => setShowStayConsciousPage(false)}
-          cachedItems={stayConsciousCache.items}
-          cachedLastRefreshed={stayConsciousCache.lastRefreshed}
-          onCacheUpdate={(items, lastRefreshed) => setStayConsciousCache({ items, lastRefreshed })}
-          isAdmin={profile?.is_admin}
-        />
+      <div className="min-h-screen" style={{ backgroundColor: '#E8E6E1' }}>
+        <header className="border-b border-gray-200 sticky top-0 z-20" style={{ backgroundColor: '#E8E6E1' }}>
+          <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <AntennaLogo className="h-8" />
+            <UserMenu currentUser={currentUser} onLogout={handleLogout} onOpenAdmin={() => {}} />
+          </div>
+        </header>
+        <main className="max-w-7xl mx-auto px-8 py-10">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="px-3 py-1.5 bg-amber-100 border border-amber-200 rounded-lg flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-600" />
+              <span className="text-sm font-medium text-amber-800">Reviewer Access — SOW Review Only</span>
+            </div>
+          </div>
+          <SOWReviewView />
+        </main>
       </div>
     );
   }
 
-  // Show comparison page
-  if (showComparisonPage) {
-    return (
-      <div className="min-h-screen bg-[#E8E6E1]">
-        <Header 
-          onNewAssessment={handleNewAssessment} 
-          onSavedAssessments={() => { setShowComparisonPage(false); setShowSavedPage(true); }}
-          onCompassResults={() => { setShowComparisonPage(false); setShowResultsPage(true); }}
-          onComparison={() => setShowComparisonPage(false)}
-          onStayConscious={() => { setShowComparisonPage(false); setShowStayConsciousPage(true); }}
-          activePage="compare"
-          lastAutoSave={lastAutoSave}
-          user={user}
-          profile={profile}
-          onLogout={handleLogout}
-          onAdmin={() => setShowAdminPage(true)}
-        />
-        <ComparisonPage 
-          results={compassResults}
-          onBack={() => setShowComparisonPage(false)}
-        />
-      </div>
-    );
-  }
-
-  // Show compass results page
-  if (showResultsPage) {
-    return (
-      <div className="min-h-screen bg-[#E8E6E1]">
-        <Header 
-          onNewAssessment={handleNewAssessment} 
-          onSavedAssessments={() => { setShowResultsPage(false); setShowSavedPage(true); }}
-          onCompassResults={() => setShowResultsPage(false)}
-          onComparison={() => { setShowResultsPage(false); setShowComparisonPage(true); }}
-          onStayConscious={() => { setShowResultsPage(false); setShowStayConsciousPage(true); }}
-          activePage="results"
-          lastAutoSave={lastAutoSave}
-          user={user}
-          profile={profile}
-          onLogout={handleLogout}
-          onAdmin={() => setShowAdminPage(true)}
-        />
-        <CompassResultsPage 
-          results={compassResults}
-          onBack={() => setShowResultsPage(false)}
-          onUpdateResults={async (val) => { if (val === null) await loadDataFromSupabase(); else setCompassResults(val); }}
-          profile={profile}
-          user={user}
-        />
-      </div>
-    );
-  }
-
-  // Show saved assessments page
-  if (showSavedPage) {
-    return (
-      <div className="min-h-screen bg-[#E8E6E1]">
-        <Header 
-          onNewAssessment={handleNewAssessment} 
-          onSavedAssessments={() => setShowSavedPage(false)}
-          onCompassResults={() => { setShowSavedPage(false); setShowResultsPage(true); }}
-          onComparison={() => { setShowSavedPage(false); setShowComparisonPage(true); }}
-          onStayConscious={() => { setShowSavedPage(false); setShowStayConsciousPage(true); }}
-          activePage="saved"
-          lastAutoSave={lastAutoSave}
-          user={user}
-          profile={profile}
-          onLogout={handleLogout}
-          onAdmin={() => setShowAdminPage(true)}
-        />
-        <SavedAssessmentsPage 
-          assessments={savedAssessments} 
-          onLoad={handleLoad} 
-          onDelete={handleDelete}
-          onBack={() => setShowSavedPage(false)}
-          onImport={handleImport}
-          onExport={handleExport}
-          onShare={handleShare}
-          onRescore={handleRescore}
-          profile={profile}
-        />
-      </div>
-    );
-  }
-
-  // Check if user is read-only (not admin)
-  const isReadonly = profile?.is_readonly && !profile?.is_admin;
-
+  // ---- MAIN LAYOUT ----
   return (
-    <div className="min-h-screen bg-[#E8E6E1]">
-      {/* Onboarding Tour */}
-      {showOnboarding && !isReadonly && (
-        <OnboardingTour onComplete={() => setShowOnboarding(false)} />
-      )}
-      
-      <Header 
-        onNewAssessment={handleNewAssessment} 
-        onSavedAssessments={() => setShowSavedPage(true)}
-        onCompassResults={() => setShowResultsPage(true)}
-        onComparison={() => setShowComparisonPage(true)}
-        onStayConscious={() => setShowStayConsciousPage(true)}
-        activePage={null}
-        lastAutoSave={lastAutoSave}
-        user={user}
-        profile={profile}
-        onLogout={handleLogout}
-        onAdmin={() => setShowAdminPage(true)}
-      />
-      
-      {/* Read-only users see simplified welcome page, unless they've loaded a report */}
-      {isReadonly ? (
-        currentStep === 6 && scores ? (
-          <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(0)} profile={profile} />
-        ) : (
-          <ReadOnlyWelcomePage 
-            onCompassResults={() => setShowResultsPage(true)}
-            onComparison={() => setShowComparisonPage(true)}
-            onSavedAssessments={() => setShowSavedPage(true)}
+    <div className="min-h-screen" style={{ backgroundColor: '#E8E6E1' }}>
+      {showAdmin && <AdminView currentUser={currentUser} onClose={() => setShowAdmin(false)} />}
+      {showQualification && <QualificationModal onClose={() => setShowQualification(false)} />}
+
+      {/* Header */}
+      <header className="border-b border-gray-200/80 sticky top-0 z-20" style={{ backgroundColor: '#E8E6E1' }}>
+        <div className="max-w-7xl mx-auto px-8 py-0">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setCurrentView('home')} className="hover:opacity-80 transition-opacity">
+                <AntennaLogo className="h-7" />
+              </button>
+              <div className="h-5 w-px bg-gray-300" />
+              <span className="text-sm font-semibold text-[#12161E] tracking-tight">SOW Workbench</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {currentView === 'opportunity' && currentOpportunity && (
+                <button onClick={() => { setCurrentOpportunity(null); setCurrentView('home'); }} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                  <ChevronLeft className="w-4 h-4" />All Opportunities
+                </button>
+              )}
+              {currentView === 'opportunity' && currentOpportunity && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  {saveStatus === 'saving' && <><Loader2 className="w-3 h-3 animate-spin text-gray-400" /><span className="text-gray-400">Saving...</span></>}
+                  {saveStatus === 'saved' && <><CheckCircle className="w-3 h-3 text-green-500" /><span className="text-green-600">Saved</span></>}
+                  {saveStatus === 'error' && <><AlertCircle className="w-3 h-3 text-red-500" /><span className="text-red-600 font-medium">Save failed — check console</span></>}
+                </div>
+              )}
+              {currentView === 'sow-review' && (
+                <button onClick={() => setCurrentView('home')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                  <ChevronLeft className="w-4 h-4" />Back
+                </button>
+              )}
+              <button
+                onClick={() => setShowQualification(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-[#12161E] hover:text-[#12161E] transition-all"
+              >
+                <TableProperties className="w-3.5 h-3.5" />Qualified?
+              </button>
+              <UserMenu currentUser={currentUser} onLogout={handleLogout} onOpenAdmin={() => setShowAdmin(true)} />
+            </div>
+          </div>
+        </div>
+
+        {/* Stage Progress Bar */}
+        {currentView === 'opportunity' && currentOpportunity && (
+          <StageProgress
+            currentStage={currentStage}
+            opportunity={currentOpportunity}
+            allowedStages={roleInfo?.allowedStages || []}
+            onStageClick={(stageId) => {
+              if (!canAccessStage(stageId)) return;
+              setCurrentStage(stageId);
+              updateOpportunity({ currentStage: stageId });
+            }}
           />
-        )
-      ) : (
-        <>
-          {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
+        )}
+      </header>
 
-          {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
-          {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} onBack={() => setCurrentStep(0)} />}
-          {currentStep === 2 && <WebsiteAssessment assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
-          {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
-          {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
-          {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
-          {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} />}
-        </>
-      )}
+      {/* Main Content */}
+      <main>
+        {currentView === 'home' && (
+          <HomeView
+            opportunities={opportunities}
+            onSelectOpportunity={selectOpportunity}
+            onCreateOpportunity={createOpportunityAndSelect}
+            onDeleteOpportunity={deleteOpportunity}
+            onOpenReview={roleInfo?.canAccessSOWReview ? () => setCurrentView('sow-review') : null}
+            onOpenQualification={() => setShowQualification(true)}
+            currentUser={currentUser}
+            roleInfo={roleInfo}
+          />
+        )}
+        {currentView === 'opportunity' && renderStageView()}
+        {currentView === 'sow-review' && (
+          roleInfo?.canAccessSOWReview
+            ? <SOWReviewView />
+            : <div className="max-w-xl mx-auto py-20 text-center"><Lock className="w-10 h-10 text-gray-300 mx-auto mb-4" /><p className="text-gray-500">Your role doesn't include SOW Review access.</p></div>
+        )}
+      </main>
     </div>
-  );
-}
-
-
-// App wrapped with ErrorBoundary for production error handling
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <AppContent />
-    </ErrorBoundary>
   );
 }
