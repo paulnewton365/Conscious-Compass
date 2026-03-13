@@ -8323,6 +8323,63 @@ function AppContent() {
   const [compassResults, setCompassResults] = useState([]);
   const [sharedReport, setSharedReport] = useState(null);
   const [lastAutoSave, setLastAutoSave] = useState(null);
+  const [draftRestoreOffer, setDraftRestoreOffer] = useState(null); // { project, assessments, scores, currentStep, savedAt }
+
+  // Draft key scoped to user
+  const getDraftKey = (userId) => `cc-draft-${userId}`;
+
+  // Auto-save draft to localStorage whenever assessment state changes
+  useEffect(() => {
+    if (!user || currentStep === 0 || !project.brandName) return;
+    const key = getDraftKey(user.id);
+    try {
+      const draft = {
+        project,
+        assessments: {
+          ...assessments,
+          website: { ...assessments.website, images: [] },
+          social: { ...assessments.social, socialImages: [], instagramImages: [] },
+        },
+        scores,
+        currentStep,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(key, JSON.stringify(draft));
+      setLastAutoSave(new Date());
+    } catch (e) {
+      // localStorage quota exceeded — silently ignore
+    }
+  }, [project, assessments, scores, currentStep, user]);
+
+  // Check for saved draft when user logs in
+  useEffect(() => {
+    if (!user) return;
+    const key = getDraftKey(user.id);
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      // Only offer restore if there's a real brand name and it's not step 0
+      if (draft.project?.brandName && draft.currentStep > 0) {
+        setDraftRestoreOffer(draft);
+      }
+    } catch (e) {
+      localStorage.removeItem(getDraftKey(user.id));
+    }
+  }, [user]);
+
+  const clearDraft = () => {
+    if (user) localStorage.removeItem(getDraftKey(user.id));
+    setDraftRestoreOffer(null);
+  };
+
+  const restoreDraft = (draft) => {
+    setProject(draft.project);
+    setAssessments(draft.assessments);
+    setScores(draft.scores || null);
+    setCurrentStep(draft.currentStep || 1);
+    setDraftRestoreOffer(null);
+  };
 
   // Check for existing session on mount
   useEffect(() => {
@@ -8448,6 +8505,7 @@ function AppContent() {
 
   const handleNewAssessment = () => {
     if (confirm('Start a new assessment? Current progress will be lost unless saved.')) {
+      clearDraft();
       setCurrentStep(0);
       setShowSavedPage(false);
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
@@ -8529,7 +8587,7 @@ function AppContent() {
 
       // Reload data from Supabase
       await loadDataFromSupabase();
-      
+      clearDraft();
       alert('Assessment saved!');
     } catch (e) {
       console.error('Save failed:', e);
@@ -8821,6 +8879,35 @@ function AppContent() {
       ) : (
         <>
           {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
+
+          {/* Draft restore banner */}
+          {currentStep === 0 && draftRestoreOffer && (
+            <div className="max-w-2xl mx-auto px-4 pt-6">
+              <div className="flex items-start gap-4 bg-[#FFFBEB] border border-[#FCD34D] rounded-xl px-5 py-4 shadow-sm">
+                <span className="text-2xl leading-none mt-0.5">🔄</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-[#92400E] text-sm">Unsaved assessment found</p>
+                  <p className="text-xs text-[#B45309] mt-0.5">
+                    <strong>{draftRestoreOffer.project.brandName}</strong> — Step {draftRestoreOffer.currentStep} of 5 · Last saved {new Date(draftRestoreOffer.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => restoreDraft(draftRestoreOffer)}
+                      className="px-4 py-1.5 text-xs font-semibold bg-[#1A1A1A] text-white rounded hover:bg-[#333333] transition-colors"
+                    >
+                      Resume assessment
+                    </button>
+                    <button
+                      onClick={clearDraft}
+                      className="px-4 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#666666] rounded hover:bg-[#F0EEEA] transition-colors"
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
           {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} onBack={() => setCurrentStep(0)} />}
