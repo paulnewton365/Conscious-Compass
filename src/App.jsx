@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.14.57';
+const APP_VERSION = '2.14.58';
 import { 
   supabase, 
   signUp, 
@@ -638,7 +638,7 @@ function SpiderChart({ scores, size = 400, animate = true }) {
     if (!animate) { setProgress(1); return; }
     // Small delay so the page has painted before the animation begins
     const delay = setTimeout(() => {
-      const duration = 1200;
+      const duration = 2500;
       const start = Date.now();
       const tick = () => {
         const elapsed = Date.now() - start;
