@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.14.55';
+const APP_VERSION = '2.14.56';
 import { 
   supabase, 
   signUp, 
@@ -635,17 +635,11 @@ function SpiderChart({ scores, size = 400, animate = true }) {
   const containerRef = useRef(null);
   const [inView, setInView] = useState(!animate); // if animate=false, treat as already in view
 
-  // IntersectionObserver — triggers animation once on scroll into view
+  // Trigger animation shortly after mount so it plays on initial load
   useEffect(() => {
     if (!animate) return;
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setInView(true); observer.disconnect(); } },
-      { threshold: 0.1 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    const t = setTimeout(() => setInView(true), 150);
+    return () => clearTimeout(t);
   }, [animate]);
 
   // Map scores to the data format the chart expects
