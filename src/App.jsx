@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.14.56';
+const APP_VERSION = '2.14.57';
 import { 
   supabase, 
   signUp, 
@@ -632,36 +632,44 @@ IMPORTANT FORMATTING RULES:
 
 // Spider Chart Component
 function SpiderChart({ scores, size = 400, animate = true }) {
-  const containerRef = useRef(null);
-  const [inView, setInView] = useState(!animate); // if animate=false, treat as already in view
+  const [progress, setProgress] = useState(animate ? 0 : 1);
 
-  // Trigger animation shortly after mount so it plays on initial load
   useEffect(() => {
-    if (!animate) return;
-    const t = setTimeout(() => setInView(true), 150);
-    return () => clearTimeout(t);
-  }, [animate]);
+    if (!animate) { setProgress(1); return; }
+    // Small delay so the page has painted before the animation begins
+    const delay = setTimeout(() => {
+      const duration = 1200;
+      const start = Date.now();
+      const tick = () => {
+        const elapsed = Date.now() - start;
+        const raw = Math.min(elapsed / duration, 1);
+        // Ease-out cubic
+        const eased = 1 - Math.pow(1 - raw, 3);
+        setProgress(eased);
+        if (raw < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }, 150);
+    return () => clearTimeout(delay);
+  }, [animate, scores]);
 
-  // Map scores to the data format the chart expects
   const data = ATTRIBUTES.map(attr => ({
     name: attr.name,
-    value: scores?.[attr.id]?.score || 0,
+    value: (scores?.[attr.id]?.score || 0) * progress,
+    rawValue: scores?.[attr.id]?.score || 0,
   }));
 
-  // Overall score for center display
   const overall = scores ? Math.round(
     ATTRIBUTES.filter(a => scores[a.id]?.score !== undefined)
       .reduce((sum, a) => sum + (scores[a.id]?.score || 0), 0) / 8
   ) : 0;
 
-  // ── Geometry (preserved exactly from source) ──────────
   const RING_PATHS = [
     "M226 169.75L186.225 186.225L169.75 226L186.225 265.775L206.113 274.012L226 282.25L265.775 265.775L282.25 226L265.775 186.225L226 169.75Z",
     "M226 113.5L146.451 146.451L113.5 226L146.451 305.549L226 338.5L305.549 305.549L338.5 226L305.549 146.451L226 113.5Z",
     "M226 57.25L106.676 106.676L57.25 226L106.676 345.324L226 394.75L345.324 345.324L394.75 226L345.324 106.676L226 57.25Z",
     "M226 1L66.901 66.901L1 226L66.901 385.099L226 451L385.099 385.099L451 226L385.099 66.901L226 1Z",
   ];
-  const GRID_PATH = RING_PATHS.join('');
 
   const calculateLabelPosition = (index, total, radius) => {
     const angle = (index * 2 * Math.PI / total) - Math.PI / 2;
@@ -669,8 +677,7 @@ function SpiderChart({ scores, size = 400, animate = true }) {
     const actualRadius = isCardinal ? 235 : radius;
     const x = 226 + actualRadius * Math.cos(angle);
     const y = 226 + actualRadius * Math.sin(angle);
-    let textAnchor = "middle";
-    let dy = "0";
+    let textAnchor = "middle", dy = "0";
     if (!isCardinal) {
       if (Math.cos(angle) < 0) return { x: x + 10, y, textAnchor: "end", dy };
       if (Math.cos(angle) > 0) return { x: x - 10, y, textAnchor: "start", dy };
@@ -690,47 +697,40 @@ function SpiderChart({ scores, size = 400, animate = true }) {
   });
   const pointsString = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
 
-  const inViewClass = inView ? 'cc-in-view' : '';
-
   return (
-    <div ref={containerRef} style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: '#efede9' }}>
+    <div style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: '#efede9' }}>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -50 652 552" style={{ width: '100%', height: '100%' }}>
 
-        {/* Background rings — bottom layer */}
+        {/* Background rings */}
         {[...RING_PATHS].reverse().map((path, i) => (
           <path key={`ring-${i}`} d={path}
-            fill={i % 2 === 0 ? '#e1dfda' : '#f7f6f4'} stroke="none"
-            className={`cc-animate-scale ${inViewClass}`}
-            style={{ animationDelay: `${0.1 * i}s` }} />
+            fill={i % 2 === 0 ? '#e1dfda' : '#f7f6f4'} stroke="none" />
         ))}
 
         {/* Data shape */}
-        <polygon points={pointsString}
-          fill="#E2E65A" stroke="#CFD32F" strokeWidth="1"
-          className={`cc-animate-scale ${inViewClass}`} />
+        <polygon points={pointsString} fill="#E2E65A" stroke="#CFD32F" strokeWidth="1" />
 
-        {/* Data point circles */}
-        {dataPoints.map((point, i) => (
-          <circle key={`pt-${i}`} cx={point.x} cy={point.y} r="4"
-            fill="#CFD32F" stroke="white" strokeWidth="1.5"
-            className={`cc-point-appear ${inViewClass}`} />
-        ))}
+        {/* Grid outlines */}
+        <path d={RING_PATHS.join('')} stroke="#111720" strokeWidth="1.5" fill="none" />
 
-        {/* Grid outlines + centre lines — top layer */}
-        <path d={GRID_PATH} stroke="#111720" strokeWidth="1.5" fill="none"
-          className={`cc-grid-appear ${inViewClass}`} />
+        {/* Centre axis lines */}
         {data.map((_, i) => {
           const angle = (i * 2 * Math.PI / data.length) - Math.PI / 2;
           return (
             <line key={`axis-${i}`} x1="226" y1="226"
               x2={226 + 225 * Math.cos(angle)} y2={226 + 225 * Math.sin(angle)}
-              stroke="#111720" strokeOpacity="0.1" strokeWidth="1.5"
-              className={`cc-grid-appear ${inViewClass}`}
-              style={{ animationDelay: `${0.1 * i}s` }} />
+              stroke="#111720" strokeOpacity="0.1" strokeWidth="1.5" />
           );
         })}
 
-        {/* Score values near each data point */}
+        {/* Data point circles */}
+        {dataPoints.map((point, i) => (
+          <circle key={`pt-${i}`} cx={point.x} cy={point.y} r="4"
+            fill="#CFD32F" stroke="white" strokeWidth="1.5"
+            style={{ opacity: progress }} />
+        ))}
+
+        {/* Score values */}
         {dataPoints.map((point, i) => {
           const angle = (i * 2 * Math.PI / data.length) - Math.PI / 2;
           const offset = 18;
@@ -739,31 +739,28 @@ function SpiderChart({ scores, size = 400, animate = true }) {
               x={point.x + offset * Math.cos(angle)}
               y={point.y + offset * Math.sin(angle)}
               textAnchor="middle" dominantBaseline="middle"
-              style={{ fontSize: '13px', fontWeight: '700', fill: '#6B6B00' }}
-              className={`cc-label-appear ${inViewClass}`}>
-              {data[i].value}
+              style={{ fontSize: '13px', fontWeight: '700', fill: '#6B6B00', opacity: progress }}>
+              {data[i].rawValue}
             </text>
           );
         })}
 
-        {/* Attribute labels */}
+        {/* Attribute labels — always visible */}
         {data.map((item, i) => {
           const pos = calculateLabelPosition(i, data.length, 260);
           return (
             <text key={`label-${i}`} x={pos.x} y={pos.y}
               textAnchor={pos.textAnchor} dy={pos.dy}
-              fill="#111720" style={{ fontSize: '15px', fontWeight: '500' }}
-              className={`cc-label-appear ${inViewClass}`}>
+              fill="#111720" style={{ fontSize: '15px', fontWeight: '500' }}>
               {item.name}
             </text>
           );
         })}
 
         {/* Centre score */}
-        <circle cx="226" cy="226" r="36" fill="#CFD32F" className={`cc-animate-scale ${inViewClass}`} />
+        <circle cx="226" cy="226" r="36" fill="#CFD32F" />
         <text x="226" y="226" textAnchor="middle" dominantBaseline="middle"
-          style={{ fontSize: '28px', fontWeight: '700', fill: '#111720' }}
-          className={`cc-label-appear ${inViewClass}`}>
+          style={{ fontSize: '28px', fontWeight: '700', fill: '#111720' }}>
           {overall}
         </text>
 
