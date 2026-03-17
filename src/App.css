@@ -40,3 +40,42 @@
 .read-the-docs {
   color: #888;
 }
+
+/* ── Custom Octagon Radar Chart ───────────────────────── */
+@keyframes cc-scaleUp {
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
+}
+@keyframes cc-fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes cc-drawStroke {
+  from { stroke-dashoffset: 3000; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.cc-animate-scale {
+  transform-origin: 226px 226px;
+  opacity: 0;
+  transform: scale(0);
+}
+.cc-animate-scale.cc-in-view {
+  animation: cc-scaleUp 0.8s ease-out forwards 0.4s;
+  opacity: 1;
+}
+.cc-grid-appear {
+  stroke-dasharray: 3000;
+  stroke-dashoffset: 3000;
+}
+.cc-grid-appear.cc-in-view {
+  animation: cc-drawStroke 1.5s ease-out forwards;
+}
+.cc-point-appear { opacity: 0; }
+.cc-point-appear.cc-in-view {
+  animation: cc-fadeIn 0.3s ease-out forwards 1.2s;
+}
+.cc-label-appear { opacity: 0; }
+.cc-label-appear.cc-in-view {
+  animation: cc-fadeIn 0.5s ease-out forwards 1.5s;
+}
