@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.14.67';
+const APP_VERSION = '2.14.68';
 import { 
   supabase, 
   signUp, 
@@ -1461,6 +1461,19 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
             {INDUSTRIES.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
           <p className="text-xs text-[#666666] mt-1">Used for industry context in the assessment</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Assessor Context</label>
+          <textarea
+            value={project.assessorContext || ''}
+            onChange={(e) => setProject({ ...project, assessorContext: e.target.value })}
+            rows={5}
+            placeholder={`Add any context that will help produce a more relevant and accurate assessment. For example:\n\n- Key competitors: [names]\n- What the client has told you about their challenges\n- Their strategic goals (new markets, repositioning, launch)\n- Known sensitivities or live issues to be aware of\n- The purpose of this assessment (new business, existing client review, benchmark)`}
+            className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white text-sm leading-relaxed resize-y"
+            style={{ minHeight: '120px' }}
+          />
+          <p className="text-xs text-[#666666] mt-1">Optional but recommended. This context is included in the scoring and shapes the relevance of findings and recommendations.</p>
         </div>
 
         {/* Only show API key field if no default is configured */}
@@ -3928,6 +3941,7 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     };
 
     const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}.
+${project.assessorContext ? `\nASSESSOR CONTEXT (provided by the human assessor — use this to shape relevance of findings and recommendations):\n${project.assessorContext}\n` : ''}
 
 ASSESSMENT DATA:
 
@@ -5261,6 +5275,10 @@ ${content.slice(0, 8000)}`;
             // ── WHAT WE EVALUATED ─────────────────────────────────
             h2('What We Evaluated'),
             body(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescriptionDocx} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${INDUSTRIES.find(i => i.id === project.industry)?.name || project.industry}) were applied to weight attribute importance appropriately.`),
+            ...(project.assessorContext ? [
+              new Paragraph({ spacing: { before: 80, after: 60 }, children: [new TextRun({ text: 'Assessor Context', bold: true, size: 20, font: 'Inter' })] }),
+              body(clean(project.assessorContext)),
+            ] : []),
 
             // ── ATTRIBUTE ANALYSIS ───────────────────────────────
             h2('Attribute Analysis', true),
@@ -8445,7 +8463,7 @@ function AppContent() {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('conscious-compass-apikey') || DEFAULT_API_KEY);
   const [project, setProject] = useState({
     brandName: '', websiteUrl: '', 
-    businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0]
+    businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: ''
   });
   const [assessments, setAssessments] = useState({
     website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
@@ -8649,7 +8667,7 @@ function AppContent() {
       clearDraft();
       setCurrentStep(0);
       setShowSavedPage(false);
-      setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0] });
+      setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '' });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
         social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
