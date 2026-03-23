@@ -6818,6 +6818,9 @@ function LandscapeView({ results, industries }) {
   const animKey = selectedYears.join('-');
 
   const [hoveredDot, setHoveredDot] = useState(null); // { attrId, sectorKey, name, score, color, pct }
+  const [landscapeAI, setLandscapeAI] = useState(null); // { summary, insights[] }
+  const [landscapeAILoading, setLandscapeAILoading] = useState(false);
+  const [landscapeAIError, setLandscapeAIError] = useState(null);
 
   // Active sector = pinned takes priority over hover
   const activeSector = pinnedSector || highlightSector;
@@ -6954,6 +6957,111 @@ function LandscapeView({ results, industries }) {
       };
     }),
   [sectors, overallAvg]);
+
+  const generateLandscapeAI = async () => {
+    setLandscapeAILoading(true);
+    setLandscapeAIError(null);
+    setLandscapeAI(null);
+
+    // Cross-sector spread per attribute
+    const spreadData = ATTRIBUTES.map(attr => {
+      const vals = sectors.map(s => s.attrAvgs[attr.id] || 0);
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const mean = overallAvg[attr.id] || 0;
+      const spread = max - min;
+      // Cluster coefficient: stdev relative to mean — low = clustered, high = spread
+      const variance = vals.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / vals.length;
+      const stdev = Math.round(Math.sqrt(variance));
+      return { attr: attr.id, min, max, mean, spread, stdev };
+    }).sort((a, b) => b.spread - a.spread);
+
+    const prompt = `You are a senior brand strategist at Antenna Group analysing Brand Consciousness assessment data across multiple sectors. Your job is to interpret what the data is telling us — not to give generic advice, but to read the actual numbers and surface what is genuinely interesting, surprising, or strategically significant.
+
+Brand Consciousness has 8 attributes:
+AWAKE (Narrative Leadership), AWARE (Audience Understanding), REFLECTIVE (Authenticity), ATTENTIVE (Experience Quality), COGENT (Strategic Intelligence), SENTIENT (Emotional Connection), VISIONARY (Future Vision), INTENTIONAL (Organisational Credibility).
+
+Maturity stages: 0–25 Pre-Foundational, 26–39 Foundational, 40–55 Establishing, 56–69 Differentiating, 70–84 Leading, 85–100 Transforming.
+
+LANDSCAPE OVERVIEW:
+${filteredResults.length} brands assessed across ${sectors.length} sectors.
+Overall average score: ${overallScore}/100 (${overallScore >= 85 ? 'Transforming' : overallScore >= 70 ? 'Leading' : overallScore >= 56 ? 'Differentiating' : overallScore >= 40 ? 'Establishing' : overallScore >= 26 ? 'Foundational' : 'Pre-Foundational'})
+
+SECTOR AVERAGES (sorted highest to lowest):
+${sectors.map(s => `  ${s.name} (${s.count}b): ${s.avgScore}`).join('\n')}
+
+FULL SECTOR × ATTRIBUTE MATRIX:
+${sectors.map(s => {
+  const row = ATTRIBUTES.map(a => `${a.name.slice(0,3).toUpperCase()}:${s.attrAvgs[a.id]}`).join('  ');
+  return `  ${s.name}: ${row}`;
+}).join('\n')}
+
+ATTRIBUTE SPREAD ACROSS SECTORS (sorted by spread — how much scores diverge between sectors):
+High spread = sectors diverge significantly on this attribute.
+Low spread = all sectors perform similarly.
+${spreadData.map(c => `  ${c.attr}: spread ${c.spread}pts | min ${c.min} → max ${c.max} | mean ${c.mean} | stdev ${c.stdev}`).join('\n')}
+
+OVERALL ATTRIBUTE AVERAGES (all brands combined):
+${ATTRIBUTES.map(a => `  ${a.id}: ${overallAvg[a.id] || 0}`).join('\n')}
+
+Write a structured analysis in three sections. Use plain prose — no bullet points, no markdown headers, no em dashes. Write directly and confidently.
+
+SECTION 1 — LANDSCAPE SUMMARY (2–3 sentences)
+Summarise the overall picture. What maturity level does this landscape represent? Is there a dominant pattern?
+
+SECTION 2 — SECTOR ANALYSIS (one short paragraph per sector)
+For each sector, describe where it is strong, where it is weak, and what that pattern says about the sector's brand consciousness profile. Reference specific attribute scores where they are notable.
+
+SECTION 3 — KEY INSIGHTS (3–4 insights)
+Each insight should be a short punchy heading followed by 1–2 sentences of explanation. Focus on: attributes with high spread (where sectors diverge most), universal gaps (low-scoring attributes across all sectors), unexpected strengths or contradictions, and what the overall clustering or spread of scores tells us about maturity across the landscape.
+
+Label each section clearly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHTS".`;
+
+    try {
+      const storedKey = localStorage.getItem('conscious-compass-apikey');
+      const useProxy = !storedKey || storedKey === 'PROXY';
+      let text;
+
+      if (useProxy) {
+        const res = await fetch('/api/claude', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, max_tokens: 2000, temperature: 0 }),
+        });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Request failed (${res.status})`); }
+        const d = await res.json();
+        text = d.text || d.content?.[0]?.text || '';
+      } else {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': storedKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000, temperature: 0, messages: [{ role: 'user', content: prompt }] }),
+        });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || `Request failed (${res.status})`); }
+        const d = await res.json();
+        text = d.content?.[0]?.text || '';
+      }
+
+      // Parse the three sections out of the response
+      const extractSection = (label, nextLabel) => {
+        const start = text.indexOf(label);
+        if (start === -1) return '';
+        const end = nextLabel ? text.indexOf(nextLabel, start + label.length) : text.length;
+        return text.slice(start + label.length, end === -1 ? text.length : end).trim();
+      };
+
+      setLandscapeAI({
+        summary: extractSection('LANDSCAPE SUMMARY', 'SECTOR ANALYSIS'),
+        sectorAnalysis: extractSection('SECTOR ANALYSIS', 'KEY INSIGHTS'),
+        insights: extractSection('KEY INSIGHTS', null),
+        raw: text,
+      });
+    } catch (e) {
+      setLandscapeAIError(e.message || 'Analysis failed. Please try again.');
+    } finally {
+      setLandscapeAILoading(false);
+    }
+  };
 
   if (!results.length) {
     return (
@@ -7598,6 +7706,67 @@ function LandscapeView({ results, industries }) {
           })}
         </div>
       </div>
+
+      {/* AI Landscape Analysis */}
+      <div className="bg-[#1A1A1A] rounded p-6">
+        <div className="flex items-start justify-between gap-4 mb-2">
+          <div>
+            <h3 className="font-semibold text-white">Landscape Analysis</h3>
+            <p className="text-xs text-[#9CA3AF] mt-1">
+              AI-powered read of industry averages, attribute spread, sector strengths and gaps, and what it all means.
+            </p>
+          </div>
+          <button
+            onClick={generateLandscapeAI}
+            disabled={landscapeAILoading || sectors.length === 0}
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#E8FF00', color: '#1A1A1A' }}
+          >
+            {landscapeAILoading ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Analysing…</>
+            ) : (
+              <><Sparkles className="w-4 h-4" /> {landscapeAI ? 'Refresh' : 'Analyse Landscape'}</>
+            )}
+          </button>
+        </div>
+
+        {landscapeAIError && (
+          <div className="mt-4 p-4 rounded text-sm" style={{ backgroundColor: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.3)', color: '#FCA5A5' }}>
+            {landscapeAIError}
+          </div>
+        )}
+
+        {!landscapeAI && !landscapeAILoading && !landscapeAIError && (
+          <div className="mt-6 text-center py-8 border border-dashed border-[#333] rounded">
+            <Sparkles className="w-8 h-8 text-[#444] mx-auto mb-3" />
+            <p className="text-sm text-[#666]">Click Analyse Landscape to generate an AI interpretation of the data.</p>
+          </div>
+        )}
+
+        {landscapeAI && (
+          <div className="mt-5 space-y-4">
+            <div className="p-4 rounded" style={{ backgroundColor: 'rgba(232,255,0,0.08)', border: '1px solid rgba(232,255,0,0.2)' }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#E8FF00' }}>Landscape Summary</div>
+              <p className="text-sm leading-relaxed" style={{ color: '#E8E6E1' }}>{landscapeAI.summary}</p>
+            </div>
+
+            {landscapeAI.sectorAnalysis && (
+              <div className="p-4 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#9CA3AF' }}>Sector Analysis</div>
+                <div className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#D1D5DB' }}>{landscapeAI.sectorAnalysis}</div>
+              </div>
+            )}
+
+            {landscapeAI.insights && (
+              <div className="p-4 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#9CA3AF' }}>Key Insights</div>
+                <div className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#D1D5DB' }}>{landscapeAI.insights}</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
