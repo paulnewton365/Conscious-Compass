@@ -813,6 +813,12 @@ function MiniSpiderChart({ scores, size = 120 }) {
 // Comparison Spider Chart — multi-brand overlapping radar, max 4 brands
 const COMPARISON_COLORS = ['#E53935', '#1976D2', '#F57C00', '#388E3C'];
 
+const LANDSCAPE_SECTOR_COLORS = [
+  '#E53935', '#1976D2', '#F57C00', '#388E3C',
+  '#7B1FA2', '#0097A7', '#C2185B', '#5D4037',
+  '#1565C0', '#2E7D32', '#E65100', '#4527A0',
+];
+
 function ComparisonSpiderChart({ brands, size = 320, industryAvg = null }) {
   const padding = 55;
   const viewBoxSize = size + padding * 2;
@@ -6780,6 +6786,544 @@ Write in plain text. Number each story. No JSON, no bullet sub-lists, no headers
   );
 }
 
+// Landscape View — macro cross-assessment consciousness map
+function LandscapeView({ results, industries }) {
+  const [selectedYears, setSelectedYears] = useState(['all']);
+  const [highlightSector, setHighlightSector] = useState(null);
+  const [animProgress, setAnimProgress] = useState(0);
+  const animKey = selectedYears.join('-');
+
+  // Re-animate whenever year filter changes
+  useEffect(() => {
+    setAnimProgress(0);
+    const duration = 1800;
+    const start = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const raw = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - raw, 3);
+      setAnimProgress(eased);
+      if (raw < 1) requestAnimationFrame(tick);
+    };
+    const id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [animKey]);
+
+  // Extract years from results
+  const years = useMemo(() => {
+    const ys = [...new Set(
+      results.map(r => r.savedAt ? new Date(r.savedAt).getFullYear() : null).filter(Boolean)
+    )].sort((a, b) => b - a);
+    return ys;
+  }, [results]);
+
+  // Filter by selected years
+  const filteredResults = useMemo(() => {
+    if (selectedYears.includes('all')) return results;
+    return results.filter(r => {
+      const y = r.savedAt ? new Date(r.savedAt).getFullYear() : null;
+      return y && selectedYears.includes(y);
+    });
+  }, [results, selectedYears]);
+
+  // Group by industry/sector and compute averages
+  const sectors = useMemo(() => {
+    const grouped = {};
+    filteredResults.forEach(r => {
+      const key = r.industry || 'other';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(r);
+    });
+    return Object.entries(grouped)
+      .map(([key, brands], idx) => {
+        const attrAvgs = {};
+        ATTRIBUTES.forEach(attr => {
+          attrAvgs[attr.id] = Math.round(
+            brands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / brands.length
+          );
+        });
+        const avgScore = Math.round(brands.reduce((sum, b) => sum + b.totalScore, 0) / brands.length);
+        const industryName = industries.find(i => i.id === key)?.name || key;
+        return {
+          key, name: industryName, count: brands.length, avgScore, attrAvgs,
+          color: LANDSCAPE_SECTOR_COLORS[idx % LANDSCAPE_SECTOR_COLORS.length],
+        };
+      })
+      .sort((a, b) => b.avgScore - a.avgScore);
+  }, [filteredResults, industries]);
+
+  // Overall average across all filtered results
+  const overallAvg = useMemo(() => {
+    if (!filteredResults.length) return {};
+    const avgs = {};
+    ATTRIBUTES.forEach(attr => {
+      avgs[attr.id] = Math.round(
+        filteredResults.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / filteredResults.length
+      );
+    });
+    return avgs;
+  }, [filteredResults]);
+
+  const overallScore = filteredResults.length
+    ? Math.round(filteredResults.reduce((s, b) => s + b.totalScore, 0) / filteredResults.length)
+    : 0;
+
+  // Octagon geometry (matches SpiderChart exactly)
+  const RING_PATHS = [
+    "M226 169.75L186.225 186.225L169.75 226L186.225 265.775L206.113 274.012L226 282.25L265.775 265.775L282.25 226L265.775 186.225L226 169.75Z",
+    "M226 113.5L146.451 146.451L113.5 226L146.451 305.549L226 338.5L305.549 305.549L338.5 226L305.549 146.451L226 113.5Z",
+    "M226 57.25L106.676 106.676L57.25 226L106.676 345.324L226 394.75L345.324 345.324L394.75 226L345.324 106.676L226 57.25Z",
+    "M226 1L66.901 66.901L1 226L66.901 385.099L226 451L385.099 385.099L451 226L385.099 66.901L226 1Z",
+  ];
+
+  const getDataPoints = (attrAvgs, progress = 1) =>
+    ATTRIBUTES.map((attr, i) => {
+      const val = (attrAvgs[attr.id] || 0) * progress;
+      const r = (val / 100) * 225;
+      const angle = (i * 2 * Math.PI / ATTRIBUTES.length) - Math.PI / 2;
+      return { x: 226 + r * Math.cos(angle), y: 226 + r * Math.sin(angle) };
+    });
+
+  const getLabelPos = (i) => {
+    const angle = (i * 2 * Math.PI / ATTRIBUTES.length) - Math.PI / 2;
+    const isCardinal = i % 2 === 0;
+    const actualRadius = isCardinal ? 235 : 260;
+    const x = 226 + actualRadius * Math.cos(angle);
+    const y = 226 + actualRadius * Math.sin(angle);
+    let textAnchor = 'middle', dy = '0';
+    if (!isCardinal) {
+      if (Math.cos(angle) < 0) return { x: x + 10, y, textAnchor: 'end', dy };
+      if (Math.cos(angle) > 0) return { x: x - 10, y, textAnchor: 'start', dy };
+    }
+    if (Math.abs(Math.cos(angle)) > 0.85) textAnchor = Math.cos(angle) > 0 ? 'start' : 'end';
+    if (Math.abs(Math.sin(angle)) > 0.85) dy = Math.sin(angle) > 0 ? '1em' : '-0.5em';
+    return { x, y, textAnchor, dy };
+  };
+
+  // Attribute landscape data (range + distribution per attribute)
+  const attrLandscapeData = useMemo(() =>
+    ATTRIBUTES.map(attr => {
+      const sectorScores = sectors.map(s => ({ name: s.name, score: s.attrAvgs[attr.id] || 0, color: s.color }));
+      const vals = sectorScores.map(s => s.score);
+      return {
+        attr,
+        sectorScores,
+        min: vals.length ? Math.min(...vals) : 0,
+        max: vals.length ? Math.max(...vals) : 0,
+        mean: overallAvg[attr.id] || 0,
+      };
+    }),
+  [sectors, overallAvg]);
+
+  if (!results.length) {
+    return (
+      <div className="card p-12 text-center">
+        <div className="text-4xl mb-4">🌐</div>
+        <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Landscape Data Yet</h3>
+        <p className="text-[#666666]">Complete assessments across multiple sectors to see the consciousness landscape.</p>
+      </div>
+    );
+  }
+
+  const toggleYear = (y) => {
+    if (y === 'all') { setSelectedYears(['all']); return; }
+    const withoutAll = selectedYears.filter(x => x !== 'all');
+    if (withoutAll.includes(y)) {
+      const next = withoutAll.filter(x => x !== y);
+      setSelectedYears(next.length ? next : ['all']);
+    } else {
+      setSelectedYears([...withoutAll, y]);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+
+      {/* Controls row */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-[#666666] uppercase tracking-wide">Year:</span>
+          {['all', ...years].map(y => (
+            <button
+              key={y}
+              onClick={() => toggleYear(y)}
+              className={`px-3 py-1 text-xs font-medium transition-colors ${
+                (y === 'all' && selectedYears.includes('all')) || (!selectedYears.includes('all') && selectedYears.includes(y))
+                  ? 'bg-[#1A1A1A] text-white'
+                  : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+              }`}
+            >
+              {y === 'all' ? 'All time' : y}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-4 text-xs text-[#666666]">
+          <span><strong className="text-[#1A1A1A]">{filteredResults.length}</strong> assessments</span>
+          <span><strong className="text-[#1A1A1A]">{sectors.length}</strong> sectors</span>
+        </div>
+      </div>
+
+      {/* Summary tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Landscape avg', value: overallScore, color: getMaturityStage(overallScore).color },
+          { label: 'Strongest sector', value: sectors[0]?.name?.split(' ')[0] || '—', sub: sectors[0]?.avgScore, color: sectors[0]?.color },
+          { label: 'Needs attention', value: sectors[sectors.length - 1]?.name?.split(' ')[0] || '—', sub: sectors[sectors.length - 1]?.avgScore, color: '#999' },
+          {
+            label: 'Top attribute',
+            value: attrLandscapeData.slice().sort((a, b) => b.mean - a.mean)[0]?.attr.name || '—',
+            sub: attrLandscapeData.slice().sort((a, b) => b.mean - a.mean)[0]?.mean,
+            color: '#CFD32F',
+          },
+        ].map((tile, i) => (
+          <div key={i} className="bg-white border border-[#E8E6E1] p-4 rounded">
+            <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wide mb-1">{tile.label}</div>
+            <div className="font-bold text-lg text-[#1A1A1A] truncate" style={{ color: tile.color }}>{tile.value}</div>
+            {tile.sub !== undefined && <div className="text-xs text-[#666666]">avg {tile.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Hero: Landscape Octagon + Sector Legend */}
+      <div className="bg-white border border-[#E8E6E1] rounded p-6">
+        <div className="mb-5">
+          <h3 className="font-semibold text-[#1A1A1A]">Consciousness Landscape</h3>
+          <p className="text-xs text-[#666666] mt-1">
+            Each sector's average brand consciousness — hover a sector to isolate. Dashed yellow = cross-sector mean.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-8 items-start">
+
+          {/* Octagon */}
+          <div style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: '#efede9', maxWidth: '580px', margin: '0 auto' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -50 652 552" style={{ width: '100%', height: '100%' }}>
+
+              {/* Background rings — alternating fill, matching SpiderChart */}
+              {[...RING_PATHS].reverse().map((path, i) => (
+                <path key={`ring-${i}`} d={path} fill={i % 2 === 0 ? '#e1dfda' : '#f7f6f4'} stroke="none" />
+              ))}
+
+              {/* Sector polygons — drawn dimmed unless hovered */}
+              {sectors.map((sector) => {
+                const pts = getDataPoints(sector.attrAvgs, animProgress);
+                const pStr = pts.map(p => `${p.x},${p.y}`).join(' ');
+                const isHL = highlightSector === sector.key;
+                const isDim = highlightSector && !isHL;
+                return (
+                  <polygon
+                    key={sector.key}
+                    points={pStr}
+                    fill={sector.color + (isDim ? '0a' : '20')}
+                    stroke={sector.color}
+                    strokeWidth={isHL ? 3 : 1.5}
+                    strokeOpacity={isDim ? 0.2 : 0.85}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={() => setHighlightSector(sector.key)}
+                    onMouseLeave={() => setHighlightSector(null)}
+                  />
+                );
+              })}
+
+              {/* Overall average — dashed yellow outline */}
+              {(() => {
+                const pts = getDataPoints(overallAvg, animProgress);
+                const pStr = pts.map(p => `${p.x},${p.y}`).join(' ');
+                return (
+                  <polygon
+                    points={pStr}
+                    fill="none"
+                    stroke="#CFD32F"
+                    strokeWidth="2.5"
+                    strokeDasharray="7 4"
+                    opacity={highlightSector ? 0.35 : 1}
+                  />
+                );
+              })()}
+
+              {/* Ring outlines */}
+              {RING_PATHS.map((path, i) => (
+                <path key={`outline-${i}`} d={path} stroke="#111720"
+                  strokeWidth={i === 3 ? 1.5 : 0.8} fill="none"
+                  strokeOpacity={i === 3 ? 0.25 : 0.12} />
+              ))}
+
+              {/* Axis spokes */}
+              {ATTRIBUTES.map((_, i) => {
+                const angle = (i * 2 * Math.PI / ATTRIBUTES.length) - Math.PI / 2;
+                return (
+                  <line key={`axis-${i}`} x1="226" y1="226"
+                    x2={226 + 225 * Math.cos(angle)} y2={226 + 225 * Math.sin(angle)}
+                    stroke="#111720" strokeOpacity="0.08" strokeWidth="1.5" />
+                );
+              })}
+
+              {/* Ring value labels */}
+              {[25, 50, 75].map((pct, i) => (
+                <text key={`pctlbl-${i}`}
+                  x={226} y={226 - (pct / 100) * 225 - 5}
+                  textAnchor="middle"
+                  style={{ fontSize: '9px', fill: '#999', fontFamily: 'Inter, sans-serif' }}>
+                  {pct}
+                </text>
+              ))}
+
+              {/* Attribute labels — always visible */}
+              {ATTRIBUTES.map((attr, i) => {
+                const pos = getLabelPos(i);
+                return (
+                  <text key={`lbl-${i}`} x={pos.x} y={pos.y}
+                    textAnchor={pos.textAnchor} dy={pos.dy} fill="#111720"
+                    style={{ fontSize: '15px', fontWeight: '500', fontFamily: 'Inter, sans-serif' }}>
+                    {attr.name}
+                  </text>
+                );
+              })}
+
+              {/* Overall avg score labels */}
+              {ATTRIBUTES.map((attr, i) => {
+                const angle = (i * 2 * Math.PI / ATTRIBUTES.length) - Math.PI / 2;
+                const r = ((overallAvg[attr.id] || 0) * animProgress / 100) * 225;
+                const x = 226 + r * Math.cos(angle);
+                const y = 226 + r * Math.sin(angle);
+                return (
+                  <text key={`avg-${i}`}
+                    x={x + 16 * Math.cos(angle)} y={y + 16 * Math.sin(angle)}
+                    textAnchor="middle" dominantBaseline="middle"
+                    style={{ fontSize: '11px', fontWeight: '700', fill: '#6B6B00',
+                      opacity: animProgress, fontFamily: 'Inter, sans-serif' }}>
+                    {overallAvg[attr.id] || 0}
+                  </text>
+                );
+              })}
+
+              {/* Highlighted sector label overlay */}
+              {highlightSector && (() => {
+                const sector = sectors.find(s => s.key === highlightSector);
+                if (!sector) return null;
+                return (
+                  <>
+                    <circle cx="226" cy="226" r="40" fill={sector.color} />
+                    <text x="226" y="220" textAnchor="middle" dominantBaseline="middle"
+                      style={{ fontSize: '22px', fontWeight: '700', fill: '#fff', fontFamily: 'Inter, sans-serif' }}>
+                      {sector.avgScore}
+                    </text>
+                    <text x="226" y="240" textAnchor="middle"
+                      style={{ fontSize: '8px', fontWeight: '600', fill: 'rgba(255,255,255,0.8)', fontFamily: 'Inter, sans-serif' }}>
+                      {sector.name.slice(0, 12).toUpperCase()}
+                    </text>
+                  </>
+                );
+              })()}
+
+              {/* Default centre */}
+              {!highlightSector && (
+                <>
+                  <circle cx="226" cy="226" r="38" fill="#CFD32F" />
+                  <text x="226" y="219" textAnchor="middle" dominantBaseline="middle"
+                    style={{ fontSize: '26px', fontWeight: '700', fill: '#111720', fontFamily: 'Inter, sans-serif' }}>
+                    {overallScore}
+                  </text>
+                  <text x="226" y="237" textAnchor="middle"
+                    style={{ fontSize: '8px', fontWeight: '500', fill: '#666', fontFamily: 'Inter, sans-serif' }}>
+                    MEAN
+                  </text>
+                </>
+              )}
+            </svg>
+          </div>
+
+          {/* Sector legend */}
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-3">Sectors</div>
+
+            {/* Overall avg legend entry */}
+            <div className="flex items-center gap-2 p-2 rounded bg-[#FAFAF8]">
+              <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="#CFD32F" strokeWidth="2.5" strokeDasharray="5 3"/></svg>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-[#1A1A1A]">All sectors avg</div>
+                <div className="text-[10px] text-[#666]">{filteredResults.length} brands</div>
+              </div>
+              <span className="text-sm font-bold text-[#6B6B00]">{overallScore}</span>
+            </div>
+
+            {sectors.map(sector => {
+              const stage = getMaturityStage(sector.avgScore);
+              return (
+                <div
+                  key={sector.key}
+                  className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-all ${
+                    highlightSector === sector.key ? 'ring-1 ring-[#D9D6D0]' : ''
+                  }`}
+                  style={{ backgroundColor: highlightSector === sector.key ? sector.color + '15' : '' }}
+                  onMouseEnter={() => setHighlightSector(sector.key)}
+                  onMouseLeave={() => setHighlightSector(null)}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-[#1A1A1A] truncate leading-tight">{sector.name}</div>
+                    <div className="text-[10px] text-[#666]">{sector.count}b</div>
+                  </div>
+                  <span className="text-sm font-bold" style={{ color: stage.color }}>{sector.avgScore}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Attribute Landscape — dot range chart */}
+      <div className="bg-white border border-[#E8E6E1] rounded p-6">
+        <div className="mb-5">
+          <h3 className="font-semibold text-[#1A1A1A]">Attribute Landscape</h3>
+          <p className="text-xs text-[#666666] mt-1">
+            Score distribution per attribute across all sectors. Each dot is a sector average. Yellow line = cross-sector mean.
+          </p>
+        </div>
+
+        <div className="space-y-3.5">
+          {attrLandscapeData.map(({ attr, sectorScores, min, max, mean }) => (
+            <div key={attr.id} className="grid items-center gap-3"
+              style={{ gridTemplateColumns: '96px 1fr 36px' }}>
+              <div className="text-xs font-semibold text-[#1A1A1A] text-right leading-tight pr-1">{attr.name}</div>
+              <div className="relative h-9 flex items-center">
+                {/* Background track */}
+                <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
+                {/* Stage markers */}
+                {[25, 40, 56, 70, 85].map(mark => (
+                  <div key={mark} className="absolute w-px h-3 bg-[#D9D6D0]"
+                    style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
+                ))}
+                {/* Range fill */}
+                {sectorScores.length > 1 && (
+                  <div className="absolute h-1.5 rounded-full bg-[#E8E6E1]"
+                    style={{ left: `${min}%`, width: `${Math.max(max - min, 0.5)}%` }} />
+                )}
+                {/* Mean line */}
+                <div className="absolute w-0.5 h-6 rounded-full bg-[#CFD32F] z-10"
+                  style={{ left: `${mean}%`, transform: 'translateX(-50%)' }} />
+                {/* Sector dots */}
+                {sectorScores.map((s, si) => (
+                  <div key={si} title={`${s.name}: ${s.score}`}
+                    className="absolute w-3 h-3 rounded-full ring-2 ring-white z-20 transition-transform hover:scale-150"
+                    style={{
+                      backgroundColor: s.color,
+                      left: `${s.score}%`,
+                      transform: 'translate(-50%, -50%)',
+                      top: '50%',
+                      cursor: 'pointer',
+                      boxShadow: highlightSector === sectorScores[si]?.key ? `0 0 0 2px ${s.color}` : 'none',
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="text-xs font-bold text-[#1A1A1A] tabular-nums">{mean}</div>
+            </div>
+          ))}
+
+          {/* Scale */}
+          <div className="grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '96px 1fr 36px' }}>
+            <div />
+            <div className="flex justify-between text-[10px] text-[#BBB] select-none">
+              {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
+            </div>
+            <div />
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center gap-5 pt-3 border-t border-[#E8E6E1] text-[10px] text-[#999]">
+            <div className="flex items-center gap-1.5">
+              <div className="w-0.5 h-5 bg-[#CFD32F] rounded" />
+              <span>Cross-sector mean</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-7 h-1.5 bg-[#E8E6E1] rounded-full" />
+              <span>Score range</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-[#E53935] ring-2 ring-white" />
+              <span>Sector avg</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sector profile cards */}
+      <div>
+        <h3 className="font-semibold text-[#1A1A1A] mb-4">Sector Profiles</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {sectors.map((sector) => {
+            const sorted = ATTRIBUTES
+              .map(a => ({ ...a, score: sector.attrAvgs[a.id] || 0 }))
+              .sort((a, b) => b.score - a.score);
+            const top2 = sorted.slice(0, 2);
+            const bot2 = sorted.slice(-2).reverse();
+            const stage = getMaturityStage(sector.avgScore);
+            return (
+              <div key={sector.key}
+                className="bg-white border border-[#E8E6E1] rounded p-5 transition-all hover:shadow-sm"
+                onMouseEnter={() => setHighlightSector(sector.key)}
+                onMouseLeave={() => setHighlightSector(null)}
+              >
+                {/* Header */}
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-1.5 rounded-full self-stretch" style={{ backgroundColor: sector.color }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[#1A1A1A] text-sm leading-tight">{sector.name}</div>
+                    <div className="text-[10px] text-[#666] mt-0.5">{sector.count} brand{sector.count !== 1 ? 's' : ''} · {stage.name}</div>
+                  </div>
+                  <div className="text-2xl font-bold tabular-nums" style={{ color: sector.color }}>{sector.avgScore}</div>
+                </div>
+
+                {/* 8-attribute mini grid */}
+                <div className="grid grid-cols-4 gap-1 mb-4">
+                  {ATTRIBUTES.map(attr => {
+                    const score = sector.attrAvgs[attr.id] || 0;
+                    const isTop = top2.some(t => t.id === attr.id);
+                    const isBot = bot2.some(t => t.id === attr.id);
+                    return (
+                      <div key={attr.id}
+                        className={`rounded p-1.5 text-center ${isTop ? 'bg-[#1A1A1A]' : isBot ? 'bg-[#F5F4F0]' : 'bg-[#FAFAF8]'}`}>
+                        <div className={`text-[9px] font-semibold leading-none mb-0.5 ${isTop ? 'text-[#E2E65A]' : 'text-[#999]'}`}>
+                          {attr.name.slice(0, 3).toUpperCase()}
+                        </div>
+                        <div className={`text-sm font-bold leading-none tabular-nums ${isTop ? 'text-white' : isBot ? 'text-[#BBB]' : 'text-[#1A1A1A]'}`}>
+                          {score}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Strengths / Gaps */}
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wide mb-1.5">Strongest</div>
+                    {top2.map(a => (
+                      <div key={a.id} className="flex items-center justify-between">
+                        <span className="text-[#1A1A1A] font-medium">{a.name}</span>
+                        <span className="font-bold tabular-nums text-[#1A1A1A]">{a.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wide mb-1.5">Weakest</div>
+                    {bot2.map(a => (
+                      <div key={a.id} className="flex items-center justify-between">
+                        <span className="text-[#999] font-medium">{a.name}</span>
+                        <span className="font-bold tabular-nums text-[#999]">{a.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Brand Comparison Page
 function ComparisonPage({ results, onBack }) {
   const [selectedBrands, setSelectedBrands] = useState([]);
@@ -6951,6 +7495,16 @@ function ComparisonPage({ results, onBack }) {
             }`}
           >
             ✨ Insights
+          </button>
+          <button
+            onClick={() => setViewMode('landscape')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              viewMode === 'landscape' 
+                ? 'bg-[#1A1A1A] text-white' 
+                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+            }`}
+          >
+            🌐 Landscape
           </button>
         </div>
 
@@ -7133,6 +7687,9 @@ function ComparisonPage({ results, onBack }) {
         ) : viewMode === 'insights' ? (
           /* AI Insights View */
           <InsightsView results={results} industryBenchmarks={industryBenchmarks} industries={industries} />
+        ) : viewMode === 'landscape' ? (
+          /* Landscape View */
+          <LandscapeView results={results} industries={industries} />
         ) : (
           /* Brand Comparison View */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
