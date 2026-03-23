@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.17.9';
+const APP_VERSION = '2.18.0';
 import { 
   supabase, 
   signUp, 
@@ -7566,11 +7566,11 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 }
 
 // Brand Comparison Page
-function ComparisonPage({ results, onBack, profile }) {
+function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyDeepLink }) {
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [filterIndustry, setFilterIndustry] = useState('all');
   const [filterBusinessModel, setFilterBusinessModel] = useState('all');
-  const [viewMode, setViewMode] = useState('brands'); // 'brands' or 'industry'
+  const [viewMode, setViewMode] = useState(initialTab);
   const [chartType, setChartType] = useState('radar'); // 'radar' or 'bars'
   const [showIndustryAvg, setShowIndustryAvg] = useState(false);
   const maxComparison = 6;
@@ -7671,13 +7671,27 @@ function ComparisonPage({ results, onBack, profile }) {
               <p className="text-sm text-[#666666]">Compare brands or explore the consciousness landscape</p>
             </div>
           </div>
-          <button 
-            onClick={exportComparison} 
-            disabled={viewMode !== 'brands' || selectedBrands.length < 2}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" /> Export Comparison
-          </button>
+          <div className="flex items-center gap-2">
+            {copyDeepLink && (
+              <button
+                onClick={() => copyDeepLink(
+                  viewMode === 'landscape' ? 'compare/landscape' :
+                  viewMode === 'insights'  ? 'compare/insights' : 'compare'
+                )}
+                className="btn-secondary flex items-center gap-2"
+                title="Copy link to this tab"
+              >
+                <Share2 className="w-4 h-4" /> Share Link
+              </button>
+            )}
+            <button 
+              onClick={exportComparison} 
+              disabled={viewMode !== 'brands' || selectedBrands.length < 2}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" /> Export Comparison
+            </button>
+          </div>
         </div>
 
         {/* View Mode Toggle */}
@@ -8865,7 +8879,7 @@ Each item:
 - insight: 2-3 sentences. What is actually happening, with specifics where possible.
 - whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
 
-function StayConsciousPage({ onBack, isAdmin }) {
+function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
   const [newsletter, setNewsletter] = useState(null);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -9254,6 +9268,15 @@ function StayConsciousPage({ onBack, isAdmin }) {
                 </button>
               </>
             )}
+            {copyDeepLink && (
+              <button
+                onClick={copyDeepLink}
+                className="btn-secondary flex items-center gap-2 text-sm"
+                title="Copy link to this page"
+              >
+                <Share2 className="w-4 h-4" /> Share Link
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={forceRefresh}
@@ -9438,6 +9461,67 @@ function AppContent() {
   const [showResultsPage, setShowResultsPage] = useState(false);
   const [showComparisonPage, setShowComparisonPage] = useState(false);
   const [showStayConsciousPage, setShowStayConsciousPage] = useState(false);
+  const [compareInitialTab, setCompareInitialTab] = useState('brands');
+
+  // Hash-based deep link routing
+  const HASH_ROUTES = {
+    'newsletter':        () => { setShowStayConsciousPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
+    'compare':           () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); },
+    'compare/landscape': () => { setShowComparisonPage(true); setCompareInitialTab('landscape'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); },
+    'compare/insights':  () => { setShowComparisonPage(true); setCompareInitialTab('insights'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); },
+    'results':           () => { setShowResultsPage(true); setShowComparisonPage(false); setShowStayConsciousPage(false); setShowSavedPage(false); },
+    'saved':             () => { setShowSavedPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowStayConsciousPage(false); },
+  };
+
+  const navigateTo = (route) => {
+    const fn = HASH_ROUTES[route];
+    if (fn) {
+      fn();
+      window.history.pushState(null, '', `#${route}`);
+    }
+  };
+
+  const clearNav = () => {
+    setShowStayConsciousPage(false);
+    setShowComparisonPage(false);
+    setShowResultsPage(false);
+    setShowSavedPage(false);
+    setCurrentStep(0);
+    window.history.pushState(null, '', window.location.pathname + window.location.search);
+  };
+
+  const copyDeepLink = (hash) => {
+    const url = `${window.location.origin}${window.location.pathname}#${hash}`;
+    navigator.clipboard.writeText(url).then(() => {
+      alert(`Link copied: ${url}`);
+    });
+  };
+
+  // Sync URL hash whenever view changes
+  useEffect(() => {
+    // Don't overwrite ?report= param links
+    if (new URLSearchParams(window.location.search).get('report')) return;
+    let hash = '';
+    if (showStayConsciousPage) hash = 'newsletter';
+    else if (showComparisonPage) hash = compareInitialTab === 'landscape' ? 'compare/landscape' : compareInitialTab === 'insights' ? 'compare/insights' : 'compare';
+    else if (showResultsPage) hash = 'results';
+    else if (showSavedPage) hash = 'saved';
+    const current = window.location.hash.replace('#', '');
+    if (hash !== current) {
+      window.history.replaceState(null, '', hash ? `#${hash}` : window.location.pathname + window.location.search);
+    }
+  }, [showStayConsciousPage, showComparisonPage, showResultsPage, showSavedPage, compareInitialTab]);
+
+  // Parse hash on mount and on popstate
+  useEffect(() => {
+    const applyHash = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && HASH_ROUTES[hash]) HASH_ROUTES[hash]();
+    };
+    applyHash();
+    window.addEventListener('popstate', applyHash);
+    return () => window.removeEventListener('popstate', applyHash);
+  }, []);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [savedAssessments, setSavedAssessments] = useState([]);
   const [compassResults, setCompassResults] = useState([]);
@@ -9640,11 +9724,7 @@ function AppContent() {
   };
 
   const handleGoHome = () => {
-    setCurrentStep(0);
-    setShowSavedPage(false);
-    setShowCompassResults(false);
-    setShowComparison(false);
-    setShowStayConscious(false);
+    clearNav();
   };
 
   const handleSave = async () => {
@@ -9864,6 +9944,7 @@ function AppContent() {
         <StayConsciousPage
           onBack={() => setShowStayConsciousPage(false)}
           isAdmin={profile?.is_admin}
+          copyDeepLink={() => copyDeepLink('newsletter')}
         />
       </div>
     );
@@ -9891,6 +9972,8 @@ function AppContent() {
           results={compassResults}
           onBack={() => setShowComparisonPage(false)}
           profile={profile}
+          initialTab={compareInitialTab}
+          copyDeepLink={copyDeepLink}
         />
       </div>
     );
