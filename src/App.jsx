@@ -6791,6 +6791,7 @@ function LandscapeView({ results, industries }) {
   const [selectedYears, setSelectedYears] = useState(['all']);
   const [highlightSector, setHighlightSector] = useState(null);
   const [pinnedSector, setPinnedSector] = useState(null);
+  const [showAllAvg, setShowAllAvg] = useState(false); // true = only dashed avg outline visible
   const [animProgress, setAnimProgress] = useState(0);
   const animKey = selectedYears.join('-');
 
@@ -6800,7 +6801,14 @@ function LandscapeView({ results, industries }) {
   const activeSector = pinnedSector || highlightSector;
 
   const handleSectorClick = (key) => {
+    setShowAllAvg(false);
     setPinnedSector(prev => prev === key ? null : key);
+  };
+
+  const handleAllAvgClick = () => {
+    const next = !showAllAvg;
+    setShowAllAvg(next);
+    if (next) { setPinnedSector(null); setHighlightSector(null); }
   };
 
   // Re-animate whenever year filter changes
@@ -6913,7 +6921,7 @@ function LandscapeView({ results, industries }) {
   // Attribute landscape data (range + distribution per attribute)
   const attrLandscapeData = useMemo(() =>
     ATTRIBUTES.map(attr => {
-      const sectorScores = sectors.map(s => ({ name: s.name, score: s.attrAvgs[attr.id] || 0, color: s.color }));
+      const sectorScores = sectors.map(s => ({ key: s.key, name: s.name, score: s.attrAvgs[attr.id] || 0, color: s.color }));
       const vals = sectorScores.map(s => s.score);
       return {
         attr,
@@ -7018,19 +7026,19 @@ function LandscapeView({ results, industries }) {
                 const pts = getDataPoints(sector.attrAvgs, animProgress);
                 const pStr = pts.map(p => `${p.x},${p.y}`).join(' ');
                 const isHL = activeSector === sector.key;
-                const isDim = activeSector && !isHL;
+                const isDim = (activeSector && !isHL) || showAllAvg;
                 const isPinned = pinnedSector === sector.key;
                 return (
                   <polygon
                     key={sector.key}
                     points={pStr}
-                    fill={sector.color + (isDim ? '0a' : '20')}
+                    fill={sector.color + (isDim ? '00' : '20')}
                     stroke={sector.color}
                     strokeWidth={isHL ? 3 : 1.5}
-                    strokeOpacity={isDim ? 0.2 : 0.85}
+                    strokeOpacity={isDim ? 0 : 0.85}
                     style={{ cursor: 'pointer' }}
                     onClick={() => handleSectorClick(sector.key)}
-                    onMouseEnter={() => !pinnedSector && setHighlightSector(sector.key)}
+                    onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
                     onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
                   >
                     {isPinned && <title>Click to unpin</title>}
@@ -7045,11 +7053,11 @@ function LandscapeView({ results, industries }) {
                 return (
                   <polygon
                     points={pStr}
-                    fill="none"
+                    fill={showAllAvg ? 'rgba(207,211,47,0.12)' : 'none'}
                     stroke="#CFD32F"
-                    strokeWidth="2.5"
+                    strokeWidth={showAllAvg ? 3 : 2.5}
                     strokeDasharray="7 4"
-                    opacity={activeSector ? 0.35 : 1}
+                    opacity={showAllAvg ? 1 : (activeSector ? 0.35 : 1)}
                   />
                 );
               })()}
@@ -7161,9 +7169,9 @@ function LandscapeView({ results, industries }) {
             {/* Overall avg legend entry */}
             <div
               className={`flex items-center gap-2 p-2 rounded cursor-pointer select-none transition-all ${
-                !pinnedSector ? 'ring-1 ring-[#D9D6D0] bg-[#FFFEF0]' : 'bg-[#FAFAF8] hover:bg-[#F5F4F0]'
+                showAllAvg ? 'ring-1 ring-[#D9D6D0] bg-[#FFFEF0]' : 'bg-[#FAFAF8] hover:bg-[#F5F4F0]'
               }`}
-              onClick={() => { setPinnedSector(null); setHighlightSector(null); }}
+              onClick={handleAllAvgClick}
             >
               <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="#CFD32F" strokeWidth="2.5" strokeDasharray="5 3"/></svg>
               <div className="flex-1 min-w-0">
@@ -7185,7 +7193,7 @@ function LandscapeView({ results, industries }) {
                   }`}
                   style={{ backgroundColor: isActive ? sector.color + '15' : '' }}
                   onClick={() => handleSectorClick(sector.key)}
-                  onMouseEnter={() => !pinnedSector && setHighlightSector(sector.key)}
+                  onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
                   onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
                 >
                   <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
@@ -7333,7 +7341,7 @@ function LandscapeView({ results, industries }) {
                 </div>
                 <div className="flex items-start gap-2">
                 <div className="flex-shrink-0 mt-1.5 w-7 h-2 rounded-full" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
-                  <span><strong className="text-[#1A1A1A]">Grey band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
+                  <span><strong className="text-[#1A1A1A]">Light red band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
                 </div>
               </div>
             </div>
@@ -7358,7 +7366,7 @@ function LandscapeView({ results, industries }) {
                   activeSector === sector.key ? 'border-[#1A1A1A] shadow-sm' : 'border-[#E8E6E1]'
                 }`}
                 onClick={() => handleSectorClick(sector.key)}
-                onMouseEnter={() => !pinnedSector && setHighlightSector(sector.key)}
+                onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
                 onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
               >
                 {/* Header */}
