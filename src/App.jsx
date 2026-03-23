@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.15.0';
+const APP_VERSION = '2.16.0';
 import { 
   supabase, 
   signUp, 
@@ -6383,10 +6383,12 @@ function OnboardingTour({ onComplete }) {
 }
 
 // Portfolio Insights View Component
-function InsightsView({ results, industryBenchmarks, industries }) {
+function InsightsView({ results, industryBenchmarks, industries, isAdmin = false }) {
   const [aiInsights, setAiInsights] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [refreshedAt, setRefreshedAt] = useState(null);
   
   // Calculate portfolio-wide statistics
   const portfolioStats = useMemo(() => {
@@ -6457,152 +6459,47 @@ function InsightsView({ results, industryBenchmarks, industries }) {
     };
   }, [results]);
 
-  const generateInsights = async () => {
+  const loadInsights = async () => {
     setLoading(true);
     setError(null);
-    
-    // Build sector-specific data
-    const sectorData = {};
-    results.forEach(r => {
-      const sector = r.industry || 'other';
-      if (!sectorData[sector]) {
-        sectorData[sector] = { brands: [], scores: [], attrTotals: {} };
-        ATTRIBUTES.forEach(a => sectorData[sector].attrTotals[a.id] = 0);
-      }
-      sectorData[sector].brands.push(r.brandName);
-      sectorData[sector].scores.push(r.totalScore);
-      ATTRIBUTES.forEach(a => {
-        sectorData[sector].attrTotals[a.id] += (r.scores?.[a.id] || 0);
-      });
-    });
-    
-    const sectorSummaries = Object.entries(sectorData).map(([sector, data]) => {
-      const avgScore = Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length);
-      const attrAvgs = {};
-      ATTRIBUTES.forEach(a => {
-        attrAvgs[a.id] = Math.round(data.attrTotals[a.id] / data.brands.length);
-      });
-      const sortedAttrs = Object.entries(attrAvgs).sort((a, b) => b[1] - a[1]);
-      return {
-        sector,
-        brandCount: data.brands.length,
-        avgScore,
-        attrAvgs,
-        strongestAttr: sortedAttrs[0],
-        weakestAttr: sortedAttrs[sortedAttrs.length - 1],
-        brands: data.brands,
-      };
-    });
-
-    // Cross-sector spread per attribute — which attributes vary most between sectors
-    const crossSectorSpread = ATTRIBUTES.map(attr => {
-      const sectorScores = sectorSummaries.map(s => s.attrAvgs[attr.id]);
-      const min = Math.min(...sectorScores);
-      const max = Math.max(...sectorScores);
-      const mean = Math.round(sectorScores.reduce((a, b) => a + b, 0) / sectorScores.length);
-      return { attr: attr.id, min, max, spread: max - min, mean };
-    }).sort((a, b) => b.spread - a.spread);
-    
     try {
-      const prompt = `You are a brand strategist at Antenna Group, a brand strategy agency. You have just run Brand Consciousness assessments on the following brands and you are identifying thought leadership storytelling opportunities — the kinds of stories Antenna Group could write, speak about, or publish based on what the data reveals.
-
-Brand Consciousness is a proprietary framework with 8 attributes:
-AWAKE (Narrative Leadership), AWARE (Audience Understanding), REFLECTIVE (Authenticity), ATTENTIVE (Experience Quality), COGENT (Strategic Intelligence), SENTIENT (Emotional Connection), VISIONARY (Future Vision), INTENTIONAL (Organisational Credibility).
-
-PORTFOLIO OVERVIEW (${results.length} brands across ${sectorSummaries.length} sectors):
-Portfolio average: ${portfolioStats.avgScore}/100
-Strongest attribute across all brands: ${portfolioStats.strongestAttr[0]} (avg ${portfolioStats.strongestAttr[1]})
-Weakest attribute across all brands: ${portfolioStats.weakestAttr[0]} (avg ${portfolioStats.weakestAttr[1]})
-
-Overall attribute averages (all brands):
-${Object.entries(portfolioStats.attrAverages).map(([k, v]) => `  ${k}: ${v}`).join('\n')}
-
-FULL SECTOR ATTRIBUTE MATRIX:
-Each row is a sector. Values are average scores for brands in that sector across all 8 attributes.
-
-${sectorSummaries.map(s => {
-  const indName = industries.find(i => i.id === s.sector)?.name || s.sector;
-  const attrRow = ATTRIBUTES.map(a => `${a.name.slice(0,3).toUpperCase()}:${s.attrAvgs[a.id]}`).join('  ');
-  return `${indName} (${s.brandCount}b, avg ${s.avgScore}): ${attrRow}`;
-}).join('\n')}
-
-CROSS-SECTOR ATTRIBUTE SPREAD (ranked by divergence between sectors — highest spread first):
-High spread = some sectors are leading while others lag significantly on this attribute. Prime storytelling territory.
-Low spread = all sectors perform similarly — either a universal strength or a universal blind spot.
-
-${crossSectorSpread.map(c => `  ${c.attr}: spread ${c.spread}pts (low ${c.min} → high ${c.max}, mean ${c.mean})`).join('\n')}
-
-BRANDS ASSESSED:
-${results.map(r => `${r.brandName} (${industries.find(i => i.id === r.industry)?.name || r.industry || 'unspecified'}, ${r.businessModel || ''}, score: ${r.totalScore})`).join('\n')}
-
-Based on this data — particularly the full sector attribute matrix, the cross-sector spread, and where sectors diverge or converge on specific attributes — identify 3 to 5 thought leadership stories Antenna Group could tell. Each story should be grounded in a specific pattern, tension, or insight from the data. Prioritise stories that emerge from cross-sector attribute comparisons, unexpected gaps, or attributes with high spread. These should be publishable angles: blog posts, talks, LinkedIn articles, or POV pieces.
-
-For each story write:
-- A punchy headline (max 12 words)
-- A 2-3 sentence summary of what the story argues and why the data supports it
-
-Write in plain text. Number each story. No JSON, no bullet sub-lists, no headers beyond the story number and headline.`;
-
-      const storedKey = localStorage.getItem('conscious-compass-apikey');
-      const useProxy = !storedKey || storedKey === 'PROXY';
-      let responseText;
-
-      if (useProxy) {
-        const response = await fetch('/api/claude', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, max_tokens: 1500, temperature: 0 })
-        });
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || `Request failed (${response.status})`);
-        }
-        const data = await response.json();
-        responseText = data.text || data.content?.[0]?.text || '';
+      const res = await fetch('/api/insights-analysis');
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      if (data.stories?.length) {
+        setAiInsights(data.stories);
+        setRefreshedAt(data.refreshedAt ? new Date(data.refreshedAt) : null);
       } else {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': storedKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 1500,
-            temperature: 0,
-            messages: [{ role: 'user', content: prompt }],
-          }),
-        });
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `Request failed (${response.status})`);
-        }
-        const data = await response.json();
-        responseText = data.content[0].text;
+        setError(data.error || 'No stories available yet — check back after the first weekly refresh, or ask an admin to force one.');
       }
-
-      if (!responseText?.trim()) throw new Error('Empty response. Please try again.');
-
-      // Parse numbered stories from plain text
-      const storyBlocks = responseText.split(/\n(?=\d+\.)/).map(s => s.trim()).filter(Boolean);
-      const parsed = storyBlocks.map(block => {
-        const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-        const headlineLine = lines[0].replace(/^\d+\.\s*/, '');
-        const body = lines.slice(1).join(' ');
-        return { headline: headlineLine, body };
-      }).filter(s => s.headline && s.body);
-
-      if (parsed.length === 0) throw new Error('Could not parse stories from response. Please try again.');
-      setAiInsights(parsed);
-    } catch (err) {
-      setError(`Failed to generate insights: ${err.message}`);
-      console.error('Insights error:', err);
+    } catch (e) {
+      setError(e.message || 'Failed to load stories.');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
+
+  const forceRefreshInsights = async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/refresh-insights-analysis', { method: 'POST' });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      if (data.success) {
+        await loadInsights();
+      } else {
+        throw new Error(data.error || 'Refresh failed');
+      }
+    } catch (e) {
+      setError(e.message || 'Refresh failed.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => { loadInsights(); }, []);
+
 
   if (!portfolioStats) {
     return (
@@ -6759,34 +6656,52 @@ Write in plain text. Number each story. No JSON, no bullet sub-lists, no headers
 
       {/* AI Insights Section */}
       <div className="card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
-            <Lightbulb className="w-5 h-5 text-[#E8FF00]" style={{filter: 'drop-shadow(0 0 2px #E8FF00)'}} /> Story Opportunities
-          </h3>
-          <button
-            onClick={generateInsights}
-            disabled={loading}
-            className="btn-primary flex items-center gap-2 text-sm"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {loading ? 'Generating...' : aiInsights ? 'Regenerate' : 'Generate Stories'}
-          </button>
+        <div className="flex items-start justify-between mb-4 gap-4">
+          <div>
+            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+              <Lightbulb className="w-5 h-5 text-[#E8FF00]" style={{filter: 'drop-shadow(0 0 2px #E8FF00)'}} /> Story Opportunities
+            </h3>
+            <p className="text-xs text-[#666666] mt-1">Thought leadership angles from your assessment data. Refreshes automatically every Sunday night.</p>
+            {refreshedAt && (
+              <p className="text-[10px] text-[#999] mt-1">
+                Last updated {refreshedAt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {refreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+          </div>
+          {isAdmin && (
+            <button
+              onClick={forceRefreshInsights}
+              disabled={refreshing || loading}
+              className="flex-shrink-0 btn-primary flex items-center gap-2 text-sm"
+            >
+              {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {refreshing ? 'Refreshing…' : 'Force Refresh'}
+            </button>
+          )}
         </div>
 
         {error && (
-          <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4">
+          <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4 text-sm">
             {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="text-center py-8 text-[#666666]">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#D9D6D0]" />
+            <p className="text-sm">Loading story opportunities…</p>
           </div>
         )}
 
         {!aiInsights && !loading && !error && (
           <div className="text-center py-8 text-[#666666]">
             <Lightbulb className="w-12 h-12 mx-auto mb-3 text-[#D9D6D0]" />
-            <p className="text-sm">Generate 3–5 thought leadership story opportunities based on what your assessment data reveals.</p>
+            <p className="text-sm">No stories available yet. They will appear here after the first Sunday night refresh.</p>
+            {isAdmin && <p className="text-xs text-[#999] mt-2">As an admin, you can trigger it now using Force Refresh above.</p>}
           </div>
         )}
 
-        {aiInsights && (
+        {aiInsights && !loading && (
           <div className="space-y-4">
             {aiInsights.map((story, idx) => (
               <div key={idx} className="p-5 bg-[#1A1A1A] rounded-xl">
@@ -6809,7 +6724,7 @@ Write in plain text. Number each story. No JSON, no bullet sub-lists, no headers
 }
 
 // Landscape View — macro cross-assessment consciousness map
-function LandscapeView({ results, industries }) {
+function LandscapeView({ results, industries, isAdmin = false }) {
   const [selectedYears, setSelectedYears] = useState(['all']);
   const [highlightSector, setHighlightSector] = useState(null);
   const [pinnedSector, setPinnedSector] = useState(null);
@@ -6818,9 +6733,11 @@ function LandscapeView({ results, industries }) {
   const animKey = selectedYears.join('-');
 
   const [hoveredDot, setHoveredDot] = useState(null); // { attrId, sectorKey, name, score, color, pct }
-  const [landscapeAI, setLandscapeAI] = useState(null); // { summary, insights[] }
+  const [landscapeAI, setLandscapeAI] = useState(null);
   const [landscapeAILoading, setLandscapeAILoading] = useState(false);
+  const [landscapeAIRefreshing, setLandscapeAIRefreshing] = useState(false);
   const [landscapeAIError, setLandscapeAIError] = useState(null);
+  const [landscapeAIRefreshedAt, setLandscapeAIRefreshedAt] = useState(null);
 
   // Active sector = pinned takes priority over hover
   const activeSector = pinnedSector || highlightSector;
@@ -6958,110 +6875,47 @@ function LandscapeView({ results, industries }) {
     }),
   [sectors, overallAvg]);
 
-  const generateLandscapeAI = async () => {
+  const loadLandscapeAI = async () => {
     setLandscapeAILoading(true);
     setLandscapeAIError(null);
-    setLandscapeAI(null);
-
-    // Cross-sector spread per attribute
-    const spreadData = ATTRIBUTES.map(attr => {
-      const vals = sectors.map(s => s.attrAvgs[attr.id] || 0);
-      const min = Math.min(...vals);
-      const max = Math.max(...vals);
-      const mean = overallAvg[attr.id] || 0;
-      const spread = max - min;
-      // Cluster coefficient: stdev relative to mean — low = clustered, high = spread
-      const variance = vals.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / vals.length;
-      const stdev = Math.round(Math.sqrt(variance));
-      return { attr: attr.id, min, max, mean, spread, stdev };
-    }).sort((a, b) => b.spread - a.spread);
-
-    const prompt = `You are a senior brand strategist at Antenna Group analysing Brand Consciousness assessment data across multiple sectors. Your job is to interpret what the data is telling us — not to give generic advice, but to read the actual numbers and surface what is genuinely interesting, surprising, or strategically significant.
-
-Brand Consciousness has 8 attributes:
-AWAKE (Narrative Leadership), AWARE (Audience Understanding), REFLECTIVE (Authenticity), ATTENTIVE (Experience Quality), COGENT (Strategic Intelligence), SENTIENT (Emotional Connection), VISIONARY (Future Vision), INTENTIONAL (Organisational Credibility).
-
-Maturity stages: 0–25 Pre-Foundational, 26–39 Foundational, 40–55 Establishing, 56–69 Differentiating, 70–84 Leading, 85–100 Transforming.
-
-LANDSCAPE OVERVIEW:
-${filteredResults.length} brands assessed across ${sectors.length} sectors.
-Overall average score: ${overallScore}/100 (${overallScore >= 85 ? 'Transforming' : overallScore >= 70 ? 'Leading' : overallScore >= 56 ? 'Differentiating' : overallScore >= 40 ? 'Establishing' : overallScore >= 26 ? 'Foundational' : 'Pre-Foundational'})
-
-SECTOR AVERAGES (sorted highest to lowest):
-${sectors.map(s => `  ${s.name} (${s.count}b): ${s.avgScore}`).join('\n')}
-
-FULL SECTOR × ATTRIBUTE MATRIX:
-${sectors.map(s => {
-  const row = ATTRIBUTES.map(a => `${a.name.slice(0,3).toUpperCase()}:${s.attrAvgs[a.id]}`).join('  ');
-  return `  ${s.name}: ${row}`;
-}).join('\n')}
-
-ATTRIBUTE SPREAD ACROSS SECTORS (sorted by spread — how much scores diverge between sectors):
-High spread = sectors diverge significantly on this attribute.
-Low spread = all sectors perform similarly.
-${spreadData.map(c => `  ${c.attr}: spread ${c.spread}pts | min ${c.min} → max ${c.max} | mean ${c.mean} | stdev ${c.stdev}`).join('\n')}
-
-OVERALL ATTRIBUTE AVERAGES (all brands combined):
-${ATTRIBUTES.map(a => `  ${a.id}: ${overallAvg[a.id] || 0}`).join('\n')}
-
-Write a structured analysis in three sections. Use plain prose — no bullet points, no markdown headers, no em dashes. Write directly and confidently.
-
-SECTION 1 — LANDSCAPE SUMMARY (2–3 sentences)
-Summarise the overall picture. What maturity level does this landscape represent? Is there a dominant pattern?
-
-SECTION 2 — SECTOR ANALYSIS (one short paragraph per sector)
-For each sector, describe where it is strong, where it is weak, and what that pattern says about the sector's brand consciousness profile. Reference specific attribute scores where they are notable.
-
-SECTION 3 — KEY INSIGHTS (3–4 insights)
-Each insight should be a short punchy heading followed by 1–2 sentences of explanation. Focus on: attributes with high spread (where sectors diverge most), universal gaps (low-scoring attributes across all sectors), unexpected strengths or contradictions, and what the overall clustering or spread of scores tells us about maturity across the landscape.
-
-Label each section clearly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHTS".`;
-
     try {
-      const storedKey = localStorage.getItem('conscious-compass-apikey');
-      const useProxy = !storedKey || storedKey === 'PROXY';
-      let text;
-
-      if (useProxy) {
-        const res = await fetch('/api/claude', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, max_tokens: 2000, temperature: 0 }),
-        });
-        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Request failed (${res.status})`); }
-        const d = await res.json();
-        text = d.text || d.content?.[0]?.text || '';
+      const res = await fetch('/api/landscape-analysis');
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      if (data.analysis) {
+        setLandscapeAI(data.analysis);
+        setLandscapeAIRefreshedAt(data.refreshedAt ? new Date(data.refreshedAt) : null);
       } else {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': storedKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000, temperature: 0, messages: [{ role: 'user', content: prompt }] }),
-        });
-        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || `Request failed (${res.status})`); }
-        const d = await res.json();
-        text = d.content?.[0]?.text || '';
+        setLandscapeAIError(data.error || 'No analysis available yet — check back after the first weekly refresh, or ask an admin to force one.');
       }
-
-      // Parse the three sections out of the response
-      const extractSection = (label, nextLabel) => {
-        const start = text.indexOf(label);
-        if (start === -1) return '';
-        const end = nextLabel ? text.indexOf(nextLabel, start + label.length) : text.length;
-        return text.slice(start + label.length, end === -1 ? text.length : end).trim();
-      };
-
-      setLandscapeAI({
-        summary: extractSection('LANDSCAPE SUMMARY', 'SECTOR ANALYSIS'),
-        sectorAnalysis: extractSection('SECTOR ANALYSIS', 'KEY INSIGHTS'),
-        insights: extractSection('KEY INSIGHTS', null),
-        raw: text,
-      });
     } catch (e) {
-      setLandscapeAIError(e.message || 'Analysis failed. Please try again.');
+      setLandscapeAIError(e.message || 'Failed to load analysis.');
     } finally {
       setLandscapeAILoading(false);
     }
   };
+
+  const forceRefreshLandscapeAI = async () => {
+    setLandscapeAIRefreshing(true);
+    setLandscapeAIError(null);
+    try {
+      const res = await fetch('/api/refresh-landscape-analysis', { method: 'POST' });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      if (data.success) {
+        await loadLandscapeAI();
+      } else {
+        throw new Error(data.error || 'Refresh failed');
+      }
+    } catch (e) {
+      setLandscapeAIError(e.message || 'Refresh failed.');
+    } finally {
+      setLandscapeAIRefreshing(false);
+    }
+  };
+
+  useEffect(() => { loadLandscapeAI(); }, []);
+
 
   if (!results.length) {
     return (
@@ -7714,20 +7568,28 @@ Label each section clearly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHT
             <h3 className="font-semibold text-white">Landscape Analysis</h3>
             <p className="text-xs text-[#9CA3AF] mt-1">
               AI-powered read of industry averages, attribute spread, sector strengths and gaps, and what it all means.
+              Refreshes automatically every Sunday night.
             </p>
-          </div>
-          <button
-            onClick={generateLandscapeAI}
-            disabled={landscapeAILoading || sectors.length === 0}
-            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#E8FF00', color: '#1A1A1A' }}
-          >
-            {landscapeAILoading ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Analysing…</>
-            ) : (
-              <><Sparkles className="w-4 h-4" /> {landscapeAI ? 'Refresh' : 'Analyse Landscape'}</>
+            {landscapeAIRefreshedAt && (
+              <p className="text-[10px] mt-1" style={{ color: '#6B7280' }}>
+                Last updated {landscapeAIRefreshedAt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {landscapeAIRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
             )}
-          </button>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={forceRefreshLandscapeAI}
+              disabled={landscapeAIRefreshing || landscapeAILoading}
+              className="flex-shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#E8FF00', color: '#1A1A1A' }}
+            >
+              {landscapeAIRefreshing ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Refreshing…</>
+              ) : (
+                <><RefreshCw className="w-4 h-4" /> Force Refresh</>
+              )}
+            </button>
+          )}
         </div>
 
         {landscapeAIError && (
@@ -7736,14 +7598,22 @@ Label each section clearly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHT
           </div>
         )}
 
-        {!landscapeAI && !landscapeAILoading && !landscapeAIError && (
-          <div className="mt-6 text-center py-8 border border-dashed border-[#333] rounded">
-            <Sparkles className="w-8 h-8 text-[#444] mx-auto mb-3" />
-            <p className="text-sm text-[#666]">Click Analyse Landscape to generate an AI interpretation of the data.</p>
+        {landscapeAILoading && (
+          <div className="mt-6 text-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3" style={{ color: '#E8FF00' }} />
+            <p className="text-sm text-[#666]">Loading analysis…</p>
           </div>
         )}
 
-        {landscapeAI && (
+        {!landscapeAI && !landscapeAILoading && !landscapeAIError && (
+          <div className="mt-6 text-center py-8 border border-dashed border-[#333] rounded">
+            <Sparkles className="w-8 h-8 text-[#444] mx-auto mb-3" />
+            <p className="text-sm text-[#666]">No analysis available yet. It will appear here after the first Sunday night refresh.</p>
+            {isAdmin && <p className="text-xs text-[#555] mt-2">As an admin, you can trigger it now using Force Refresh above.</p>}
+          </div>
+        )}
+
+        {landscapeAI && !landscapeAILoading && (
           <div className="mt-5 space-y-4">
             <div className="p-4 rounded" style={{ backgroundColor: 'rgba(232,255,0,0.08)', border: '1px solid rgba(232,255,0,0.2)' }}>
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#E8FF00' }}>Landscape Summary</div>
@@ -7767,12 +7637,13 @@ Label each section clearly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHT
         )}
       </div>
 
+
     </div>
   );
 }
 
 // Brand Comparison Page
-function ComparisonPage({ results, onBack }) {
+function ComparisonPage({ results, onBack, profile }) {
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [filterIndustry, setFilterIndustry] = useState('all');
   const [filterBusinessModel, setFilterBusinessModel] = useState('all');
@@ -7928,10 +7799,10 @@ function ComparisonPage({ results, onBack }) {
           </div>
         ) : viewMode === 'insights' ? (
           /* AI Insights View */
-          <InsightsView results={results} industryBenchmarks={industryBenchmarks} industries={industries} />
+          <InsightsView results={results} industryBenchmarks={industryBenchmarks} industries={industries} isAdmin={profile?.is_admin} />
         ) : viewMode === 'landscape' ? (
           /* Landscape View */
-          <LandscapeView results={results} industries={industries} />
+          <LandscapeView results={results} industries={industries} isAdmin={profile?.is_admin} />
         ) : (
           /* Brand Comparison View */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -9731,6 +9602,7 @@ function AppContent() {
         <ComparisonPage 
           results={compassResults}
           onBack={() => setShowComparisonPage(false)}
+          profile={profile}
         />
       </div>
     );

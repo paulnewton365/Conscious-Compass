@@ -157,3 +157,25 @@ CREATE TRIGGER on_auth_user_created
 -- ALTER TABLE stay_conscious_cache ENABLE ROW LEVEL SECURITY;
 -- CREATE POLICY "Authenticated users can read stay conscious cache"
 --   ON stay_conscious_cache FOR SELECT TO authenticated USING (true);
+
+-- MIGRATION: Create Landscape Analysis weekly cache table
+-- Run this in Supabase SQL Editor:
+-- CREATE TABLE IF NOT EXISTS landscape_analysis_cache (
+--   id INTEGER PRIMARY KEY DEFAULT 1,
+--   analysis JSONB NOT NULL,
+--   refreshed_at TIMESTAMP WITH TIME ZONE NOT NULL
+-- );
+-- ALTER TABLE landscape_analysis_cache ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "Authenticated users can read landscape analysis cache"
+--   ON landscape_analysis_cache FOR SELECT TO authenticated USING (true);
+
+-- MIGRATION: Create Insights Analysis weekly cache table
+-- Run this in Supabase SQL Editor:
+-- CREATE TABLE IF NOT EXISTS insights_analysis_cache (
+--   id INTEGER PRIMARY KEY DEFAULT 1,
+--   stories JSONB NOT NULL,
+--   refreshed_at TIMESTAMP WITH TIME ZONE NOT NULL
+-- );
+-- ALTER TABLE insights_analysis_cache ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "Authenticated users can read insights analysis cache"
+--   ON insights_analysis_cache FOR SELECT TO authenticated USING (true);

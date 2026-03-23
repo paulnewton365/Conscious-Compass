@@ -9,6 +9,14 @@
     {
       "path": "/api/refresh-stay-conscious",
       "schedule": "0 22 * * 0"
+    },
+    {
+      "path": "/api/refresh-landscape-analysis",
+      "schedule": "30 22 * * 0"
+    },
+    {
+      "path": "/api/refresh-insights-analysis",
+      "schedule": "0 23 * * 0"
     }
   ]
 }
