@@ -6794,6 +6794,8 @@ function LandscapeView({ results, industries }) {
   const [animProgress, setAnimProgress] = useState(0);
   const animKey = selectedYears.join('-');
 
+  const [hoveredDot, setHoveredDot] = useState(null); // { attrId, sectorKey, name, score, color, pct }
+
   // Active sector = pinned takes priority over hover
   const activeSector = pinnedSector || highlightSector;
 
@@ -7157,7 +7159,12 @@ function LandscapeView({ results, industries }) {
             <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-3">Sectors</div>
 
             {/* Overall avg legend entry */}
-            <div className="flex items-center gap-2 p-2 rounded bg-[#FAFAF8]">
+            <div
+              className={`flex items-center gap-2 p-2 rounded cursor-pointer select-none transition-all ${
+                !pinnedSector ? 'ring-1 ring-[#D9D6D0] bg-[#FFFEF0]' : 'bg-[#FAFAF8] hover:bg-[#F5F4F0]'
+              }`}
+              onClick={() => { setPinnedSector(null); setHighlightSector(null); }}
+            >
               <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="#CFD32F" strokeWidth="2.5" strokeDasharray="5 3"/></svg>
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-semibold text-[#1A1A1A]">All sectors avg</div>
@@ -7208,7 +7215,7 @@ function LandscapeView({ results, industries }) {
             <div key={attr.id} className="grid items-center gap-3"
               style={{ gridTemplateColumns: '96px 1fr 36px' }}>
               <div className="text-xs font-semibold text-[#1A1A1A] text-right leading-tight pr-1">{attr.name}</div>
-              <div className="relative h-9 flex items-center">
+              <div className="relative h-9 flex items-center" style={{ overflow: 'visible' }}>
                 {/* Background track */}
                 <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
                 {/* Stage markers */}
@@ -7218,26 +7225,60 @@ function LandscapeView({ results, industries }) {
                 ))}
                 {/* Range fill */}
                 {sectorScores.length > 1 && (
-                  <div className="absolute h-1.5 rounded-full bg-[#E8E6E1]"
-                    style={{ left: `${min}%`, width: `${Math.max(max - min, 0.5)}%` }} />
+                  <div className="absolute h-1.5 rounded-full"
+                    style={{ left: `${min}%`, width: `${Math.max(max - min, 0.5)}%`, backgroundColor: 'rgba(229,57,53,0.18)' }} />
                 )}
                 {/* Mean line */}
                 <div className="absolute w-0.5 h-6 rounded-full bg-[#CFD32F] z-10"
                   style={{ left: `${mean}%`, transform: 'translateX(-50%)' }} />
                 {/* Sector dots */}
-                {sectorScores.map((s, si) => (
-                  <div key={si} title={`${s.name}: ${s.score}`}
-                    className="absolute w-3 h-3 rounded-full ring-2 ring-white z-20 transition-transform hover:scale-150"
-                    style={{
-                      backgroundColor: s.color,
-                      left: `${s.score}%`,
-                      transform: 'translate(-50%, -50%)',
-                      top: '50%',
-                      cursor: 'pointer',
-                      boxShadow: activeSector === sectorScores[si]?.key ? `0 0 0 2px ${s.color}` : 'none',
-                    }}
-                  />
-                ))}
+                {sectorScores.map((s, si) => {
+                  const isHovered = hoveredDot?.attrId === attr.id && hoveredDot?.sectorKey === s.key;
+                  return (
+                    <div key={si}
+                      className="absolute z-20"
+                      style={{ left: `${s.score}%`, top: '50%', transform: 'translate(-50%, -50%)' }}
+                      onMouseEnter={() => setHoveredDot({ attrId: attr.id, sectorKey: s.key, name: s.name, score: s.score, color: s.color, pct: s.score })}
+                      onMouseLeave={() => setHoveredDot(null)}
+                    >
+                      {/* Tooltip */}
+                      {isHovered && (
+                        <div className="absolute z-30 pointer-events-none"
+                          style={{
+                            bottom: 'calc(100% + 8px)',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            whiteSpace: 'nowrap',
+                          }}>
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded shadow-lg text-white text-xs font-semibold"
+                            style={{ backgroundColor: s.color }}>
+                            <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70 flex-shrink-0" />
+                            {s.name}
+                            <span className="ml-1 font-bold opacity-90">{s.score}</span>
+                          </div>
+                          {/* Arrow */}
+                          <div className="mx-auto w-0 h-0"
+                            style={{
+                              borderLeft: '5px solid transparent',
+                              borderRight: '5px solid transparent',
+                              borderTop: `5px solid ${s.color}`,
+                              width: 0,
+                            }} />
+                        </div>
+                      )}
+                      {/* Dot */}
+                      <div
+                        className="w-3 h-3 rounded-full ring-2 ring-white transition-transform"
+                        style={{
+                          backgroundColor: s.color,
+                          cursor: 'pointer',
+                          transform: isHovered ? 'scale(1.6)' : 'scale(1)',
+                          boxShadow: activeSector === s.key ? `0 0 0 2px ${s.color}` : 'none',
+                        }}
+                      />
+                    </div>
+                  );
+                })}
               </div>
               <div className="text-xs font-bold text-[#1A1A1A] tabular-nums">{mean}</div>
             </div>
@@ -7262,7 +7303,7 @@ function LandscapeView({ results, industries }) {
                   {/* track */}
                   <line x1="10" y1="22" x2="210" y2="22" stroke="#ECEAE6" strokeWidth="2" strokeLinecap="round" />
                   {/* range bar */}
-                  <rect x="60" y="18" width="100" height="8" rx="4" fill="#E8E6E1" />
+                  <rect x="60" y="18" width="100" height="8" rx="4" fill="rgba(229,57,53,0.18)" />
                   {/* mean line */}
                   <line x1="120" y1="10" x2="120" y2="34" stroke="#CFD32F" strokeWidth="2.5" strokeLinecap="round" />
                   {/* sector dot A */}
@@ -7291,7 +7332,7 @@ function LandscapeView({ results, industries }) {
                   <span><strong className="text-[#1A1A1A]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 mt-1.5 w-7 h-2 bg-[#E8E6E1] rounded-full" style={{ minWidth: 28 }} />
+                <div className="flex-shrink-0 mt-1.5 w-7 h-2 rounded-full" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
                   <span><strong className="text-[#1A1A1A]">Grey band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
                 </div>
               </div>
