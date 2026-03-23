@@ -135,7 +135,10 @@ For each sector, one short paragraph describing where it is strong, where it is 
 KEY INSIGHTS
 3–4 insights. Each: a short punchy heading followed by 1–2 sentences. Focus on attributes with high spread, universal gaps, unexpected strengths or contradictions, and what the clustering or spread tells us about maturity across the landscape.
 
-Label each section exactly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHTS".`;
+LANDSCAPE HEADLINE
+A single punchy headline (max 10 words) that captures the single most striking thing about this landscape — the dominant tension, gap, or pattern. This will be used as a display headline above the summary in the newsletter.
+
+Label each section exactly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHTS", "LANDSCAPE HEADLINE".`;
 
     // 6. Call Claude
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -170,9 +173,10 @@ Label each section exactly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHT
     };
 
     const analysis = {
+      headline: extractSection('LANDSCAPE HEADLINE', null).replace(/^["']|["']$/g, '').trim(),
       summary: extractSection('LANDSCAPE SUMMARY', 'SECTOR ANALYSIS'),
       sectorAnalysis: extractSection('SECTOR ANALYSIS', 'KEY INSIGHTS'),
-      insights: extractSection('KEY INSIGHTS', null),
+      insights: extractSection('KEY INSIGHTS', 'LANDSCAPE HEADLINE'),
       brandCount: results.length,
       sectorCount: sectors.length,
     };

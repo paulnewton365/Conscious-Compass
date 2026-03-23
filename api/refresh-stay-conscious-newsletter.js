@@ -64,6 +64,7 @@ export default async function handler(req, res) {
       intelligenceItems: supportingItems,
       landscapeAnalysis: landscapeAnalysis
         ? {
+            headline: landscapeAnalysis.headline || '',
             summary: landscapeAnalysis.summary || '',
             insights: landscapeAnalysis.insights || '',
             brandCount: landscapeAnalysis.brandCount || null,

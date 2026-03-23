@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.17.3';
+const APP_VERSION = '2.17.4';
 import { 
   supabase, 
   signUp, 
@@ -8957,7 +8957,9 @@ function StayConsciousPage({ onBack, isAdmin }) {
       '',
     ];
     if (ns.landscapeAnalysis?.summary) {
-      lines.push('LANDSCAPE INSIGHTS', '', ns.landscapeAnalysis.summary, '');
+      lines.push('LANDSCAPE INSIGHTS', '');
+      if (ns.landscapeAnalysis.headline) lines.push(ns.landscapeAnalysis.headline, '');
+      lines.push(ns.landscapeAnalysis.summary, '');
       if (ns.landscapeAnalysis.insights) {
         lines.push(ns.landscapeAnalysis.insights, '');
       }
@@ -9166,6 +9168,9 @@ function StayConsciousPage({ onBack, isAdmin }) {
               ...(ns.landscapeAnalysis.brandCount ? [new Paragraph({ ...sp(0, 80), children: [
                 new TextRun({ text: `Based on ${ns.landscapeAnalysis.brandCount} brands across ${ns.landscapeAnalysis.sectorCount} sectors`, font: 'Inter', size: 18, color: '999999' }),
               ]})] : []),
+              ...(ns.landscapeAnalysis.headline ? [new Paragraph({ ...sp(0, 80), children: [
+                new TextRun({ text: clean(ns.landscapeAnalysis.headline), font: 'Inter', size: 26, bold: true, color: '1A1A1A' }),
+              ]})] : []),
               body(clean(ns.landscapeAnalysis.summary), 80),
               ...(ns.landscapeAnalysis.insights ? [body(clean(ns.landscapeAnalysis.insights), 160)] : []),
               rule(),
@@ -9352,6 +9357,11 @@ function StayConsciousPage({ onBack, isAdmin }) {
                     <p className="text-xs text-[#999] mb-3">
                       Based on {newsletter.landscapeAnalysis.brandCount} brands across {newsletter.landscapeAnalysis.sectorCount} sectors
                     </p>
+                  )}
+                  {newsletter.landscapeAnalysis.headline && (
+                    <h3 className="font-bold text-[#1A1A1A] text-lg leading-snug mb-3">
+                      {newsletter.landscapeAnalysis.headline}
+                    </h3>
                   )}
                   <p className="text-sm text-[#444] leading-relaxed">
                     {(() => {
