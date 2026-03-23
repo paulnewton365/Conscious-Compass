@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.17.7';
+const APP_VERSION = '2.17.8';
 import { 
   supabase, 
   signUp, 
@@ -9366,13 +9366,18 @@ function StayConsciousPage({ onBack, isAdmin }) {
                       {newsletter.landscapeAnalysis.headline}
                     </h3>
                   )}
-                  <p className="text-sm text-[#444] leading-relaxed">
-                    {(() => {
-                      const combined = [newsletter.landscapeAnalysis.summary, newsletter.landscapeAnalysis.insights].filter(Boolean).join(' ');
-                      const words = combined.split(/\s+/);
-                      return words.length > 250 ? words.slice(0, 250).join(' ') + '…' : combined;
-                    })()}
-                  </p>
+                  {(() => {
+                    const text = newsletter.landscapeAnalysis.summary || '';
+                    const paras = text.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+                    if (paras.length >= 2) {
+                      return paras.slice(0, 2).map((para, i) => (
+                        <p key={i} className={`text-sm text-[#444] leading-relaxed${i === 0 ? ' mb-3' : ''}`}>{para}</p>
+                      ));
+                    }
+                    // Fallback: single block, capped at 250 words
+                    const words = text.split(/\s+/);
+                    return <p className="text-sm text-[#444] leading-relaxed">{words.length > 250 ? words.slice(0, 250).join(' ') + '…' : text}</p>;
+                  })()}
                 </div>
               </div>
             )}

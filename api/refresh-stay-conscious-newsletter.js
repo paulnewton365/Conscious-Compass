@@ -54,6 +54,51 @@ export default async function handler(req, res) {
     const prevIssue = rawPrev > 52 ? 0 : rawPrev;
     const issueNumber = prevIssue + 1;
 
+    // Generate landscape headline + two-paragraph summary directly here,
+    // regardless of what the cache contains. This is more reliable than
+    // depending on the landscape refresh prompt having run correctly.
+    let landscapeForNewsletter = null;
+    if (landscapeAnalysis?.summary) {
+      const combinedText = [landscapeAnalysis.summary, landscapeAnalysis.insights].filter(Boolean).join('\n\n');
+      const headlinePrompt = `You are a brand strategist. Read this landscape analysis and do two things:
+
+1. Write a single punchy headline (max 10 words) capturing the single most striking insight. Output it on one line starting with exactly "HEADLINE: "
+
+2. Rewrite the analysis as exactly two short paragraphs separated by a blank line:
+   - Paragraph 1: The big-picture industry trend — what the data says about how brands across sectors are behaving and what pattern is emerging
+   - Paragraph 2: The conscious brand attributes story — which attributes are strongest, weakest, most polarising, and what that means
+
+Use plain prose. No bullet points. No headers. No em dashes. Max 200 words total across both paragraphs.
+
+ANALYSIS:
+${combinedText}`;
+
+      const hlRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 600, temperature: 0, messages: [{ role: 'user', content: headlinePrompt }] }),
+      });
+
+      let headline = '';
+      let twoParaSummary = combinedText;
+
+      if (hlRes.ok) {
+        const hlData = await hlRes.json();
+        const hlText = (hlData.content?.filter(b => b.type === 'text').map(b => b.text).join('\n') || '').trim();
+        const hlMatch = hlText.match(/^HEADLINE:\s*(.+)$/m);
+        if (hlMatch) headline = hlMatch[1].replace(/^["'*#\s]+|["'*#\s]+$/g, '').trim();
+        // Everything after the HEADLINE: line is the two-paragraph summary
+        twoParaSummary = hlText.replace(/^HEADLINE:.*$/m, '').trim();
+      }
+
+      landscapeForNewsletter = {
+        headline,
+        summary: twoParaSummary,
+        brandCount: landscapeAnalysis.brandCount || null,
+        sectorCount: landscapeAnalysis.sectorCount || null,
+      };
+    }
+
     const newsletter = {
       issueNumber,
       weekOf: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
@@ -64,15 +109,7 @@ export default async function handler(req, res) {
         whyItMatters: leadItem.whyItMatters,
       },
       intelligenceItems: supportingItems,
-      landscapeAnalysis: landscapeAnalysis
-        ? {
-            headline: landscapeAnalysis.headline || '',
-            summary: landscapeAnalysis.summary || '',
-            insights: landscapeAnalysis.insights || '',
-            brandCount: landscapeAnalysis.brandCount || null,
-            sectorCount: landscapeAnalysis.sectorCount || null,
-          }
-        : null,
+      landscapeAnalysis: landscapeForNewsletter,
       storyOpportunities: storyOpportunities || null,
     };
 
