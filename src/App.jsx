@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.17.4';
+const APP_VERSION = '2.17.5';
 import { 
   supabase, 
   signUp, 
@@ -7537,6 +7537,9 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           <div className="mt-5 space-y-4">
             <div className="p-4 rounded" style={{ backgroundColor: 'rgba(232,255,0,0.08)', border: '1px solid rgba(232,255,0,0.2)' }}>
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#E8FF00' }}>Landscape Summary</div>
+              {landscapeAI.headline && (
+                <p className="font-bold leading-snug mb-2" style={{ color: '#FFFFFF', fontSize: '1.05rem' }}>{landscapeAI.headline}</p>
+              )}
               <p className="text-sm leading-relaxed" style={{ color: '#E8E6E1' }}>{landscapeAI.summary}</p>
             </div>
 
