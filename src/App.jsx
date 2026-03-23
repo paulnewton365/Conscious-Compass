@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.17.6';
+const APP_VERSION = '2.17.7';
 import { 
   supabase, 
   signUp, 

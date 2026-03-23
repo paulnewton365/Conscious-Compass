@@ -124,10 +124,9 @@ ${spreadData.map(c => `  ${c.attr}: spread ${c.spread}pts | min ${c.min} → max
 OVERALL ATTRIBUTE AVERAGES (all brands):
 ${ATTRIBUTES.map(a => `  ${a.id}: ${overallAvg[a.id]}`).join('\n')}
 
-Write a structured analysis. Use plain prose — no bullet points, no markdown headers, no em dashes. Write directly and confidently. Output the sections in exactly this order with exactly these labels on their own line:
+Write a structured analysis. Use plain prose — no bullet points, no markdown headers, no em dashes. Write directly and confidently.
 
-LANDSCAPE HEADLINE
-A single punchy headline (max 10 words) capturing the single most striking thing about this landscape — the dominant tension, gap, or pattern.
+Output four sections with exactly these labels (each label on its own line, in this order):
 
 LANDSCAPE SUMMARY
 Summarise the overall picture in 2–3 sentences. What maturity level does this landscape represent? Is there a dominant pattern?
@@ -136,7 +135,10 @@ SECTOR ANALYSIS
 For each sector, one short paragraph describing where it is strong, where it is weak, and what the attribute pattern reveals. Reference specific scores where notable.
 
 KEY INSIGHTS
-3–4 insights. Each: a short punchy heading followed by 1–2 sentences. Focus on attributes with high spread, universal gaps, unexpected strengths or contradictions, and what the clustering or spread tells us about maturity across the landscape.`;
+3–4 insights. Each: a short punchy heading followed by 1–2 sentences. Focus on attributes with high spread, universal gaps, unexpected strengths or contradictions, and what the clustering or spread tells us about maturity across the landscape.
+
+Finally, on the very last line of your response, write exactly this format with no extra text before or after it on that line:
+HEADLINE: [a single punchy headline of max 10 words capturing the single most striking insight from this landscape]`;
 
     // 6. Call Claude
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -170,11 +172,17 @@ KEY INSIGHTS
       return text.slice(start + label.length, end === -1 ? text.length : end).trim();
     };
 
+    // Headline is on the last line as "HEADLINE: ..."  — regex is far more robust than section splitting
+    const headlineMatch = text.match(/^HEADLINE:\s*(.+)$/m);
+    const headline = headlineMatch
+      ? headlineMatch[1].replace(/^["'*#\s]+|["'*#\s]+$/g, '').trim()
+      : '';
+
     const analysis = {
-      headline: extractSection('LANDSCAPE HEADLINE', 'LANDSCAPE SUMMARY').replace(/^["'*#\s]+|["'*#\s]+$/g, '').trim(),
+      headline,
       summary: extractSection('LANDSCAPE SUMMARY', 'SECTOR ANALYSIS'),
       sectorAnalysis: extractSection('SECTOR ANALYSIS', 'KEY INSIGHTS'),
-      insights: extractSection('KEY INSIGHTS', null),
+      insights: extractSection('KEY INSIGHTS', null).replace(/\n*HEADLINE:.*$/s, '').trim(),
       brandCount: results.length,
       sectorCount: sectors.length,
     };
