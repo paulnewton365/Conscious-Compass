@@ -6790,8 +6790,16 @@ Write in plain text. Number each story. No JSON, no bullet sub-lists, no headers
 function LandscapeView({ results, industries }) {
   const [selectedYears, setSelectedYears] = useState(['all']);
   const [highlightSector, setHighlightSector] = useState(null);
+  const [pinnedSector, setPinnedSector] = useState(null);
   const [animProgress, setAnimProgress] = useState(0);
   const animKey = selectedYears.join('-');
+
+  // Active sector = pinned takes priority over hover
+  const activeSector = pinnedSector || highlightSector;
+
+  const handleSectorClick = (key) => {
+    setPinnedSector(prev => prev === key ? null : key);
+  };
 
   // Re-animate whenever year filter changes
   useEffect(() => {
@@ -7007,8 +7015,9 @@ function LandscapeView({ results, industries }) {
               {sectors.map((sector) => {
                 const pts = getDataPoints(sector.attrAvgs, animProgress);
                 const pStr = pts.map(p => `${p.x},${p.y}`).join(' ');
-                const isHL = highlightSector === sector.key;
-                const isDim = highlightSector && !isHL;
+                const isHL = activeSector === sector.key;
+                const isDim = activeSector && !isHL;
+                const isPinned = pinnedSector === sector.key;
                 return (
                   <polygon
                     key={sector.key}
@@ -7018,9 +7027,12 @@ function LandscapeView({ results, industries }) {
                     strokeWidth={isHL ? 3 : 1.5}
                     strokeOpacity={isDim ? 0.2 : 0.85}
                     style={{ cursor: 'pointer' }}
-                    onMouseEnter={() => setHighlightSector(sector.key)}
-                    onMouseLeave={() => setHighlightSector(null)}
-                  />
+                    onClick={() => handleSectorClick(sector.key)}
+                    onMouseEnter={() => !pinnedSector && setHighlightSector(sector.key)}
+                    onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
+                  >
+                    {isPinned && <title>Click to unpin</title>}
+                  </polygon>
                 );
               })}
 
@@ -7035,7 +7047,7 @@ function LandscapeView({ results, industries }) {
                     stroke="#CFD32F"
                     strokeWidth="2.5"
                     strokeDasharray="7 4"
-                    opacity={highlightSector ? 0.35 : 1}
+                    opacity={activeSector ? 0.35 : 1}
                   />
                 );
               })()}
@@ -7097,26 +7109,34 @@ function LandscapeView({ results, industries }) {
               })}
 
               {/* Highlighted sector label overlay */}
-              {highlightSector && (() => {
-                const sector = sectors.find(s => s.key === highlightSector);
+              {activeSector && (() => {
+                const sector = sectors.find(s => s.key === activeSector);
                 if (!sector) return null;
+                const isPinned = pinnedSector === activeSector;
                 return (
                   <>
-                    <circle cx="226" cy="226" r="40" fill={sector.color} />
-                    <text x="226" y="220" textAnchor="middle" dominantBaseline="middle"
-                      style={{ fontSize: '22px', fontWeight: '700', fill: '#fff', fontFamily: 'Inter, sans-serif' }}>
+                    <circle cx="226" cy="226" r="40" fill={sector.color}
+                      style={{ cursor: 'pointer' }} onClick={() => handleSectorClick(sector.key)} />
+                    <text x="226" y="218" textAnchor="middle" dominantBaseline="middle"
+                      style={{ fontSize: '22px', fontWeight: '700', fill: '#fff', fontFamily: 'Inter, sans-serif', pointerEvents: 'none' }}>
                       {sector.avgScore}
                     </text>
-                    <text x="226" y="240" textAnchor="middle"
-                      style={{ fontSize: '8px', fontWeight: '600', fill: 'rgba(255,255,255,0.8)', fontFamily: 'Inter, sans-serif' }}>
+                    <text x="226" y="236" textAnchor="middle"
+                      style={{ fontSize: '7.5px', fontWeight: '600', fill: 'rgba(255,255,255,0.8)', fontFamily: 'Inter, sans-serif', pointerEvents: 'none' }}>
                       {sector.name.slice(0, 12).toUpperCase()}
                     </text>
+                    {isPinned && (
+                      <text x="226" y="248" textAnchor="middle"
+                        style={{ fontSize: '6.5px', fill: 'rgba(255,255,255,0.55)', fontFamily: 'Inter, sans-serif', pointerEvents: 'none' }}>
+                        ● PINNED
+                      </text>
+                    )}
                   </>
                 );
               })()}
 
               {/* Default centre */}
-              {!highlightSector && (
+              {!activeSector && (
                 <>
                   <circle cx="226" cy="226" r="38" fill="#CFD32F" />
                   <text x="226" y="219" textAnchor="middle" dominantBaseline="middle"
@@ -7148,20 +7168,23 @@ function LandscapeView({ results, industries }) {
 
             {sectors.map(sector => {
               const stage = getMaturityStage(sector.avgScore);
+              const isActive = activeSector === sector.key;
+              const isPinned = pinnedSector === sector.key;
               return (
                 <div
                   key={sector.key}
-                  className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-all ${
-                    highlightSector === sector.key ? 'ring-1 ring-[#D9D6D0]' : ''
+                  className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-all select-none ${
+                    isActive ? 'ring-1 ring-[#D9D6D0]' : ''
                   }`}
-                  style={{ backgroundColor: highlightSector === sector.key ? sector.color + '15' : '' }}
-                  onMouseEnter={() => setHighlightSector(sector.key)}
-                  onMouseLeave={() => setHighlightSector(null)}
+                  style={{ backgroundColor: isActive ? sector.color + '15' : '' }}
+                  onClick={() => handleSectorClick(sector.key)}
+                  onMouseEnter={() => !pinnedSector && setHighlightSector(sector.key)}
+                  onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
                 >
                   <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-[#1A1A1A] truncate leading-tight">{sector.name}</div>
-                    <div className="text-[10px] text-[#666]">{sector.count}b</div>
+                    <div className="text-[10px] text-[#666]">{sector.count}b{isPinned ? ' · pinned' : ''}</div>
                   </div>
                   <span className="text-sm font-bold" style={{ color: stage.color }}>{sector.avgScore}</span>
                 </div>
@@ -7176,7 +7199,7 @@ function LandscapeView({ results, industries }) {
         <div className="mb-5">
           <h3 className="font-semibold text-[#1A1A1A]">Attribute Landscape</h3>
           <p className="text-xs text-[#666666] mt-1">
-            Score distribution per attribute across all sectors. Each dot is a sector average. Yellow line = cross-sector mean.
+            Where each sector scores on every attribute — see the legend below to read the chart.
           </p>
         </div>
 
@@ -7211,7 +7234,7 @@ function LandscapeView({ results, industries }) {
                       transform: 'translate(-50%, -50%)',
                       top: '50%',
                       cursor: 'pointer',
-                      boxShadow: highlightSector === sectorScores[si]?.key ? `0 0 0 2px ${s.color}` : 'none',
+                      boxShadow: activeSector === sectorScores[si]?.key ? `0 0 0 2px ${s.color}` : 'none',
                     }}
                   />
                 ))}
@@ -7230,18 +7253,48 @@ function LandscapeView({ results, industries }) {
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-5 pt-3 border-t border-[#E8E6E1] text-[10px] text-[#999]">
-            <div className="flex items-center gap-1.5">
-              <div className="w-0.5 h-5 bg-[#CFD32F] rounded" />
-              <span>Cross-sector mean</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-7 h-1.5 bg-[#E8E6E1] rounded-full" />
-              <span>Score range</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-[#E53935] ring-2 ring-white" />
-              <span>Sector avg</span>
+          <div className="mt-5 pt-4 border-t border-[#E8E6E1]">
+            <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-3">How to read this chart</div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Visual example */}
+              <div className="flex-shrink-0 flex items-center" style={{ width: 220 }}>
+                <svg width="220" height="44" viewBox="0 0 220 44">
+                  {/* track */}
+                  <line x1="10" y1="22" x2="210" y2="22" stroke="#ECEAE6" strokeWidth="2" strokeLinecap="round" />
+                  {/* range bar */}
+                  <rect x="60" y="18" width="100" height="8" rx="4" fill="#E8E6E1" />
+                  {/* mean line */}
+                  <line x1="120" y1="10" x2="120" y2="34" stroke="#CFD32F" strokeWidth="2.5" strokeLinecap="round" />
+                  {/* sector dot A */}
+                  <circle cx="70" cy="22" r="6" fill="#E53935" stroke="white" strokeWidth="2" />
+                  {/* sector dot B */}
+                  <circle cx="110" cy="22" r="6" fill="#1976D2" stroke="white" strokeWidth="2" />
+                  {/* sector dot C */}
+                  <circle cx="155" cy="22" r="6" fill="#388E3C" stroke="white" strokeWidth="2" />
+                  {/* annotations */}
+                  <text x="120" y="8" textAnchor="middle" style={{ fontSize: '8px', fill: '#6B6B00', fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>avg</text>
+                  <text x="70" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#E53935', fontFamily: 'Inter, sans-serif' }}>sector</text>
+                  <text x="110" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#1976D2', fontFamily: 'Inter, sans-serif' }}>sector</text>
+                  <text x="155" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#388E3C', fontFamily: 'Inter, sans-serif' }}>sector</text>
+                </svg>
+              </div>
+              {/* Text explanations */}
+              <div className="flex flex-col gap-2 justify-center text-xs text-[#666666]">
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-0.5 w-3 h-3 rounded-full bg-[#E53935] ring-2 ring-white" style={{ minWidth: 12 }} />
+                  <span><strong className="text-[#1A1A1A]">Coloured dots</strong> — each dot is one sector's average score for this attribute. Hover the octagon or cards above to match colours to sectors.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
+                    <div className="w-0.5 h-4 bg-[#CFD32F] rounded mx-auto" />
+                  </div>
+                  <span><strong className="text-[#1A1A1A]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-1.5 w-7 h-2 bg-[#E8E6E1] rounded-full" style={{ minWidth: 28 }} />
+                  <span><strong className="text-[#1A1A1A]">Grey band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -7260,9 +7313,12 @@ function LandscapeView({ results, industries }) {
             const stage = getMaturityStage(sector.avgScore);
             return (
               <div key={sector.key}
-                className="bg-white border border-[#E8E6E1] rounded p-5 transition-all hover:shadow-sm"
-                onMouseEnter={() => setHighlightSector(sector.key)}
-                onMouseLeave={() => setHighlightSector(null)}
+                className={`bg-white border rounded p-5 transition-all hover:shadow-sm cursor-pointer select-none ${
+                  activeSector === sector.key ? 'border-[#1A1A1A] shadow-sm' : 'border-[#E8E6E1]'
+                }`}
+                onClick={() => handleSectorClick(sector.key)}
+                onMouseEnter={() => !pinnedSector && setHighlightSector(sector.key)}
+                onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
               >
                 {/* Header */}
                 <div className="flex items-start gap-3 mb-4">
@@ -7477,6 +7533,16 @@ function ComparisonPage({ results, onBack }) {
             Compare Brands
           </button>
           <button
+            onClick={() => setViewMode('landscape')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              viewMode === 'landscape' 
+                ? 'bg-[#1A1A1A] text-white' 
+                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+            }`}
+          >
+            🌐 Landscape
+          </button>
+          <button
             onClick={() => setViewMode('industry')}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               viewMode === 'industry' 
@@ -7495,16 +7561,6 @@ function ComparisonPage({ results, onBack }) {
             }`}
           >
             ✨ Insights
-          </button>
-          <button
-            onClick={() => setViewMode('landscape')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              viewMode === 'landscape' 
-                ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
-            }`}
-          >
-            🌐 Landscape
           </button>
         </div>
 
