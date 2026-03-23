@@ -7349,6 +7349,157 @@ function LandscapeView({ results, industries }) {
         </div>
       </div>
 
+      {/* Sector Attribute Spread — rows = sectors, tracks = attributes */}
+      <div className="bg-white border border-[#E8E6E1] rounded p-6">
+        <div className="mb-5">
+          <h3 className="font-semibold text-[#1A1A1A]">Sector Attribute Spread</h3>
+          <p className="text-xs text-[#666666] mt-1">
+            Each sector's score across all eight attributes. Each dot is one attribute score — yellow line = that sector's overall average.
+          </p>
+        </div>
+
+        <div className="space-y-3.5">
+          {sectors.map((sector) => {
+            const attrScores = ATTRIBUTES.map(attr => ({
+              key: attr.id,
+              name: attr.name,
+              score: sector.attrAvgs[attr.id] || 0,
+              color: sector.color,
+            }));
+            const vals = attrScores.map(a => a.score);
+            const sMin = Math.min(...vals);
+            const sMax = Math.max(...vals);
+            const sAvg = sector.avgScore;
+            const isActive = activeSector === sector.key;
+
+            return (
+              <div key={sector.key}
+                className={`grid items-center gap-3 rounded px-2 py-1 -mx-2 cursor-pointer transition-colors ${
+                  isActive ? 'bg-[#F5F4F0]' : 'hover:bg-[#FAFAF8]'
+                }`}
+                style={{ gridTemplateColumns: '140px 1fr 36px' }}
+                onClick={() => handleSectorClick(sector.key)}
+                onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
+                onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
+              >
+                {/* Sector label */}
+                <div className="flex items-center gap-2 pr-1">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-[#1A1A1A] truncate leading-tight">{sector.name}</div>
+                    <div className="text-[10px] text-[#666]">{sector.count}b</div>
+                  </div>
+                </div>
+
+                {/* Track */}
+                <div className="relative h-9 flex items-center" style={{ overflow: 'visible' }}>
+                  {/* Background track */}
+                  <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
+                  {/* Stage markers */}
+                  {[25, 40, 56, 70, 85].map(mark => (
+                    <div key={mark} className="absolute w-px h-3 bg-[#D9D6D0]"
+                      style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
+                  ))}
+                  {/* Range fill */}
+                  <div className="absolute h-1.5 rounded-full"
+                    style={{ left: `${sMin}%`, width: `${Math.max(sMax - sMin, 0.5)}%`, backgroundColor: sector.color + '30' }} />
+                  {/* Sector avg line */}
+                  <div className="absolute w-0.5 h-6 rounded-full z-10"
+                    style={{ left: `${sAvg}%`, transform: 'translateX(-50%)', backgroundColor: sector.color }} />
+                  {/* Attribute dots */}
+                  {attrScores.map((a) => {
+                    const isHovered = hoveredDot?.attrId === sector.key && hoveredDot?.sectorKey === a.key;
+                    return (
+                      <div key={a.key}
+                        className="absolute z-20"
+                        style={{ left: `${a.score}%`, top: '50%', transform: 'translate(-50%, -50%)' }}
+                        onMouseEnter={(e) => { e.stopPropagation(); setHoveredDot({ attrId: sector.key, sectorKey: a.key, name: a.name, score: a.score, color: sector.color }); }}
+                        onMouseLeave={() => setHoveredDot(null)}
+                      >
+                        {/* Tooltip */}
+                        {isHovered && (
+                          <div className="absolute z-30 pointer-events-none"
+                            style={{ bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
+                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded shadow-lg text-white text-xs font-semibold"
+                              style={{ backgroundColor: sector.color }}>
+                              <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70 flex-shrink-0" />
+                              {a.name}
+                              <span className="ml-1 font-bold opacity-90">{a.score}</span>
+                            </div>
+                            <div className="mx-auto w-0 h-0"
+                              style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `5px solid ${sector.color}`, width: 0 }} />
+                          </div>
+                        )}
+                        {/* Dot */}
+                        <div
+                          className="w-2.5 h-2.5 rounded-full ring-2 ring-white transition-transform"
+                          style={{
+                            backgroundColor: sector.color,
+                            transform: isHovered ? 'scale(1.7)' : 'scale(1)',
+                            cursor: 'pointer',
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Avg score */}
+                <div className="text-xs font-bold tabular-nums" style={{ color: sector.color }}>{sAvg}</div>
+              </div>
+            );
+          })}
+
+          {/* Scale */}
+          <div className="grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '140px 1fr 36px' }}>
+            <div />
+            <div className="flex justify-between text-[10px] text-[#BBB] select-none">
+              {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
+            </div>
+            <div />
+          </div>
+
+          {/* Legend */}
+          <div className="mt-5 pt-4 border-t border-[#E8E6E1]">
+            <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-3">How to read this chart</div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-shrink-0 flex items-center" style={{ width: 220 }}>
+                <svg width="220" height="44" viewBox="0 0 220 44">
+                  <line x1="10" y1="22" x2="210" y2="22" stroke="#ECEAE6" strokeWidth="2" strokeLinecap="round" />
+                  <rect x="50" y="18" width="110" height="8" rx="4" fill="rgba(229,57,53,0.18)" />
+                  <line x1="115" y1="10" x2="115" y2="34" stroke="#E53935" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="60" cy="22" r="5" fill="#E53935" stroke="white" strokeWidth="2" />
+                  <circle cx="95" cy="22" r="5" fill="#E53935" stroke="white" strokeWidth="2" />
+                  <circle cx="130" cy="22" r="5" fill="#E53935" stroke="white" strokeWidth="2" />
+                  <circle cx="155" cy="22" r="5" fill="#E53935" stroke="white" strokeWidth="2" />
+                  <text x="115" y="8" textAnchor="middle" style={{ fontSize: '8px', fill: '#E53935', fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>avg</text>
+                  <text x="60" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
+                  <text x="95" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
+                  <text x="130" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
+                  <text x="155" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
+                </svg>
+              </div>
+              <div className="flex flex-col gap-2 justify-center text-xs text-[#666666]">
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-0.5 w-2.5 h-2.5 rounded-full bg-[#E53935] ring-2 ring-white" style={{ minWidth: 10 }} />
+                  <span><strong className="text-[#1A1A1A]">Coloured dots</strong> — each dot is one attribute score for that sector. Hover to see the attribute name and score.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
+                    <div className="w-0.5 h-4 rounded mx-auto" style={{ backgroundColor: '#E53935' }} />
+                  </div>
+                  <span><strong className="text-[#1A1A1A]">Coloured line</strong> — the sector's overall average score across all eight attributes. The number on the right is this value.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-1.5 w-7 h-2 rounded-full" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
+                  <span><strong className="text-[#1A1A1A]">Light band</strong> — spans from the lowest to highest attribute score for that sector, showing how consistent or varied the sector is.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Sector profile cards */}
       <div>
         <h3 className="font-semibold text-[#1A1A1A] mb-4">Sector Profiles</h3>
@@ -7502,49 +7653,24 @@ function ComparisonPage({ results, onBack }) {
   };
 
   const exportComparison = () => {
-    if (viewMode === 'brands' && selectedBrands.length < 2) {
+    if (selectedBrands.length < 2) {
       alert('Select at least 2 brands to export comparison');
       return;
     }
-    
-    if (viewMode === 'brands') {
-      const headers = ['Attribute', ...selectedBrands.map(b => b.brandName)];
-      const rows = ATTRIBUTES.map(attr => [
-        attr.name,
-        ...selectedBrands.map(b => b.scores?.[attr.id] || 0)
-      ]);
-      rows.unshift(['Overall Score', ...selectedBrands.map(b => b.totalScore)]);
-      rows.push(['Maturity Level', ...selectedBrands.map(b => b.maturityLevel)]);
-      
-      const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `brand-comparison-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-    } else {
-      // Export industry benchmarks
-      const benchmarkEntries = Object.entries(industryBenchmarks);
-      if (benchmarkEntries.length === 0) {
-        alert('No industry data to export');
-        return;
-      }
-      const headers = ['Attribute', ...benchmarkEntries.map(([, b]) => `${b.industryName} (n=${b.count})`)];
-      const rows = ATTRIBUTES.map(attr => [
-        attr.name,
-        ...benchmarkEntries.map(([, b]) => b.attrAvgs[attr.id])
-      ]);
-      rows.unshift(['Average Score', ...benchmarkEntries.map(([, b]) => b.avgScore)]);
-      
-      const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `industry-benchmarks-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-    }
+    const headers = ['Attribute', ...selectedBrands.map(b => b.brandName)];
+    const rows = ATTRIBUTES.map(attr => [
+      attr.name,
+      ...selectedBrands.map(b => b.scores?.[attr.id] || 0)
+    ]);
+    rows.unshift(['Overall Score', ...selectedBrands.map(b => b.totalScore)]);
+    rows.push(['Maturity Level', ...selectedBrands.map(b => b.maturityLevel)]);
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `brand-comparison-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
   };
 
   return (
@@ -7557,15 +7683,15 @@ function ComparisonPage({ results, onBack }) {
             </button>
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Compare</h1>
-              <p className="text-sm text-[#666666]">Compare brands or view industry benchmarks</p>
+              <p className="text-sm text-[#666666]">Compare brands or explore the consciousness landscape</p>
             </div>
           </div>
           <button 
             onClick={exportComparison} 
-            disabled={viewMode === 'brands' ? selectedBrands.length < 2 : Object.keys(industryBenchmarks).length === 0}
+            disabled={viewMode !== 'brands' || selectedBrands.length < 2}
             className="btn-primary flex items-center gap-2"
           >
-            <Download className="w-4 h-4" /> Export {viewMode === 'brands' ? 'Comparison' : 'Benchmarks'}
+            <Download className="w-4 h-4" /> Export Comparison
           </button>
         </div>
 
@@ -7592,16 +7718,6 @@ function ComparisonPage({ results, onBack }) {
             🌐 Landscape
           </button>
           <button
-            onClick={() => setViewMode('industry')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              viewMode === 'industry' 
-                ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
-            }`}
-          >
-            Industry Benchmarks
-          </button>
-          <button
             onClick={() => setViewMode('insights')}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               viewMode === 'insights' 
@@ -7618,176 +7734,6 @@ function ComparisonPage({ results, onBack }) {
             <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Results to Compare</h3>
             <p className="text-[#666666]">Complete some assessments first to compare brands.</p>
-          </div>
-        ) : viewMode === 'industry' ? (
-          /* Industry Benchmarks View */
-          <div className="space-y-6">
-            {Object.keys(industryBenchmarks).length === 0 ? (
-              <div className="card p-12 text-center">
-                <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Industry Data</h3>
-                <p className="text-[#666666]">Add industry information to your assessments to see benchmarks.</p>
-              </div>
-            ) : (
-              <>
-                {/* Industry Overview */}
-                <div className="card p-6">
-                  <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Industry Average Scores</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {Object.entries(industryBenchmarks).map(([industry, data]) => {
-                      const stage = getMaturityStage(data.avgScore);
-                      return (
-                        <div key={industry} className="text-center p-4 bg-[#F0EEEA] rounded-lg">
-                          <div 
-                            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl"
-                            style={{ backgroundColor: stage.color }}
-                          >
-                            {data.avgScore}
-                          </div>
-                          <div className="font-medium text-sm text-[#1A1A1A]">{data.industryName}</div>
-                          <div className="text-xs text-[#666666]">{data.count} brand{data.count !== 1 ? 's' : ''}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Attribute Comparison by Industry — rows = attributes, cols = industries */}
-                {(() => {
-                  const benchmarkEntries = Object.entries(industryBenchmarks);
-                  const scoreColor = (s) => {
-                    if (s >= 70) return { bg: '#1A1A1A', text: '#FFFFFF' };
-                    if (s >= 55) return { bg: '#4A4A4A', text: '#FFFFFF' };
-                    if (s >= 40) return { bg: '#8A8A8A', text: '#FFFFFF' };
-                    if (s >= 25) return { bg: '#D0CEC9', text: '#1A1A1A' };
-                    return { bg: '#F0EEEA', text: '#666666' };
-                  };
-                  return (
-                    <div className="card p-6">
-                      <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-[#1A1A1A]">Attribute Performance by Industry</h3>
-                        <p className="text-xs text-[#666666] mt-0.5">Average score per attribute across each industry</p>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs border-collapse">
-                          <thead>
-                            <tr>
-                              <th className="text-left py-2 pr-4 font-medium text-[#666666] w-28">Attribute</th>
-                              {benchmarkEntries.map(([ind, data]) => (
-                                <th key={ind} className="text-center py-2 px-1 font-medium text-[#1A1A1A] min-w-[80px]">
-                                  <div className="truncate max-w-[90px] mx-auto" title={data.industryName}>{data.industryName}</div>
-                                  <div className="text-[10px] text-[#999] font-normal">{data.count}b</div>
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {ATTRIBUTES.map((attr, i) => (
-                              <tr key={attr.id} className={i % 2 === 0 ? 'bg-[#F9F8F6]' : ''}>
-                                <td className="py-2 pr-4 font-medium text-[#1A1A1A]">{attr.name}</td>
-                                {benchmarkEntries.map(([ind, data]) => {
-                                  const s = data.attrAvgs[attr.id] || 0;
-                                  const c = scoreColor(s);
-                                  return (
-                                    <td key={ind} className="py-1.5 px-1 text-center">
-                                      <span
-                                        className="inline-block w-10 rounded text-center py-0.5 font-semibold tabular-nums"
-                                        style={{ backgroundColor: c.bg, color: c.text }}
-                                      >
-                                        {s}
-                                      </span>
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <div className="flex items-center gap-3 mt-4 pt-3 border-t border-[#E8E6E1]">
-                        <span className="text-[10px] text-[#999]">Score key:</span>
-                        {[['70+','#1A1A1A','#FFFFFF','Leading'],['55–69','#4A4A4A','#FFFFFF','Differentiating'],['40–54','#8A8A8A','#FFFFFF','Establishing'],['25–39','#D0CEC9','#1A1A1A','Foundational'],['0–24','#F0EEEA','#666666','Pre-Foundational']].map(([range, bg, fg, label]) => (
-                          <div key={range} className="flex items-center gap-1">
-                            <span className="inline-block w-8 text-center rounded text-[10px] font-semibold py-0.5" style={{ backgroundColor: bg, color: fg }}>{range}</span>
-                            <span className="text-[10px] text-[#999] hidden sm:inline">{label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Industry Comparison by Attribute — rows = industries, cols = attributes */}
-                {(() => {
-                  const benchmarkEntries = Object.entries(industryBenchmarks);
-                  const scoreColor = (s) => {
-                    if (s >= 70) return { bg: '#1A1A1A', text: '#FFFFFF' };
-                    if (s >= 55) return { bg: '#4A4A4A', text: '#FFFFFF' };
-                    if (s >= 40) return { bg: '#8A8A8A', text: '#FFFFFF' };
-                    if (s >= 25) return { bg: '#D0CEC9', text: '#1A1A1A' };
-                    return { bg: '#F0EEEA', text: '#666666' };
-                  };
-                  return (
-                    <div className="card p-6">
-                      <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-[#1A1A1A]">Industry Performance by Attribute</h3>
-                        <p className="text-xs text-[#666666] mt-0.5">How each industry tracks across the eight dimensions</p>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs border-collapse">
-                          <thead>
-                            <tr>
-                              <th className="text-left py-2 pr-4 font-medium text-[#666666] w-36">Industry</th>
-                              {ATTRIBUTES.map(attr => (
-                                <th key={attr.id} className="text-center py-2 px-1 font-medium text-[#1A1A1A] min-w-[56px]">
-                                  {attr.name}
-                                </th>
-                              ))}
-                              <th className="text-center py-2 px-1 font-medium text-[#666666] min-w-[56px]">Avg</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {benchmarkEntries.map(([ind, data], i) => {
-                              const c = scoreColor(data.avgScore);
-                              return (
-                                <tr key={ind} className={i % 2 === 0 ? 'bg-[#F9F8F6]' : ''}>
-                                  <td className="py-2 pr-4">
-                                    <div className="font-medium text-[#1A1A1A] truncate max-w-[130px]" title={data.industryName}>{data.industryName}</div>
-                                    <div className="text-[10px] text-[#999]">{data.count} brand{data.count !== 1 ? 's' : ''}</div>
-                                  </td>
-                                  {ATTRIBUTES.map(attr => {
-                                    const s = data.attrAvgs[attr.id] || 0;
-                                    const ac = scoreColor(s);
-                                    return (
-                                      <td key={attr.id} className="py-1.5 px-1 text-center">
-                                        <span
-                                          className="inline-block w-10 rounded text-center py-0.5 font-semibold tabular-nums"
-                                          style={{ backgroundColor: ac.bg, color: ac.text }}
-                                        >
-                                          {s}
-                                        </span>
-                                      </td>
-                                    );
-                                  })}
-                                  <td className="py-1.5 px-1 text-center">
-                                    <span
-                                      className="inline-block w-10 rounded text-center py-0.5 font-bold tabular-nums"
-                                      style={{ backgroundColor: c.bg, color: c.text }}
-                                    >
-                                      {data.avgScore}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
-            )}
           </div>
         ) : viewMode === 'insights' ? (
           /* AI Insights View */
