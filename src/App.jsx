@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.17.1';
+const APP_VERSION = '2.17.3';
 import { 
   supabase, 
   signUp, 
@@ -6574,86 +6574,6 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         </div>
       </div>
 
-      {/* Attribute Radar / Bar Chart */}
-      <div className="card p-6">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Performance Overview</h3>
-        <div className="space-y-3">
-          {ATTRIBUTES.map(attr => {
-            const score = portfolioStats.attrAverages[attr.id];
-            return (
-              <div key={attr.id} className="flex items-center gap-3">
-                <div className="w-24 text-sm text-[#666666] flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }} />
-                  {attr.name}
-                </div>
-                <div className="flex-1 h-6 bg-[#F0EEEA] rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2"
-                    style={{ 
-                      width: `${score}%`, 
-                      backgroundColor: attr.color,
-                    }}
-                  >
-                    <span className="text-xs font-medium text-white">{score}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Top & Bottom Performers */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-            <Star className="w-5 h-5 text-[#F59E0B]" /> Top Performers
-          </h3>
-          <div className="space-y-3">
-            {portfolioStats.topPerformers.map((brand, idx) => (
-              <div key={brand.id || idx} className="flex items-center justify-between p-3 bg-[#F0EEEA] rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#059669] text-white flex items-center justify-center font-bold text-sm">
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <div className="font-medium text-[#1A1A1A]">{brand.brandName}</div>
-                    <div className="text-xs text-[#666666]">{brand.maturityLevel}</div>
-                  </div>
-                </div>
-                <div className="text-xl font-bold" style={{ color: getMaturityStage(brand.totalScore).color }}>
-                  {brand.totalScore}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="text-sm font-medium text-[#1A1A1A] mb-3 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-[#F59E0B]" /> Growth Opportunities
-          </h3>
-          <div className="space-y-3">
-            {portfolioStats.bottomPerformers.map((brand, idx) => (
-              <div key={brand.id || idx} className="flex items-center justify-between p-3 bg-[#F0EEEA] rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#F59E0B] text-white flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-[#1A1A1A]">{brand.brandName}</div>
-                    <div className="text-xs text-[#666666]">{brand.maturityLevel}</div>
-                  </div>
-                </div>
-                <div className="text-xl font-bold" style={{ color: getMaturityStage(brand.totalScore).color }}>
-                  {brand.totalScore}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* AI Insights Section */}
       <div className="card p-6">
         <div className="flex items-start justify-between mb-4 gap-4">
@@ -6994,10 +6914,10 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             Each sector's average brand consciousness — hover a sector to isolate. Dashed yellow = cross-sector mean.
           </p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] gap-8 items-start">
 
-          {/* Octagon */}
-          <div style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: '#efede9', maxWidth: '580px', margin: '0 auto' }}>
+          {/* Octagon — fixed width, left aligned */}
+          <div style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: '#efede9' }}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -50 652 552" style={{ width: '100%', height: '100%' }}>
 
               {/* Background rings — alternating fill, matching SpiderChart */}
@@ -7152,17 +7072,17 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
             {/* Overall avg legend entry */}
             <div
-              className={`flex items-center gap-2 p-2 rounded cursor-pointer select-none transition-all ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer select-none transition-all ${
                 showAllAvg ? 'ring-1 ring-[#D9D6D0] bg-[#FFFEF0]' : 'bg-[#FAFAF8] hover:bg-[#F5F4F0]'
               }`}
               onClick={handleAllAvgClick}
             >
-              <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="#CFD32F" strokeWidth="2.5" strokeDasharray="5 3"/></svg>
+              <svg width="20" height="10" className="flex-shrink-0"><line x1="0" y1="5" x2="20" y2="5" stroke="#CFD32F" strokeWidth="2.5" strokeDasharray="5 3"/></svg>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-[#1A1A1A]">All sectors avg</div>
-                <div className="text-[10px] text-[#666]">{filteredResults.length} brands</div>
+                <div className="text-sm font-semibold text-[#1A1A1A]">All sectors avg</div>
+                <div className="text-xs text-[#666]">{filteredResults.length} brands</div>
               </div>
-              <span className="text-sm font-bold text-[#6B6B00]">{overallScore}</span>
+              <span className="text-xl font-bold text-[#6B6B00] tabular-nums">{overallScore}</span>
             </div>
 
             {sectors.map(sector => {
@@ -7172,20 +7092,20 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               return (
                 <div
                   key={sector.key}
-                  className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-all select-none ${
-                    isActive ? 'ring-1 ring-[#D9D6D0]' : ''
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer transition-all select-none ${
+                    isActive ? 'ring-1 ring-[#D9D6D0]' : 'hover:bg-[#FAFAF8]'
                   }`}
                   style={{ backgroundColor: isActive ? sector.color + '15' : '' }}
                   onClick={() => handleSectorClick(sector.key)}
                   onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
                   onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
                 >
-                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium text-[#1A1A1A] truncate leading-tight">{sector.name}</div>
-                    <div className="text-[10px] text-[#666]">{sector.count}b{isPinned ? ' · pinned' : ''}</div>
+                    <div className="text-sm font-medium text-[#1A1A1A] leading-tight">{sector.name}</div>
+                    <div className="text-xs text-[#666]">{sector.count}b{isPinned ? ' · pinned' : ''}</div>
                   </div>
-                  <span className="text-sm font-bold" style={{ color: stage.color }}>{sector.avgScore}</span>
+                  <span className="text-xl font-bold tabular-nums" style={{ color: stage.color }}>{sector.avgScore}</span>
                 </div>
               );
             })}
@@ -9317,13 +9237,6 @@ function StayConsciousPage({ onBack, isAdmin }) {
                 >
                   {exportingDocx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   DOCX
-                </button>
-                <button
-                  onClick={handleEmailShare}
-                  className="btn-secondary flex items-center gap-2 text-sm"
-                  title="Open in email client"
-                >
-                  <Share2 className="w-4 h-4" /> Email
                 </button>
                 <button
                   onClick={handleCopyText}
