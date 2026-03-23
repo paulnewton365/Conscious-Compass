@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.16.0';
+const APP_VERSION = '2.17.0';
 import { 
   supabase, 
   signUp, 
@@ -8942,72 +8942,290 @@ Each item:
 - insight: 2-3 sentences. What is actually happening, with specifics where possible.
 - whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
 
-function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = null, onCacheUpdate, isAdmin }) {
-  const [items, setItems] = useState(cachedItems);
-  const [loading, setLoading] = useState(cachedItems.length === 0);
+function StayConsciousPage({ onBack, isAdmin }) {
+  const [newsletter, setNewsletter] = useState(null);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [lastRefreshed, setLastRefreshed] = useState(cachedLastRefreshed);
-  const [activeCategory, setActiveCategory] = useState('All');
+  const [error, setError]           = useState(null);
+  const [refreshedAt, setRefreshedAt] = useState(null);
+  const [exportingDocx, setExportingDocx] = useState(false);
 
-  const loadFromCache = () => {
-    setLoading(true);
-    setError(null);
-    fetch('/api/stay-conscious')
-      .then(r => r.json())
-      .then(data => {
-        if (data.items?.length) {
-          const refreshed = data.refreshedAt ? new Date(data.refreshedAt) : null;
-          setItems(data.items);
-          setLastRefreshed(refreshed);
-          if (onCacheUpdate) onCacheUpdate(data.items, refreshed);
-        } else {
-          setError(data.error || 'No insights available yet — check back after the first weekly refresh.');
-        }
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+  // ── Data loading ────────────────────────────────────────────────
+  const loadNewsletter = async () => {
+    setLoading(true); setError(null);
+    try {
+      const res  = await fetch('/api/stay-conscious-newsletter');
+      const data = await res.json();
+      if (data.newsletter) {
+        setNewsletter(data.newsletter);
+        setRefreshedAt(data.refreshedAt ? new Date(data.refreshedAt) : null);
+      } else {
+        setError(data.error || 'No newsletter available yet — check back after Sunday night.');
+      }
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
-  const forceRefresh = () => {
-    setRefreshing(true);
-    setError(null);
-    fetch('/api/refresh-stay-conscious', { method: 'POST' })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          // Re-read the newly written cache
-          return fetch('/api/stay-conscious').then(r => r.json()).then(cached => {
-            if (cached.items?.length) {
-              const refreshed = cached.refreshedAt ? new Date(cached.refreshedAt) : new Date();
-              setItems(cached.items);
-              setLastRefreshed(refreshed);
-              if (onCacheUpdate) onCacheUpdate(cached.items, refreshed);
-            }
-          });
-        } else {
-          throw new Error(data.error || 'Refresh failed');
-        }
-      })
-      .catch(e => setError(`Refresh failed: ${e.message}`))
-      .finally(() => setRefreshing(false));
+  const forceRefresh = async () => {
+    setRefreshing(true); setError(null);
+    try {
+      const res  = await fetch('/api/refresh-stay-conscious-newsletter', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) { await loadNewsletter(); }
+      else { throw new Error(data.error || 'Refresh failed'); }
+    } catch (e) { setError(`Refresh failed: ${e.message}`); }
+    finally { setRefreshing(false); }
   };
 
-  useEffect(() => {
-    if (cachedItems.length === 0) loadFromCache();
-  }, []);
+  useEffect(() => { loadNewsletter(); }, []);
 
-  const formatRefreshed = (date) => {
-    if (!date) return null;
-    return date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) +
-      ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // ── Helpers ─────────────────────────────────────────────────────
+  const nextSunday = () => {
+    const d = new Date();
+    const daysUntil = (7 - d.getDay()) % 7 || 7;
+    d.setDate(d.getDate() + daysUntil);
+    d.setHours(23, 30, 0, 0);
+    return d;
   };
 
-  const filteredItems = activeCategory === 'All' ? items : items.filter(i => i.category === activeCategory);
+  const fmtDate = (d) => d
+    ? d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) +
+      ' at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
 
+  const CATEGORY_COLORS = {
+    'AI Visibility':       '#6366F1',
+    'Digital Experience':  '#0EA5E9',
+    'Brand Strategy':      '#E53935',
+    'Earned Media':        '#F59E0B',
+    'Social Signals':      '#10B981',
+    'Assessment Practice': '#8B5CF6',
+  };
+  const catColor  = (cat) => CATEGORY_COLORS[cat] || '#666666';
+  const catBg     = (cat) => (catColor(cat)) + '18';
+
+  const clean = (t) => (t || '').replace(/[—–]/g, '-');
+
+  // ── Plain-text format for email ─────────────────────────────────
+  const buildPlainText = () => {
+    if (!newsletter) return '';
+    const ns = newsletter;
+    const divider = '─'.repeat(60);
+    const lines = [
+      `STAY CONSCIOUS  |  Issue #${ns.issueNumber}  |  Week of ${ns.weekOf}`,
+      `Brand intelligence from Antenna Group · Conscious Compass`,
+      divider,
+      '',
+      `LEAD STORY — ${ns.leadStory?.category?.toUpperCase()}`,
+      ns.leadStory?.headline,
+      '',
+      ns.leadStory?.insight,
+      '',
+      `Why it matters: ${ns.leadStory?.whyItMatters}`,
+      '',
+      divider,
+      '',
+      'BRAND INTELLIGENCE',
+      '',
+      ...(ns.intelligenceItems || []).flatMap(item => [
+        `[${item.category?.toUpperCase()}]  ${item.headline}`,
+        item.insight,
+        `Why it matters: ${item.whyItMatters}`,
+        '',
+      ]),
+      divider,
+      '',
+    ];
+    if (ns.landscapeAnalysis?.summary) {
+      lines.push('LANDSCAPE INSIGHTS', '', ns.landscapeAnalysis.summary, '');
+      if (ns.landscapeAnalysis.insights) {
+        lines.push(ns.landscapeAnalysis.insights, '');
+      }
+      lines.push(divider, '');
+    }
+    if (ns.storyOpportunities?.length) {
+      lines.push('STORY OPPORTUNITIES', '');
+      ns.storyOpportunities.forEach((s, i) => {
+        lines.push(`${i + 1}. ${s.headline}`, s.body, '');
+      });
+      lines.push(divider, '');
+    }
+    lines.push(
+      `Last updated: ${fmtDate(refreshedAt) || 'Unknown'}`,
+      `Next update: ${fmtDate(nextSunday())}`,
+      '',
+      'Generated by Conscious Compass · Antenna Group',
+    );
+    return lines.join('\n');
+  };
+
+  const handleEmailShare = () => {
+    if (!newsletter) return;
+    const subject = encodeURIComponent(`Stay Conscious — Issue #${newsletter.issueNumber} | Week of ${newsletter.weekOf}`);
+    const body    = encodeURIComponent(buildPlainText());
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const handleCopyText = () => {
+    navigator.clipboard.writeText(buildPlainText()).then(() => {
+      alert('Newsletter text copied to clipboard.');
+    });
+  };
+
+  // ── DOCX export ─────────────────────────────────────────────────
+  const handleExportDocx = async () => {
+    if (!newsletter) return;
+    setExportingDocx(true);
+    try {
+      const ns = newsletter;
+      const LOGO_URL = 'https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg';
+
+      const svgToPng = (svgStr, w, h) => new Promise((res, rej) => {
+        const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+        const url  = URL.createObjectURL(blob);
+        const img  = new window.Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          res(c.toDataURL('image/png').split(',')[1]);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('SVG render failed')); };
+        img.src = url;
+      });
+
+      let logoB64 = null;
+      try {
+        const r = await fetch(LOGO_URL);
+        logoB64 = await svgToPng(await r.text(), 200, 56);
+      } catch { /* logo optional */ }
+
+      const hex  = (h) => h.replace('#', '');
+      const sp   = (before = 0, after = 160) => ({ spacing: { before, after } });
+      const body = (text, after = 160) => new Paragraph({ ...sp(0, after), children: [new TextRun({ text: clean(text), font: 'Inter', size: 20, color: '1A1A1A' })] });
+      const h2   = (text) => new Paragraph({ heading: HeadingLevel.HEADING_2, ...sp(280, 80), children: [new TextRun({ text, font: 'Inter', bold: true, size: 28, color: '1A1A1A' })] });
+      const rule = () => new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D9D6D0', space: 1 } }, ...sp(0, 0) });
+      const label = (text, color) => new Paragraph({ ...sp(0, 60), children: [new TextRun({ text: text.toUpperCase(), font: 'Inter', size: 16, bold: true, color: hex(color || '#666666') })] });
+
+      const doc = new Document({
+        styles: {
+          default: { document: { run: { font: 'Inter', size: 20 }, paragraph: { spacing: { line: 276, lineRule: 'auto' } } } },
+          paragraphStyles: [
+            { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+              run: { size: 52, bold: true, font: 'Inter', color: '1A1A1A' },
+              paragraph: { spacing: { before: 240, after: 100 }, outlineLevel: 0 } },
+            { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+              run: { size: 28, bold: true, font: 'Inter', color: '1A1A1A' },
+              paragraph: { spacing: { before: 240, after: 80 }, outlineLevel: 1 } },
+          ],
+        },
+        sections: [{
+          properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1080, right: 1080, bottom: 1440, left: 1080 } } },
+          footers: { default: new DocxFooter({ children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({
+              text: `Stay Conscious  |  Issue #${ns.issueNumber}  |  Week of ${ns.weekOf}  |  Antenna Group  |  Conscious Compass`,
+              size: 16, font: 'Inter', color: '999999',
+            })],
+          })] }) },
+          children: [
+            // Cover
+            ...(logoB64 ? [new Paragraph({ ...sp(0, 400), children: [new ImageRun({ data: logoB64, transformation: { width: 150, height: 42 }, type: 'png' })] })] : [new Paragraph({ ...sp(0, 400) })]),
+            new Paragraph({ heading: HeadingLevel.HEADING_1, ...sp(0, 60), children: [
+              new TextRun({ text: 'Stay Conscious', bold: true, font: 'Inter', size: 56, color: '1A1A1A' }),
+            ]}),
+            new Paragraph({ ...sp(0, 80), children: [
+              new TextRun({ text: `Issue #${ns.issueNumber}  |  Week of ${ns.weekOf}`, font: 'Inter', size: 22, color: '666666' }),
+            ]}),
+            new Paragraph({ ...sp(0, 60), children: [
+              new TextRun({ text: 'Brand intelligence from Antenna Group · Conscious Compass', font: 'Inter', size: 18, color: '999999' }),
+            ]}),
+            rule(),
+
+            // Timestamps
+            new Paragraph({ ...sp(120, 40), children: [
+              new TextRun({ text: `Last updated: `, font: 'Inter', size: 18, bold: true, color: '666666' }),
+              new TextRun({ text: fmtDate(refreshedAt) || 'Unknown', font: 'Inter', size: 18, color: '666666' }),
+            ]}),
+            new Paragraph({ ...sp(0, 240), children: [
+              new TextRun({ text: `Next update: `, font: 'Inter', size: 18, bold: true, color: '666666' }),
+              new TextRun({ text: fmtDate(nextSunday()), font: 'Inter', size: 18, color: '666666' }),
+            ]}),
+            rule(),
+
+            // Lead Story
+            h2('Lead Story'),
+            label(ns.leadStory?.category || '', catColor(ns.leadStory?.category)),
+            new Paragraph({ ...sp(0, 80), children: [
+              new TextRun({ text: clean(ns.leadStory?.headline || ''), font: 'Inter', size: 26, bold: true, color: '1A1A1A' }),
+            ]}),
+            body(clean(ns.leadStory?.insight || ''), 80),
+            new Paragraph({ ...sp(0, 200), children: [
+              new TextRun({ text: 'Why it matters: ', font: 'Inter', size: 20, bold: true }),
+              new TextRun({ text: clean(ns.leadStory?.whyItMatters || ''), font: 'Inter', size: 20, italics: true }),
+            ]}),
+            rule(),
+
+            // Intelligence Items
+            h2('Brand Intelligence'),
+            ...(ns.intelligenceItems || []).flatMap(item => [
+              label(item.category || '', catColor(item.category)),
+              new Paragraph({ ...sp(0, 60), children: [
+                new TextRun({ text: clean(item.headline || ''), font: 'Inter', size: 22, bold: true, color: '1A1A1A' }),
+              ]}),
+              body(clean(item.insight || ''), 60),
+              new Paragraph({ ...sp(0, 160), children: [
+                new TextRun({ text: 'Why it matters: ', font: 'Inter', size: 20, bold: true }),
+                new TextRun({ text: clean(item.whyItMatters || ''), font: 'Inter', size: 20, italics: true }),
+              ]}),
+            ]),
+            rule(),
+
+            // Landscape Insights
+            ...(ns.landscapeAnalysis?.summary ? [
+              h2('Landscape Insights'),
+              ...(ns.landscapeAnalysis.brandCount ? [new Paragraph({ ...sp(0, 80), children: [
+                new TextRun({ text: `Based on ${ns.landscapeAnalysis.brandCount} brands across ${ns.landscapeAnalysis.sectorCount} sectors`, font: 'Inter', size: 18, color: '999999' }),
+              ]})] : []),
+              body(clean(ns.landscapeAnalysis.summary), 80),
+              ...(ns.landscapeAnalysis.insights ? [body(clean(ns.landscapeAnalysis.insights), 160)] : []),
+              rule(),
+            ] : []),
+
+            // Story Opportunities
+            ...(ns.storyOpportunities?.length ? [
+              h2('Story Opportunities'),
+              body('Thought leadership angles your data suggests right now.', 160),
+              ...(ns.storyOpportunities).flatMap((s, i) => [
+                new Paragraph({ ...sp(120, 60), children: [
+                  new TextRun({ text: `${i + 1}.  `, font: 'Inter', size: 22, bold: true, color: 'E8FF00' }),
+                  new TextRun({ text: clean(s.headline || ''), font: 'Inter', size: 22, bold: true, color: '1A1A1A' }),
+                ]}),
+                body(clean(s.body || ''), 160),
+              ]),
+            ] : []),
+
+          ],
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, `Stay_Conscious_Issue_${ns.issueNumber}_${ns.weekOf.replace(/\s/g, '_')}.docx`);
+    } catch (e) {
+      alert('DOCX error: ' + e.message);
+    } finally {
+      setExportingDocx(false);
+    }
+  };
+
+  // ── Render ──────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#F5F4F0]">
       <div className="max-w-5xl mx-auto p-4 md:p-8">
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8 gap-4">
           <div className="flex items-start gap-4">
@@ -9018,106 +9236,192 @@ function StayConsciousPage({ onBack, cachedItems = [], cachedLastRefreshed = nul
               <div className="flex items-center gap-2 mb-1">
                 <Sparkles className="w-5 h-5 text-[#6366F1]" />
                 <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Stay Conscious</h1>
+                {newsletter && (
+                  <span className="text-xs font-medium px-2 py-0.5 bg-[#1A1A1A] text-white rounded-full">
+                    Issue #{newsletter.issueNumber}
+                  </span>
+                )}
               </div>
               <p className="text-sm text-[#666666]">Brand intelligence for assessors. What's shifting, why it matters.</p>
-              {lastRefreshed ? (
-                <p className="text-xs text-[#9CA3AF] mt-0.5">Updated {formatRefreshed(lastRefreshed)} · Refreshes every Sunday</p>
-              ) : !loading && (
-                <p className="text-xs text-[#9CA3AF] mt-0.5">Refreshes every Sunday</p>
-              )}
+              <div className="text-xs text-[#9CA3AF] mt-0.5 space-y-0.5">
+                {refreshedAt && <p>Updated {fmtDate(refreshedAt)}</p>}
+                <p>Next update {fmtDate(nextSunday())}</p>
+              </div>
             </div>
           </div>
-          {isAdmin && (
-            <button
-              onClick={forceRefresh}
-              disabled={refreshing || loading}
-              className="btn-secondary flex items-center gap-2 self-start flex-shrink-0 text-sm"
-              title="Force refresh for all users"
-            >
-              {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              {refreshing ? 'Refreshing...' : 'Force Refresh'}
-            </button>
-          )}
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-2 self-start">
+            {newsletter && (
+              <>
+                <button
+                  onClick={handleExportDocx}
+                  disabled={exportingDocx}
+                  className="btn-primary flex items-center gap-2 text-sm"
+                >
+                  {exportingDocx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  DOCX
+                </button>
+                <button
+                  onClick={handleEmailShare}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                  title="Open in email client"
+                >
+                  <Share2 className="w-4 h-4" /> Email
+                </button>
+                <button
+                  onClick={handleCopyText}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                >
+                  <Copy className="w-4 h-4" /> Copy
+                </button>
+              </>
+            )}
+            {isAdmin && (
+              <button
+                onClick={forceRefresh}
+                disabled={refreshing || loading}
+                className="btn-secondary flex items-center gap-2 text-sm"
+                title="Force refresh for all users"
+              >
+                {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {refreshing ? 'Refreshing...' : 'Force Refresh'}
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Category filter */}
-        {items.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {['All', ...STAY_CONSCIOUS_CATEGORIES].map(cat => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                  activeCategory === cat
-                    ? 'bg-[#1A1A1A] text-white'
-                    : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Loading state */}
+        {/* Loading */}
         {(loading || refreshing) && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div className="w-12 h-12 rounded-full bg-[#6366F1]/10 flex items-center justify-center">
               <Loader2 className="w-6 h-6 text-[#6366F1] animate-spin" />
             </div>
-            <p className="text-sm text-[#666666]">{refreshing ? 'Generating fresh insights...' : 'Gathering brand intelligence...'}</p>
+            <p className="text-sm text-[#666666]">{refreshing ? 'Composing this week\'s edition...' : 'Loading newsletter...'}</p>
           </div>
         )}
 
-        {/* Error state */}
+        {/* Error */}
         {error && !loading && !refreshing && (
           <div className="card p-8 text-center">
             <AlertCircle className="w-10 h-10 text-[#E53935] mx-auto mb-3" />
             <p className="text-[#666666] mb-4">{error}</p>
-            <button onClick={loadFromCache} className="btn-primary">Try Again</button>
+            <button onClick={loadNewsletter} className="btn-primary">Try Again</button>
           </div>
         )}
 
-        {/* Items grid */}
-        {!loading && !refreshing && filteredItems.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredItems.map((item, i) => {
-              const meta = CATEGORY_META[item.category] || CATEGORY_META['Brand Strategy'];
-              return (
-                <div key={i} className="card p-5 hover:shadow-md transition-shadow flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
-                      style={{ backgroundColor: meta.bg, color: meta.color }}
-                    >
-                      {item.category}
-                    </span>
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: meta.color }} />
-                  </div>
-                  <h3 className="font-semibold text-[#1A1A1A] leading-snug">{item.headline}</h3>
-                  <p className="text-sm text-[#444444] leading-relaxed">{item.insight}</p>
-                  <div className="border-t border-[#E8E6E1] pt-3 mt-auto">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] mb-1">Why it matters for assessment</div>
-                    <p className="text-xs text-[#666666] leading-relaxed">{item.whyItMatters}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!loading && !refreshing && items.length === 0 && !error && (
+        {/* Empty */}
+        {!newsletter && !loading && !error && (
           <div className="card p-12 text-center">
             <Sparkles className="w-10 h-10 text-[#D9D6D0] mx-auto mb-3" />
-            <p className="text-[#666666]">No insights available yet.</p>
-            {isAdmin && <p className="text-sm text-[#9CA3AF] mt-2">Use Force Refresh to generate the first set.</p>}
+            <p className="text-[#666666]">No newsletter available yet.</p>
+            {isAdmin && <p className="text-sm text-[#9CA3AF] mt-2">Use Force Refresh to generate the first edition.</p>}
           </div>
         )}
 
-        <p className="text-center text-xs text-[#9CA3AF] mt-8">
-          Insights generated by Claude. Always apply your own professional judgement.
-        </p>
+        {/* Newsletter */}
+        {newsletter && !loading && !refreshing && (
+          <div className="space-y-6">
+
+            {/* Lead Story */}
+            <div className="bg-[#1A1A1A] rounded-xl p-6 md:p-8">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                  style={{ backgroundColor: catColor(newsletter.leadStory?.category) + '30', color: catColor(newsletter.leadStory?.category) }}>
+                  {newsletter.leadStory?.category}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#555] px-2.5 py-1 rounded-full bg-white/5">
+                  Lead Story
+                </span>
+              </div>
+              <h2 className="text-xl md:text-2xl font-bold text-white leading-snug mb-4">
+                {newsletter.leadStory?.headline}
+              </h2>
+              <p className="text-[#D1D5DB] leading-relaxed mb-4">{newsletter.leadStory?.insight}</p>
+              <div className="border-t border-white/10 pt-4">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280]">Why it matters for assessment</span>
+                <p className="text-sm text-[#9CA3AF] leading-relaxed mt-1">{newsletter.leadStory?.whyItMatters}</p>
+              </div>
+            </div>
+
+            {/* Intelligence items */}
+            {newsletter.intelligenceItems?.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-[#1A1A1A] uppercase tracking-wider mb-4">Brand Intelligence</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {newsletter.intelligenceItems.map((item, i) => (
+                    <div key={i} className="card p-5 hover:shadow-md transition-shadow flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                          style={{ backgroundColor: catBg(item.category), color: catColor(item.category) }}>
+                          {item.category}
+                        </span>
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: catColor(item.category) }} />
+                      </div>
+                      <h3 className="font-semibold text-[#1A1A1A] leading-snug">{item.headline}</h3>
+                      <p className="text-sm text-[#444444] leading-relaxed">{item.insight}</p>
+                      <div className="border-t border-[#E8E6E1] pt-3 mt-auto">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] mb-1">Why it matters for assessment</div>
+                        <p className="text-xs text-[#666666] leading-relaxed">{item.whyItMatters}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Landscape Insights */}
+            {newsletter.landscapeAnalysis?.summary && (
+              <div>
+                <h2 className="text-sm font-semibold text-[#1A1A1A] uppercase tracking-wider mb-4">Landscape Insights</h2>
+                <div className="bg-white border border-[#E8E6E1] rounded-xl p-6 space-y-4">
+                  {newsletter.landscapeAnalysis.brandCount && (
+                    <p className="text-xs text-[#999]">
+                      Based on {newsletter.landscapeAnalysis.brandCount} brands across {newsletter.landscapeAnalysis.sectorCount} sectors
+                    </p>
+                  )}
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[#999] mb-2">Summary</div>
+                    <p className="text-sm text-[#444] leading-relaxed">{newsletter.landscapeAnalysis.summary}</p>
+                  </div>
+                  {newsletter.landscapeAnalysis.insights && (
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-[#999] mb-2">Key Insights</div>
+                      <p className="text-sm text-[#444] leading-relaxed whitespace-pre-line">{newsletter.landscapeAnalysis.insights}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Story Opportunities */}
+            {newsletter.storyOpportunities?.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-[#1A1A1A] uppercase tracking-wider mb-4">Story Opportunities</h2>
+                <div className="space-y-4">
+                  {newsletter.storyOpportunities.map((story, idx) => (
+                    <div key={idx} className="card p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="w-8 h-8 rounded-full bg-[#E8FF00] text-[#1A1A1A] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-[#1A1A1A] mb-2 leading-snug">{story.headline}</div>
+                          <div className="text-sm text-[#666666] leading-relaxed">{story.body}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Footer note */}
+            <p className="text-center text-xs text-[#9CA3AF] mt-8">
+              Insights generated by Claude. Always apply your own professional judgement.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -9146,7 +9450,6 @@ function AppContent() {
   const [showResultsPage, setShowResultsPage] = useState(false);
   const [showComparisonPage, setShowComparisonPage] = useState(false);
   const [showStayConsciousPage, setShowStayConsciousPage] = useState(false);
-  const [stayConsciousCache, setStayConsciousCache] = useState({ items: [], lastRefreshed: null });
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [savedAssessments, setSavedAssessments] = useState([]);
   const [compassResults, setCompassResults] = useState([]);
@@ -9572,9 +9875,6 @@ function AppContent() {
         />
         <StayConsciousPage
           onBack={() => setShowStayConsciousPage(false)}
-          cachedItems={stayConsciousCache.items}
-          cachedLastRefreshed={stayConsciousCache.lastRefreshed}
-          onCacheUpdate={(items, lastRefreshed) => setStayConsciousCache({ items, lastRefreshed })}
           isAdmin={profile?.is_admin}
         />
       </div>

@@ -179,3 +179,13 @@ CREATE TRIGGER on_auth_user_created
 -- ALTER TABLE insights_analysis_cache ENABLE ROW LEVEL SECURITY;
 -- CREATE POLICY "Authenticated users can read insights analysis cache"
 --   ON insights_analysis_cache FOR SELECT TO authenticated USING (true);
+
+-- MIGRATION: Create Stay Conscious Newsletter weekly cache table
+-- CREATE TABLE IF NOT EXISTS stay_conscious_newsletter (
+--   id INTEGER PRIMARY KEY DEFAULT 1,
+--   newsletter JSONB NOT NULL,
+--   refreshed_at TIMESTAMP WITH TIME ZONE NOT NULL
+-- );
+-- ALTER TABLE stay_conscious_newsletter ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "Authenticated users can read newsletter cache"
+--   ON stay_conscious_newsletter FOR SELECT TO authenticated USING (true);
