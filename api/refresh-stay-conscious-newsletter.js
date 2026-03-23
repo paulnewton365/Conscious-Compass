@@ -47,9 +47,10 @@ export default async function handler(req, res) {
     const leadItem = intelligenceItems.find(i => leadPriority.includes(i.category)) || intelligenceItems[0];
     const supportingItems = intelligenceItems.filter(i => i !== leadItem);
 
-    // Build issue number from weeks since launch epoch (1 Jan 2025)
-    const epochMs = new Date('2025-01-05').getTime(); // first Sunday of 2025
-    const issueNumber = Math.max(1, Math.floor((Date.now() - epochMs) / (7 * 24 * 60 * 60 * 1000)) + 1);
+    // Increment issue number from previous cache entry, starting at 1
+    const prevRow = await fetchTable('stay_conscious_newsletter');
+    const prevIssue = prevRow?.newsletter?.issueNumber || 0;
+    const issueNumber = prevIssue + 1;
 
     const newsletter = {
       issueNumber,
