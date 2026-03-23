@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.14.68';
+const APP_VERSION = '2.15.0';
 import { 
   supabase, 
   signUp, 
@@ -6487,11 +6487,21 @@ function InsightsView({ results, industryBenchmarks, industries }) {
         sector,
         brandCount: data.brands.length,
         avgScore,
+        attrAvgs,
         strongestAttr: sortedAttrs[0],
         weakestAttr: sortedAttrs[sortedAttrs.length - 1],
         brands: data.brands,
       };
     });
+
+    // Cross-sector spread per attribute — which attributes vary most between sectors
+    const crossSectorSpread = ATTRIBUTES.map(attr => {
+      const sectorScores = sectorSummaries.map(s => s.attrAvgs[attr.id]);
+      const min = Math.min(...sectorScores);
+      const max = Math.max(...sectorScores);
+      const mean = Math.round(sectorScores.reduce((a, b) => a + b, 0) / sectorScores.length);
+      return { attr: attr.id, min, max, spread: max - min, mean };
+    }).sort((a, b) => b.spread - a.spread);
     
     try {
       const prompt = `You are a brand strategist at Antenna Group, a brand strategy agency. You have just run Brand Consciousness assessments on the following brands and you are identifying thought leadership storytelling opportunities — the kinds of stories Antenna Group could write, speak about, or publish based on what the data reveals.
@@ -6499,21 +6509,33 @@ function InsightsView({ results, industryBenchmarks, industries }) {
 Brand Consciousness is a proprietary framework with 8 attributes:
 AWAKE (Narrative Leadership), AWARE (Audience Understanding), REFLECTIVE (Authenticity), ATTENTIVE (Experience Quality), COGENT (Strategic Intelligence), SENTIENT (Emotional Connection), VISIONARY (Future Vision), INTENTIONAL (Organisational Credibility).
 
-ASSESSMENT DATA (${results.length} brands):
+PORTFOLIO OVERVIEW (${results.length} brands across ${sectorSummaries.length} sectors):
 Portfolio average: ${portfolioStats.avgScore}/100
-Strongest attribute across portfolio: ${portfolioStats.strongestAttr[0]} (avg ${portfolioStats.strongestAttr[1]})
-Weakest attribute across portfolio: ${portfolioStats.weakestAttr[0]} (avg ${portfolioStats.weakestAttr[1]})
+Strongest attribute across all brands: ${portfolioStats.strongestAttr[0]} (avg ${portfolioStats.strongestAttr[1]})
+Weakest attribute across all brands: ${portfolioStats.weakestAttr[0]} (avg ${portfolioStats.weakestAttr[1]})
 
-Attribute averages:
-${Object.entries(portfolioStats.attrAverages).map(([k, v]) => `${k}: ${v}`).join(', ')}
+Overall attribute averages (all brands):
+${Object.entries(portfolioStats.attrAverages).map(([k, v]) => `  ${k}: ${v}`).join('\n')}
 
-Brands assessed:
-${results.map(r => `${r.brandName} (${r.industry || 'unspecified'}, ${r.businessModel || ''}, score: ${r.totalScore})`).join('\n')}
+FULL SECTOR ATTRIBUTE MATRIX:
+Each row is a sector. Values are average scores for brands in that sector across all 8 attributes.
 
-Sector breakdown:
-${sectorSummaries.map(s => `${s.sector}: ${s.brandCount} brand(s), avg score ${s.avgScore}, strongest ${s.strongestAttr[0]} (${s.strongestAttr[1]}), weakest ${s.weakestAttr[0]} (${s.weakestAttr[1]})`).join('\n')}
+${sectorSummaries.map(s => {
+  const indName = industries.find(i => i.id === s.sector)?.name || s.sector;
+  const attrRow = ATTRIBUTES.map(a => `${a.name.slice(0,3).toUpperCase()}:${s.attrAvgs[a.id]}`).join('  ');
+  return `${indName} (${s.brandCount}b, avg ${s.avgScore}): ${attrRow}`;
+}).join('\n')}
 
-Based on this data, identify 3 to 5 thought leadership stories Antenna Group could tell. Each story should be grounded in a specific pattern, tension, or insight from the data — not generic marketing advice. These should be publishable angles: blog posts, talks, LinkedIn articles, or POV pieces.
+CROSS-SECTOR ATTRIBUTE SPREAD (ranked by divergence between sectors — highest spread first):
+High spread = some sectors are leading while others lag significantly on this attribute. Prime storytelling territory.
+Low spread = all sectors perform similarly — either a universal strength or a universal blind spot.
+
+${crossSectorSpread.map(c => `  ${c.attr}: spread ${c.spread}pts (low ${c.min} → high ${c.max}, mean ${c.mean})`).join('\n')}
+
+BRANDS ASSESSED:
+${results.map(r => `${r.brandName} (${industries.find(i => i.id === r.industry)?.name || r.industry || 'unspecified'}, ${r.businessModel || ''}, score: ${r.totalScore})`).join('\n')}
+
+Based on this data — particularly the full sector attribute matrix, the cross-sector spread, and where sectors diverge or converge on specific attributes — identify 3 to 5 thought leadership stories Antenna Group could tell. Each story should be grounded in a specific pattern, tension, or insight from the data. Prioritise stories that emerge from cross-sector attribute comparisons, unexpected gaps, or attributes with high spread. These should be publishable angles: blog posts, talks, LinkedIn articles, or POV pieces.
 
 For each story write:
 - A punchy headline (max 12 words)
