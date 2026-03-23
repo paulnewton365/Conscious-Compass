@@ -47,9 +47,11 @@ export default async function handler(req, res) {
     const leadItem = intelligenceItems.find(i => leadPriority.includes(i.category)) || intelligenceItems[0];
     const supportingItems = intelligenceItems.filter(i => i !== leadItem);
 
-    // Increment issue number from previous cache entry, starting at 1
+    // Increment issue number from previous cache entry, starting at 1.
+    // Cap: if prevIssue is suspiciously large (>52, i.e. from old epoch calc), reset to 0.
     const prevRow = await fetchTable('stay_conscious_newsletter');
-    const prevIssue = prevRow?.newsletter?.issueNumber || 0;
+    const rawPrev = prevRow?.newsletter?.issueNumber || 0;
+    const prevIssue = rawPrev > 52 ? 0 : rawPrev;
     const issueNumber = prevIssue + 1;
 
     const newsletter = {

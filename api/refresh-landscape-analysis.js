@@ -124,7 +124,10 @@ ${spreadData.map(c => `  ${c.attr}: spread ${c.spread}pts | min ${c.min} → max
 OVERALL ATTRIBUTE AVERAGES (all brands):
 ${ATTRIBUTES.map(a => `  ${a.id}: ${overallAvg[a.id]}`).join('\n')}
 
-Write a structured analysis in three sections. Use plain prose — no bullet points, no markdown headers, no em dashes. Write directly and confidently.
+Write a structured analysis. Use plain prose — no bullet points, no markdown headers, no em dashes. Write directly and confidently. Output the sections in exactly this order with exactly these labels on their own line:
+
+LANDSCAPE HEADLINE
+A single punchy headline (max 10 words) capturing the single most striking thing about this landscape — the dominant tension, gap, or pattern.
 
 LANDSCAPE SUMMARY
 Summarise the overall picture in 2–3 sentences. What maturity level does this landscape represent? Is there a dominant pattern?
@@ -133,12 +136,7 @@ SECTOR ANALYSIS
 For each sector, one short paragraph describing where it is strong, where it is weak, and what the attribute pattern reveals. Reference specific scores where notable.
 
 KEY INSIGHTS
-3–4 insights. Each: a short punchy heading followed by 1–2 sentences. Focus on attributes with high spread, universal gaps, unexpected strengths or contradictions, and what the clustering or spread tells us about maturity across the landscape.
-
-LANDSCAPE HEADLINE
-A single punchy headline (max 10 words) that captures the single most striking thing about this landscape — the dominant tension, gap, or pattern. This will be used as a display headline above the summary in the newsletter.
-
-Label each section exactly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHTS", "LANDSCAPE HEADLINE".`;
+3–4 insights. Each: a short punchy heading followed by 1–2 sentences. Focus on attributes with high spread, universal gaps, unexpected strengths or contradictions, and what the clustering or spread tells us about maturity across the landscape.`;
 
     // 6. Call Claude
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -173,10 +171,10 @@ Label each section exactly: "LANDSCAPE SUMMARY", "SECTOR ANALYSIS", "KEY INSIGHT
     };
 
     const analysis = {
-      headline: extractSection('LANDSCAPE HEADLINE', null).replace(/^["']|["']$/g, '').trim(),
+      headline: extractSection('LANDSCAPE HEADLINE', 'LANDSCAPE SUMMARY').replace(/^["'*#\s]+|["'*#\s]+$/g, '').trim(),
       summary: extractSection('LANDSCAPE SUMMARY', 'SECTOR ANALYSIS'),
       sectorAnalysis: extractSection('SECTOR ANALYSIS', 'KEY INSIGHTS'),
-      insights: extractSection('KEY INSIGHTS', 'LANDSCAPE HEADLINE'),
+      insights: extractSection('KEY INSIGHTS', null),
       brandCount: results.length,
       sectorCount: sectors.length,
     };
