@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.18.0';
+const APP_VERSION = '2.19.1';
 import { 
   supabase, 
   signUp, 
@@ -1430,6 +1430,111 @@ function MobileAssessmentBanner() {
 }
 
 // Setup Page
+const PROPERTY_TYPES = [
+  { id: 'regional',   label: 'Regional' },
+  { id: 'translated', label: 'Translated' },
+  { id: 'microsite',  label: 'Microsite' },
+  { id: 'campaign',   label: 'Campaign' },
+  { id: 'careers',    label: 'Careers' },
+  { id: 'partner',    label: 'Partner' },
+  { id: 'other',      label: 'Other' },
+];
+
+function AdditionalPropertiesInput({ project, setProject }) {
+  const [open, setOpen] = useState(false);
+  const props = project.additionalProperties || [];
+
+  const addProperty = () => {
+    setProject({ ...project, additionalProperties: [...props, { url: '', type: 'regional', language: '', label: '' }] });
+    setOpen(true);
+  };
+
+  const updateProperty = (i, field, value) => {
+    const updated = props.map((p, idx) => idx === i ? { ...p, [field]: value } : p);
+    setProject({ ...project, additionalProperties: updated });
+  };
+
+  const removeProperty = (i) => {
+    setProject({ ...project, additionalProperties: props.filter((_, idx) => idx !== i) });
+  };
+
+  return (
+    <div className="border border-[#D9D6D0] rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-[#FAFAF8] hover:bg-[#F5F4F0] transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Plus className="w-4 h-4 text-[#666666]" />
+          <span className="text-sm font-medium text-[#1A1A1A]">Additional Properties</span>
+          {props.length > 0 && (
+            <span className="text-xs font-semibold px-2 py-0.5 bg-[#1A1A1A] text-white rounded-full">{props.length}</span>
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-[#666666] transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="p-4 space-y-4 border-t border-[#D9D6D0]">
+          <p className="text-xs text-[#666666]">
+            Add regional sites, translated versions, microsites or other digital properties owned by this brand. Leave blank to assess the primary URL only.
+          </p>
+
+          {props.map((prop, i) => (
+            <div key={i} className="p-3 bg-[#F5F4F0] rounded-lg space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-[#666666] w-4">{i + 1}</span>
+                <input
+                  type="url"
+                  value={prop.url}
+                  onChange={e => updateProperty(i, 'url', e.target.value)}
+                  placeholder="https://de.example.com"
+                  className="flex-1 px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white"
+                />
+                <button type="button" onClick={() => removeProperty(i)} className="text-[#999] hover:text-[#E53935] transition-colors flex-shrink-0">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex gap-2 ml-6">
+                <select
+                  value={prop.type}
+                  onChange={e => updateProperty(i, 'type', e.target.value)}
+                  className="px-2 py-1.5 text-xs border border-[#D9D6D0] rounded bg-white flex-1"
+                >
+                  {PROPERTY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+                <input
+                  type="text"
+                  value={prop.language}
+                  onChange={e => updateProperty(i, 'language', e.target.value)}
+                  placeholder="Language (e.g. German)"
+                  className="px-2 py-1.5 text-xs border border-[#D9D6D0] rounded bg-white flex-1"
+                />
+                <input
+                  type="text"
+                  value={prop.label}
+                  onChange={e => updateProperty(i, 'label', e.target.value)}
+                  placeholder="Label (e.g. DACH)"
+                  className="px-2 py-1.5 text-xs border border-[#D9D6D0] rounded bg-white flex-1"
+                />
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addProperty}
+            className="flex items-center gap-2 text-sm text-[#1A1A1A] font-medium hover:text-[#E53935] transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add property
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
   const canProceed = project.brandName && project.websiteUrl && apiKey;
 
@@ -1451,6 +1556,8 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
           <input type="url" value={project.websiteUrl} onChange={(e) => setProject({ ...project, websiteUrl: e.target.value })}
             placeholder="https://www.example.com" className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white" />
         </div>
+
+        <AdditionalPropertiesInput project={project} setProject={setProject} />
 
         <div>
           <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Business Model</label>
@@ -1512,6 +1619,224 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
 }
 
 // Technical Performance Audit Component (Manual Entry + Auto-Fetch)
+function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, apiKey }) {
+  const additionalProperties = project.additionalProperties?.filter(p => p.url) || [];
+  const [propertyData, setPropertyData] = useState(assessmentData.propertyData || {});
+  const [isRunning, setIsRunning] = useState(false);
+  const [isAnalysing, setIsAnalysing] = useState(false);
+  const [error, setError] = useState(null);
+
+  if (additionalProperties.length === 0) return null;
+
+  const allProperties = [
+    { url: project.websiteUrl, type: 'primary', language: '', label: 'Primary' },
+    ...additionalProperties,
+  ];
+
+  const runPropertyChecks = async () => {
+    setIsRunning(true);
+    setError(null);
+    const results = { ...propertyData };
+
+    for (const prop of allProperties) {
+      if (!prop.url) continue;
+      try {
+        // PageSpeed
+        const psRes = await fetch(`/api/pagespeed?url=${encodeURIComponent(prop.url)}`);
+        const psData = await psRes.json();
+        const ps = psData?.lighthouseResult?.categories;
+        results[prop.url] = {
+          ...results[prop.url],
+          performance: ps?.performance?.score != null ? Math.round(ps.performance.score * 100) : null,
+          seo: ps?.seo?.score != null ? Math.round(ps.seo.score * 100) : null,
+          accessibility: ps?.accessibility?.score != null ? Math.round(ps.accessibility.score * 100) : null,
+          fetched: true,
+        };
+      } catch {
+        results[prop.url] = { ...results[prop.url], fetched: false, error: true };
+      }
+    }
+
+    setPropertyData(results);
+    setAssessmentData({ ...assessmentData, propertyData: results });
+    setIsRunning(false);
+  };
+
+  const runConsistencyAnalysis = async () => {
+    setIsAnalysing(true);
+    setError(null);
+
+    const propSummary = allProperties.map(p => {
+      const d = propertyData[p.url] || {};
+      return `${p.label || p.type} (${p.url}): type=${p.type}${p.language ? ', language='+p.language : ''}, performance=${d.performance ?? 'n/a'}, seo=${d.seo ?? 'n/a'}`;
+    }).join('\n');
+
+    const prompt = `You are a senior brand strategist assessing the digital estate consistency of ${project.brandName}.
+
+The brand has ${allProperties.length} digital properties:
+${propSummary}
+
+Primary site PageSpeed scores:
+Performance: ${propertyData[project.websiteUrl]?.performance ?? 'n/a'}
+SEO: ${propertyData[project.websiteUrl]?.seo ?? 'n/a'}
+Accessibility: ${propertyData[project.websiteUrl]?.accessibility ?? 'n/a'}
+
+Analyse cross-property consistency across four dimensions. Write in plain prose, no bullet points, no em dashes.
+
+TECHNICAL CONSISTENCY
+How consistent are performance, SEO, and accessibility scores across properties? Flag significant deviations.
+
+BRAND CONSISTENCY
+Based on the property types and any translated versions, what risks exist for brand, visual, and tone-of-voice inconsistency? What should the assessor look for?
+
+MESSAGE CONSISTENCY
+What risks exist for inconsistent positioning, claims, or CTA language across properties? Especially flag translated sites.
+
+LOCALISATION QUALITY
+${additionalProperties.some(p => p.type === 'translated') ? 'For translated properties: what specific checks should the assessor conduct to verify translation quality, brand voice preservation, and local SEO?' : 'No translated properties identified. Note any regional properties and what consistency checks apply.'}
+
+End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining why.`;
+
+    try {
+      const storedKey = localStorage.getItem('conscious-compass-apikey');
+      const useProxy = !storedKey || storedKey === 'PROXY';
+      let text = '';
+      if (useProxy) {
+        const res = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, max_tokens: 1200, temperature: 0 }) });
+        const d = await res.json();
+        text = d.text || d.content?.[0]?.text || '';
+      } else {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': storedKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1200, temperature: 0, messages: [{ role: 'user', content: prompt }] }),
+        });
+        const d = await res.json();
+        text = d.content?.[0]?.text || '';
+      }
+      const updated = { ...propertyData, consistencyAnalysis: text };
+      setPropertyData(updated);
+      setAssessmentData({ ...assessmentData, propertyData: updated });
+    } catch (e) {
+      setError('Analysis failed: ' + e.message);
+    }
+    setIsAnalysing(false);
+  };
+
+  // Score colour helper
+  const scoreColor = (s) => {
+    if (s == null) return '#D9D6D0';
+    if (s >= 80) return '#059669';
+    if (s >= 50) return '#F59E0B';
+    return '#E53935';
+  };
+
+  const riskColor = (text) => {
+    if (!text) return null;
+    const m = text.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i);
+    if (!m) return null;
+    return m[1].toLowerCase() === 'low' ? '#059669' : m[1].toLowerCase() === 'medium' ? '#F59E0B' : '#E53935';
+  };
+
+  const extractRisk = (text) => {
+    const m = text?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i);
+    return m ? m[1] : null;
+  };
+
+  return (
+    <div className="card p-5 mb-4 border-l-4 border-[#1976D2]">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h3 className="text-sm font-medium text-[#1A1A1A] mb-1 flex items-center gap-2">
+            <Globe className="w-4 h-4 text-[#1976D2]" />
+            Digital Property Consistency
+            <span className="text-xs font-normal text-[#666666]">— {additionalProperties.length} additional {additionalProperties.length === 1 ? 'property' : 'properties'}</span>
+          </h3>
+          <p className="text-xs text-[#666666]">Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis.</p>
+        </div>
+        {extractRisk(propertyData.consistencyAnalysis) && (
+          <span className="text-xs font-bold px-3 py-1 rounded-full text-white flex-shrink-0"
+            style={{ backgroundColor: riskColor(propertyData.consistencyAnalysis) }}>
+            {extractRisk(propertyData.consistencyAnalysis)} Risk
+          </span>
+        )}
+      </div>
+
+      {/* Property table */}
+      <div className="overflow-x-auto mb-4">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="border-b border-[#E8E6E1]">
+              <th className="text-left py-2 pr-3 font-semibold text-[#666] w-32">Property</th>
+              <th className="text-left py-2 pr-3 font-semibold text-[#666]">URL</th>
+              <th className="text-left py-2 pr-3 font-semibold text-[#666] w-20">Type</th>
+              <th className="text-left py-2 pr-3 font-semibold text-[#666] w-20">Language</th>
+              <th className="text-center py-2 px-1 font-semibold text-[#666] w-16">Perf</th>
+              <th className="text-center py-2 px-1 font-semibold text-[#666] w-12">SEO</th>
+              <th className="text-center py-2 px-1 font-semibold text-[#666] w-16">Access.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allProperties.map((prop, i) => {
+              const d = propertyData[prop.url] || {};
+              return (
+                <tr key={i} className={i % 2 === 0 ? 'bg-[#FAFAF8]' : ''}>
+                  <td className="py-2 pr-3 font-semibold text-[#1A1A1A]">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
+                  <td className="py-2 pr-3 text-[#666] max-w-[180px] truncate" title={prop.url}>{prop.url}</td>
+                  <td className="py-2 pr-3">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#E8E6E1] text-[#444]">
+                      {PROPERTY_TYPES.find(t => t.id === prop.type)?.label || prop.type}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3 text-[#666]">{prop.language || '—'}</td>
+                  {['performance', 'seo', 'accessibility'].map(metric => (
+                    <td key={metric} className="py-2 px-1 text-center">
+                      {d[metric] != null ? (
+                        <span className="inline-block w-10 rounded text-center py-0.5 font-bold tabular-nums text-white text-[11px]"
+                          style={{ backgroundColor: scoreColor(d[metric]) }}>
+                          {d[metric]}
+                        </span>
+                      ) : (
+                        <span className="text-[#CCC]">—</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={runPropertyChecks}
+          disabled={isRunning}
+          className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+        >
+          {isRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> Fetching scores...</> : <><RefreshCw className="w-4 h-4" /> Fetch All Scores</>}
+        </button>
+        <button
+          onClick={runConsistencyAnalysis}
+          disabled={isAnalysing}
+          className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
+        >
+          {isAnalysing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analysing...</> : <><Sparkles className="w-4 h-4" /> Consistency Analysis</>}
+        </button>
+      </div>
+
+      {error && <p className="text-xs text-[#E53935] mt-2">{error}</p>}
+
+      {propertyData.consistencyAnalysis && (
+        <div className="mt-4 bg-[#F0EEEA] rounded-lg p-4">
+          <div className="text-[10px] font-semibold text-[#666] uppercase tracking-wider mb-2">Consistency Analysis</div>
+          <pre className="text-sm text-[#333] whitespace-pre-wrap font-sans leading-relaxed">{propertyData.consistencyAnalysis}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }) {
   const [techAudit, setTechAudit] = useState(assessmentData.techAudit || {
     scores: { performance: '', accessibility: '', bestPractices: '', seo: '' },
@@ -1798,6 +2123,17 @@ Drawing on everything observed across the site, including message clarity, desig
 
 Tone instruction: Be direct and critical where the evidence warrants it. Do not soften findings out of diplomacy. If the site has weak content, inconsistent design, or fails its audiences, name it plainly and explain the consequence. Every assessment must be evidence-based; cite specific pages, sections, copy, or design elements to support your conclusions. Where something cannot be observed directly, do not comment on it.
 
+${(() => {
+  const props = project.additionalProperties?.filter(p => p.url) || [];
+  if (!props.length) return '';
+  return `DIGITAL ESTATE CONTEXT:
+This brand has ${props.length} additional registered ${props.length === 1 ? 'property' : 'properties'} beyond the primary site:
+${props.map(p => `  - ${p.label || p.type}: ${p.url}${p.language ? ' (' + p.language + ')' : ''} [${p.type}]`).join('\n')}
+
+When assessing brand authenticity (REFLECTIVE) and experience excellence (ATTENTIVE), consider that these additional properties exist and that inconsistency across a digital estate is a significant brand risk. Note any observations relevant to multi-property brand coherence.
+`;
+})()}
+
 Conclude with an Overall Website Brand Score (1 to 10), a 2 to 3 sentence executive summary of the site's brand effectiveness, and the single most important improvement priority that would have the greatest impact on brand strength and audience experience.`;
 
       const result = await callClaude(prompt, apiKey);
@@ -1940,6 +2276,29 @@ ${assessmentData.techAudit && (assessmentData.techAudit.scores.performance !== '
 - Best Practices: ${assessmentData.techAudit.scores.bestPractices !== '' ? assessmentData.techAudit.scores.bestPractices + '/100' : 'N/A'}
 - Technical SEO: ${assessmentData.techAudit.scores.seo !== '' ? assessmentData.techAudit.scores.seo + '/100' : 'N/A'}
 ` : ''}
+${(() => {
+  const props = project.additionalProperties?.filter(p => p.url) || [];
+  if (!props.length) return '';
+  const allProps = [{ url: project.websiteUrl, type: 'primary', label: 'Primary' }, ...props];
+  const pd = assessmentData.propertyData || {};
+  const propTable = allProps.map(p => {
+    const d = pd[p.url] || {};
+    return `  ${p.label || p.type} (${p.url}): Perf ${d.performance ?? 'n/a'} | SEO ${d.seo ?? 'n/a'} | Access. ${d.accessibility ?? 'n/a'}`;
+  }).join('\n');
+  const analysis = pd.consistencyAnalysis ? `\nCONSISTENCY ANALYSIS:\n${pd.consistencyAnalysis}` : '';
+  const riskMatch = pd.consistencyAnalysis?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i);
+  const risk = riskMatch ? riskMatch[1] : null;
+  return `DIGITAL ESTATE — ${props.length + 1} PROPERTIES REGISTERED:
+${propTable}
+${risk ? `Cross-property consistency risk: ${risk}` : ''}${analysis}
+
+SCORING INSTRUCTION — apply these findings to attribute scores:
+- REFLECTIVE: Significant cross-property inconsistency (different visual identity, tone, or messaging across properties) is direct evidence of brand inauthenticity. Penalise this attribute proportionally to the severity of deviation. Translated sites with poor brand voice preservation should also reduce this score.
+- ATTENTIVE: Performance score variance across properties signals inconsistent experience delivery. A brand that maintains a polished primary site but neglects regional or translated properties is failing its full audience. Factor the weakest property performance into ATTENTIVE, not just the primary.
+- COGENT: A fragmented digital estate with inconsistent tech stacks or missing SEO localisation (hreflang, local schema) on translated properties indicates weak operational intelligence.
+- AWARE: For translated/regional properties — does the brand demonstrate genuine understanding of those audiences, or is it simply translating primary content without adaptation?
+`;
+})()}
 
 Based on the screenshots and content provided, deliver a comprehensive website assessment covering:
 
@@ -2293,6 +2652,14 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
           </div>
         )}
       </div>
+
+      {/* Digital Property Consistency — only shown if additional properties registered */}
+      <PropertyConsistencyPanel
+        project={project}
+        assessmentData={assessmentData}
+        setAssessmentData={setAssessmentData}
+        apiKey={apiKey}
+      />
 
       {/* Technical Performance Audit */}
       <TechnicalAuditSection 
@@ -3956,6 +4323,21 @@ ${cap(assessments.website.content)}
 ${cap(assessments.website.seoAssessment, 600) ? `SEO: ${cap(assessments.website.seoAssessment, 600)}` : ''}
 ${assessments.website.techAudit ? `Technical: Performance ${assessments.website.techAudit.scores.performance}/100, Accessibility ${assessments.website.techAudit.scores.accessibility}/100, SEO ${assessments.website.techAudit.scores.seo}/100, Best Practices ${assessments.website.techAudit.scores.bestPractices}/100` : ''}
 ${[field('Pages', assessments.website.pagesReviewed), field('Credentials', cap(assessments.website.credentialsContent, 300)), field('Notes', assessments.website.observations)].filter(Boolean).join('\n')}
+${(() => {
+  const props = project.additionalProperties?.filter(p => p.url) || [];
+  const pd = assessments.website.propertyData || {};
+  if (props.length === 0) return '';
+  const allProps = [
+    { url: project.websiteUrl, type: 'primary', label: 'Primary' },
+    ...props,
+  ];
+  const table = allProps.map(p => {
+    const d = pd[p.url] || {};
+    return `  ${p.label || p.type} (${p.url}): Perf ${d.performance ?? 'n/a'}, SEO ${d.seo ?? 'n/a'}, Access. ${d.accessibility ?? 'n/a'}`;
+  }).join('\n');
+  const risk = pd.consistencyAnalysis?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i)?.[1] || 'Not assessed';
+  return `\nDIGITAL ESTATE (${props.length + 1} properties — consistency risk: ${risk}):\n${table}\n${pd.consistencyAnalysis ? `Consistency analysis:\n${cap(pd.consistencyAnalysis, 800)}` : 'No consistency analysis run.'}`;
+})()}
 
 SOCIAL MEDIA:
 ${cap(assessments.social.content)}
@@ -4022,6 +4404,7 @@ SCORING NOTES:
 - Glassdoor impacts REFLECTIVE. WIPO impacts INTENTIONAL. Wikipedia absence/thin = gap in COGENT+INTENTIONAL.
 - Reddit perception: REFLECTIVE + COGENT. Reputation flags: must be reflected in REFLECTIVE + INTENTIONAL scores.
 - AI engine convergence = strong discoverability (COGENT+INTENTIONAL). Vagueness/divergence = penalise both.
+- DIGITAL ESTATE: If a Digital Estate section is present, cross-property inconsistency MUST impact scoring. High risk rating: penalise REFLECTIVE (brand authenticity) and ATTENTIVE (experience consistency). Medium risk: note in findings, minor penalty. Translated sites with poor localisation quality: penalise AWARE. Tech stack fragmentation: penalise COGENT. Strong estate consistency is positive evidence for REFLECTIVE and INTENTIONAL.
 - Business model: ${project.businessModel.toUpperCase()}. ${project.businessModel === 'b2b' ? 'LinkedIn 3x. Trade press over mainstream. Long-form over short-form. Low TikTok weight.' : project.businessModel === 'b2c' ? 'All consumer social weighted. TikTok relevant if <40 audience. Consumer reviews critical. Mainstream media over trade press.' : 'Weight LinkedIn for B2B, consumer channels for B2C. Both trade and mainstream press matter.'}
 - Recency: weight last 3 months more heavily. Evidence tiers: major publications/verified data (strong), industry/social proof (moderate), self-reported/single instance (weak).
 
@@ -4401,6 +4784,29 @@ ${assessments.website.seoAssessment}
         reportText += `
 [Full Website Analysis]
 ${assessments.website.content}
+`;
+      }
+      // Inject property consistency data if present
+      const additionalProps = project.additionalProperties?.filter(p => p.url) || [];
+      const pd = assessments.website?.propertyData || {};
+      if (additionalProps.length > 0 && (Object.keys(pd).length > 0 || pd.consistencyAnalysis)) {
+        const allProps = [{ url: project.websiteUrl, type: 'primary', label: 'Primary' }, ...additionalProps];
+        const propTable = allProps.map(p => {
+          const d = pd[p.url] || {};
+          return `  ${p.label || p.type} (${p.url}): Perf ${d.performance ?? 'n/a'} | SEO ${d.seo ?? 'n/a'} | Access. ${d.accessibility ?? 'n/a'}`;
+        }).join('\n');
+        const riskMatch = pd.consistencyAnalysis?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i);
+        reportText += `
+[Digital Estate Consistency — ${additionalProps.length + 1} Properties]
+${propTable}
+${riskMatch ? `Consistency Risk: ${riskMatch[1]}` : ''}
+${pd.consistencyAnalysis ? `\nConsistency Analysis:\n${pd.consistencyAnalysis}` : ''}
+
+SCORING GUIDANCE FOR ATTRIBUTE SCORES:
+- REFLECTIVE: Cross-property visual, tone, or message inconsistency is direct evidence of brand inauthenticity. Weight this finding in the REFLECTIVE score. Translated sites with poor brand voice preservation should reduce this score further.
+- ATTENTIVE: Performance variance across properties signals inconsistent experience delivery. Use the weakest property score when assessing ATTENTIVE, not just the primary site.
+- COGENT: Fragmented tech stacks or missing SEO localisation on translated/regional properties indicates weak strategic intelligence.
+- AWARE: Regional/translated properties with no local adaptation (just translated content) suggest the brand does not truly understand its non-primary audiences.
 `;
       }
     }
@@ -5310,6 +5716,52 @@ ${content.slice(0, 8000)}`;
             // ── WEBSITE ASSESSMENT ───────────────────────────────
             h2('Website Assessment'),
             ...mdParas(extractSummary(assessments.website?.content || '')),
+
+            // ── DIGITAL ESTATE CONSISTENCY ───────────────────────
+            ...(() => {
+              const props = project.additionalProperties?.filter(p => p.url) || [];
+              const pd = assessments.website?.propertyData || {};
+              if (props.length === 0) return [];
+              const allProps = [{ url: project.websiteUrl, type: 'primary', label: 'Primary' }, ...props];
+              const risk = pd.consistencyAnalysis?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i)?.[1] || null;
+              const riskHex = risk === 'Low' ? '059669' : risk === 'Medium' ? 'F59E0B' : risk === 'High' ? 'E53935' : '666666';
+              return [
+                h2('Digital Estate Consistency'),
+                new Paragraph({ spacing: { before: 0, after: 80 }, children: [
+                  new TextRun({ text: `${allProps.length} registered properties`, font: 'Inter', size: 18, color: '999999' }),
+                  ...(risk ? [new TextRun({ text: `  ·  ${risk} consistency risk`, font: 'Inter', size: 18, bold: true, color: riskHex })] : []),
+                ]}),
+                // Property table
+                new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  rows: [
+                    new TableRow({ children: [
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Property', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'URL', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Type', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Language', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Perf', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'SEO', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
+                    ]}),
+                    ...allProps.map(p => {
+                      const d = pd[p.url] || {};
+                      return new TableRow({ children: [
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.label || p.type || 'Property', font: 'Inter', size: 18 })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.url, font: 'Inter', size: 16, color: '666666' })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.type || '—', font: 'Inter', size: 18 })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.language || '—', font: 'Inter', size: 18 })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: d.performance != null ? String(d.performance) : '—', font: 'Inter', size: 18 })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: d.seo != null ? String(d.seo) : '—', font: 'Inter', size: 18 })] })] }),
+                      ]});
+                    }),
+                  ],
+                }),
+                ...(pd.consistencyAnalysis ? [
+                  new Paragraph({ spacing: { before: 160, after: 60 }, children: [new TextRun({ text: 'Consistency Analysis', bold: true, font: 'Inter', size: 20 })] }),
+                  ...mdParas(clean(pd.consistencyAnalysis)),
+                ] : []),
+              ];
+            })(),
 
             // ── SOCIAL MEDIA ASSESSMENT ──────────────────────────
             h2('Social Media Assessment'),
@@ -9447,8 +9899,9 @@ function AppContent() {
   const [currentStep, setCurrentStep] = useState(0);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('conscious-compass-apikey') || DEFAULT_API_KEY);
   const [project, setProject] = useState({
-    brandName: '', websiteUrl: '', 
-    businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: ''
+    brandName: '', websiteUrl: '',
+    businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '',
+    additionalProperties: []
   });
   const [assessments, setAssessments] = useState({
     website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
@@ -9712,7 +10165,7 @@ function AppContent() {
       clearDraft();
       setCurrentStep(0);
       setShowSavedPage(false);
-      setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '' });
+      setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '', additionalProperties: [] });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
         social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
