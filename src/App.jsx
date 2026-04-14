@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.19.2';
+const APP_VERSION = '2.19.3';
 import { 
   supabase, 
   signUp, 
@@ -1481,6 +1481,19 @@ function AdditionalPropertiesInput({ project, setProject }) {
             Add regional sites, translated versions, microsites or other digital properties owned by this brand. Leave blank to assess the primary URL only.
           </p>
 
+          {/* Primary language */}
+          <div className="flex items-center gap-3 p-3 bg-[#F0EEEA] rounded-lg">
+            <span className="text-xs font-semibold text-[#666] w-4">✦</span>
+            <div className="flex-1 text-xs text-[#444] font-medium">Primary site</div>
+            <input
+              type="text"
+              value={project.primaryLanguage || ''}
+              onChange={e => setProject({ ...project, primaryLanguage: e.target.value })}
+              placeholder="Language (e.g. English)"
+              className="px-2 py-1.5 text-xs border border-[#D9D6D0] rounded bg-white w-40"
+            />
+          </div>
+
           {props.map((prop, i) => (
             <div key={i} className="p-3 bg-[#F5F4F0] rounded-lg space-y-2">
               <div className="flex items-center gap-2">
@@ -1640,7 +1653,7 @@ function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, 
   })();
 
   const allProperties = [
-    { url: project.websiteUrl, type: 'primary', language: '', label: 'Primary' },
+    { url: project.websiteUrl, type: 'primary', language: project.primaryLanguage || '', label: 'Primary' },
     ...additionalProperties,
   ];
 
@@ -1661,16 +1674,19 @@ function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, 
         const psRes = await fetch(`/api/pagespeed?url=${encodeURIComponent(prop.url)}`);
         if (!psRes.ok) throw new Error(`PageSpeed returned ${psRes.status}`);
         const psData = await psRes.json();
-        const ps = psData?.lighthouseResult?.categories;
+        if (psData.error) throw new Error(psData.error);
+        // Proxy returns pre-processed { scores: { performance, accessibility, seo, bestPractices } }
+        const s = psData.scores || {};
         results[prop.url] = {
           ...results[prop.url],
-          performance:   ps?.performance?.score   != null ? Math.round(ps.performance.score   * 100) : null,
-          seo:           ps?.seo?.score           != null ? Math.round(ps.seo.score           * 100) : null,
-          accessibility: ps?.accessibility?.score != null ? Math.round(ps.accessibility.score * 100) : null,
+          performance:   s.performance   != null ? s.performance   : null,
+          seo:           s.seo           != null ? s.seo           : null,
+          accessibility: s.accessibility != null ? s.accessibility : null,
           fetched: true,
         };
       } catch (e) {
         results[prop.url] = { ...results[prop.url], fetched: false, error: true, errorMsg: e.message };
+        setError(`Failed to fetch scores for ${prop.url}: ${e.message}`);
       }
     }
 
@@ -9933,7 +9949,7 @@ function AppContent() {
   const [project, setProject] = useState({
     brandName: '', websiteUrl: '',
     businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '',
-    additionalProperties: []
+    additionalProperties: [], primaryLanguage: ''
   });
   const [assessments, setAssessments] = useState({
     website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
@@ -10197,7 +10213,7 @@ function AppContent() {
       clearDraft();
       setCurrentStep(0);
       setShowSavedPage(false);
-      setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '', additionalProperties: [] });
+      setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '', additionalProperties: [], primaryLanguage: '' });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
         social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
