@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.19.1';
+const APP_VERSION = '2.19.2';
 import { 
   supabase, 
   signUp, 
@@ -1628,6 +1628,17 @@ function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, 
 
   if (additionalProperties.length === 0) return null;
 
+  // Seed primary URL scores from techAudit so we don't double-fetch
+  const primaryScores = (() => {
+    const t = assessmentData.techAudit?.scores || {};
+    return {
+      performance:   t.performance   !== '' && t.performance   != null ? Number(t.performance)   : null,
+      seo:           t.seo           !== '' && t.seo           != null ? Number(t.seo)           : null,
+      accessibility: t.accessibility !== '' && t.accessibility != null ? Number(t.accessibility) : null,
+      fromTechAudit: true,
+    };
+  })();
+
   const allProperties = [
     { url: project.websiteUrl, type: 'primary', language: '', label: 'Primary' },
     ...additionalProperties,
@@ -1636,27 +1647,34 @@ function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, 
   const runPropertyChecks = async () => {
     setIsRunning(true);
     setError(null);
-    const results = { ...propertyData };
 
-    for (const prop of allProperties) {
+    // Start with existing data + primary scores from techAudit
+    const results = {
+      ...propertyData,
+      [project.websiteUrl]: { ...primaryScores },
+    };
+
+    // Only fetch additional properties — primary comes from TechnicalAuditSection
+    for (const prop of additionalProperties) {
       if (!prop.url) continue;
       try {
-        // PageSpeed
         const psRes = await fetch(`/api/pagespeed?url=${encodeURIComponent(prop.url)}`);
+        if (!psRes.ok) throw new Error(`PageSpeed returned ${psRes.status}`);
         const psData = await psRes.json();
         const ps = psData?.lighthouseResult?.categories;
         results[prop.url] = {
           ...results[prop.url],
-          performance: ps?.performance?.score != null ? Math.round(ps.performance.score * 100) : null,
-          seo: ps?.seo?.score != null ? Math.round(ps.seo.score * 100) : null,
+          performance:   ps?.performance?.score   != null ? Math.round(ps.performance.score   * 100) : null,
+          seo:           ps?.seo?.score           != null ? Math.round(ps.seo.score           * 100) : null,
           accessibility: ps?.accessibility?.score != null ? Math.round(ps.accessibility.score * 100) : null,
           fetched: true,
         };
-      } catch {
-        results[prop.url] = { ...results[prop.url], fetched: false, error: true };
+      } catch (e) {
+        results[prop.url] = { ...results[prop.url], fetched: false, error: true, errorMsg: e.message };
       }
     }
 
+    // Update both state and assessmentData with the same object to avoid stale closure
     setPropertyData(results);
     setAssessmentData({ ...assessmentData, propertyData: results });
     setIsRunning(false);
@@ -1778,7 +1796,6 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
           </thead>
           <tbody>
             {allProperties.map((prop, i) => {
-              const d = propertyData[prop.url] || {};
               return (
                 <tr key={i} className={i % 2 === 0 ? 'bg-[#FAFAF8]' : ''}>
                   <td className="py-2 pr-3 font-semibold text-[#1A1A1A]">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
@@ -1789,24 +1806,39 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
                     </span>
                   </td>
                   <td className="py-2 pr-3 text-[#666]">{prop.language || '—'}</td>
-                  {['performance', 'seo', 'accessibility'].map(metric => (
-                    <td key={metric} className="py-2 px-1 text-center">
-                      {d[metric] != null ? (
-                        <span className="inline-block w-10 rounded text-center py-0.5 font-bold tabular-nums text-white text-[11px]"
-                          style={{ backgroundColor: scoreColor(d[metric]) }}>
-                          {d[metric]}
-                        </span>
-                      ) : (
-                        <span className="text-[#CCC]">—</span>
-                      )}
-                    </td>
-                  ))}
+                  {['performance', 'seo', 'accessibility'].map(metric => {
+                    const d = i === 0
+                      ? primaryScores
+                      : (propertyData[prop.url] || {});
+                    const val = d[metric];
+                    const hasError = propertyData[prop.url]?.error;
+                    return (
+                      <td key={metric} className="py-2 px-1 text-center">
+                        {val != null ? (
+                          <span className="inline-block w-10 rounded text-center py-0.5 font-bold tabular-nums text-white text-[11px]"
+                            style={{ backgroundColor: scoreColor(val) }}>
+                            {val}
+                          </span>
+                        ) : hasError && i > 0 ? (
+                          <span className="text-[#E53935] text-[10px]">err</span>
+                        ) : i === 0 ? (
+                          <span className="text-[10px] text-[#BBB]" title="Run Technical Performance Audit above">—</span>
+                        ) : (
+                          <span className="text-[#CCC]">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      <p className="text-[10px] text-[#999] mb-3">
+        Primary site scores are read from the Technical Performance Audit above — run that first. Fetch All Scores only queries additional properties.
+      </p>
 
       <div className="flex gap-2 flex-wrap">
         <button
