@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.19.3';
+const APP_VERSION = '2.20.0';
 import { 
   supabase, 
   signUp, 
@@ -528,9 +528,21 @@ function compressImage(dataUrl, maxSizeMB = 3.5) {
   });
 }
 
+// Shared voice guidance applied to every prose output across the app.
+// Mirrored into the server-side compositor prompts (newsletter, landscape,
+// insights, brand intelligence) and the direct web-search calls.
+const VOICE_GUIDANCE = `VOICE:
+Write like a strategist talking, not an AI writing. Short sentences. Plain words. Lead with the verdict, then the evidence. Stop when the point is made.
+Cut throat-clearing and filler: no "it's worth noting", "it's important to", "overall", "in today's landscape", "when it comes to", "plays a crucial role".
+Banned constructions: the rule-of-three list, "not just X, but Y", the "It's not about X, it's about Y" pivot, "From X to Y", "Here's the thing", and tidy antithesis used for rhythm.
+No motivational closers. No summary that restates what you just said.
+Be willing to provoke. Where evidence supports a hard line, take it. Name the gap, the contradiction, the bluff. A pointed question is fine when it forces a decision.`;
+
 async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0, isJson = false, maxTokens = 6000) {
   // Add standard instructions for consistency
   const enhancedPrompt = `${prompt}
+
+${VOICE_GUIDANCE}
 
 IMPORTANT FORMATTING RULES:
 - Base all assessments on specific, observable evidence. Cite concrete examples.
@@ -2427,7 +2439,9 @@ ${seoAssessment ? `   - INTEGRATE the SEO Visibility Assessment findings above i
    - Reference the target keywords identified and assess if the website content supports ranking for them
    - Consider the brand searchability assessment in your evaluation` : '   - Note: No SEO visibility assessment was run - provide general observations only'}
 
-Write in flowing prose with specific observations. Be concrete about what you see in the screenshots. Compare elements across different pages to identify consistency or inconsistency.
+${images.length > 0 ? `MANDATORY: Begin your response with a section headed exactly "VISUAL ASSESSMENT". This section is required whenever screenshots are provided. Walk through the ${images.length} screenshot(s) one by one. For each, describe what is actually on screen and judge it on design consistency and brand presentation: logo usage, colour palette, typography, layout and spacing, imagery and creative quality. Then compare across screenshots and call out where the brand holds together and where it breaks. Be concrete. Do not skip this section, do not fold it into general commentary, and do not pad it if a screen is unremarkable. State plainly what you see.
+
+` : ''}Write in flowing prose with specific observations. Be concrete about what you see in the screenshots. Compare elements across different pages to identify consistency or inconsistency.
 
 End with:
 - BRAND ARCHITECTURE TYPE: Identify which model (Single Brand, House of Brands, Endorsed, Sub-brand, or Unclear) with brief explanation
@@ -2831,7 +2845,7 @@ Industry: ${industryName}
 Search the web for current information about this brand's social media presence and provide a detailed health assessment covering:
 
 1. CHANNEL PRESENCE AUDIT
-For each major platform (LinkedIn, X/Twitter, Instagram, Facebook, YouTube, TikTok), determine:
+For each major platform (LinkedIn, X/Twitter, Instagram, Facebook, YouTube, TikTok, Bluesky, Substack), determine:
 - Does the brand have an official/verified presence?
 - Channel URL if found
 - Approximate follower/subscriber count
@@ -2878,6 +2892,14 @@ For each major platform (LinkedIn, X/Twitter, Instagram, Facebook, YouTube, TikT
 
 FORMAT YOUR RESPONSE AS:
 Start with a 2-3 sentence EXECUTIVE SUMMARY of overall social media health.
+
+PER-PLATFORM READ
+For each active platform, assess two layers:
+- Owned: the brand's own posting. Does it look and sound like the same brand as the website and the other channels? Creative quality, rhythm, originality.
+- Third-party: what others say on or about the platform. Sentiment, who is talking, whether anyone is at all.
+Then judge the platform on four things: brand consistency, creative quality and sentiment, engagement, and trust. Be specific. A channel can be active and still failing all four.
+Substack is owned long-form: cadence, subscriber signal, and whether it is real thought leadership or recycled posts. Bluesky is an emerging presence: is the brand there, early, or absent.
+
 
 Then provide findings for each section above with specific evidence.
 
@@ -3175,7 +3197,9 @@ Based on the content provided above, deliver a comprehensive social media and re
 
 12. AI/Search Visibility: How does their social presence impact discoverability in AI search engines? Consider YouTube third-party coverage, Knowledge Graph status, and Reddit Answers perception.
 
-Write in flowing prose with specific observations from the content provided. End with key strengths and priority improvements.`;
+${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response with a section headed exactly "VISUAL ASSESSMENT". This section is required whenever screenshots are provided. Walk through the ${images.length + instagramImages.length} social screenshot(s) one by one. For each, describe what is on screen and judge it on brand consistency and presentation: does it look like the same brand as the website and the other channels? Logo, colour, typography, layout, creative quality. Then compare across the screenshots and across platforms, and flag where the brand holds together and where it drifts. Be concrete. Do not skip this section and do not fold it into general commentary.
+
+` : ''}Write in flowing prose with specific observations from the content provided. End with key strengths and priority improvements.`;
 
       const allImages = [...images, ...instagramImages];
       const result = await callClaude(prompt, apiKey, allImages[0], allImages.slice(1));
@@ -3682,6 +3706,11 @@ function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, 
   const [reputationFlags, setReputationFlags] = useState(assessmentData.reputationFlags || '');
   const [wikipediaContent, setWikipediaContent] = useState(assessmentData.wikipediaContent || '');
   const [redditContent, setRedditContent] = useState(assessmentData.redditAnswersContent || '');
+  // Third-party and search signals (auto-fetched, NOT counted as AI engines)
+  const [googleNewsContent, setGoogleNewsContent] = useState(assessmentData.googleNewsContent || '');
+  const [trustpilotContent, setTrustpilotContent] = useState(assessmentData.trustpilotContent || '');
+  const [searchSnapshotContent, setSearchSnapshotContent] = useState(assessmentData.searchSnapshotContent || '');
+  const [fetching, setFetching] = useState({});
 
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
 
@@ -3732,6 +3761,9 @@ How credible is this brand in its field? Is it regarded as knowledgeable, trustw
 9. Digital Presence & Findability
 How easy was it to find information about this brand? Is their digital footprint strong or weak? Are they present across multiple channels (website, LinkedIn, news, reviews) or hard to research? This reflects what a prospect would experience when doing due diligence.
 
+Name Confusion and Category Bleed
+Is this brand being confused with anything else? Check for companies that share or resemble the name, competitors positioned closely enough to blur together, and unrelated sectors or entities the name drags in. Where you find confusion, name the specific entity or category and say whether it crowds out, distorts, or merely sits beside the real brand. If the brand owns its name cleanly, say so.
+
 Conclude with a Summary Brand Impression — a candid 3–4 sentence synthesis of how this brand appears to someone researching them online: what they stand for, how they are regarded, and any gaps or concerns a prospect might notice. Then provide an AI Discoverability Score from 1–10 reflecting how well-represented and clearly understood this brand is in online search, with a brief rationale for the score.${reputationFlags ? `
 
 IMPORTANT CONTEXT — KNOWN REPUTATION FLAGS:
@@ -3753,6 +3785,50 @@ ${reputationFlags}` : ''}`;
   const canSynthesize = filledCount >= 3;
   const isComplete = assessmentData.status === 'complete';
 
+  // Auto-fetch third-party / search signals via web search. These feed the
+  // reputation analysis but are NOT AI engines and never count toward synthesis.
+  const fetchSignal = async (key, prompt, prefix, setter) => {
+    setFetching(f => ({ ...f, [key]: true }));
+    setError(null);
+    try {
+      const response = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, useWebSearch: true })
+      });
+      if (!response.ok) throw new Error('Fetch failed');
+      const data = await response.json();
+      const result = (data.content?.filter(b => b.type === 'text').map(b => b.text).join('\n')) || data.text || '';
+      if (result) setter(`${prefix} ${result}`);
+      else setError(`${key} returned nothing — try again or paste manually.`);
+    } catch {
+      setError(`${key} fetch failed — try again or paste manually.`);
+    } finally {
+      setFetching(f => ({ ...f, [key]: false }));
+    }
+  };
+
+  const fetchGoogleNews = () => fetchSignal(
+    'Google News',
+    `Search Google News and recent press for "${project.brandName}" over the last 3 months. Report what third-party outlets are saying: headlines, outlets, dates, and the angle of coverage. Note sentiment and any recurring narrative. If coverage is thin or absent, say so plainly. Do not pad.`,
+    '[Auto-fetched: Google News]',
+    setGoogleNewsContent
+  );
+
+  const fetchTrustpilot = () => fetchSignal(
+    'Trustpilot',
+    `Find the Trustpilot profile for "${project.brandName}". Report the overall rating, number of reviews, and the split between positive and negative. Summarise the recurring praise and the recurring complaints in the customers' own framing. Note how the brand responds to reviews. If there is no Trustpilot presence, say so.`,
+    '[Auto-fetched: Trustpilot]',
+    setTrustpilotContent
+  );
+
+  const fetchSearchSnapshot = () => fetchSignal(
+    'Search Snapshot',
+    `Run a web search for "${project.brandName}" the way a prospect would. Synthesise what the top of the results actually surfaces: who the brand is, what dominates the first page, and whether the picture is coherent or fragmented. This is a stand-in for the Google AI Overview, a synthesised read of top search results rather than an AI engine's opinion of the brand. Report what is there, not what should be.`,
+    '[Auto-fetched: Search Snapshot, synthesised from top results, not the literal Google AI Overview]',
+    setSearchSnapshotContent
+  );
+
   const generateSynthesis = async () => {
     setIsProcessing(p => ({ ...p, synthesis: true }));
     setError(null);
@@ -3769,6 +3845,9 @@ ${engineSections}
 ${reputationFlags ? `REPUTATION FLAGS — CRITICAL CONTEXT:\nThe following issues were identified before running AI queries. These flags must be addressed directly in your analysis — do not omit or minimise them:\n${reputationFlags}\n` : ''}
 ${wikipediaContent ? `WIKIPEDIA PRESENCE:\n${wikipediaContent}\n` : ''}
 ${redditContent ? `REDDIT COMMUNITY PERCEPTION:\n${redditContent}\n` : ''}
+${googleNewsContent ? `GOOGLE NEWS / RECENT PRESS (third-party signal, not an AI engine):\n${googleNewsContent}\n` : ''}
+${trustpilotContent ? `TRUSTPILOT REVIEWS (third-party signal, not an AI engine):\n${trustpilotContent}\n` : ''}
+${searchSnapshotContent ? `SEARCH SNAPSHOT (synthesised read of top search results, not an AI engine):\n${searchSnapshotContent}\n` : ''}
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
 
 Provide a comprehensive AI reputation assessment:
@@ -3776,7 +3855,9 @@ Provide a comprehensive AI reputation assessment:
 2. Divergence — Where do they differ, and what might explain it?
 3. Sentiment — Overall tone and brand framing across systems
 4. Gaps — What can't any AI answer about this brand? What's absent?
-${reputationFlags ? `5. Reputation Risks — How do the identified flags (${reputationFlags.substring(0, 100)}...) affect AI-surfaced perception? Are the AI responses acknowledging, downplaying, or ignoring these issues?\n6. Recommendations — Specific steps to improve AI representation and discoverability` : '5. Recommendations — Specific steps to improve AI representation and discoverability'}
+5. Name Confusion — Do the systems conflate this brand with a namesake, a look-alike competitor, or an irrelevant category? Flag any answer describing the wrong entity, and say how badly it pollutes the brand's identity.
+6. Owned vs Third-Party — Separate what the brand says about itself, its site and its own channels, from what others say about it: press, reviews, forums, chatter, and the search and Trustpilot signals above. Judge each description as one of: Aligned (owned and third-party tell the same story), Deviating (third-party contradicts or reframes the claim), or Missing (the brand describes itself and no third-party source corroborates it, so it exists in its own telling and nowhere else). Owned content tells these systems who the brand is. Third-party conversation tells them whether it matters. Say which one is carrying this brand, and where the gap leaves it exposed.
+${reputationFlags ? `7. Reputation Risks — How do the identified flags (${reputationFlags.substring(0, 100)}...) affect AI-surfaced perception? Are the AI responses acknowledging, downplaying, or ignoring these issues?\n8. Recommendations — Specific steps to improve AI representation and discoverability` : '7. Recommendations — Specific steps to improve AI representation and discoverability'}
 
 Write in flowing prose. If reputation flags were provided, they must be woven throughout the analysis — not confined to a single section.`;
 
@@ -3793,6 +3874,9 @@ Write in flowing prose. If reputation flags were provided, they must be woven th
         reputationFlags,
         wikipediaContent,
         redditAnswersContent: redditContent,
+        googleNewsContent,
+        trustpilotContent,
+        searchSnapshotContent,
       });
     } catch (e) { setError(e.message); }
     finally { setIsProcessing(p => ({ ...p, synthesis: false })); }
@@ -3967,6 +4051,38 @@ Write in flowing prose. If reputation flags were provided, they must be woven th
               className="w-full h-24 px-3 py-2 border border-orange-200 rounded-lg bg-orange-50 resize-none text-sm"
             />
           </div>
+        </div>
+      </div>
+
+      {/* Third-Party & Search Signals (auto-fetched, NOT AI engines) */}
+      <div className="card p-4 mb-4 border-l-4 border-[#E53935]">
+        <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">Third-Party &amp; Search Signals</h3>
+        <p className="text-xs text-[#666666] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
+        <div className="space-y-3">
+          {[
+            { key: 'news', label: 'Google News', value: googleNewsContent, setter: setGoogleNewsContent, field: 'googleNewsContent', run: fetchGoogleNews, placeholder: `Recent press and news coverage of ${project.brandName}...` },
+            { key: 'trustpilot', label: 'Trustpilot', value: trustpilotContent, setter: setTrustpilotContent, field: 'trustpilotContent', run: fetchTrustpilot, placeholder: `Trustpilot rating, review volume, recurring praise and complaints...` },
+            { key: 'search', label: 'Search Snapshot', sub: '(synthesised from top results, stands in for Google AI Overview)', value: searchSnapshotContent, setter: setSearchSnapshotContent, field: 'searchSnapshotContent', run: fetchSearchSnapshot, placeholder: `What the top of a Google search surfaces for ${project.brandName}...` },
+          ].map(row => (
+            <div key={row.key}>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#666666]">{row.label} {row.sub && <span className="font-normal text-[#999]">{row.sub}</span>}</label>
+                <button
+                  onClick={row.run}
+                  disabled={!!fetching[row.label]}
+                  className="px-2 py-0.5 bg-[#E53935] text-white text-[10px] font-medium rounded hover:bg-[#C62828] transition-colors flex items-center gap-1 disabled:opacity-50"
+                >
+                  {fetching[row.label] ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Fetching</> : <><Search className="w-2.5 h-2.5" /> Auto-fetch</>}
+                </button>
+              </div>
+              <textarea
+                value={row.value}
+                onChange={(e) => { row.setter(e.target.value); setAssessmentData({ ...assessmentData, [row.field]: e.target.value }); }}
+                placeholder={row.placeholder}
+                className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
+              />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -4407,6 +4523,9 @@ ${(() => {
   if (engines.length) parts.push(engines.map(([name, val]) => `[${name}] ${cap(val, 500)}`).join('\n\n'));
   if (ai?.wikipediaContent) parts.push(`Wikipedia: ${cap(ai.wikipediaContent, 400)}`);
   if (ai?.redditAnswersContent) parts.push(`Reddit: ${cap(ai.redditAnswersContent, 400)}`);
+  if (ai?.googleNewsContent) parts.push(`Google News (third-party): ${cap(ai.googleNewsContent, 400)}`);
+  if (ai?.trustpilotContent) parts.push(`Trustpilot (third-party): ${cap(ai.trustpilotContent, 400)}`);
+  if (ai?.searchSnapshotContent) parts.push(`Search Snapshot (top results): ${cap(ai.searchSnapshotContent, 400)}`);
   if (ai?.content) parts.push(`Synthesis: ${cap(ai.content, 600)}`);
   if (ai?.observations) parts.push(`Notes: ${ai.observations}`);
   return parts.length ? parts.join('\n\n') : 'Not completed';
@@ -4916,7 +5035,7 @@ ${assessments.earnedMedia.content}
 ${divider}
 METHODOLOGY
 ${divider}
-${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice.
+${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice.
 
 Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${FRAMEWORK_VERSION}
 `;
@@ -5734,7 +5853,7 @@ ${content.slice(0, 8000)}`;
 
             // ── WHAT WE EVALUATED ─────────────────────────────────
             h2('What We Evaluated'),
-            body(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescriptionDocx} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${INDUSTRIES.find(i => i.id === project.industry)?.name || project.industry}) were applied to weight attribute importance appropriately.`),
+            body(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescriptionDocx} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${INDUSTRIES.find(i => i.id === project.industry)?.name || project.industry}) were applied to weight attribute importance appropriately.`),
             ...(project.assessorContext ? [
               new Paragraph({ spacing: { before: 80, after: 60 }, children: [new TextRun({ text: 'Assessor Context', bold: true, size: 20, font: 'Inter' })] }),
               body(clean(project.assessorContext)),
@@ -6129,7 +6248,7 @@ ${content.slice(0, 8000)}`;
         {expandedSections.evaluated && (
           <div className="card p-4 md:p-6 animate-fade-in">
             <p className="text-sm md:text-base text-[#333333] leading-relaxed">
-              This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence and Reddit community perception, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
+              This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
           </div>
         )}

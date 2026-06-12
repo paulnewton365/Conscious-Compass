@@ -69,7 +69,7 @@ export default async function handler(req, res) {
    - Paragraph 1: The big-picture industry trend — what the data says about how brands across sectors are behaving and what pattern is emerging
    - Paragraph 2: The conscious brand attributes story — which attributes are strongest, weakest, most polarising, and what that means
 
-Use plain prose. No bullet points. No headers. No em dashes. Max 200 words total across both paragraphs.
+Use plain prose. No bullet points. No headers. No em dashes. Max 200 words total across both paragraphs. Short sentences, plain words, lead with the point. No throat-clearing, no rule-of-three lists, no "not just X but Y", no motivational closers.
 
 ANALYSIS:
 ${combinedText}`;

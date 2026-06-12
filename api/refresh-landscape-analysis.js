@@ -124,7 +124,7 @@ ${spreadData.map(c => `  ${c.attr}: spread ${c.spread}pts | min ${c.min} → max
 OVERALL ATTRIBUTE AVERAGES (all brands):
 ${ATTRIBUTES.map(a => `  ${a.id}: ${overallAvg[a.id]}`).join('\n')}
 
-Write a structured analysis. Use plain prose — no bullet points, no markdown headers, no em dashes. Write directly and confidently.
+Write a structured analysis. Use plain prose — no bullet points, no markdown headers, no em dashes. Write directly and confidently. Short sentences. Plain words. Lead with the verdict, then the evidence. No throat-clearing, no "it's worth noting", no rule-of-three lists, no "not just X but Y", no motivational closers. Be willing to provoke where the data supports it.
 
 Output four sections with exactly these labels (each label on its own line, in this order):
 
