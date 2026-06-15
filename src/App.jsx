@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.20.3';
+const APP_VERSION = '2.20.4';
 import { 
   supabase, 
   signUp, 
@@ -4387,6 +4387,32 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
   const [scoringError, setScoringError] = useState(null);
   const [scoringProgress, setScoringProgress] = useState(0);
   const [scoringStage, setScoringStage] = useState('');
+  // Top stories from Stay Conscious, shown on the generating screen to fill the wait.
+  const [waitingStories, setWaitingStories] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/stay-conscious-newsletter');
+        const data = await res.json();
+        const ns = data?.newsletter;
+        if (!ns || cancelled) return;
+        const firstSentence = (t) => {
+          const s = (t || '').split(/[.!?]/)[0].trim();
+          return s ? s + '.' : '';
+        };
+        const items = [];
+        if (ns.leadStory?.headline) {
+          items.push({ headline: ns.leadStory.headline, summary: firstSentence(ns.leadStory.insight), category: ns.leadStory.category });
+        }
+        (ns.storyOpportunities || []).forEach(s => {
+          if (s?.headline) items.push({ headline: s.headline, summary: firstSentence(s.body) });
+        });
+        if (!cancelled) setWaitingStories(items.slice(0, 3));
+      } catch { /* waiting panel is optional, fail quietly */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [expandedSections, setExpandedSections] = useState({
     attributes: true,
     recommendations: true,
@@ -4418,26 +4444,29 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     setIsScoring(true);
     setScoringError(null);
     setScoringProgress(0);
-    
-    // Simulate progress stages
-    const progressStages = [
-      { progress: 10, stage: 'Absorbing website data...' },
-      { progress: 25, stage: 'Absorbing social media data...' },
-      { progress: 40, stage: 'Absorbing AI reputation data...' },
-      { progress: 55, stage: 'Absorbing earned media data...' },
-      { progress: 70, stage: 'Scoring performance across 8 attributes...' },
-      { progress: 85, stage: 'Generating recommendations...' },
-      { progress: 95, stage: 'Finalizing report...' },
-    ];
-    
-    let stageIndex = 0;
+    setScoringStage('Absorbing assessment data...');
+
+    // The real work is a single long model call with no mid-call signal, so we
+    // cannot measure true progress. Instead of jumping to 95% and stalling, we
+    // trickle: each tick closes a fraction of the gap to a 95% ceiling, so the
+    // bar keeps moving the whole time and only eases as it nears the end. On
+    // completion we snap to 100%. Calibrated to feel right for a 20 to 45s call.
+    const stageFor = (p) => {
+      if (p < 14) return 'Absorbing website data...';
+      if (p < 28) return 'Absorbing social and paid signals...';
+      if (p < 42) return 'Absorbing AI reputation...';
+      if (p < 56) return 'Absorbing earned media...';
+      if (p < 72) return 'Scoring all 8 attributes...';
+      if (p < 88) return 'Working out what is driving each score...';
+      return 'Writing actions and finalizing the report...';
+    };
+    let prog = 0;
     const progressInterval = setInterval(() => {
-      if (stageIndex < progressStages.length) {
-        setScoringProgress(progressStages[stageIndex].progress);
-        setScoringStage(progressStages[stageIndex].stage);
-        stageIndex++;
-      }
-    }, 800);
+      prog = prog + (95 - prog) * 0.045;
+      if (prog > 94.5) prog = 94.5;
+      setScoringProgress(Math.round(prog));
+      setScoringStage(stageFor(prog));
+    }, 350);
 
     try {
     // Helper: truncate long text to keep prompt lean. Returns '' for empty so template literals don't render "null".
@@ -4705,6 +4734,24 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
                   </div>
                 </div>
               </div>
+
+              {waitingStories.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-[#E8E6E1]">
+                  <p className="text-xs font-semibold text-[#999999] uppercase tracking-wider text-center">While you're waiting</p>
+                  <p className="text-xs text-[#666666] mb-4 text-center">The latest from Stay Conscious</p>
+                  <div className="space-y-3">
+                    {waitingStories.map((s, i) => (
+                      <div key={i} className="card p-3 text-left">
+                        {s.category && (
+                          <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-[#E53935] mb-1">{s.category}</span>
+                        )}
+                        <div className="font-semibold text-sm text-[#1A1A1A] leading-snug">{s.headline}</div>
+                        {s.summary && <div className="text-xs text-[#666666] mt-1 leading-relaxed">{s.summary}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <>

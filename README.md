@@ -4,7 +4,7 @@
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-2.20.3-blue)
+![Version](https://img.shields.io/badge/version-2.20.4-blue)
 ![Rubric](https://img.shields.io/badge/rubric-v2.8-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
 
