@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.20.0';
+const APP_VERSION = '2.20.2';
 import { 
   supabase, 
   signUp, 
@@ -1607,11 +1607,11 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
             value={project.assessorContext || ''}
             onChange={(e) => setProject({ ...project, assessorContext: e.target.value })}
             rows={5}
-            placeholder={`Add any context that will help produce a more relevant and accurate assessment. For example:\n\n- Key competitors: [names]\n- What the client has told you about their challenges\n- Their strategic goals (new markets, repositioning, launch)\n- Known sensitivities or live issues to be aware of\n- The purpose of this assessment (new business, existing client review, benchmark)`}
+            placeholder={`State what the brand wants to achieve, and the report will assess its readiness to get there. For example:\n\n- Strategic goals and aspirations (repositioning, new audience, new market, launch)\n- What the client has told you about their challenges\n- Key competitors: [names]\n- Known sensitivities or live issues to be aware of\n- The purpose of this assessment (new business, existing client review, benchmark)`}
             className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white text-sm leading-relaxed resize-y"
             style={{ minHeight: '120px' }}
           />
-          <p className="text-xs text-[#666666] mt-1">Optional but recommended. This context is included in the scoring and shapes the relevance of findings and recommendations.</p>
+          <p className="text-xs text-[#666666] mt-1">Optional. This is the lens for the whole report. State what the brand wants, for example to reposition, reach a new audience, or launch, and the assessment will judge how ready the brand is to get there. It is not quoted in the report, only reflected as the brand's stated ambition. Leave it blank and this lens is not applied.</p>
         </div>
 
         {/* Only show API key field if no default is configured */}
@@ -3920,35 +3920,6 @@ Write in flowing prose. If reputation flags were provided, they must be woven th
 
       <CompletionIndicator items={completionItems} />
 
-      {/* Reputation Triggers */}
-      <div className="card p-4 mb-4 border-l-4 border-[#F59E0B]">
-        <div className="flex items-start gap-3 mb-3">
-          <AlertCircle className="w-4 h-4 text-[#F59E0B] mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-0.5">Reputation Triggers — check before running AI queries</h3>
-            <p className="text-xs text-[#666666]">Search for anything charged in the brand's public record that AI models may surface. Note flags here so you can account for them when reading AI responses.</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {[
-            { label: 'Google News', url: `https://news.google.com/search?q=${encodeURIComponent(project.brandName)}` },
-            { label: 'Google Search', url: `https://www.google.com/search?q=${encodeURIComponent('"' + project.brandName + '" controversy OR lawsuit OR scandal OR criticism')}` },
-            { label: 'Trustpilot', url: `https://www.trustpilot.com/search?query=${encodeURIComponent(project.brandName)}` },
-          ].map(link => (
-            <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer"
-               className="px-3 py-1.5 bg-[#FEF3C7] text-[#92400E] text-xs font-medium rounded-lg hover:bg-[#FDE68A] transition-colors flex items-center gap-1">
-              {link.label} <ExternalLink className="w-3 h-3" />
-            </a>
-          ))}
-        </div>
-        <textarea
-          value={reputationFlags}
-          onChange={(e) => { setReputationFlags(e.target.value); setAssessmentData({ ...assessmentData, reputationFlags: e.target.value }); }}
-          placeholder={`Note any legal issues, negative press, social controversies, or leadership concerns found for ${project.brandName}. These become context when interpreting AI responses.`}
-          className="w-full h-16 px-3 py-2 border border-[#FDE68A] rounded-lg bg-[#FFFBEB] resize-none text-sm"
-        />
-      </div>
-
       {/* AI Brand Perception Prompt */}
       <div className="card p-4 mb-4 border-l-4 border-[#3B82F6]">
         <div className="flex items-start justify-between mb-2">
@@ -4478,7 +4449,7 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     };
 
     const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}.
-${project.assessorContext ? `\nASSESSOR CONTEXT (provided by the human assessor — use this to shape relevance of findings and recommendations):\n${project.assessorContext}\n` : ''}
+${project.assessorContext ? `\nSTRATEGIC LENS — READINESS:\nThe brand has stated the following aspirations and goals:\n${project.assessorContext}\n\nWrite the whole assessment through this lens. Do not only score what the brand is today; judge how ready it is to achieve what it says it wants. If it wants to reposition, assess its readiness to reposition. If it wants to reach a new audience, assess how well set up it is to reach that audience. Carry this readiness judgement through the findings, impact, actions, and conclusion.\nDo NOT reference the assessor, "the context provided", or this instruction anywhere in the report. The only thing you may surface from it is the brand's own stated aspirations and goals, framed as the brand's ambition. Everything else appears as analysis of readiness, never as a quote.\n` : ''}
 
 ASSESSMENT DATA:
 
@@ -4585,19 +4556,19 @@ SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 - VISIONARY: Brand Strategy, Impact Communications, Executive Visibility
 - INTENTIONAL: Brand Strategy, Brand Assets & Guidelines, Website Development, Communications Training
 
-Return valid JSON only — no prose before or after. Schema:
+Return valid JSON only — no prose before or after. For every attribute, "findings" is what you observed, "impact" is what is directly pushing the score up or down right now (name the specific strengths helping and the specific weaknesses hurting), and "actions" is the concrete, brand-specific move that would raise the score. Make impact and actions specific to THIS brand and its evidence, never generic. Schema:
 {
   "headline": "Single pithy sentence (max 20 words) capturing brand state and primary opportunity. Specific, not generic.",
   "conclusion": "2-3 sentences naming the specific transformation available. Reference actual findings. No generic phrases.",
   "justification": "Under 150 words. Why the overall score is what it is. Call out notably high/low scores with evidence.",
-  "AWAKE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "Cited evidence, under 100 words.", "gaps": ["max 3 items"], "opportunity": "Relevant service area recommendation." },
-  "AWARE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "REFLECTIVE": { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "ATTENTIVE":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "COGENT":     { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "SENTIENT":   { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "VISIONARY":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." },
-  "INTENTIONAL":{ "score": 0-100, "confidence": "low|medium|high", "findings": "...", "gaps": ["..."], "opportunity": "..." }
+  "AWAKE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "What was observed, cited evidence, under 80 words.", "impact": "What is pushing this score up or down, good and bad, specific to this brand. Under 50 words.", "gaps": ["max 3 items"], "actions": "The 1-2 concrete moves that would raise this score for this brand. Specific, not generic. Under 40 words.", "opportunity": "Relevant service area recommendation." },
+  "AWARE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
+  "REFLECTIVE": { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
+  "ATTENTIVE":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
+  "COGENT":     { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
+  "SENTIENT":   { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
+  "VISIONARY":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
+  "INTENTIONAL":{ "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." }
 }`;
 
       const result = await callClaude(prompt, apiKey, null, [], 0, true, 8000);
@@ -5083,6 +5054,8 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
       if (!s) return;
       text += `\n${attr.name} (${attr.fullName}) — ${s.score}/100\n`;
       if (s.findings || s.summary) text += `${s.findings || s.summary}\n`;
+      if (s.impact) text += `What's driving it: ${s.impact}\n`;
+      if (s.actions) text += `To improve the score: ${s.actions}\n`;
       if (s.opportunity) text += `Opportunity: ${s.opportunity}\n`;
     });
 
@@ -5271,6 +5244,8 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
       ATTRIBUTES.forEach(attr => {
         const score = scores[attr.id]?.score || 0;
         const findings = scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description;
+        const impact = scores[attr.id]?.impact;
+        const actions = scores[attr.id]?.actions;
         const opportunity = scores[attr.id]?.opportunity;
 
         checkPage();
@@ -5293,6 +5268,35 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
             pdf.text(line, margin, y);
             y += 4;
           });
+        }
+
+        // Impact
+        if (impact) {
+          y += 2;
+          const impLines = pdf.splitTextToSize("What's driving it: " + impact, contentWidth);
+          pdf.setFontSize(9);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(50, 50, 50);
+          impLines.forEach(line => {
+            checkPage();
+            pdf.text(line, margin, y);
+            y += 4;
+          });
+        }
+
+        // Actions
+        if (actions) {
+          y += 2;
+          const actLines = pdf.splitTextToSize('To improve the score: ' + actions, contentWidth);
+          pdf.setFontSize(9);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(50, 50, 50);
+          actLines.forEach(line => {
+            checkPage();
+            pdf.text(line, margin, y);
+            y += 4;
+          });
+          pdf.setFont('helvetica', 'normal');
         }
 
         // Opportunity
@@ -5854,10 +5858,6 @@ ${content.slice(0, 8000)}`;
             // ── WHAT WE EVALUATED ─────────────────────────────────
             h2('What We Evaluated'),
             body(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescriptionDocx} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${INDUSTRIES.find(i => i.id === project.industry)?.name || project.industry}) were applied to weight attribute importance appropriately.`),
-            ...(project.assessorContext ? [
-              new Paragraph({ spacing: { before: 80, after: 60 }, children: [new TextRun({ text: 'Assessor Context', bold: true, size: 20, font: 'Inter' })] }),
-              body(clean(project.assessorContext)),
-            ] : []),
 
             // ── ATTRIBUTE ANALYSIS ───────────────────────────────
             h2('Attribute Analysis', true),
@@ -5865,6 +5865,8 @@ ${content.slice(0, 8000)}`;
               const sc = scores[attr.id]?.score || 0;
               const as = getMaturityStage(sc);
               const findings = clean(scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description);
+              const imp = clean(scores[attr.id]?.impact || '');
+              const act = clean(scores[attr.id]?.actions || '');
               const opp = clean(scores[attr.id]?.opportunity || '');
               return [
                 new Paragraph({ spacing: { before: 240, after: 60 }, children: [
@@ -5872,7 +5874,15 @@ ${content.slice(0, 8000)}`;
                   new TextRun({ text: `  (${attr.fullName})`, size: 20, font: 'Inter', color: '666666' }),
                   new TextRun({ text: `  ${sc}/100 - ${as.name}`, bold: true, size: 20, font: 'Inter' }),
                 ]}),
-                body(findings, opp ? 60 : 160),
+                body(findings, (imp || act || opp) ? 60 : 160),
+                ...(imp ? [new Paragraph({ spacing: { after: act || opp ? 60 : 160 }, children: [
+                  new TextRun({ text: "What's driving it: ", bold: true, size: 20, font: 'Inter' }),
+                  new TextRun({ text: imp, size: 20, font: 'Inter' }),
+                ]})] : []),
+                ...(act ? [new Paragraph({ spacing: { after: opp ? 60 : 160 }, children: [
+                  new TextRun({ text: 'To improve the score: ', bold: true, size: 20, font: 'Inter' }),
+                  new TextRun({ text: act, size: 20, font: 'Inter' }),
+                ]})] : []),
                 ...(opp ? [new Paragraph({ spacing: { after: 160 }, children: [
                   new TextRun({ text: 'Opportunity: ', bold: true, size: 20, font: 'Inter' }),
                   new TextRun({ text: opp, size: 20, font: 'Inter' }),
@@ -6068,6 +6078,12 @@ ${content.slice(0, 8000)}`;
                   </div>
                 </div>
                 <p className="text-xs text-[#333333] leading-relaxed">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+                {scores[attr.id]?.impact && (
+                  <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
+                )}
+                {scores[attr.id]?.actions && (
+                  <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
+                )}
                 {scores[attr.id]?.opportunity && (
                   <p className="text-xs text-[#E53935] mt-2 italic">→ {scores[attr.id].opportunity}</p>
                 )}
@@ -9326,6 +9342,12 @@ function SharedReportView({ report, onClose }) {
                 </div>
               </div>
               <p className="text-sm text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+              {scores[attr.id]?.impact && (
+                <p className="text-sm text-[#333333] mb-2"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
+              )}
+              {scores[attr.id]?.actions && (
+                <p className="text-sm text-[#333333] mb-2"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
+              )}
               {scores[attr.id]?.opportunity && (
                 <p className="text-sm text-[#E53935] italic">{scores[attr.id].opportunity}</p>
               )}
