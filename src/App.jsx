@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.20.2';
+const APP_VERSION = '2.20.3';
 import { 
   supabase, 
   signUp, 
@@ -3838,7 +3838,9 @@ ${reputationFlags}` : ''}`;
         .map(e => `${e.name.toUpperCase()}: ${manualInput[e.key]}`)
         .join('\n\n');
 
-      const prompt = `Analyze these AI system responses about ${project.brandName}:
+      const prompt = `You are assessing how ${project.brandName} is represented across multiple AI engines and the wider public record. Review the full evidence base below, the AI engine responses together with the search, news, review, Wikipedia, and community signals, and weigh all of it. The AI engines are one input among several, not the whole picture.
+
+AI ENGINE RESPONSES:
 
 ${engineSections}
 
@@ -3851,15 +3853,15 @@ ${searchSnapshotContent ? `SEARCH SNAPSHOT (synthesised read of top search resul
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
 
 Provide a comprehensive AI reputation assessment:
-1. Convergence — Where do the AI systems agree? (likely accurate signals)
+1. Convergence — Where do the sources agree? (likely accurate signals)
 2. Divergence — Where do they differ, and what might explain it?
-3. Sentiment — Overall tone and brand framing across systems
-4. Gaps — What can't any AI answer about this brand? What's absent?
-5. Name Confusion — Do the systems conflate this brand with a namesake, a look-alike competitor, or an irrelevant category? Flag any answer describing the wrong entity, and say how badly it pollutes the brand's identity.
-6. Owned vs Third-Party — Separate what the brand says about itself, its site and its own channels, from what others say about it: press, reviews, forums, chatter, and the search and Trustpilot signals above. Judge each description as one of: Aligned (owned and third-party tell the same story), Deviating (third-party contradicts or reframes the claim), or Missing (the brand describes itself and no third-party source corroborates it, so it exists in its own telling and nowhere else). Owned content tells these systems who the brand is. Third-party conversation tells them whether it matters. Say which one is carrying this brand, and where the gap leaves it exposed.
-${reputationFlags ? `7. Reputation Risks — How do the identified flags (${reputationFlags.substring(0, 100)}...) affect AI-surfaced perception? Are the AI responses acknowledging, downplaying, or ignoring these issues?\n8. Recommendations — Specific steps to improve AI representation and discoverability` : '7. Recommendations — Specific steps to improve AI representation and discoverability'}
+3. Sentiment — Overall tone and brand framing across the evidence
+4. Gaps — What can't be answered about this brand from any source? What's absent?
+5. Name Confusion — Do the sources conflate this brand with a namesake, a look-alike competitor, or an irrelevant category? Flag any answer describing the wrong entity, and say how badly it pollutes the brand's identity.
+6. Owned vs Third-Party — Separate what the brand says about itself, its site and its own channels, from what others say about it: press, reviews, forums, chatter, and the search and Trustpilot signals above. Judge each description as one of: Aligned (owned and third-party tell the same story), Deviating (third-party contradicts or reframes the claim), or Missing (the brand describes itself and no third-party source corroborates it, so it exists in its own telling and nowhere else). Owned content tells the engines who the brand is. Third-party conversation tells them whether it matters. Say which one is carrying this brand, and where the gap leaves it exposed.
+${reputationFlags ? `7. Reputation Risks — How do the identified flags (${reputationFlags.substring(0, 100)}...) affect surfaced perception? Are the sources acknowledging, downplaying, or ignoring these issues?\n8. Recommendations — Specific steps to improve representation and discoverability` : '7. Recommendations — Specific steps to improve representation and discoverability'}
 
-Write in flowing prose. If reputation flags were provided, they must be woven throughout the analysis — not confined to a single section.`;
+Write in flowing prose. Refer to the AI engines collectively. Do not state or imply a specific number of them, and never write phrases like "the four AI systems" or "all four engines". Treat the search, news, review, Wikipedia, and community signals as part of the same review, not as afterthoughts. If reputation flags were provided, they must be woven throughout the analysis, not confined to a single section.`;
 
       const result = await callClaude(prompt, apiKey);
       setAssessmentData({
