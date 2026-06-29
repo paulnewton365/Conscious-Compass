@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.20.4';
+const APP_VERSION = '2.20.5';
 import { 
   supabase, 
   signUp, 
@@ -10153,6 +10153,8 @@ function AppContent() {
   const [showComparisonPage, setShowComparisonPage] = useState(false);
   const [showStayConsciousPage, setShowStayConsciousPage] = useState(false);
   const [compareInitialTab, setCompareInitialTab] = useState('brands');
+  // Guards against the sync effect wiping an inbound hash before the parse effect reads it on mount
+  const initialHashHandled = useRef(false);
 
   // Hash-based deep link routing
   const HASH_ROUTES = {
@@ -10190,6 +10192,8 @@ function AppContent() {
 
   // Sync URL hash whenever view changes
   useEffect(() => {
+    // Don't run until the inbound hash has been parsed on mount, or this wipes it
+    if (!initialHashHandled.current) return;
     // Don't overwrite ?report= param links
     if (new URLSearchParams(window.location.search).get('report')) return;
     let hash = '';
@@ -10210,6 +10214,7 @@ function AppContent() {
       if (hash && HASH_ROUTES[hash]) HASH_ROUTES[hash]();
     };
     applyHash();
+    initialHashHandled.current = true;
     window.addEventListener('popstate', applyHash);
     return () => window.removeEventListener('popstate', applyHash);
   }, []);
