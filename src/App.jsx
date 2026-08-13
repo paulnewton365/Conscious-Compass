@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.21.0';
+const APP_VERSION = '2.21.1';
 import { 
   supabase, 
   signUp, 
@@ -498,7 +498,9 @@ function percentileOf(value, values) {
  * Returns null when there is nothing meaningful to compare against.
  */
 function buildBenchmarkSnapshot(results, { industry, industryName, brandName, totalScore, scores }) {
-  if (!Array.isArray(results) || results.length === 0) return null;
+  if (!Array.isArray(results) || results.length === 0) {
+    return { unavailable: true, reason: 'No assessed brands are loaded, so there is nothing to benchmark against yet.', totalCount: 0 };
+  }
 
   const pool = results.filter(r =>
     r &&
@@ -509,7 +511,16 @@ function buildBenchmarkSnapshot(results, { industry, industryName, brandName, to
     !(r.brandName && brandName && r.brandName.trim().toLowerCase() === brandName.trim().toLowerCase())
   );
 
-  if (pool.length === 0) return null;
+  if (pool.length === 0) {
+    const sameBrand = results.filter(r => r.brandName && brandName && r.brandName.trim().toLowerCase() === brandName.trim().toLowerCase()).length;
+    const wrongRubric = results.filter(r => rubricMajor(r.rubricVersion) !== BENCHMARK_RUBRIC_MAJOR).length;
+    const malformed = results.filter(r => typeof r.totalScore !== 'number' || !r.scores).length;
+    return {
+      unavailable: true,
+      reason: `No comparable assessments. Of ${results.length} loaded: ${sameBrand} are this same brand and excluded, ${wrongRubric} sit outside framework 2.x, ${malformed} are missing scores.`,
+      totalCount: results.length,
+    };
+  }
 
   const sectorBrands = industry ? pool.filter(r => r.industry === industry) : [];
   const usingSector = sectorBrands.length >= BENCHMARK_MIN_N;
@@ -5097,7 +5108,7 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
   "INTENTIONAL":{ "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." }
 }`;
 
-      const result = await callClaude(prompt, apiKey, null, [], 0, true, 8000);
+      const result = await callClaude(prompt, apiKey, null, [], 0, true, 12000);
       clearInterval(progressInterval);
       setScoringProgress(100);
       setScoringStage('Complete!');
@@ -5113,6 +5124,9 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
             // reports campaign coherence separately. The modifier is applied
             // here, in code, so the adjustment is deterministic, auditable and
             // identical for identical inputs. Never let the model do the maths.
+            if (!parsed.campaignCoherence) {
+              console.warn('Scoring pass returned no campaignCoherence object. Attribute scores stand unadjusted.');
+            }
             const level = parsed.campaignCoherence?.level;
             const adjusted = applyCampaignModifiers(parsed, level);
             adjusted.campaignCoherence = {
@@ -5337,14 +5351,18 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
   // report never shows a comparison drawn against a score it no longer holds.
   // Computed directly rather than memoised: this sits after early returns,
   // so a hook here would break hook ordering.
-  const snapshotStillValid = savedBenchmark && savedBenchmark.brandTotal === overall;
-  const benchmark = snapshotStillValid ? savedBenchmark : buildBenchmarkSnapshot(compassResults, {
+  const snapshotStillValid = savedBenchmark && !savedBenchmark.unavailable && savedBenchmark.brandTotal === overall;
+  const benchmarkResult = snapshotStillValid ? savedBenchmark : buildBenchmarkSnapshot(compassResults, {
     industry: project.industry,
     industryName,
     brandName: project.brandName,
     totalScore: overall,
     scores,
   });
+
+  // A usable benchmark, or null when the engine could only report why not.
+  const benchmark = benchmarkResult && !benchmarkResult.unavailable ? benchmarkResult : null;
+  const benchmarkUnavailableReason = benchmarkResult?.unavailable ? benchmarkResult.reason : null;
 
   // Shaped for ComparisonSpiderChart, which expects a scores-like object.
   const benchmarkAvgScores = benchmark
@@ -6975,6 +6993,23 @@ ${content.slice(0, 8000)}`;
       </div>
 
       {/* Campaign Coherence - Collapsible */}
+      {!campaignStage && (
+        <div className="mb-6">
+          <div className="text-base font-semibold text-[#1A1A1A] mb-3">CAMPAIGN COHERENCE</div>
+          <div className="card p-4 border-l-4 border-amber-400">
+            <p className="text-sm text-[#333333] leading-relaxed">
+              These scores were produced before campaign coherence existed, or the scoring pass did not return it.
+              Regenerate the report to score campaign coherence and apply the framework {FRAMEWORK_VERSION} adjustment.
+            </p>
+            <button
+              onClick={() => { setScores(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className="btn-secondary text-xs py-1.5 px-3 mt-3 flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Regenerate Report
+            </button>
+          </div>
+        </div>
+      )}
       {campaignStage && (
         <div className="mb-6">
           <button
@@ -7083,6 +7118,14 @@ ${content.slice(0, 8000)}`;
       )}
 
       {/* Industry Benchmark - Collapsible */}
+      {benchmarkUnavailableReason && (
+        <div className="mb-6">
+          <div className="text-base font-semibold text-[#1A1A1A] mb-3">BENCHMARK COMPARISON</div>
+          <div className="card p-4 border-l-4 border-amber-400">
+            <p className="text-sm text-[#333333] leading-relaxed">{benchmarkUnavailableReason}</p>
+          </div>
+        </div>
+      )}
       {benchmark && (
         <div className="mb-6">
           <button
@@ -11591,7 +11634,13 @@ function AppContent() {
     setAssessments(data.assessments);
     setScores(null); // Clear existing scores so user can regenerate
     setCurrentStep(6); // Go to Report page (which now handles scoring)
+    // Clear every page flag, not just the saved list. If any other page flag is
+    // still set, its view wins over the step flow and the rescore appears to do
+    // nothing at all.
     setShowSavedPage(false);
+    setShowResultsPage(false);
+    setShowComparisonPage(false);
+    setShowStayConsciousPage(false);
   };
 
   const handleDelete = async (assessment) => {
