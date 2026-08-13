@@ -1,6 +1,6 @@
-// Brand Consciousness Assessment Framework v2.8
+// Brand Consciousness Assessment Framework v2.9
 
-export const FRAMEWORK_VERSION = '2.8';
+export const FRAMEWORK_VERSION = '2.9';
 
 export const MATURITY_STAGES = [
   { id: 'pre-foundational', name: 'Pre-Foundational', min: 0, max: 25, color: '#94A3B8', description: 'Requires fundamental development across most attributes. Significant gaps exist in basic brand presence and identity. The brand is largely invisible or incoherent to its audiences.' },
@@ -78,7 +78,7 @@ export const ATTRIBUTES = [
     description: 'Cogent brands demonstrate sophisticated, evidence-based marketing strategy. They understand how people find them, measure what works, and make decisions grounded in data rather than intuition. Evidence includes: strong SEO fundamentals, data-informed content strategy, measurement culture, case studies with actual metrics, and clear targeting in paid media.',
     color: '#22D3EE',
     signals: {
-      strong: ['Ranking for strategic keywords with clear intent alignment', 'Sophisticated tracking and attribution in place', 'Case studies with specific metrics and outcomes', 'Evidence of A/B testing and optimisation', 'Paid media with clear audience targeting', 'AI search and GEO optimised for reputation and description'],
+      strong: ['Ranking for strategic keywords with clear intent alignment', 'Sophisticated tracking and attribution in place', 'Case studies with specific metrics and outcomes', 'Evidence of A/B testing and optimisation', 'Paid media with clear audience targeting', 'AI search and GEO optimised for reputation and description', 'Channel choices show evidence of deliberate audience and budget logic'],
       moderate: ['Basic SEO fundamentals in place', 'AI accuracy without verified reputation signals', 'Some analytics implementation', 'General results referenced in marketing', 'Some paid media presence', 'Content addresses search intent partially'],
       weak: ['No apparent SEO strategy', 'Analytics either missing or unused', 'No measurement of marketing effectiveness', 'Paid media absent or poorly targeted', 'Content created without data input'],
     },
@@ -91,9 +91,9 @@ export const ATTRIBUTES = [
     description: 'Sentient brands create genuine emotional connection through creative excellence that moves audiences. They develop distinctive creative approaches that capture attention and inspire action through feeling, not just information. Evidence includes: creative work that makes you feel something, distinctive visual and verbal identity, storytelling that connects human to human, and brand personality that is genuine and ownable.',
     color: '#818CF8',
     signals: {
-      strong: ['Distinctive creative identity recognisable without logo', 'Emotional storytelling that drives sharing', 'Community passion and advocacy visible', 'Content that audiences seek out', 'Creative that breaks category conventions', 'Campaigns that generate earned conversation'],
-      moderate: ['Some distinctive creative elements', 'Occasional emotional resonance', 'Competent but not memorable execution', 'Content that is consumed but not shared', 'Brand personality present but not ownable'],
-      weak: ['Generic stock imagery and corporate copy', 'No emotional resonance in content', 'Forgettable creative execution', 'Interchangeable with competitors', 'No evidence of audience passion'],
+      strong: ['Distinctive creative identity recognisable without logo', 'Emotional storytelling that drives sharing', 'Community passion and advocacy visible', 'Content that audiences seek out', 'Creative that breaks category conventions', 'Craft holds at the same high standard in every channel it appears in'],
+      moderate: ['Some distinctive creative elements', 'Occasional emotional resonance', 'Competent but not memorable execution', 'Content that is consumed but not shared', 'Brand personality present but not ownable', 'Craft varies noticeably between channels'],
+      weak: ['Generic stock imagery and corporate copy', 'No emotional resonance in content', 'Forgettable creative execution', 'Interchangeable with competitors', 'No evidence of audience passion', 'Execution quality collapses outside the primary channel'],
     },
   },
   {
@@ -123,6 +123,177 @@ export const ATTRIBUTES = [
     },
   },
 ];
+
+// ─────────────────────────────────────────────────────────────
+// CAMPAIGN COHERENCE (v2.9)
+//
+// Division of labour, deliberately enforced to avoid double scoring:
+//
+//   BASE ATTRIBUTE SCORES judge how good the work is. SENTIENT reads
+//   creative quality, craft, distinctiveness and how well execution holds
+//   together across channels. COGENT reads strategic intelligence,
+//   targeting and measurement.
+//
+//   THE CAMPAIGN MODIFIER judges only whether an idea is holding the work
+//   together: is there a strategic premise and a creative idea threading
+//   the tactics, and how far does it travel. It says nothing about craft.
+//
+// Residual overlap is unavoidable, since a level 4 or 5 campaign almost
+// always implies high craft. The modifier values below are deliberately
+// hedged (reduced by roughly a third from first calibration) to absorb it.
+// ─────────────────────────────────────────────────────────────
+
+export const CAMPAIGN_LADDER = [
+  {
+    level: 0,
+    name: 'Ad hoc',
+    summary: 'Activity exists. No connective tissue.',
+    description: 'Marketing output is a stream of unrelated posts, pages and announcements. Nothing recurs, nothing references anything else, and no organising thought is visible.',
+    signals: [
+      'Posts and pages have no shared subject, device or look',
+      'No named campaign or recurring property anywhere',
+      'Channels behave as separate, unconnected feeds',
+      'Output is reactive: product news, events, holidays',
+    ],
+  },
+  {
+    level: 1,
+    name: 'Themed',
+    summary: 'A recurring topic or content series. No idea.',
+    description: 'There is a subject the brand keeps returning to, or a repeating content format. It is a theme, not a campaign. Nothing has been built on top of it.',
+    signals: [
+      'A recurring content series or topic with a consistent title',
+      'Repetition of subject matter without a creative device',
+      'No cross-channel expression of the theme',
+      'No call to action tied to the theme',
+    ],
+  },
+  {
+    level: 2,
+    name: 'Packaged',
+    summary: 'A name and a look, living in one or two channels.',
+    description: 'A recognisable campaign exists. It has been named and given a visual treatment, but it is confined to where it launched and does not adapt to other channels.',
+    signals: [
+      'A named campaign with its own lockup, key visual or hashtag',
+      'Present in one or two channels only',
+      'Landing page or hub exists but is not connected onward',
+      'Runs once for a defined burst, then stops',
+    ],
+  },
+  {
+    level: 3,
+    name: 'Integrated',
+    summary: 'One idea expressed natively across owned, paid, earned and social.',
+    description: 'A strategic premise and a creative idea are visibly threading the tactics. The idea is adapted to each channel rather than copy-pasted into it, and the pieces reference one another.',
+    signals: [
+      'The same idea appears in website, social, paid and earned, adapted each time',
+      'A consistent creative device travels across channels',
+      'Paid creative and organic content share the premise',
+      'Clear call to action running through the whole campaign',
+      'Earned coverage picks up the campaign framing, not just the news',
+    ],
+  },
+  {
+    level: 4,
+    name: 'Platform',
+    summary: 'The idea recurs and sustains. Ownable device that travels across time.',
+    description: 'The campaign has become a property the brand owns and returns to. It survives beyond a single burst, gains new expressions, and is recognisable as the brand\'s territory.',
+    signals: [
+      'The campaign has run in multiple waves or across multiple years',
+      'The device is ownable and would be recognised without the logo',
+      'New chapters or extensions have been built on the original idea',
+      'Partners, sponsors or spokespeople have been recruited into it',
+      'The idea shapes the brand\'s wider communications, not just the campaign',
+    ],
+  },
+  {
+    level: 5,
+    name: 'Consequential',
+    summary: 'The idea produces visible influence.',
+    description: 'The campaign is not only coherent and sustained, it has moved something outside the brand. Audiences participate, competitors respond, and the language or terms of the category shift.',
+    signals: [
+      'Earned conversation at scale that the brand did not pay for',
+      'Visible audience participation or user generated content using the idea',
+      'Competitors imitating the device, format or framing',
+      'Category language or terminology shifting toward the campaign',
+      'Effectiveness awards or independently published outcomes',
+      'Third parties citing the campaign as a reference point',
+    ],
+  },
+];
+
+// Level 5 is judged on publicly observable evidence only, in line with the
+// public data principle. Client reported ROI, internal lift data and media
+// plans are out of scope. An effective campaign with quiet, unpublished
+// results will correctly cap at level 4.
+export const CAMPAIGN_EVIDENCE_RULE = 'Judge campaign influence on publicly observable evidence only: earned pickup, third-party citation, visible audience participation, competitor response, effectiveness awards, and results the brand has itself published. Never infer impact from internal or client-reported data.';
+
+export const CAMPAIGN_MODIFIER_ATTRIBUTES = {
+  primary: ['COGENT', 'SENTIENT'],
+  secondary: ['AWAKE', 'AWARE', 'REFLECTIVE', 'INTENTIONAL'],
+};
+
+export const CAMPAIGN_MODIFIERS = {
+  0: { primary: -4, secondary: -2 },
+  1: { primary: -3, secondary: -1 },
+  2: { primary: -1, secondary: 0 },
+  3: { primary: 2, secondary: 1 },
+  4: { primary: 3, secondary: 2 },
+  5: { primary: 5, secondary: 3 },
+};
+
+export function getCampaignLevel(level) {
+  const n = Number.isFinite(Number(level)) ? Math.round(Number(level)) : 0;
+  return CAMPAIGN_LADDER.find(l => l.level === n) || CAMPAIGN_LADDER[0];
+}
+
+export function getCampaignModifier(level, attributeId) {
+  const n = Number.isFinite(Number(level)) ? Math.round(Number(level)) : 0;
+  const band = CAMPAIGN_MODIFIERS[Math.max(0, Math.min(5, n))] || CAMPAIGN_MODIFIERS[0];
+  if (CAMPAIGN_MODIFIER_ATTRIBUTES.primary.includes(attributeId)) return band.primary;
+  if (CAMPAIGN_MODIFIER_ATTRIBUTES.secondary.includes(attributeId)) return band.secondary;
+  return 0;
+}
+
+// Applies the campaign modifier to a parsed scores object.
+//
+// Safe to run repeatedly: baseScore is preserved on first application and
+// every subsequent run recalculates from baseScore, never from an already
+// adjusted score. This matters because rescoring an existing assessment
+// runs the whole pipeline again.
+export function applyCampaignModifiers(scores, campaignLevel) {
+  if (!scores) return scores;
+  const out = { ...scores };
+  const level = Number.isFinite(Number(campaignLevel)) ? Math.max(0, Math.min(5, Math.round(Number(campaignLevel)))) : null;
+
+  ATTRIBUTES.forEach(attr => {
+    const entry = out[attr.id];
+    if (!entry || typeof entry.score !== 'number' && typeof entry.baseScore !== 'number') return;
+
+    const base = typeof entry.baseScore === 'number' ? entry.baseScore : entry.score;
+    if (typeof base !== 'number') return;
+
+    if (level === null) {
+      out[attr.id] = { ...entry, baseScore: base, campaignModifier: 0, score: base };
+      return;
+    }
+
+    const mod = getCampaignModifier(level, attr.id);
+    const adjusted = Math.max(0, Math.min(100, base + mod));
+
+    out[attr.id] = {
+      ...entry,
+      baseScore: base,
+      campaignModifier: mod,
+      // Record what was actually applied after clamping, so the report never
+      // shows an adjustment the score did not really receive.
+      campaignModifierApplied: adjusted - base,
+      score: adjusted,
+    };
+  });
+
+  return out;
+}
 
 export const SERVICE_RECOMMENDATIONS = {
   AWAKE: [

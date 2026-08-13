@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION } from './data/rubric';
+import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.20.5';
+const APP_VERSION = '2.21.0';
 import { 
   supabase, 
   signUp, 
@@ -454,6 +454,106 @@ const INDUSTRIES = [
   { id: 'other', name: 'Other' },
 ];
 
+// ─────────────────────────────────────────────────────────────
+// BENCHMARK ENGINE (v2.21)
+//
+// Benchmarks in a client report are a SNAPSHOT, frozen at save time, never
+// recalculated live. A report is a deliverable: the numbers in it must still
+// be the numbers when the client opens it three months later, and shared
+// reports are stored records with no access to the reader's corpus.
+// ─────────────────────────────────────────────────────────────
+
+// Minimum brands in a sector before its benchmark is shown in a client report.
+// Below this the report falls back to the all-brands benchmark and says so.
+// One number, deliberately easy to retune as the corpus grows.
+const BENCHMARK_MIN_N = 5;
+
+// Results scored under any 2.x rubric are treated as one continuous corpus.
+// Attribute definitions have been stable across 2.x; only signals have been
+// extended. Filtering to the current version alone would leave the benchmark
+// empty on release day.
+const BENCHMARK_RUBRIC_MAJOR = '2';
+
+const rubricMajor = (v) => String(v || '2.3').split('.')[0];
+
+function averageAttributes(brands) {
+  const attrAvgs = {};
+  ATTRIBUTES.forEach(attr => {
+    attrAvgs[attr.id] = Math.round(
+      brands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / brands.length
+    );
+  });
+  return attrAvgs;
+}
+
+function percentileOf(value, values) {
+  if (!values.length) return null;
+  const below = values.filter(v => v < value).length;
+  const equal = values.filter(v => v === value).length;
+  return Math.round(((below + equal / 2) / values.length) * 100);
+}
+
+/**
+ * Builds the frozen benchmark record stored alongside a report.
+ * Returns null when there is nothing meaningful to compare against.
+ */
+function buildBenchmarkSnapshot(results, { industry, industryName, brandName, totalScore, scores }) {
+  if (!Array.isArray(results) || results.length === 0) return null;
+
+  const pool = results.filter(r =>
+    r &&
+    typeof r.totalScore === 'number' &&
+    r.scores &&
+    rubricMajor(r.rubricVersion) === BENCHMARK_RUBRIC_MAJOR &&
+    // Never let the brand being assessed sit inside its own benchmark.
+    !(r.brandName && brandName && r.brandName.trim().toLowerCase() === brandName.trim().toLowerCase())
+  );
+
+  if (pool.length === 0) return null;
+
+  const sectorBrands = industry ? pool.filter(r => r.industry === industry) : [];
+  const usingSector = sectorBrands.length >= BENCHMARK_MIN_N;
+  const cohort = usingSector ? sectorBrands : pool;
+
+  const versions = [...new Set(cohort.map(r => r.rubricVersion || '2.3'))].sort();
+  const dates = cohort.map(r => r.createdAt || r.created_at).filter(Boolean).sort();
+
+  const brandScores = {};
+  ATTRIBUTES.forEach(attr => { brandScores[attr.id] = scores?.[attr.id]?.score || 0; });
+
+  return {
+    generatedAt: new Date().toISOString(),
+    scope: usingSector ? 'industry' : 'all',
+    // When we fall back, say plainly why. An unexplained benchmark is a
+    // benchmark a client will challenge.
+    fallbackReason: usingSector
+      ? null
+      : (industry
+        ? `Fewer than ${BENCHMARK_MIN_N} assessed brands in ${industryName || 'this sector'}. Benchmarked against all assessed brands instead.`
+        : 'No sector selected. Benchmarked against all assessed brands.'),
+    cohortLabel: usingSector ? (industryName || industry) : 'All assessed brands',
+    industry: industry || null,
+    industryName: industryName || null,
+    count: cohort.length,
+    sectorCount: sectorBrands.length,
+    totalCount: pool.length,
+    minN: BENCHMARK_MIN_N,
+    rubricVersions: versions,
+    dateRange: dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null,
+    avgScore: Math.round(cohort.reduce((s, b) => s + b.totalScore, 0) / cohort.length),
+    attrAvgs: averageAttributes(cohort),
+    attrRanges: ATTRIBUTES.reduce((acc, attr) => {
+      const vals = cohort.map(b => b.scores?.[attr.id] || 0);
+      acc[attr.id] = { min: Math.min(...vals), max: Math.max(...vals) };
+      return acc;
+    }, {}),
+    percentile: percentileOf(totalScore, cohort.map(b => b.totalScore)),
+    allBrandsAvg: Math.round(pool.reduce((s, b) => s + b.totalScore, 0) / pool.length),
+    brandScores,
+    brandTotal: totalScore,
+  };
+}
+
 // Compress image to max size for Claude API (5MB limit, we target 4MB)
 function compressImage(dataUrl, maxSizeMB = 3.5) {
   return new Promise((resolve, reject) => {
@@ -831,7 +931,7 @@ const LANDSCAPE_SECTOR_COLORS = [
   '#1565C0', '#2E7D32', '#E65100', '#4527A0',
 ];
 
-function ComparisonSpiderChart({ brands, size = 320, industryAvg = null }) {
+function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabel = 'Industry avg' }) {
   const padding = 55;
   const viewBoxSize = size + padding * 2;
   const center = viewBoxSize / 2;
@@ -906,7 +1006,7 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null }) {
         {industryAvg && (
           <div className="flex items-center gap-1.5">
             <div className="w-5 h-0.5 bg-[#9CA3AF] border-t border-dashed" style={{ borderTop: '2px dashed #9CA3AF' }} />
-            <span className="text-xs text-[#9CA3AF]">Industry avg</span>
+            <span className="text-xs text-[#9CA3AF]">{avgLabel}</span>
           </div>
         )}
       </div>
@@ -915,6 +1015,189 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null }) {
 }
 
 // Maturity Continuum Visual
+// ── Benchmark visual 1: attribute spread ─────────────────────
+// Rows are the eight attributes. Each row shows the cohort range as a band,
+// the cohort average as a line, and this brand's score as a filled dot.
+function BenchmarkSpread({ benchmark, brandName }) {
+  const [hovered, setHovered] = useState(null);
+  if (!benchmark) return null;
+
+  return (
+    <div className="bg-white border border-[#E8E6E1] rounded p-5">
+      <div className="mb-4">
+        <h3 className="font-semibold text-[#1A1A1A] text-sm">Attribute Benchmark Spread</h3>
+        <p className="text-xs text-[#666666] mt-1">
+          {brandName} against {benchmark.cohortLabel.toLowerCase()}. The band is the range across the cohort, the line is the cohort average, the dot is {brandName}.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {ATTRIBUTES.map(attr => {
+          const brandScore = benchmark.brandScores?.[attr.id] ?? 0;
+          const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
+          const range = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
+          const delta = brandScore - avg;
+          const isHovered = hovered === attr.id;
+
+          return (
+            <div key={attr.id}
+              className={`grid items-center gap-3 rounded px-2 py-1 -mx-2 transition-colors ${isHovered ? 'bg-[#F5F4F0]' : ''}`}
+              style={{ gridTemplateColumns: '104px 1fr 56px' }}
+              onMouseEnter={() => setHovered(attr.id)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
+                <span className="text-xs font-semibold text-[#1A1A1A] truncate">{attr.name}</span>
+              </div>
+
+              <div className="relative h-7 flex items-center" style={{ overflow: 'visible' }}>
+                <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
+                {[25, 40, 56, 70, 85].map(mark => (
+                  <div key={mark} className="absolute w-px h-2.5 bg-[#D9D6D0]"
+                    style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
+                ))}
+                {/* Cohort range */}
+                <div className="absolute h-1.5 rounded-full"
+                  style={{ left: `${range.min}%`, width: `${Math.max(range.max - range.min, 0.5)}%`, backgroundColor: attr.color + '2E' }} />
+                {/* Cohort average */}
+                <div className="absolute w-0.5 h-5 rounded-full z-10"
+                  style={{ left: `${avg}%`, transform: 'translateX(-50%)', backgroundColor: '#CFD32F' }} />
+                {/* Brand score */}
+                <div className="absolute z-20"
+                  style={{ left: `${brandScore}%`, top: '50%', transform: 'translate(-50%, -50%)' }}>
+                  <div className="w-3 h-3 rounded-full ring-2 ring-white transition-transform"
+                    style={{ backgroundColor: attr.color, transform: isHovered ? 'scale(1.4)' : 'scale(1)' }} />
+                </div>
+              </div>
+
+              <div className="text-right">
+                <div className="text-xs font-bold tabular-nums" style={{ color: attr.color }}>{brandScore}</div>
+                <div className={`text-[10px] tabular-nums font-medium ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#E53935]' : 'text-[#999]'}`}>
+                  {delta > 0 ? `+${delta}` : delta}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        <div className="grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '104px 1fr 56px' }}>
+          <div />
+          <div className="flex justify-between text-[10px] text-[#BBB] select-none">
+            {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
+          </div>
+          <div />
+        </div>
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-[#E8E6E1] flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-[#666666]">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#1A1A1A] ring-2 ring-white" />
+          <span>{brandName}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-0.5 h-3 bg-[#CFD32F] rounded" />
+          <span>Cohort average</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 h-1.5 rounded-full bg-[#1A1A1A]/20" />
+          <span>Cohort range</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Benchmark visual 2: overall position bar ─────────────────
+function BenchmarkPositionBar({ benchmark, brandName }) {
+  if (!benchmark) return null;
+  const brand = benchmark.brandTotal;
+  const cohort = benchmark.avgScore;
+  const all = benchmark.allBrandsAvg;
+  const delta = brand - cohort;
+
+  return (
+    <div className="bg-white border border-[#E8E6E1] rounded p-5">
+      <div className="mb-4">
+        <h3 className="font-semibold text-[#1A1A1A] text-sm">Overall Position</h3>
+        <p className="text-xs text-[#666666] mt-1">
+          Where {brandName} sits against {benchmark.cohortLabel.toLowerCase()} and against every brand assessed.
+        </p>
+      </div>
+
+      <div className="relative h-16 mb-2">
+        <div className="absolute left-0 right-0 top-7 h-2 rounded-full bg-gradient-to-r from-[#94A3B8] via-[#D97706] to-[#6366F1] opacity-25" />
+        {MATURITY_STAGES.slice(1).map(s => (
+          <div key={s.id} className="absolute w-px h-4 bg-[#D9D6D0]" style={{ left: `${s.min}%`, top: 22 }} />
+        ))}
+
+        {/* All-brands average */}
+        <div className="absolute" style={{ left: `${all}%`, top: 20, transform: 'translateX(-50%)' }}>
+          <div className="w-0.5 h-6 bg-[#BBB] rounded mx-auto" />
+          <div className="text-[9px] text-[#999] whitespace-nowrap mt-0.5 text-center">all {all}</div>
+        </div>
+
+        {/* Cohort average */}
+        <div className="absolute" style={{ left: `${cohort}%`, top: 18, transform: 'translateX(-50%)' }}>
+          <div className="w-0.5 h-7 bg-[#CFD32F] rounded mx-auto" />
+          <div className="text-[9px] font-semibold text-[#6B6B00] whitespace-nowrap mt-0.5 text-center">cohort {cohort}</div>
+        </div>
+
+        {/* Brand */}
+        <div className="absolute z-10" style={{ left: `${brand}%`, top: 0, transform: 'translateX(-50%)' }}>
+          <div className="px-2 py-0.5 rounded text-white text-[10px] font-bold whitespace-nowrap"
+            style={{ backgroundColor: getMaturityStage(brand).color }}>
+            {brandName} {brand}
+          </div>
+          <div className="w-0.5 h-6 mx-auto" style={{ backgroundColor: getMaturityStage(brand).color }} />
+        </div>
+      </div>
+
+      <div className="flex justify-between text-[10px] text-[#BBB] select-none mb-4">
+        {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 pt-3 border-t border-[#E8E6E1]">
+        <div>
+          <div className={`text-lg font-bold ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#E53935]' : 'text-[#1A1A1A]'}`}>
+            {delta > 0 ? `+${delta}` : delta}
+          </div>
+          <div className="text-[10px] text-[#666666] leading-tight">vs cohort average</div>
+        </div>
+        <div>
+          <div className="text-lg font-bold text-[#1A1A1A]">{benchmark.percentile ?? '—'}{benchmark.percentile != null ? 'th' : ''}</div>
+          <div className="text-[10px] text-[#666666] leading-tight">percentile in cohort</div>
+        </div>
+        <div>
+          <div className="text-lg font-bold text-[#1A1A1A]">{benchmark.count}</div>
+          <div className="text-[10px] text-[#666666] leading-tight">brands in cohort</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Benchmark provenance line ────────────────────────────────
+// Always visible. n, cohort, rubric mix and date range travel with the chart
+// so nobody has to ask what the benchmark is made of.
+function BenchmarkProvenance({ benchmark }) {
+  if (!benchmark) return null;
+  const fmt = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : null;
+  const from = fmt(benchmark.dateRange?.from);
+  const to = fmt(benchmark.dateRange?.to);
+  const span = from && to ? (from === to ? from : `${from} to ${to}`) : null;
+
+  return (
+    <div className="text-[11px] text-[#666666] bg-[#F5F4F0] border border-[#E8E6E1] rounded px-3 py-2 leading-relaxed">
+      <span className="font-medium text-[#1A1A1A]">Benchmark basis:</span>{' '}
+      {benchmark.cohortLabel}, n={benchmark.count}
+      {span ? `, assessed ${span}` : ''}
+      {benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}.
+      {benchmark.fallbackReason ? <span className="text-[#B45309]"> {benchmark.fallbackReason}</span> : ''}
+    </div>
+  );
+}
+
 function MaturityContinuum({ score }) {
   const stage = getMaturityStage(score);
   const [isVisible, setIsVisible] = useState(false);
@@ -2793,11 +3076,27 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 }
 
 // Social Media Assessment with all platforms and image uploads
+// Screenshots plateau in value fast and the compress-and-upload loop is slow.
+const SOCIAL_SCREENSHOT_MAX = 2;
+
+// Which channels lead for which business model. Everything else stays
+// available behind "Show all channels" rather than being removed, since an
+// assessor may still need it. A B2B assessment should not open on TikTok.
+const CHANNEL_RELEVANCE = {
+  b2b:   { lead: ['linkedin', 'x', 'youtube'], secondary: ['instagram', 'other'] },
+  b2c:   { lead: ['instagram', 'x', 'youtube'], secondary: ['linkedin', 'other'] },
+  b2b2c: { lead: ['linkedin', 'instagram', 'x', 'youtube'], secondary: ['other'] },
+};
+
 function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAutoChecking, setIsAutoChecking] = useState(false);
   const [isSearchingWipo, setIsSearchingWipo] = useState(false);
+  const [isRunningAll, setIsRunningAll] = useState(false);
+  const [runAllStage, setRunAllStage] = useState('');
+  const [runAllProgress, setRunAllProgress] = useState(0);
+  const [showAllChannels, setShowAllChannels] = useState(false);
   const [error, setError] = useState(null);
   const [socialHealthCheck, setSocialHealthCheck] = useState(assessmentData.socialHealthCheck || '');
   const [inputs, setInputs] = useState({
@@ -2819,6 +3118,21 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     wipoContent: assessmentData.wipoContent || '',
     hashtagContent: assessmentData.hashtagContent || '',
     paidMediaContent: assessmentData.paidMediaContent || '',
+    // Merged Campaign and Paid Signals field. The two legacy fields above are
+    // still read on load so existing saved assessments keep their content.
+    campaignContent: assessmentData.campaignContent
+      || [assessmentData.hashtagContent, assessmentData.paidMediaContent].filter(Boolean).join('\n\n')
+      || '',
+    // Auto-extracted content, kept strictly separate from the manual fields
+    // above so re-running the health check never overwrites typed notes.
+    linkedinAuto: assessmentData.linkedinAuto || '',
+    xAuto: assessmentData.xAuto || '',
+    instagramAuto: assessmentData.instagramAuto || '',
+    youtubeAuto: assessmentData.youtubeAuto || '',
+    otherPlatformsAuto: assessmentData.otherPlatformsAuto || '',
+    glassdoorAuto: assessmentData.glassdoorAuto || '',
+    campaignAuto: assessmentData.campaignAuto || '',
+    thirdPartyAuto: assessmentData.thirdPartyAuto || '',
   });
   const [images, setImages] = useState(assessmentData.socialImages || []);
   const [instagramImages, setInstagramImages] = useState(assessmentData.instagramImages || []);
@@ -2830,154 +3144,187 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     setAssessmentData({ ...assessmentData, [key]: value });
   };
 
-  // Social Media Health Check - comprehensive brand presence analysis
-  const runAutoCheck = async () => {
-    setIsAutoChecking(true);
+  // ── Social Media Health Check ──────────────────────────────
+  // Returns structured JSON so findings land directly in the per-platform
+  // fields instead of a read-only blob the assessor has to retype.
+  //
+  // Auto-extracted content and typed notes are kept in SEPARATE fields.
+  // Re-running the check overwrites only the auto side, so a re-run can never
+  // destroy something an assessor wrote.
+  const runAutoCheck = async ({ silent = false } = {}) => {
+    if (!silent) setIsAutoChecking(true);
     setError(null);
     try {
       const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown';
-      
-      const prompt = `Conduct a comprehensive Social Media Health Check for ${project.brandName}.
+
+      const prompt = `Conduct a Social Media Health Check for ${project.brandName}.
 
 Website: ${project.websiteUrl}
 Industry: ${industryName}
+Business model: ${project.businessModel?.toUpperCase() || 'Unknown'}
 
-Search the web for current information about this brand's social media presence and provide a detailed health assessment covering:
+Search the web for current information about this brand's social presence, then return your findings.
 
-1. CHANNEL PRESENCE AUDIT
-For each major platform (LinkedIn, X/Twitter, Instagram, Facebook, YouTube, TikTok, Bluesky, Substack), determine:
-- Does the brand have an official/verified presence?
-- Channel URL if found
-- Approximate follower/subscriber count
-- Mark as "Not Found" if no presence detected
+For EVERY platform below, establish: whether an official presence exists, the URL, follower or subscriber count, posting cadence, date of most recent post, visible engagement levels relative to follower count, dominant content themes, whether content is original or reshared, and whether visual and verbal branding matches the website.
 
-2. POSTING ACTIVITY & CONSISTENCY
-- How frequently is the brand posting on each active channel?
-- When was the most recent post on each platform?
-- Is posting regular and consistent or sporadic?
-- Are there any abandoned/dormant accounts?
+Platforms: LinkedIn, X (Twitter), Instagram, YouTube, Facebook, TikTok, Bluesky, Substack.
 
-3. ENGAGEMENT HEALTH
-- What engagement levels are visible? (likes, comments, shares relative to follower count)
-- Are they responding to comments and mentions?
-- Is there genuine community interaction or one-way broadcasting?
-- Benchmark: 1-3% engagement rate is average, 3-6% is good, 6%+ is excellent
+Also establish:
+- GLASSDOOR: rating out of 5, CEO approval, review count, recurring culture themes, pros and cons patterns.
+- HASHTAGS AND CAMPAIGNS: branded hashtag if any, adoption volume, campaign or product hashtags, whether customers use them, consistency across platforms.
+- PAID MEDIA: what is visible in Meta Ad Library, Google Ads Transparency, LinkedIn Ad Library and TikTok Ad Library. Volume, creative themes, whether messaging matches organic content, whether creative is distinctive or generic.
+- THIRD PARTY: who is talking about the brand, sentiment, notable mentions, user generated content, any visible complaints or controversies.
 
-4. CONTENT QUALITY & BRAND CONSISTENCY
-- Is visual branding consistent across platforms?
-- Is the brand voice/tone consistent?
-- What content themes dominate?
-- Is content original or mostly reshared?
+Engagement benchmarks: 1-3% is average, 3-6% good, 6%+ excellent.
 
-5. THIRD-PARTY COVERAGE & MENTIONS
-- Are others talking about the brand on social media?
-- What is the sentiment of mentions? (positive/neutral/negative)
-- Any notable influencers or media outlets mentioning them?
-- User-generated content presence?
-
-6. REPUTATION & TRUST SIGNALS
-- What do reviews, comments, and discussions reveal about brand perception?
-- Any visible complaints, controversies, or PR issues?
-- Employee advocacy signals (employees sharing brand content)?
-- Trust indicators (verified accounts, response rates, transparency)?
-
-7. COMPETITIVE VISIBILITY
-- How does their social presence compare to typical brands in ${industryName}?
-- Are they visible in industry conversations?
-- Share of voice assessment
-
-8. AI SEARCH VISIBILITY
-- How is this brand represented in AI search results?
-- Is brand information accurate and favorable in AI summaries?
-
-FORMAT YOUR RESPONSE AS:
-Start with a 2-3 sentence EXECUTIVE SUMMARY of overall social media health.
-
-PER-PLATFORM READ
-For each active platform, assess two layers:
-- Owned: the brand's own posting. Does it look and sound like the same brand as the website and the other channels? Creative quality, rhythm, originality.
-- Third-party: what others say on or about the platform. Sentiment, who is talking, whether anyone is at all.
-Then judge the platform on four things: brand consistency, creative quality and sentiment, engagement, and trust. Be specific. A channel can be active and still failing all four.
-Substack is owned long-form: cadence, subscriber signal, and whether it is real thought leadership or recycled posts. Bluesky is an emerging presence: is the brand there, early, or absent.
-
-
-Then provide findings for each section above with specific evidence.
-
-End with:
-- OVERALL HEALTH SCORE: X/10
-- TOP 3 STRENGTHS
-- TOP 3 PRIORITY IMPROVEMENTS
-
-Be direct and evidence-based. If information is limited or not found, say so clearly.`;
+Return ONLY valid JSON, no prose before or after, no markdown fences. Where something cannot be found, use the string "Not found" rather than inventing it. Schema:
+{
+  "summary": "2-3 sentences on overall social health. Direct, evidence-based.",
+  "healthScore": 0-10,
+  "linkedin": { "url": "", "followers": "", "cadence": "", "engagement": "", "themes": "", "brandConsistency": "", "notes": "" },
+  "x": { "url": "", "followers": "", "cadence": "", "engagement": "", "themes": "", "brandConsistency": "", "notes": "" },
+  "instagram": { "url": "", "followers": "", "cadence": "", "engagement": "", "themes": "", "brandConsistency": "", "notes": "" },
+  "youtube": { "url": "", "followers": "", "cadence": "", "engagement": "", "themes": "", "brandConsistency": "", "notes": "" },
+  "otherPlatforms": "Facebook, TikTok, Bluesky and Substack presence, one line each.",
+  "glassdoor": { "rating": "", "ceoApproval": "", "reviewCount": "", "themes": "", "notes": "" },
+  "campaignAndPaid": {
+    "brandedHashtag": "",
+    "hashtagAdoption": "",
+    "campaignsObserved": "Named campaigns or recurring creative properties you can actually see, with where they appear. State plainly if none.",
+    "paidMedia": "What is running, on which platforms, at what apparent volume.",
+    "creativeThemes": "",
+    "organicPaidConsistency": ""
+  },
+  "thirdParty": "Who is talking about the brand, sentiment, notable mentions, complaints or controversies.",
+  "strengths": ["max 3"],
+  "improvements": ["max 3"]
+}`;
 
       const response = await fetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          useWebSearch: true
-        })
+        body: JSON.stringify({ prompt, useWebSearch: true })
       });
 
       if (!response.ok) throw new Error('Health check failed');
       const data = await response.json();
-      const result = data.content?.[0]?.text || data.text || '';
-      
-      // Store the health check result
-      setSocialHealthCheck(result);
-      setAssessmentData({ ...assessmentData, socialHealthCheck: result });
+      const raw = data.content?.filter(b => b.type === 'text').map(b => b.text).join('\n') || data.text || '';
 
-      // Also fetch YouTube data from API for enhanced accuracy
+      let parsed = null;
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) {
+        try { parsed = JSON.parse(match[0]); } catch { parsed = null; }
+      }
+
+      // If the model did not return usable JSON, keep the prose rather than
+      // losing the work entirely. The assessor still gets something to read.
+      if (!parsed) {
+        setSocialHealthCheck(raw);
+        setAssessmentData({ ...assessmentData, socialHealthCheck: raw, socialHealthCheckStructured: null });
+        if (!silent) setError('Health check returned unstructured results. The findings are shown below but could not be filed into the channel fields automatically.');
+        return;
+      }
+
+      const line = (label, value) => (value && value !== 'Not found' ? `${label}: ${value}` : null);
+      const platformBlock = (p) => p ? [
+        line('URL', p.url),
+        line('Followers', p.followers),
+        line('Cadence', p.cadence),
+        line('Engagement', p.engagement),
+        line('Themes', p.themes),
+        line('Brand consistency', p.brandConsistency),
+        line('Notes', p.notes),
+      ].filter(Boolean).join('\n') : '';
+
+      const cp = parsed.campaignAndPaid || {};
+      const gd = parsed.glassdoor || {};
+
+      const autoFields = {
+        linkedinAuto: platformBlock(parsed.linkedin),
+        xAuto: platformBlock(parsed.x),
+        instagramAuto: platformBlock(parsed.instagram),
+        youtubeAuto: platformBlock(parsed.youtube),
+        otherPlatformsAuto: parsed.otherPlatforms && parsed.otherPlatforms !== 'Not found' ? parsed.otherPlatforms : '',
+        glassdoorAuto: [
+          line('Rating', gd.rating),
+          line('CEO approval', gd.ceoApproval),
+          line('Reviews', gd.reviewCount),
+          line('Culture themes', gd.themes),
+          line('Notes', gd.notes),
+        ].filter(Boolean).join('\n'),
+        campaignAuto: [
+          line('Campaigns observed', cp.campaignsObserved),
+          line('Branded hashtag', cp.brandedHashtag),
+          line('Hashtag adoption', cp.hashtagAdoption),
+          line('Paid media', cp.paidMedia),
+          line('Creative themes', cp.creativeThemes),
+          line('Organic and paid consistency', cp.organicPaidConsistency),
+        ].filter(Boolean).join('\n'),
+        thirdPartyAuto: parsed.thirdParty && parsed.thirdParty !== 'Not found' ? parsed.thirdParty : '',
+      };
+
+      const readable = [
+        parsed.summary,
+        parsed.healthScore != null ? `\nOverall health score: ${parsed.healthScore}/10` : '',
+        Array.isArray(parsed.strengths) && parsed.strengths.length ? `\nStrengths:\n${parsed.strengths.map(v => `  • ${v}`).join('\n')}` : '',
+        Array.isArray(parsed.improvements) && parsed.improvements.length ? `\nPriority improvements:\n${parsed.improvements.map(v => `  • ${v}`).join('\n')}` : '',
+      ].filter(Boolean).join('\n');
+
+      setSocialHealthCheck(readable);
+      setInputs(prev => ({ ...prev, ...autoFields }));
+      setAssessmentData({
+        ...assessmentData,
+        ...autoFields,
+        socialHealthCheck: readable,
+        socialHealthCheckStructured: parsed,
+        socialAutoFilledAt: new Date().toISOString(),
+      });
+
+      // Verified API data still wins over anything the model inferred.
       try {
         const ytResponse = await fetch(`/api/youtube?query=${encodeURIComponent(project.brandName)}&website=${encodeURIComponent(project.websiteUrl || '')}`);
         const ytData = await ytResponse.json();
-        
-        if (!ytData.error && !inputs.youtubeContent?.includes('[API Data]')) {
+
+        if (!ytData.error) {
           let ytStats = '[API Data]\n\n';
-          
           if (ytData.hasBrandedChannel && ytData.brandedChannel) {
             const ch = ytData.brandedChannel;
-            const stats = ytData.brandedChannelStats;
-            ytStats += `═══ OFFICIAL CHANNEL FOUND ═══
+            const st = ytData.brandedChannelStats;
+            ytStats += `OFFICIAL CHANNEL FOUND
 Channel: ${ch.channelTitle}
 URL: ${ch.channelUrl || ch.customUrl}
-Subscribers: ${stats?.subscriberCount?.toLocaleString() || 'Hidden'} (${ytData.summary?.subscriberTier})
-Videos: ${stats?.videoCount?.toLocaleString() || 0}
-Total Views: ${stats?.viewCount?.toLocaleString() || 0}
+Subscribers: ${st?.subscriberCount?.toLocaleString() || 'Hidden'} (${ytData.summary?.subscriberTier})
+Videos: ${st?.videoCount?.toLocaleString() || 0}
+Total Views: ${st?.viewCount?.toLocaleString() || 0}
 Created: ${ch.publishedAt ? new Date(ch.publishedAt).toLocaleDateString() : 'Unknown'}
 `;
           } else {
-            ytStats += `═══ NO OFFICIAL CHANNEL FOUND ═══
+            ytStats += `NO OFFICIAL CHANNEL FOUND
 No YouTube channel matching "${project.brandName}" was identified.
 `;
           }
-          
-          ytStats += `\n═══ THIRD-PARTY COVERAGE (${ytData.summary?.thirdPartyCoverage || 'Unknown'}) ═══\n`;
-          
-          if (ytData.thirdPartyCoverage && ytData.thirdPartyCoverage.length > 0) {
-            ytData.thirdPartyCoverage.forEach((video, i) => {
-              ytStats += `\n${i + 1}. "${video.title}"
-   Channel: ${video.channelTitle}
-   URL: ${video.videoUrl}\n`;
+          ytStats += `\nTHIRD-PARTY COVERAGE (${ytData.summary?.thirdPartyCoverage || 'Unknown'})\n`;
+          if (ytData.thirdPartyCoverage?.length) {
+            ytData.thirdPartyCoverage.forEach((v, i) => {
+              ytStats += `\n${i + 1}. "${v.title}"\n   Channel: ${v.channelTitle}\n   URL: ${v.videoUrl}\n`;
             });
           } else {
             ytStats += `No third-party videos found.\n`;
           }
-          updateInput('youtubeContent', ytStats);
+          setInputs(prev => ({ ...prev, youtubeAuto: ytStats }));
+          setAssessmentData(prev => ({ ...prev, youtubeAuto: ytStats }));
         }
 
-        // Knowledge Graph API - check entity status
         const kgResponse = await fetch(`/api/knowledge-graph?query=${encodeURIComponent(project.brandName)}`);
         const kgData = await kgResponse.json();
-        if (kgData.found && kgData.bestMatch && !inputs.wikipediaContent?.includes('[Knowledge Graph]')) {
+        if (kgData.found && kgData.bestMatch) {
           const kgInfo = `[Knowledge Graph] Entity Status: ${kgData.knowledgeGraphSignal}
 ${kgData.bestMatch.name ? `Name: ${kgData.bestMatch.name}` : ''}
 ${kgData.bestMatch.type?.length ? `Type: ${kgData.bestMatch.type.join(', ')}` : ''}
 ${kgData.bestMatch.description ? `Description: ${kgData.bestMatch.description}` : ''}
 ${kgData.bestMatch.url ? `Wikipedia: ${kgData.bestMatch.url}` : ''}`;
-          
-          const existingWiki = inputs.wikipediaContent || '';
-          updateInput('wikipediaContent', `${kgInfo}\n\n${existingWiki}`);
+          setInputs(prev => ({ ...prev, wikipediaContent: prev.wikipediaContent?.includes('[Knowledge Graph]') ? prev.wikipediaContent : `${kgInfo}\n\n${prev.wikipediaContent || ''}`.trim() }));
+          setAssessmentData(prev => ({ ...prev, wikipediaContent: prev.wikipediaContent?.includes('[Knowledge Graph]') ? prev.wikipediaContent : `${kgInfo}\n\n${prev.wikipediaContent || ''}`.trim() }));
         }
       } catch (apiErr) {
         console.log('Google API enhancement failed (non-critical):', apiErr.message);
@@ -2985,14 +3332,15 @@ ${kgData.bestMatch.url ? `Wikipedia: ${kgData.bestMatch.url}` : ''}`;
 
     } catch (err) {
       setError('Health check failed: ' + err.message);
+      if (silent) throw err;
     } finally {
-      setIsAutoChecking(false);
+      if (!silent) setIsAutoChecking(false);
     }
   };
 
   // WIPO Trademark Auto-Search using Claude web search
-  const runWipoSearch = async () => {
-    setIsSearchingWipo(true);
+  const runWipoSearch = async ({ silent = false } = {}) => {
+    if (!silent) setIsSearchingWipo(true);
     setError(null);
     try {
       const response = await fetch('/api/claude', {
@@ -3033,8 +3381,9 @@ Format as a concise summary. If no trademark registrations are found, state that
       }
     } catch (err) {
       setError('WIPO search failed - please search manually');
+      if (silent) throw err;
     } finally {
-      setIsSearchingWipo(false);
+      if (!silent) setIsSearchingWipo(false);
     }
   };
 
@@ -3081,11 +3430,11 @@ Format as a concise summary. If no trademark registrations are found, state that
     const files = Array.from(e.target.files);
     if (!files.length) return;
     
-    const remainingSlots = 4 - images.length;
+    const remainingSlots = SOCIAL_SCREENSHOT_MAX - images.length;
     const filesToProcess = files.slice(0, remainingSlots);
     
     if (filesToProcess.length === 0) {
-      setError('Maximum 4 images allowed');
+      setError(`Maximum ${SOCIAL_SCREENSHOT_MAX} images allowed`);
       return;
     }
     
@@ -3102,7 +3451,7 @@ Format as a concise summary. If no trademark registrations are found, state that
         reader.readAsDataURL(file);
       });
     })).then(newImages => {
-      const updatedImages = [...images, ...newImages].slice(0, 4);
+      const updatedImages = [...images, ...newImages].slice(0, SOCIAL_SCREENSHOT_MAX);
       setImages(updatedImages);
       setAssessmentData({ ...assessmentData, socialImages: updatedImages });
       setIsCompressing(false);
@@ -3115,13 +3464,26 @@ Format as a concise summary. If no trademark registrations are found, state that
     setAssessmentData({ ...assessmentData, socialImages: updatedImages });
   };
 
-  const runAnalysis = async () => {
-    setIsProcessing(true);
+  const runAnalysis = async ({ silent = false } = {}) => {
+    if (!silent) setIsProcessing(true);
     setError(null);
     try {
+      // Auto-extracted findings and the assessor's own notes are presented as
+      // distinct layers so the model can see which is which, and so a re-run
+      // of the health check never silently discards typed input.
+      const merged = (auto, manual) => {
+        const parts = [];
+        if (auto) parts.push(`[Auto-checked]\n${auto}`);
+        if (manual) parts.push(`[Assessor notes]\n${manual}`);
+        return parts.length ? parts.join('\n\n') : '[Not provided]';
+      };
+
       const prompt = `Analyze ${project.brandName}'s social media and reputation presence based on the content provided below.
 
 === LINKEDIN DATA ===
+Channel Profile:
+${inputs.linkedinAuto || '[Not auto-checked]'}
+
 About Section:
 ${inputs.linkedinAbout || '[Not provided]'}
 
@@ -3138,15 +3500,18 @@ Awards & Recognition:
 ${inputs.awardsRecognition || '[Not provided - note any awards, certifications, or industry recognition visible]'}
 
 === X (TWITTER) DATA ===
-${inputs.xContent || '[Not provided]'}
+${merged(inputs.xAuto, inputs.xContent)}
 
 === INSTAGRAM DATA ===
-${inputs.instagramContent || '[Not provided]'}
+${merged(inputs.instagramAuto, inputs.instagramContent)}
 ${instagramImages.length > 0 ? `\n${instagramImages.length} Instagram screenshot(s) provided for visual reference.` : ''}
 
 === YOUTUBE DATA ===
-${inputs.hasYouTube ? (inputs.youtubeContent || '[User indicated they have YouTube but no content provided]') : '[Brand does not have a YouTube channel]'}
-${inputs.youtubeContent?.includes('[API Data]') ? '\nNote: YouTube data above includes verified API data (subscriber count, video count, views, third-party coverage).' : ''}
+${inputs.hasYouTube ? merged(inputs.youtubeAuto, inputs.youtubeContent) : '[Brand does not have a YouTube channel]'}
+${inputs.youtubeAuto?.includes('[API Data]') ? '\nNote: YouTube data above includes verified API data (subscriber count, video count, views, third-party coverage).' : ''}
+
+=== OTHER PLATFORMS (Facebook, TikTok, Bluesky, Substack) ===
+${inputs.otherPlatformsAuto || '[Not assessed]'}
 
 === REDDIT ANSWERS (AI Search Visibility) ===
 ${inputs.redditAnswersContent || '[Not checked - Reddit Answers shows how AI perceives brand reputation]'}
@@ -3156,16 +3521,16 @@ ${inputs.wikipediaContent || '[Not provided - please note if ' + project.brandNa
 ${inputs.wikipediaContent?.includes('[Knowledge Graph]') ? '\nNote: Knowledge Graph data above shows Google entity recognition status.' : ''}
 
 === GLASSDOOR (Employer Reputation) ===
-${inputs.glassdoorContent || '[Not reviewed - Glassdoor reviews impact brand self-awareness and Reflective score]'}
+${merged(inputs.glassdoorAuto, inputs.glassdoorContent) === '[Not provided]' ? '[Not reviewed - Glassdoor reviews impact brand self-awareness and Reflective score]' : merged(inputs.glassdoorAuto, inputs.glassdoorContent)}
 
 === WIPO TRADEMARK STATUS ===
 ${inputs.wipoContent || '[Not checked - Trademark registration impacts brand professionalism and Intentional score]'}
 
-=== HASHTAG STRATEGY & EFFECTIVENESS ===
-${inputs.hashtagContent || '[Not assessed - Check branded hashtag usage across platforms]'}
+=== CAMPAIGN & PAID SIGNALS ===
+${merged(inputs.campaignAuto, inputs.campaignContent)}
 
-=== PAID MEDIA PRESENCE ===
-${inputs.paidMediaContent || '[Not checked - Review Meta Ad Library, Google Ads Transparency, LinkedIn Ad Library for active campaigns]'}
+=== THIRD-PARTY CONVERSATION ===
+${inputs.thirdPartyAuto || '[Not assessed]'}
 
 ${images.length > 0 ? `\n${images.length} screenshot(s) of social media pages have been provided for visual reference.` : ''}
 
@@ -3189,9 +3554,9 @@ Based on the content provided above, deliver a comprehensive social media and re
 
 8. Trademark Protection (WIPO): Is the brand name properly protected? Are there any conflicts or risks?
 
-9. Hashtag Strategy: Evaluate branded hashtag usage and effectiveness across platforms. Is there a clear hashtag strategy? Are customers adopting branded hashtags? How does this impact discoverability?
+9. Campaign & Paid Signals: Assess the campaign and paid evidence together. Is there a named campaign or recurring creative property, and does one strategic premise and creative idea thread across channels, or is this a set of isolated tactical bursts? Does paid creative carry the same idea as organic content? Does ad volume suggest serious market investment (COGENT, INTENTIONAL)? Is creative distinctive or generic (SENTIENT)? Do customers actually use the branded hashtag, or only the brand? Be specific about what is threaded and what is isolated, since this evidence drives the campaign coherence assessment in the final report.
 
-10. Paid Media Presence: Based on ad library findings, assess paid media investment signals. What creative themes dominate? Is messaging consistent with organic content? Does ad volume suggest serious market investment (COGENT, INTENTIONAL)? Is creative distinctive or generic (SENTIENT)?
+10. Third-Party Conversation: What are others saying, with what sentiment, and does anyone outside the brand pick up its campaigns or language?
 
 11. Cross-Platform Consistency: Is the brand voice and messaging consistent across platforms?
 
@@ -3206,50 +3571,102 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       setAssessmentData({ ...assessmentData, status: 'complete', content: result, ...inputs, socialImages: images, instagramImages });
     } catch (err) {
       setError(err.message);
+      if (silent) throw err;
     } finally {
-      setIsProcessing(false);
+      if (!silent) setIsProcessing(false);
     }
   };
 
-  const isComplete = assessmentData.status === 'complete';
-  const hasMinimumContent = inputs.linkedinAbout || inputs.linkedinPosts || inputs.xContent || inputs.youtubeContent || inputs.instagramContent;
+  // ── Run Everything ─────────────────────────────────────────
+  // Health check, WIPO, then analysis, in sequence. The assessor reviews and
+  // edits rather than sourcing and typing. Each stage is allowed to fail
+  // without taking down the ones after it, since partial evidence is still
+  // worth more than none.
+  const runEverything = async () => {
+    setIsRunningAll(true);
+    setError(null);
+    const failures = [];
 
-  // Accordion state
-  const [expanded, setExpanded] = useState({ linkedin: true, x: false, instagram: false, other: false, hashtag: false, paidMedia: false, reputation: false });
+    setRunAllStage('Checking every channel...');
+    setRunAllProgress(10);
+    try { await runAutoCheck({ silent: true }); } catch { failures.push('health check'); }
+
+    setRunAllStage('Searching trademark registers...');
+    setRunAllProgress(50);
+    try { if (!inputs.wipoContent) await runWipoSearch({ silent: true }); } catch { failures.push('WIPO search'); }
+
+    setRunAllStage('Writing the social assessment...');
+    setRunAllProgress(75);
+    try { await runAnalysis({ silent: true }); } catch { failures.push('analysis'); }
+
+    setRunAllProgress(100);
+    setRunAllStage('Done');
+    if (failures.length) {
+      setError(`Completed with issues. Failed: ${failures.join(', ')}. Run the remaining steps individually or fill those fields manually.`);
+    }
+    setTimeout(() => { setIsRunningAll(false); setRunAllProgress(0); setRunAllStage(''); }, 600);
+  };
+
+  const isComplete = assessmentData.status === 'complete';
+  const hasMinimumContent = inputs.linkedinAuto || inputs.xAuto || inputs.instagramAuto || inputs.youtubeAuto
+    || inputs.linkedinAbout || inputs.linkedinPosts || inputs.xContent || inputs.youtubeContent || inputs.instagramContent;
+
+  // Channel coverage is judged against what matters for THIS business model,
+  // not a fixed list. Requiring X to proceed was wrong: plenty of serious B2B
+  // brands have abandoned the platform, and the old gate forced assessors to
+  // type "N/A" to move on.
+  const relevance = CHANNEL_RELEVANCE[project.businessModel] || CHANNEL_RELEVANCE.b2b2c;
+  const channelContent = {
+    linkedin: inputs.linkedinAuto || inputs.linkedinAbout || inputs.linkedinPosts,
+    x: inputs.xAuto || inputs.xContent,
+    instagram: inputs.instagramAuto || inputs.instagramContent,
+    youtube: inputs.youtubeAuto || inputs.youtubeContent,
+    other: inputs.otherPlatformsAuto,
+  };
+  const leadChannelsCovered = relevance.lead.filter(c => !!channelContent[c]).length;
+  const REQUIRED_LEAD_CHANNELS = 2;
+
+  // Secondary channels stay hidden until asked for, unless they already hold
+  // content, in which case hiding them would hide real evidence.
+  const isChannelVisible = (channel) =>
+    showAllChannels || relevance.lead.includes(channel) || !!channelContent[channel];
+
+  // Accordion state. Opens on the channel that leads for this business model.
+  const [expanded, setExpanded] = useState(() => {
+    const rel = CHANNEL_RELEVANCE[project.businessModel] || CHANNEL_RELEVANCE.b2b2c;
+    return { linkedin: rel.lead[0] === 'linkedin', x: false, instagram: rel.lead[0] === 'instagram', other: false, campaign: false, reputation: false };
+  });
   const toggleSection = (section) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
   // Status badges for auto-check
   const autoCheckStatus = {
-    youtube: !!inputs.youtubeContent?.includes('[API Data]') || !!inputs.youtubeContent?.includes('[Auto-searched]'),
-    glassdoor: !!inputs.glassdoorContent?.includes('[Auto-searched]'),
+    youtube: !!inputs.youtubeAuto?.includes('[API Data]'),
+    glassdoor: !!inputs.glassdoorAuto,
   };
   const autoCheckCount = Object.values(autoCheckStatus).filter(Boolean).length;
 
   // Completion tracking
   const completionItems = [
-    { label: 'Screenshots', done: images.length > 0 },
     { label: 'Health Check', done: !!socialHealthCheck },
-    { label: 'LinkedIn', done: !!(inputs.linkedinAbout || inputs.linkedinPosts) },
-    { label: 'X/Twitter', done: !!inputs.xContent },
+    { label: 'Channels', done: leadChannelsCovered >= REQUIRED_LEAD_CHANNELS },
+    { label: 'Screenshot', done: images.length > 0 },
+    { label: 'Campaign', done: !!(inputs.campaignAuto || inputs.campaignContent) },
     { label: 'WIPO', done: !!inputs.wipoContent },
     { label: 'Analysis', done: isComplete },
   ];
 
   // Required checks before proceeding
-  const canProceed = isComplete && !!inputs.wipoContent && !!(inputs.linkedinAbout || inputs.linkedinPosts) && !!inputs.xContent && images.length > 0;
+  const canProceed = isComplete && !!inputs.wipoContent && leadChannelsCovered >= REQUIRED_LEAD_CHANNELS && images.length > 0;
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
+    if (leadChannelsCovered < REQUIRED_LEAD_CHANNELS) {
+      const names = relevance.lead.map(c => ({ linkedin: 'LinkedIn', x: 'X', instagram: 'Instagram', youtube: 'YouTube', other: 'other platforms' }[c])).join(', ');
+      setProceedError(`Please cover at least ${REQUIRED_LEAD_CHANNELS} of the priority channels for a ${project.businessModel?.toUpperCase()} brand (${names}). Running the health check fills most of this automatically.`);
+      return;
+    }
     if (images.length === 0) {
       setProceedError('Please upload at least one screenshot of social media profiles before proceeding.');
-      return;
-    }
-    if (!(inputs.linkedinAbout || inputs.linkedinPosts)) {
-      setProceedError('Please add LinkedIn information before proceeding.');
-      return;
-    }
-    if (!inputs.xContent) {
-      setProceedError('Please add X/Twitter information before proceeding.');
       return;
     }
     if (!inputs.wipoContent) {
@@ -3265,6 +3682,18 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
   };
 
   // Accordion Header Component
+  // Read-only panel for auto-checked content. Sits above the notes field so it
+  // is obvious which content the assessor owns and which was fetched.
+  const AutoPanel = ({ content }) => content ? (
+    <div className="bg-[#F0F9F4] border border-[#BBE5CC] rounded-lg p-3">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Check className="w-3.5 h-3.5 text-[#059669]" />
+        <span className="text-[10px] font-semibold text-[#059669] uppercase tracking-wider">Auto-checked</span>
+      </div>
+      <pre className="text-xs text-[#333333] whitespace-pre-wrap font-sans leading-relaxed max-h-44 overflow-y-auto">{content}</pre>
+    </div>
+  ) : null;
+
   const AccordionHeader = ({ title, icon: Icon, isOpen, onClick, badge, hasContent }) => (
     <button 
       onClick={onClick}
@@ -3295,6 +3724,34 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       <CompletionIndicator items={completionItems} />
 
+      {/* Run Everything */}
+      <div className="card p-4 mb-4 border-l-4 border-[#E53935]">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+          <div className="min-w-0">
+            <h3 className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#E53935]" />
+              Run Everything
+            </h3>
+            <p className="text-xs text-[#666666]">Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
+          </div>
+          <button
+            onClick={runEverything}
+            disabled={isRunningAll || isAutoChecking || isProcessing}
+            className="btn-primary text-sm py-2 px-4 flex items-center gap-2 flex-shrink-0"
+          >
+            {isRunningAll ? <><Loader2 className="w-4 h-4 animate-spin" /> Running...</> : <><Play className="w-4 h-4" /> Run Everything</>}
+          </button>
+        </div>
+        {isRunningAll && (
+          <div className="mt-3">
+            <div className="w-full bg-[#E8E6E1] rounded-full h-2 mb-1.5">
+              <div className="bg-[#E53935] h-2 rounded-full transition-all duration-500 ease-out" style={{ width: `${runAllProgress}%` }} />
+            </div>
+            <p className="text-xs text-[#666666]">{runAllStage}</p>
+          </div>
+        )}
+      </div>
+
       {/* Social Media Health Check Section */}
       <div className="card p-4 mb-4 border-l-4 border-[#8B5CF6]">
         <div className="flex items-center justify-between mb-3">
@@ -3303,14 +3760,14 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
               Social Media Health Check
             </h3>
-            <p className="text-xs text-[#666666]">AI-powered analysis: presence, engagement, reputation, sentiment, trust signals</p>
+            <p className="text-xs text-[#666666]">Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes.</p>
           </div>
           <button 
-            onClick={runAutoCheck} 
-            disabled={isAutoChecking}
-            className="btn-primary text-sm py-2 px-4 flex items-center gap-2"
+            onClick={() => runAutoCheck()} 
+            disabled={isAutoChecking || isRunningAll}
+            className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
           >
-            {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Bot className="w-4 h-4" /> Run Health Check</>}
+            {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Bot className="w-4 h-4" /> Health Check Only</>}
           </button>
         </div>
         
@@ -3350,13 +3807,13 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             </div>
           ))}
           
-          {images.length < 4 && (
+          {images.length < SOCIAL_SCREENSHOT_MAX && (
             <button onClick={() => fileInputRef.current?.click()}
               className="h-40 border-2 border-dashed border-[#E53935] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#E53935]/5 transition-colors">
               {isCompressing ? (
                 <><Loader2 className="w-6 h-6 text-[#E53935] animate-spin" /><span className="text-sm text-[#E53935]">Compressing...</span></>
               ) : (
-                <><Upload className="w-6 h-6 text-[#E53935]" /><span className="text-sm text-[#E53935] font-medium">Add Screenshot</span><span className="text-xs text-[#666666]">{4 - images.length} remaining</span></>
+                <><Upload className="w-6 h-6 text-[#E53935]" /><span className="text-sm text-[#E53935] font-medium">Add Screenshot</span><span className="text-xs text-[#666666]">{SOCIAL_SCREENSHOT_MAX - images.length} remaining</span></>
               )}
             </button>
           )}
@@ -3369,17 +3826,20 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         )}
       </div>
 
-      {/* LinkedIn Section - Expanded by default */}
+      {/* LinkedIn Section */}
+      {isChannelVisible('linkedin') && (
       <div className="mb-3">
         <AccordionHeader 
           title="LinkedIn" 
           icon={ExternalLink} 
           isOpen={expanded.linkedin} 
           onClick={() => toggleSection('linkedin')}
-          hasContent={!!(inputs.linkedinAbout || inputs.linkedinPosts)}
+          badge={relevance.lead.includes('linkedin') ? 'Priority' : null}
+          hasContent={!!(inputs.linkedinAuto || inputs.linkedinAbout || inputs.linkedinPosts)}
         />
         {expanded.linkedin && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <AutoPanel content={inputs.linkedinAuto} />
             <div className="flex gap-2">
               <input type="url" value={inputs.linkedinUrl} onChange={(e) => updateInput('linkedinUrl', e.target.value)}
                 placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
@@ -3388,11 +3848,6 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
                   <ExternalLink className="w-3 h-3" /> Open
                 </a>
               )}
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[#666666] mb-1 block">Follower Count</label>
-              <input type="text" value={inputs.linkedinFollowers} onChange={(e) => updateInput('linkedinFollowers', e.target.value)}
-                placeholder="e.g., 15,432 followers" className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
             </div>
             <div>
               <label className="text-xs font-medium text-[#666666] mb-1 block">Company Profile & About Section</label>
@@ -3407,18 +3862,22 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           </div>
         )}
       </div>
+      )}
 
       {/* X/Twitter Section */}
+      {isChannelVisible('x') && (
       <div className="mb-3">
         <AccordionHeader 
           title="X (Twitter)" 
           icon={ExternalLink} 
           isOpen={expanded.x} 
           onClick={() => toggleSection('x')}
-          hasContent={!!inputs.xContent}
+          badge={relevance.lead.includes('x') ? 'Priority' : null}
+          hasContent={!!(inputs.xAuto || inputs.xContent)}
         />
         {expanded.x && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <AutoPanel content={inputs.xAuto} />
             <div className="flex gap-2">
               <input type="url" value={inputs.xUrl} onChange={(e) => updateInput('xUrl', e.target.value)}
                 placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
@@ -3429,55 +3888,80 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               )}
             </div>
             <textarea value={inputs.xContent} onChange={(e) => updateInput('xContent', e.target.value)}
-              placeholder="Bio, follower count, 5-10 recent tweets with engagement..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         )}
       </div>
+      )}
 
       {/* Instagram Section */}
+      {isChannelVisible('instagram') && (
       <div className="mb-3">
         <AccordionHeader 
           title="Instagram" 
           icon={Image} 
           isOpen={expanded.instagram} 
           onClick={() => toggleSection('instagram')}
-          hasContent={!!inputs.instagramContent}
+          badge={relevance.lead.includes('instagram') ? 'Priority' : null}
+          hasContent={!!(inputs.instagramAuto || inputs.instagramContent)}
         />
         {expanded.instagram && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white">
+          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <AutoPanel content={inputs.instagramAuto} />
             <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
-              placeholder="Bio, follower count, content themes (lifestyle, product, behind-scenes), posting frequency, engagement patterns, visual consistency..." className="w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
           </div>
         )}
       </div>
+      )}
 
       {/* YouTube */}
+      {isChannelVisible('youtube') && (
       <div className="mb-3">
         <AccordionHeader 
           title="YouTube" 
           icon={Play} 
           isOpen={expanded.other} 
           onClick={() => toggleSection('other')}
-          hasContent={!!inputs.youtubeContent}
+          badge={inputs.youtubeAuto?.includes('[API Data]') ? 'Verified' : (relevance.lead.includes('youtube') ? 'Priority' : null)}
+          hasContent={!!(inputs.youtubeAuto || inputs.youtubeContent)}
         />
         {expanded.other && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+            <AutoPanel content={inputs.youtubeAuto} />
             <div>
               <div className="flex items-center justify-end mb-1">
-                <div className="flex items-center gap-2">
-                  {autoCheckStatus.youtube && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
-                  <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                     className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-medium rounded hover:bg-red-200 transition-colors flex items-center gap-1">
-                    Verify <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
+                <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
+                   className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-medium rounded hover:bg-red-200 transition-colors flex items-center gap-1">
+                  Verify <ExternalLink className="w-2.5 h-2.5" />
+                </a>
               </div>
               <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
-                placeholder="Channel exists? Content themes, posting frequency, engagement quality... (verify metrics at YouTube)" className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
         )}
       </div>
+      )}
+
+      {/* Other platforms, auto only */}
+      {inputs.otherPlatformsAuto && (
+        <div className="card p-4 mb-3">
+          <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Facebook, TikTok, Bluesky, Substack</h3>
+          <AutoPanel content={inputs.otherPlatformsAuto} />
+        </div>
+      )}
+
+      {/* Show all channels toggle */}
+      {relevance.secondary.length > 0 && (
+        <button
+          onClick={() => setShowAllChannels(v => !v)}
+          className="text-xs text-[#666666] hover:text-[#E53935] transition-colors mb-4 flex items-center gap-1.5"
+        >
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAllChannels ? 'rotate-180' : ''}`} />
+          {showAllChannels ? 'Show priority channels only' : `Show all channels (${relevance.secondary.length} more)`}
+        </button>
+      )}
 
       {/* Reputation Section (Glassdoor, WIPO) */}
       <div className="mb-4">
@@ -3494,16 +3978,14 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#666666]">Glassdoor <span className="text-purple-600">(→ Reflective)</span></label>
-                <div className="flex items-center gap-2">
-                  {autoCheckStatus.glassdoor && <span className="text-[10px] text-[#059669]">Auto-searched ✓</span>}
-                  <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
-                     className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium rounded hover:bg-purple-200 transition-colors flex items-center gap-1">
-                    Verify <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
+                <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
+                   className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium rounded hover:bg-purple-200 transition-colors flex items-center gap-1">
+                  Verify <ExternalLink className="w-2.5 h-2.5" />
+                </a>
               </div>
+              {inputs.glassdoorAuto && <div className="mb-2"><AutoPanel content={inputs.glassdoorAuto} /></div>}
               <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
-                placeholder="Rating (out of 5), CEO approval %, # of reviews, culture themes, pros/cons patterns..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
@@ -3533,113 +4015,87 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         )}
       </div>
 
-      {/* Hashtag Effectiveness Check */}
-      <div className="mb-3">
-        <AccordionHeader 
-          title="Hashtag Effectiveness" 
-          icon={Hash} 
-          isOpen={expanded.hashtag} 
-          onClick={() => toggleSection('hashtag')}
-          hasContent={!!inputs.hashtagContent}
-        />
-        {expanded.hashtag && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
-            <p className="text-xs text-[#666666] mb-2">
-              Check how effectively the brand uses hashtags across platforms to increase discoverability and engagement.
-            </p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
-                <span>Instagram #</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://www.tiktok.com/tag/${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-1">
-                <span>TikTok #</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://www.linkedin.com/search/results/content/?keywords=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-[#0A66C2] text-white text-xs font-medium rounded-lg hover:bg-[#004182] transition-colors flex items-center justify-center gap-1">
-                <span>LinkedIn #</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://twitter.com/search?q=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}&src=typed_query`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-[#1A1A1A] text-white text-xs font-medium rounded-lg hover:bg-[#333] transition-colors flex items-center justify-center gap-1">
-                <span>X/Twitter #</span> <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-            <textarea value={inputs.hashtagContent} onChange={(e) => updateInput('hashtagContent', e.target.value)}
-              placeholder={`Document hashtag usage and effectiveness:
-
-• Branded hashtag: Do they have one? (#${project.brandName?.replace(/\s+/g, '') || 'BrandName'})
-• Usage volume: How many posts use their branded hashtag on each platform?
-• Campaign hashtags: Any specific campaign or product hashtags?
-• Industry hashtags: Are they using relevant industry hashtags effectively?
-• User adoption: Are customers/followers using the branded hashtag?
-• Consistency: Same hashtag strategy across all platforms?
-• N/A if no hashtag strategy observed...`} 
-              className="w-full h-32 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
-          </div>
-        )}
-      </div>
-
-      {/* Paid Media Presence */}
+      {/* Campaign & Paid Signals - merged from Hashtags and Paid Media */}
       <div className="mb-4">
         <AccordionHeader 
-          title="Paid Media Presence" 
+          title="Campaign & Paid Signals" 
           icon={Target} 
-          isOpen={expanded.paidMedia} 
-          onClick={() => toggleSection('paidMedia')}
-          hasContent={!!inputs.paidMediaContent}
+          isOpen={expanded.campaign} 
+          onClick={() => toggleSection('campaign')}
+          badge="Campaign Score"
+          hasContent={!!(inputs.campaignAuto || inputs.campaignContent)}
         />
-        {expanded.paidMedia && (
+        {expanded.campaign && (
           <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
-            <p className="text-xs text-[#666666] mb-2">
+            <p className="text-xs text-[#666666]">
+              This is what drives the Campaign Coherence score. What matters is whether a strategy and a creative idea thread the activity together, not how much activity there is.
               {project.businessModel === 'b2b'
-                ? 'For B2B, LinkedIn Ads and Google Search are typically most important. Check Meta and TikTok for awareness campaigns if relevant.'
+                ? ' For B2B, LinkedIn Ads and Google Search usually carry the weight.'
                 : project.businessModel === 'b2c'
-                ? 'Check all consumer platforms - Meta (FB/IG), TikTok, Google, and YouTube are typically high priority.'
-                : 'Check both B2B channels (LinkedIn, Google Search) and consumer channels (Meta, TikTok) for hybrid brands.'}
+                ? ' For B2C, check Meta, TikTok, Google and YouTube.'
+                : ' Check both B2B channels and consumer channels for hybrid brands.'}
             </p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <a href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q="${encodeURIComponent(project.brandName)}"&search_type=keyword_exact_phrase`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-[#1877F2] text-white text-xs font-medium rounded-lg hover:bg-[#166FE5] transition-colors flex items-center justify-center gap-1">
-                <span>Meta Ad Library</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://adstransparency.google.com/?region=anywhere&text="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                 className="px-2 py-1.5 bg-[#4285F4] text-white text-xs font-medium rounded-lg hover:bg-[#3367D6] transition-colors flex items-center justify-center gap-1">
-                <span>Google Ads</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://www.linkedin.com/ad-library/search?accountOwner="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                 className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#0A66C2] hover:bg-[#004182] ring-2 ring-[#0A66C2] ring-offset-1' : 'bg-[#0A66C2] hover:bg-[#004182]'}`}>
-                <span>LinkedIn Ads{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
-              </a>
-              <a href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                 className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : project.businessModel === 'b2c' ? 'bg-black hover:bg-gray-800 ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-gray-800'}`}>
-                <span>TikTok Ads{project.businessModel === 'b2b' ? ' (optional)' : project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
-              </a>
+
+            <AutoPanel content={inputs.campaignAuto} />
+
+            <div>
+              <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Ad libraries</div>
+              <div className="grid grid-cols-2 gap-2">
+                <a href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q="${encodeURIComponent(project.brandName)}"&search_type=keyword_exact_phrase`} target="_blank" rel="noopener noreferrer" 
+                   className="px-2 py-1.5 bg-[#1877F2] text-white text-xs font-medium rounded-lg hover:bg-[#166FE5] transition-colors flex items-center justify-center gap-1">
+                  <span>Meta</span> <ExternalLink className="w-3 h-3" />
+                </a>
+                <a href={`https://adstransparency.google.com/?region=anywhere&text="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
+                   className="px-2 py-1.5 bg-[#4285F4] text-white text-xs font-medium rounded-lg hover:bg-[#3367D6] transition-colors flex items-center justify-center gap-1">
+                  <span>Google</span> <ExternalLink className="w-3 h-3" />
+                </a>
+                <a href={`https://www.linkedin.com/ad-library/search?accountOwner="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
+                   className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#0A66C2] hover:bg-[#004182] ring-2 ring-[#0A66C2] ring-offset-1' : 'bg-[#0A66C2] hover:bg-[#004182]'}`}>
+                  <span>LinkedIn{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
+                </a>
+                <a href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
+                   className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : project.businessModel === 'b2c' ? 'bg-black hover:bg-gray-800 ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-gray-800'}`}>
+                  <span>TikTok{project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
-            <textarea value={inputs.paidMediaContent} onChange={(e) => updateInput('paidMediaContent', e.target.value)}
-              placeholder={project.businessModel === 'b2b'
-                ? `Document paid media presence from ad libraries:
 
-• LinkedIn (PRIORITY): Sponsored content? InMail campaigns? Lead gen ads?
-• Google Ads: Search ads for key terms? Display/remarketing?
-• Meta (FB/IG): Brand awareness campaigns? Retargeting?
-• Trade publication sponsorships or programmatic placements?
-• Conference/webinar sponsorships advertised?
-• Messaging: What pain points or solutions are they promoting?
-• N/A if no paid media found...`
-                : `Document paid media presence from ad libraries:
+            <div>
+              <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Hashtag search</div>
+              <div className="grid grid-cols-2 gap-2">
+                <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
+                   className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
+                  <span>Instagram #</span> <ExternalLink className="w-3 h-3" />
+                </a>
+                <a href={`https://www.linkedin.com/search/results/content/?keywords=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
+                   className="px-2 py-1.5 bg-[#0A66C2] text-white text-xs font-medium rounded-lg hover:bg-[#004182] transition-colors flex items-center justify-center gap-1">
+                  <span>LinkedIn #</span> <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
 
-• Meta (FB/IG): Active ads? How many? Creative themes? Target signals?
-• TikTok: Video ads? Spark ads? Creative quality?
-• Google Ads: Search/display/YouTube ads running? Volume?
-• Creative quality: Distinctive or generic? Consistent with brand?
-• Messaging: What value props are they paying to promote?
-• Sponsorships: Podcast, event, or sports sponsorships visible?
-• N/A if no paid media found...`} 
-              className="w-full h-32 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            <div>
+              <label className="text-xs font-medium text-[#666666] mb-1 block">Your notes</label>
+              <textarea value={inputs.campaignContent} onChange={(e) => updateInput('campaignContent', e.target.value)}
+                placeholder={`Anything the auto-check missed. Most useful:
+
+• Named campaigns and where they run
+• Whether one idea threads them together, or they are separate bursts
+• Whether paid creative matches the organic work
+• Whether anyone outside the brand has picked the idea up`} 
+                className="w-full h-28 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+            </div>
           </div>
         )}
       </div>
+
+      {/* Third-party conversation, auto only */}
+      {inputs.thirdPartyAuto && (
+        <div className="card p-4 mb-4">
+          <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Third-Party Conversation</h3>
+          <AutoPanel content={inputs.thirdPartyAuto} />
+        </div>
+      )}
 
       {/* Observations - Simplified */}
       <div className="card p-4 mb-4">
@@ -4380,7 +4836,7 @@ Example:
   );
 }
 // Report Page
-function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onPrev, profile }) {
+function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, onPrev, profile, compassResults = [], savedBenchmark = null }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isScoring, setIsScoring] = useState(false);
@@ -4419,6 +4875,8 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
     services: true,
     conclusions: true,
     justification: false,
+    campaign: true,
+    benchmark: true,
     evaluated: false,
     readouts: false,
     readoutWebsite: false,
@@ -4428,6 +4886,9 @@ function ReportPage({ project, scores, setScores, assessments, apiKey, onSave, o
   });
   const [animatedScore, setAnimatedScore] = useState(0);
   const chartRef = useRef(null);
+  const benchmarkSpreadRef = useRef(null);
+  const benchmarkPositionRef = useRef(null);
+  const benchmarkRadarRef = useRef(null);
   
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
@@ -4507,7 +4968,7 @@ ${(() => {
 
 SOCIAL MEDIA:
 ${cap(assessments.social.content)}
-${[field('Glassdoor', cap(assessments.social.glassdoorContent, 400)), field('Employee Advocacy', cap(assessments.social.employeeAdvocacy, 300)), field('Paid Media', cap(assessments.social.paidMediaContent, 300)), field('Awards', cap(assessments.social.awardsRecognition, 300)), field('WIPO', assessments.social.wipoContent), field('Notes', assessments.social.observations)].filter(Boolean).join('\n')}
+${[field('Glassdoor', cap([assessments.social.glassdoorAuto, assessments.social.glassdoorContent].filter(Boolean).join('\n'), 400)), field('Employee Advocacy', cap(assessments.social.employeeAdvocacy, 300)), field('Campaign & Paid Signals', cap([assessments.social.campaignAuto, assessments.social.campaignContent, assessments.social.paidMediaContent, assessments.social.hashtagContent].filter(Boolean).join('\n'), 600)), field('Awards', cap(assessments.social.awardsRecognition, 300)), field('WIPO', assessments.social.wipoContent), field('Notes', assessments.social.observations)].filter(Boolean).join('\n')}
 YouTube: ${assessments.social.youtubeContent?.includes('[API Data]') ? 'Verified metrics included' : 'Manual only'}
 
 AI REPUTATION:
@@ -4577,6 +5038,29 @@ SCORING NOTES:
 - Business model: ${project.businessModel.toUpperCase()}. ${project.businessModel === 'b2b' ? 'LinkedIn 3x. Trade press over mainstream. Long-form over short-form. Low TikTok weight.' : project.businessModel === 'b2c' ? 'All consumer social weighted. TikTok relevant if <40 audience. Consumer reviews critical. Mainstream media over trade press.' : 'Weight LinkedIn for B2B, consumer channels for B2C. Both trade and mainstream press matter.'}
 - Recency: weight last 3 months more heavily. Evidence tiers: major publications/verified data (strong), industry/social proof (moderate), self-reported/single instance (weak).
 
+CAMPAIGN COHERENCE ASSESSMENT (v2.9):
+
+Look across ALL the evidence above together, website, social, paid media, hashtags, and earned media, and determine whether this brand's marketing is held together by a strategy and a creative idea, or whether it is isolated tactical activity.
+
+CRITICAL DIVISION OF LABOUR. Read this carefully, it prevents double counting:
+- The eight attribute scores above judge HOW GOOD THE WORK IS. Score SENTIENT on creative quality, craft, distinctiveness and how well execution holds together across channels. Score COGENT on strategic intelligence, targeting and measurement. Judge the work on its merits exactly as you normally would.
+- The campaign coherence level below judges ONLY WHETHER AN IDEA IS HOLDING THE WORK TOGETHER. It is about the presence, coherence and reach of a campaign idea. It says NOTHING about craft quality. A beautifully crafted set of unconnected posts is high SENTIENT and low campaign coherence. A crude but genuinely threaded campaign is the reverse.
+
+${CAMPAIGN_EVIDENCE_RULE}
+
+THE LADDER, assign exactly one level from 0 to 5:
+
+${CAMPAIGN_LADDER.map(l => `LEVEL ${l.level} — ${l.name}: ${l.summary}
+${l.description}
+Signals: ${l.signals.join('; ')}`).join('\n\n')}
+
+RULES:
+- If no campaign activity is observable at all, that is LEVEL 0, not null.
+- Judge the highest level the brand's STRONGEST campaign genuinely reaches. Do not average across campaigns.
+- Name the specific campaigns you identified. If you cannot name one, say so plainly and score accordingly.
+- Level 5 requires publicly observable evidence of influence. Do not infer impact from the brand's own marketing claims.
+- Be sceptical. A hashtag is not a campaign. A content series is not a campaign. Most brands sit at 1 or 2.
+
 SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 - AWAKE: Executive Visibility, PR & Media Relations, Thought Leadership Content
 - AWARE: Audience Research, Social Media Strategy, Community Management, Influencer & Creator Strategy, GEO
@@ -4592,6 +5076,17 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
   "headline": "Single pithy sentence (max 20 words) capturing brand state and primary opportunity. Specific, not generic.",
   "conclusion": "2-3 sentences naming the specific transformation available. Reference actual findings. No generic phrases.",
   "justification": "Under 150 words. Why the overall score is what it is. Call out notably high/low scores with evidence.",
+  "campaignCoherence": {
+    "level": 0-5,
+    "levelName": "Ad hoc|Themed|Packaged|Integrated|Platform|Consequential",
+    "confidence": "low|medium|high",
+    "verdict": "One sentence. Is this brand's marketing strategy-led or activity-led? Direct, no hedging.",
+    "campaigns": [
+      { "name": "Campaign name, or a plain description if unnamed", "channels": ["where it appears"], "idea": "The strategic premise and creative idea in one line, or state that none is evident.", "evidence": "What you actually observed. Under 40 words." }
+    ],
+    "rationale": "Why this level and not the one above or below. Reference the ladder signals. Under 70 words.",
+    "toNextLevel": "The specific move that would take this brand to the next level of the ladder. Brand-specific, under 40 words."
+  },
   "AWAKE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "What was observed, cited evidence, under 80 words.", "impact": "What is pushing this score up or down, good and bad, specific to this brand. Under 50 words.", "gaps": ["max 3 items"], "actions": "The 1-2 concrete moves that would raise this score for this brand. Specific, not generic. Under 40 words.", "opportunity": "Relevant service area recommendation." },
   "AWARE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
   "REFLECTIVE": { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
@@ -4614,7 +5109,19 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
             parsed[attr.id] && typeof parsed[attr.id].score === 'number'
           );
           if (hasAtLeastOneScore) {
-            setScores(parsed);
+            // The model scores the eight attributes on their own merits and
+            // reports campaign coherence separately. The modifier is applied
+            // here, in code, so the adjustment is deterministic, auditable and
+            // identical for identical inputs. Never let the model do the maths.
+            const level = parsed.campaignCoherence?.level;
+            const adjusted = applyCampaignModifiers(parsed, level);
+            adjusted.campaignCoherence = {
+              ...(parsed.campaignCoherence || {}),
+              level: Number.isFinite(Number(level)) ? Math.max(0, Math.min(5, Math.round(Number(level)))) : null,
+              appliedAt: new Date().toISOString(),
+              frameworkVersion: FRAMEWORK_VERSION,
+            };
+            setScores(adjusted);
           } else {
             setScoringError('AI response was missing score data. Please try again.');
             console.error('Parsed but missing scores:', parsed);
@@ -4814,6 +5321,36 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
   const stage = getMaturityStage(overall);
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
+  // ── Campaign coherence ──────────────────────────────────────
+  const campaign = scores?.campaignCoherence || null;
+  const campaignLevel = campaign && Number.isFinite(Number(campaign.level)) ? Number(campaign.level) : null;
+  const campaignStage = campaignLevel !== null ? getCampaignLevel(campaignLevel) : null;
+  const campaignAdjustment = (attrId) => scores[attrId]?.campaignModifierApplied ?? scores[attrId]?.campaignModifier ?? 0;
+  const campaignAffected = campaignLevel !== null
+    ? ATTRIBUTES.filter(a => campaignAdjustment(a.id) !== 0)
+    : [];
+
+  // ── Benchmark ───────────────────────────────────────────────
+  // A saved or shared report carries its own frozen snapshot. A live report
+  // builds one now, which is then frozen when the assessment is saved.
+  // A stored snapshot is discarded if the brand has since been rescored, so a
+  // report never shows a comparison drawn against a score it no longer holds.
+  // Computed directly rather than memoised: this sits after early returns,
+  // so a hook here would break hook ordering.
+  const snapshotStillValid = savedBenchmark && savedBenchmark.brandTotal === overall;
+  const benchmark = snapshotStillValid ? savedBenchmark : buildBenchmarkSnapshot(compassResults, {
+    industry: project.industry,
+    industryName,
+    brandName: project.brandName,
+    totalScore: overall,
+    scores,
+  });
+
+  // Shaped for ComparisonSpiderChart, which expects a scores-like object.
+  const benchmarkAvgScores = benchmark
+    ? ATTRIBUTES.reduce((acc, attr) => { acc[attr.id] = benchmark.attrAvgs?.[attr.id] || 0; return acc; }, {})
+    : null;
+
   const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
   
   // Generate 12 recommendations from lowest scoring attributes
@@ -4862,11 +5399,14 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
   if (assessments.website?.images?.length > 0) evaluatedInputs.push(`${assessments.website.images.length} website screenshot(s) analyzed for brand alignment, storytelling, and visual consistency`);
   
   // Social Media inputs
-  if (assessments.social?.linkedinAbout) evaluatedInputs.push('LinkedIn company profile and positioning');
+  if (assessments.social?.linkedinAuto || assessments.social?.linkedinAbout) evaluatedInputs.push('LinkedIn company profile and positioning');
   if (assessments.social?.linkedinPosts) evaluatedInputs.push('LinkedIn posts and engagement metrics');
-  if (assessments.social?.xContent) evaluatedInputs.push('X (Twitter) content and voice');
-  if (assessments.social?.instagramContent) evaluatedInputs.push('Instagram presence and visual brand');
-  if (assessments.social?.youtubeContent) evaluatedInputs.push('YouTube channel and video content');
+  if (assessments.social?.xAuto || assessments.social?.xContent) evaluatedInputs.push('X (Twitter) content and voice');
+  if (assessments.social?.instagramAuto || assessments.social?.instagramContent) evaluatedInputs.push('Instagram presence and visual brand');
+  if (assessments.social?.youtubeAuto || assessments.social?.youtubeContent) evaluatedInputs.push('YouTube channel and video content');
+  if (assessments.social?.otherPlatformsAuto) evaluatedInputs.push('Facebook, TikTok, Bluesky and Substack presence');
+  if (assessments.social?.campaignAuto || assessments.social?.campaignContent || assessments.social?.paidMediaContent) evaluatedInputs.push('campaign activity, paid media and hashtag signals across platforms');
+  if (assessments.social?.thirdPartyAuto) evaluatedInputs.push('third-party social conversation and sentiment');
   if (assessments.social?.socialImages?.length > 0) evaluatedInputs.push(`${assessments.social.socialImages.length} social media screenshot(s)`);
   
   // AI Reputation inputs
@@ -4928,7 +5468,35 @@ ATTRIBUTE SCORES
 ${subDivider}
 ${attrScoresText}
 
+${campaignStage ? `${subDivider}
+CAMPAIGN COHERENCE
 ${subDivider}
+Level ${campaignStage.level} of 5: ${campaignStage.name}
+${campaignStage.summary}
+${campaign.verdict ? `\nVerdict: ${campaign.verdict}` : ''}
+${campaign.rationale ? `Why this level: ${campaign.rationale}` : ''}
+${campaign.toNextLevel ? `To reach level ${Math.min(5, campaignStage.level + 1)}: ${campaign.toNextLevel}` : ''}
+${Array.isArray(campaign.campaigns) && campaign.campaigns.length ? `\nCampaigns identified:\n${campaign.campaigns.map(c => `  • ${c.name}${c.channels?.length ? ` (${c.channels.join(', ')})` : ''}${c.idea ? `\n    Idea: ${c.idea}` : ''}${c.evidence ? `\n    Evidence: ${c.evidence}` : ''}`).join('\n')}` : ''}
+${campaignAffected.length ? `\nScore adjustment applied:\n${campaignAffected.map(a => `  • ${a.name}: ${scores[a.id]?.baseScore} ${campaignAdjustment(a.id) > 0 ? '+' : ''}${campaignAdjustment(a.id)} = ${scores[a.id]?.score}`).join('\n')}\n(Attribute scores judge quality of work. Campaign coherence is scored separately and applied here.)` : ''}
+
+` : ''}${benchmark ? `${subDivider}
+BENCHMARK COMPARISON
+${subDivider}
+Cohort: ${benchmark.cohortLabel} (n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''})
+${benchmark.fallbackReason ? `Note: ${benchmark.fallbackReason}\n` : ''}
+Overall: ${overall} vs cohort average ${benchmark.avgScore} (${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore})
+Percentile in cohort: ${benchmark.percentile ?? 'n/a'}
+All assessed brands average: ${benchmark.allBrandsAvg}
+
+Attribute vs cohort average:
+${ATTRIBUTES.map(a => {
+  const b = benchmark.attrAvgs?.[a.id] ?? 0;
+  const s = scores[a.id]?.score || 0;
+  const d = s - b;
+  return `  ${a.name.padEnd(13)} ${String(s).padStart(3)}  vs ${String(b).padStart(3)}  (${d > 0 ? '+' : ''}${d})`;
+}).join('\n')}
+
+` : ''}${subDivider}
 KEY STRENGTHS
 ${subDivider}
 ${strengths}
@@ -5283,6 +5851,101 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         y += 6;
       });
 
+      // ========== CAMPAIGN COHERENCE ==========
+      if (campaignStage) {
+        addSection('CAMPAIGN COHERENCE');
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(0, 0, 0);
+        checkPage();
+        pdf.text(`Level ${campaignStage.level} of 5: ${campaignStage.name}`, margin, y);
+        y += 7;
+        addParagraph(campaignStage.summary);
+        if (campaign.verdict) addParagraph(campaign.verdict);
+        addParagraph(campaignStage.description);
+        if (campaign.rationale) addParagraph(`Why this level: ${campaign.rationale}`);
+        if (campaign.toNextLevel) addParagraph(`To reach level ${Math.min(5, campaignStage.level + 1)}: ${campaign.toNextLevel}`);
+
+        if (Array.isArray(campaign.campaigns) && campaign.campaigns.length) {
+          campaign.campaigns.forEach(c => {
+            checkPage();
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(0, 0, 0);
+            pdf.text(`${c.name}${c.channels?.length ? ` (${c.channels.join(', ')})` : ''}`, margin, y);
+            y += 5;
+            if (c.idea) addParagraph(`Idea: ${c.idea}`, 9);
+            if (c.evidence) addParagraph(c.evidence, 9);
+          });
+        }
+
+        if (campaignAffected.length) {
+          checkPage();
+          pdf.setFontSize(9);
+          pdf.setFont('helvetica', 'italic');
+          pdf.setTextColor(100, 100, 100);
+          pdf.text('Score adjustment (attribute scores judge quality of work; campaign coherence applied separately):', margin, y);
+          y += 5;
+          pdf.setFont('helvetica', 'normal');
+          campaignAffected.forEach(a => {
+            checkPage();
+            const adj = campaignAdjustment(a.id);
+            pdf.text(`${a.name}: ${scores[a.id]?.baseScore} ${adj > 0 ? '+' : ''}${adj} = ${scores[a.id]?.score}`, margin + 4, y);
+            y += 4.5;
+          });
+          y += 3;
+        }
+      }
+
+      // ========== BENCHMARK COMPARISON ==========
+      if (benchmark) {
+        addSection('BENCHMARK COMPARISON');
+        addParagraph(`Cohort: ${benchmark.cohortLabel} (n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}).${benchmark.fallbackReason ? ` ${benchmark.fallbackReason}` : ''}`, 9);
+        addParagraph(`${project.brandName} scores ${overall} against a cohort average of ${benchmark.avgScore}, a difference of ${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore} points, placing the brand in the ${benchmark.percentile ?? 'n/a'}${benchmark.percentile != null ? 'th' : ''} percentile of its cohort. The average across all assessed brands is ${benchmark.allBrandsAvg}.`);
+
+        // Benchmark charts, captured from the live DOM the same way the radar is
+        for (const [ref, gap] of [[benchmarkPositionRef, 6], [benchmarkSpreadRef, 6]]) {
+          if (!ref.current) continue;
+          try {
+            const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', logging: false });
+            const imgW = contentWidth;
+            const imgH = (canvas.height * imgW) / canvas.width;
+            if (y + imgH > pageHeight - 20) { pdf.addPage(); y = margin; }
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, y, imgW, imgH);
+            y += imgH + gap;
+          } catch (err) {
+            console.warn('Could not capture benchmark chart:', err);
+          }
+        }
+
+        // Text table as a durable fallback, and because numbers beat pictures
+        checkPage();
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(0, 0, 0);
+        pdf.text('Attribute', margin, y);
+        pdf.text(project.brandName.slice(0, 18), margin + 70, y);
+        pdf.text('Cohort', margin + 110, y);
+        pdf.text('Diff', margin + 140, y);
+        y += 5;
+        pdf.setFont('helvetica', 'normal');
+        ATTRIBUTES.forEach(attr => {
+          checkPage();
+          const s = scores[attr.id]?.score || 0;
+          const b = benchmark.attrAvgs?.[attr.id] ?? 0;
+          const d = s - b;
+          pdf.setTextColor(0, 0, 0);
+          pdf.text(attr.name, margin, y);
+          pdf.text(String(s), margin + 70, y);
+          pdf.text(String(b), margin + 110, y);
+          if (d > 0) pdf.setTextColor(5, 150, 105); else if (d < 0) pdf.setTextColor(220, 38, 38);
+          pdf.text(`${d > 0 ? '+' : ''}${d}`, margin + 140, y);
+          y += 5;
+        });
+        pdf.setTextColor(0, 0, 0);
+        y += 3;
+      }
+
       // ========== EXECUTIVE SUMMARY ==========
       addSection('EXECUTIVE SUMMARY');
       addParagraph(`${project.brandName} achieved an overall Brand Consciousness Score of ${overall}/100, placing them in the "${stage.name}" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in ${sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in ${sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.`);
@@ -5606,13 +6269,30 @@ ${content.slice(0, 8000)}`;
         }
       };
 
+      // ── Benchmark charts → PNG ─────────────────────────────────
+      // These are HTML rather than SVG, so they are captured from the live DOM.
+      // Returns null (and the section degrades to its table) if the section is
+      // collapsed or capture fails, rather than failing the whole export.
+      const captureNode = async (ref, width) => {
+        if (!ref?.current) return null;
+        try {
+          const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', logging: false });
+          return { data: canvas.toDataURL('image/png').split(',')[1], w: width, h: Math.round((canvas.height * width) / canvas.width) };
+        } catch (err) {
+          console.warn('Benchmark chart capture failed:', err);
+          return null;
+        }
+      };
+
       // Run summarisation and image generation in parallel
-      const [logoB64, radarB64, matB64, aiSummary, earnedSummary] = await Promise.all([
+      const [logoB64, radarB64, matB64, aiSummary, earnedSummary, bmPositionImg, bmSpreadImg] = await Promise.all([
         fetchLogo(),
         svgToPng(buildOctagonSvg(), 652, 552),
         svgToPng(buildMaturitySvg(), 800, 80),
         summariseSection(assessments.aiReputation?.content || '', 'AI Reputation and Discoverability'),
         summariseSection(assessments.earnedMedia?.content || assessments.earnedMedia?.autoAssessContent || '', 'Earned Media'),
+        captureNode(benchmarkPositionRef, 540),
+        captureNode(benchmarkSpreadRef, 540),
       ]);
 
       // ── Service recommendations ────────────────────────────────
@@ -5939,6 +6619,141 @@ ${content.slice(0, 8000)}`;
               ];
             }),
 
+            // ── CAMPAIGN COHERENCE ───────────────────────────────
+            ...(campaignStage ? [
+              h2('Campaign Coherence', true),
+              new Paragraph({ spacing: { before: 0, after: 80, ...LINE_SPACING }, children: [
+                new TextRun({ text: `Level ${campaignStage.level} of 5`, bold: true, size: 24, font: 'Inter', color: 'E53935' }),
+                new TextRun({ text: `  ${campaignStage.name}`, bold: true, size: 24, font: 'Inter' }),
+              ]}),
+              ...(campaign.verdict ? [new Paragraph({ spacing: { after: 100, ...LINE_SPACING }, children: [
+                new TextRun({ text: clean(campaign.verdict), size: 22, font: 'Inter', italics: true, color: '333333' }),
+              ]})] : []),
+              body(clean(campaignStage.summary)),
+              body(clean(campaignStage.description)),
+              ...(campaign.rationale ? [new Paragraph({ spacing: { after: 80, ...LINE_SPACING }, children: [
+                new TextRun({ text: 'Why this level: ', bold: true, size: 20, font: 'Inter' }),
+                new TextRun({ text: clean(campaign.rationale), size: 20, font: 'Inter' }),
+              ]})] : []),
+              ...(campaign.toNextLevel ? [new Paragraph({ spacing: { after: 120, ...LINE_SPACING }, children: [
+                new TextRun({ text: `To reach level ${Math.min(5, campaignStage.level + 1)}: `, bold: true, size: 20, font: 'Inter' }),
+                new TextRun({ text: clean(campaign.toNextLevel), size: 20, font: 'Inter' }),
+              ]})] : []),
+
+              // Ladder reference table
+              h3('The Coherence Ladder'),
+              new Table({
+                width: { size: 9360, type: WidthType.DXA },
+                columnWidths: [780, 1800, 6780],
+                rows: [
+                  new TableRow({ tableHeader: true, children: [
+                    cell([new TextRun({ text: 'Level', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 780, '1A1A1A', AlignmentType.CENTER),
+                    cell([new TextRun({ text: 'Name', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1800, '1A1A1A'),
+                    cell([new TextRun({ text: 'Definition', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 6780, '1A1A1A'),
+                  ]}),
+                  ...CAMPAIGN_LADDER.map(l => {
+                    const here = l.level === campaignStage.level;
+                    const bg = here ? 'FDECEA' : (l.level % 2 === 0 ? 'FFFFFF' : 'F6F5F2');
+                    return new TableRow({ children: [
+                      cell([new TextRun({ text: String(l.level), bold: true, size: 18, font: 'Inter', color: here ? 'E53935' : '333333' })], 780, bg, AlignmentType.CENTER),
+                      cell([new TextRun({ text: l.name, bold: here, size: 18, font: 'Inter' })], 1800, bg),
+                      cell([new TextRun({ text: clean(l.summary), size: 18, font: 'Inter', color: here ? '1A1A1A' : '666666' })], 6780, bg),
+                    ]});
+                  }),
+                ],
+              }),
+
+              // Campaigns identified
+              ...(Array.isArray(campaign.campaigns) && campaign.campaigns.length ? [
+                h3('Campaigns Identified'),
+                ...campaign.campaigns.flatMap(c => [
+                  new Paragraph({ spacing: { before: 160, after: 40, ...LINE_SPACING }, children: [
+                    new TextRun({ text: clean(c.name), bold: true, size: 21, font: 'Inter' }),
+                    ...(Array.isArray(c.channels) && c.channels.length ? [new TextRun({ text: `  ${c.channels.join(', ')}`, size: 18, font: 'Inter', color: '999999' })] : []),
+                  ]}),
+                  ...(c.idea ? [new Paragraph({ spacing: { after: 40, ...LINE_SPACING }, children: [
+                    new TextRun({ text: 'Idea: ', bold: true, size: 20, font: 'Inter' }),
+                    new TextRun({ text: clean(c.idea), size: 20, font: 'Inter' }),
+                  ]})] : []),
+                  ...(c.evidence ? [body(clean(c.evidence), 120)] : []),
+                ]),
+              ] : []),
+
+              // Adjustment, stated openly
+              ...(campaignAffected.length ? [
+                h3('Score Adjustment'),
+                body('Attribute scores judge the quality of the work. Campaign coherence is scored separately and applied here, so neither is counted twice.', 100),
+                new Table({
+                  width: { size: 9360, type: WidthType.DXA },
+                  columnWidths: [4680, 1560, 1560, 1560],
+                  rows: [
+                    new TableRow({ tableHeader: true, children: [
+                      cell([new TextRun({ text: 'Attribute', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 4680, '1A1A1A'),
+                      cell([new TextRun({ text: 'Base', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
+                      cell([new TextRun({ text: 'Campaign', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
+                      cell([new TextRun({ text: 'Final', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
+                    ]}),
+                    ...campaignAffected.map((attr, i) => {
+                      const adj = campaignAdjustment(attr.id);
+                      const bg = i % 2 === 0 ? 'FFFFFF' : 'F6F5F2';
+                      return new TableRow({ children: [
+                        cell([new TextRun({ text: attr.name, size: 18, font: 'Inter' })], 4680, bg),
+                        cell([new TextRun({ text: String(scores[attr.id]?.baseScore ?? ''), size: 18, font: 'Inter' })], 1560, bg, AlignmentType.CENTER),
+                        cell([new TextRun({ text: `${adj > 0 ? '+' : ''}${adj}`, bold: true, size: 18, font: 'Inter', color: adj > 0 ? '059669' : 'E53935' })], 1560, bg, AlignmentType.CENTER),
+                        cell([new TextRun({ text: String(scores[attr.id]?.score ?? ''), bold: true, size: 18, font: 'Inter' })], 1560, bg, AlignmentType.CENTER),
+                      ]});
+                    }),
+                  ],
+                }),
+              ] : []),
+            ] : []),
+
+            // ── BENCHMARK COMPARISON ─────────────────────────────
+            ...(benchmark ? [
+              h2('Benchmark Comparison', true),
+              new Paragraph({ spacing: { before: 0, after: 120, ...LINE_SPACING }, children: [
+                new TextRun({ text: 'Benchmark basis: ', bold: true, size: 18, font: 'Inter', color: '666666' }),
+                new TextRun({
+                  text: clean(`${benchmark.cohortLabel}, n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}.${benchmark.fallbackReason ? ` ${benchmark.fallbackReason}` : ''}`),
+                  size: 18, font: 'Inter', color: '666666',
+                }),
+              ]}),
+              body(clean(`${project.brandName} scores ${overall} against a cohort average of ${benchmark.avgScore}, a difference of ${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore} points. That places the brand in the ${benchmark.percentile ?? 'n/a'}${benchmark.percentile != null ? 'th' : ''} percentile of its cohort. The average across all assessed brands is ${benchmark.allBrandsAvg}.`), 140),
+
+              ...(bmPositionImg ? [new Paragraph({ spacing: { after: 160 }, children: [
+                new ImageRun({ data: bmPositionImg.data, transformation: { width: bmPositionImg.w, height: bmPositionImg.h }, type: 'png' }),
+              ]})] : []),
+              ...(bmSpreadImg ? [new Paragraph({ spacing: { after: 160 }, children: [
+                new ImageRun({ data: bmSpreadImg.data, transformation: { width: bmSpreadImg.w, height: bmSpreadImg.h }, type: 'png' }),
+              ]})] : []),
+
+              h3('Attribute Detail'),
+              new Table({
+                width: { size: 9360, type: WidthType.DXA },
+                columnWidths: [4680, 1560, 1560, 1560],
+                rows: [
+                  new TableRow({ tableHeader: true, children: [
+                    cell([new TextRun({ text: 'Attribute', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 4680, '1A1A1A'),
+                    cell([new TextRun({ text: project.brandName.slice(0, 20), bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
+                    cell([new TextRun({ text: 'Cohort', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
+                    cell([new TextRun({ text: 'Diff', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
+                  ]}),
+                  ...ATTRIBUTES.map((attr, i) => {
+                    const s = scores[attr.id]?.score || 0;
+                    const b = benchmark.attrAvgs?.[attr.id] ?? 0;
+                    const d = s - b;
+                    const bg = i % 2 === 0 ? 'FFFFFF' : 'F6F5F2';
+                    return new TableRow({ children: [
+                      cell([new TextRun({ text: attr.name, size: 18, font: 'Inter' })], 4680, bg),
+                      cell([new TextRun({ text: String(s), bold: true, size: 18, font: 'Inter', color: hexColor(attr.color) })], 1560, bg, AlignmentType.CENTER),
+                      cell([new TextRun({ text: String(b), size: 18, font: 'Inter', color: '666666' })], 1560, bg, AlignmentType.CENTER),
+                      cell([new TextRun({ text: `${d > 0 ? '+' : ''}${d}`, bold: true, size: 18, font: 'Inter', color: d > 0 ? '059669' : d < 0 ? 'E53935' : '666666' })], 1560, bg, AlignmentType.CENTER),
+                    ]});
+                  }),
+                ],
+              }),
+            ] : []),
+
             // ── WEBSITE ASSESSMENT ───────────────────────────────
             h2('Website Assessment'),
             ...mdParas(extractSummary(assessments.website?.content || '')),
@@ -6121,11 +6936,28 @@ ${content.slice(0, 8000)}`;
               <div key={attr.id} className="card p-4 border-l-4" style={{ borderLeftColor: attr.color }}>
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
-                  <div>
+                  <div className="min-w-0">
                     <h4 className="font-semibold text-[#1A1A1A] text-sm">{attr.name}</h4>
                     <p className="text-xs text-[#666666]">{attr.fullName}</p>
                   </div>
                 </div>
+                {campaignAdjustment(attr.id) !== 0 && (
+                  <p className="text-[10px] text-[#999] mb-2 tabular-nums">
+                    {scores[attr.id]?.baseScore} base
+                    <span className={campaignAdjustment(attr.id) > 0 ? ' text-[#059669]' : ' text-[#E53935]'}>
+                      {' '}{campaignAdjustment(attr.id) > 0 ? '+' : ''}{campaignAdjustment(attr.id)}
+                    </span>{' '}campaign coherence
+                  </p>
+                )}
+                {benchmark && (
+                  <p className="text-[10px] text-[#999] mb-2 tabular-nums">
+                    {benchmark.cohortLabel} average {benchmark.attrAvgs?.[attr.id] ?? 0}
+                    {(() => {
+                      const d = (scores[attr.id]?.score || 0) - (benchmark.attrAvgs?.[attr.id] ?? 0);
+                      return <span className={d > 0 ? ' text-[#059669]' : d < 0 ? ' text-[#E53935]' : ''}>{' '}({d > 0 ? '+' : ''}{d})</span>;
+                    })()}
+                  </p>
+                )}
                 <p className="text-xs text-[#333333] leading-relaxed">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
                 {scores[attr.id]?.impact && (
                   <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
@@ -6141,6 +6973,157 @@ ${content.slice(0, 8000)}`;
           </div>
         )}
       </div>
+
+      {/* Campaign Coherence - Collapsible */}
+      {campaignStage && (
+        <div className="mb-6">
+          <button
+            onClick={() => toggleSection('campaign')}
+            className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
+          >
+            <span>CAMPAIGN COHERENCE</span>
+            <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.campaign ? 'rotate-180' : ''}`} />
+          </button>
+          {expandedSections.campaign && (
+            <div className="animate-fade-in space-y-3">
+              <div className="card p-5">
+                <div className="flex flex-wrap items-start gap-4 mb-4">
+                  <div className="text-center flex-shrink-0">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
+                      {campaignStage.level}
+                    </div>
+                    <div className="text-[10px] text-[#666666] mt-1">of 5</div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-lg font-bold text-[#1A1A1A]">{campaignStage.name}</div>
+                    <p className="text-sm text-[#666666] leading-relaxed mb-2">{campaignStage.summary}</p>
+                    {campaign.verdict && (
+                      <p className="text-sm text-[#1A1A1A] font-medium leading-relaxed">{campaign.verdict}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Ladder */}
+                <div className="flex gap-1 mb-3">
+                  {CAMPAIGN_LADDER.map(l => (
+                    <div key={l.level} className="flex-1 text-center">
+                      <div className={`h-1.5 rounded-full mb-1 ${l.level <= campaignStage.level ? 'bg-[#E53935]' : 'bg-[#E8E6E1]'}`} />
+                      <div className={`text-[9px] leading-tight ${l.level === campaignStage.level ? 'text-[#1A1A1A] font-semibold' : 'text-[#999]'}`}>
+                        {l.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-[#333333] leading-relaxed">{campaignStage.description}</p>
+
+                {campaign.rationale && (
+                  <p className="text-xs text-[#333333] mt-2 leading-relaxed">
+                    <span className="font-semibold">Why this level:</span> {campaign.rationale}
+                  </p>
+                )}
+                {campaign.toNextLevel && (
+                  <p className="text-xs text-[#333333] mt-2 leading-relaxed">
+                    <span className="font-semibold">To reach level {Math.min(5, campaignStage.level + 1)}:</span> {campaign.toNextLevel}
+                  </p>
+                )}
+                {campaign.confidence && (
+                  <p className="text-[10px] text-[#999] mt-2 uppercase tracking-wide">Confidence: {campaign.confidence}</p>
+                )}
+              </div>
+
+              {/* Detected campaigns */}
+              {Array.isArray(campaign.campaigns) && campaign.campaigns.length > 0 && (
+                <div className="grid md:grid-cols-2 gap-3">
+                  {campaign.campaigns.map((c, i) => (
+                    <div key={i} className="card p-4">
+                      <h4 className="font-semibold text-[#1A1A1A] text-sm mb-1">{c.name}</h4>
+                      {Array.isArray(c.channels) && c.channels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {c.channels.map((ch, j) => (
+                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#F0EEEA] text-[#666666] rounded-full">{ch}</span>
+                          ))}
+                        </div>
+                      )}
+                      {c.idea && <p className="text-xs text-[#333333] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
+                      {c.evidence && <p className="text-xs text-[#666666] leading-relaxed">{c.evidence}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Score adjustment, shown openly */}
+              {campaignAffected.length > 0 && (
+                <div className="card p-4">
+                  <h4 className="text-sm font-semibold text-[#1A1A1A] mb-1">Score Adjustment</h4>
+                  <p className="text-xs text-[#666666] mb-3 leading-relaxed">
+                    Attribute scores judge the quality of the work. Campaign coherence is scored separately and applied here, so the two are never counted twice.
+                    Level {campaignStage.level} adjusts {CAMPAIGN_MODIFIER_ATTRIBUTES.primary.map(id => ATTRIBUTES.find(a => a.id === id)?.name).join(' and ')} by {CAMPAIGN_MODIFIERS[campaignStage.level].primary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].primary}, and {CAMPAIGN_MODIFIER_ATTRIBUTES.secondary.map(id => ATTRIBUTES.find(a => a.id === id)?.name).join(', ')} by {CAMPAIGN_MODIFIERS[campaignStage.level].secondary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].secondary}.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {campaignAffected.map(attr => {
+                      const adj = campaignAdjustment(attr.id);
+                      return (
+                        <div key={attr.id} className="flex items-center justify-between bg-[#F8F7F5] rounded px-2.5 py-1.5">
+                          <span className="text-xs font-medium text-[#1A1A1A] truncate">{attr.name}</span>
+                          <span className="text-xs tabular-nums text-[#666666] flex-shrink-0 ml-2">
+                            {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
+                            <span className={adj > 0 ? 'text-[#059669] font-semibold' : 'text-[#E53935] font-semibold'}> {adj > 0 ? '+' : ''}{adj} </span>
+                            <span className="font-bold text-[#1A1A1A]">{scores[attr.id]?.score}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Industry Benchmark - Collapsible */}
+      {benchmark && (
+        <div className="mb-6">
+          <button
+            onClick={() => toggleSection('benchmark')}
+            className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
+          >
+            <span>BENCHMARK COMPARISON</span>
+            <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.benchmark ? 'rotate-180' : ''}`} />
+          </button>
+          {expandedSections.benchmark && (
+            <div className="animate-fade-in space-y-3">
+              <BenchmarkProvenance benchmark={benchmark} />
+
+              <div ref={benchmarkPositionRef}>
+                <BenchmarkPositionBar benchmark={benchmark} brandName={project.brandName} />
+              </div>
+
+              <div ref={benchmarkSpreadRef}>
+                <BenchmarkSpread benchmark={benchmark} brandName={project.brandName} />
+              </div>
+
+              <div className="bg-white border border-[#E8E6E1] rounded p-5" ref={benchmarkRadarRef}>
+                <div className="mb-3">
+                  <h3 className="font-semibold text-[#1A1A1A] text-sm">Profile Against Benchmark</h3>
+                  <p className="text-xs text-[#666666] mt-1">
+                    {project.brandName} in solid, {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
+                  </p>
+                </div>
+                <div className="flex justify-center">
+                  <ComparisonSpiderChart
+                    brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall, scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores[a.id]?.score || 0; return acc; }, {}) }]}
+                    size={320}
+                    industryAvg={benchmarkAvgScores}
+                    avgLabel={`${benchmark.cohortLabel} avg`}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recommendations - Collapsible */}
       <div className="mb-6">
@@ -8938,7 +9921,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       if (sortBy === 'date-asc') return (x.a.project.date || '').localeCompare(y.a.project.date || '');
       if (sortBy === 'score-desc') return (y.overallScore || 0) - (x.overallScore || 0);
       if (sortBy === 'score-asc') return (x.overallScore || 0) - (y.overallScore || 0);
-      if (sortBy === 'name') return a.project.brandName.localeCompare(y.a.project.brandName);
+      if (sortBy === 'name') return x.a.project.brandName.localeCompare(y.a.project.brandName);
       return 0;
     });
 
@@ -9145,6 +10128,14 @@ function SharedReportView({ report, onClose }) {
   const stage = getMaturityStage(overall);
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
   const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
+
+  // A shared report is a frozen record. Campaign level and benchmark both
+  // travel inside the shared payload, so the recipient sees exactly the same
+  // numbers the assessor did, with no access to the live corpus.
+  const sharedCampaign = scores?.campaignCoherence || null;
+  const sharedCampaignStage = sharedCampaign && Number.isFinite(Number(sharedCampaign.level))
+    ? getCampaignLevel(Number(sharedCampaign.level)) : null;
+  const sharedBenchmark = project?.benchmarkSnapshot || null;
 
   // Generate recommendations for shared view
   const recommendations = [];
@@ -9373,6 +10364,62 @@ function SharedReportView({ report, onClose }) {
             </div>
           );
         })()}
+
+        {/* Campaign Coherence */}
+        {sharedCampaignStage && (
+          <>
+            <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">CAMPAIGN COHERENCE</h3>
+            <div className="card p-5 mb-8">
+              <div className="flex flex-wrap items-start gap-4 mb-4">
+                <div className="text-center flex-shrink-0">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
+                    {sharedCampaignStage.level}
+                  </div>
+                  <div className="text-[10px] text-[#666666] mt-1">of 5</div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-lg font-bold text-[#1A1A1A]">{sharedCampaignStage.name}</div>
+                  <p className="text-sm text-[#666666] leading-relaxed mb-2">{sharedCampaignStage.summary}</p>
+                  {sharedCampaign.verdict && <p className="text-sm text-[#1A1A1A] font-medium leading-relaxed">{sharedCampaign.verdict}</p>}
+                </div>
+              </div>
+              <div className="flex gap-1 mb-3">
+                {CAMPAIGN_LADDER.map(l => (
+                  <div key={l.level} className="flex-1 text-center">
+                    <div className={`h-1.5 rounded-full mb-1 ${l.level <= sharedCampaignStage.level ? 'bg-[#E53935]' : 'bg-[#E8E6E1]'}`} />
+                    <div className={`text-[9px] leading-tight ${l.level === sharedCampaignStage.level ? 'text-[#1A1A1A] font-semibold' : 'text-[#999]'}`}>{l.name}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-[#333333] leading-relaxed">{sharedCampaignStage.description}</p>
+              {sharedCampaign.rationale && <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">Why this level:</span> {sharedCampaign.rationale}</p>}
+              {sharedCampaign.toNextLevel && <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">To reach level {Math.min(5, sharedCampaignStage.level + 1)}:</span> {sharedCampaign.toNextLevel}</p>}
+              {Array.isArray(sharedCampaign.campaigns) && sharedCampaign.campaigns.length > 0 && (
+                <div className="grid md:grid-cols-2 gap-3 mt-4">
+                  {sharedCampaign.campaigns.map((c, i) => (
+                    <div key={i} className="bg-[#F8F7F5] rounded-lg p-3">
+                      <h4 className="font-semibold text-[#1A1A1A] text-sm mb-1">{c.name}</h4>
+                      {c.idea && <p className="text-xs text-[#333333] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
+                      {c.evidence && <p className="text-xs text-[#666666] leading-relaxed">{c.evidence}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Benchmark */}
+        {sharedBenchmark && (
+          <>
+            <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">BENCHMARK COMPARISON</h3>
+            <div className="space-y-3 mb-8">
+              <BenchmarkProvenance benchmark={sharedBenchmark} />
+              <BenchmarkPositionBar benchmark={sharedBenchmark} brandName={project.brandName} />
+              <BenchmarkSpread benchmark={sharedBenchmark} brandName={project.brandName} />
+            </div>
+          </>
+        )}
 
         {/* Attribute Analysis */}
         <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
@@ -10143,7 +11190,7 @@ function AppContent() {
   });
   const [assessments, setAssessments] = useState({
     website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-    social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+    social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', campaignContent: '', linkedinAuto: '', xAuto: '', instagramAuto: '', youtubeAuto: '', otherPlatformsAuto: '', glassdoorAuto: '', campaignAuto: '', thirdPartyAuto: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
     aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
     earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
   });
@@ -10321,6 +11368,7 @@ function AppContent() {
           scores: r.scores,
           servicesRecommended: r.services_recommended || [],
           savedAt: r.created_at,
+          createdAt: r.created_at,
           isManual: r.is_manual,
           assessorName: r.assessor_name,
           rubricVersion: r.rubric_version || '2.4',
@@ -10411,7 +11459,7 @@ function AppContent() {
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '', additionalProperties: [], primaryLanguage: '' });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
-        social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
+        social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', campaignContent: '', linkedinAuto: '', xAuto: '', instagramAuto: '', youtubeAuto: '', otherPlatformsAuto: '', glassdoorAuto: '', campaignAuto: '', thirdPartyAuto: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [] },
         aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
         earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
       });
@@ -10435,15 +11483,43 @@ function AppContent() {
         website: { ...assessments.website, images: [] },
         social: { ...assessments.social, socialImages: [], instagramImages: [] },
       };
-      
+
+      // Freeze the benchmark at save time. A report is a deliverable: the
+      // comparison a client reads must not silently shift as the corpus grows,
+      // and a shared report has no access to the reader's results.
+      let benchmarkSnapshot = null;
+      if (scores) {
+        const overallForBenchmark = Math.round(
+          Object.entries(scores)
+            .filter(([, val]) => val && typeof val.score === 'number')
+            .reduce((a, [, v]) => a + v.score, 0) / 8
+        );
+        benchmarkSnapshot = buildBenchmarkSnapshot(compassResults, {
+          industry: project.industry,
+          industryName: INDUSTRIES.find(i => i.id === project.industry)?.name || null,
+          brandName: project.brandName,
+          totalScore: overallForBenchmark,
+          scores,
+        });
+      }
+
+      // Stored inside the project blob rather than a new column, so this
+      // needs no Supabase migration. project is already an open JSON field.
+      const projectToSave = benchmarkSnapshot
+        ? { ...project, benchmarkSnapshot }
+        : project;
+
       // Save to Supabase - saved assessments
       const { error: saveError } = await saveAssessment({
-        project,
+        project: projectToSave,
         assessments: assessmentsToSave,
         scores,
       });
       
       if (saveError) throw saveError;
+
+      // Keep the in-memory report on the same frozen numbers as the saved one.
+      if (benchmarkSnapshot) setProject(projectToSave);
 
       // Also save to compass results (summary only)
       if (scores) {
@@ -10473,6 +11549,9 @@ function AppContent() {
             INTENTIONAL: scores.INTENTIONAL?.score || 0,
           },
           servicesRecommended: serviceRecs.slice(0, 6).map(r => r.service?.name || '').filter(Boolean),
+          // Campaign level rides inside scores so it persists without a schema
+          // change and becomes benchmarkable once enough assessments carry it.
+          campaignLevel: scores.campaignCoherence?.level ?? null,
           isManual: false,
           assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
           rubricVersion: FRAMEWORK_VERSION,
@@ -10563,8 +11642,8 @@ function AppContent() {
       assessmentSummary: {
         pagesReviewed: assessment.assessments?.website?.pagesReviewed || '',
         websiteUrl: assessment.assessments?.website?.websiteUrl || assessment.project?.websiteUrl || '',
-        hasLinkedIn: !!assessment.assessments?.social?.linkedinContent,
-        hasX: !!assessment.assessments?.social?.xContent,
+        hasLinkedIn: !!(assessment.assessments?.social?.linkedinAuto || assessment.assessments?.social?.linkedinAbout),
+        hasX: !!(assessment.assessments?.social?.xAuto || assessment.assessments?.social?.xContent),
         hasInstagram: !!assessment.assessments?.social?.instagramBio,
         hasYouTube: !!assessment.assessments?.social?.youtubeContent,
         hasWikipedia: !!assessment.assessments?.social?.wikipediaContent,
@@ -10765,7 +11844,7 @@ function AppContent() {
       {/* Read-only users see simplified welcome page, unless they've loaded a report */}
       {isReadonly ? (
         currentStep === 6 && scores ? (
-          <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(0)} profile={profile} />
+          <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(0)} profile={profile} compassResults={compassResults} savedBenchmark={project.benchmarkSnapshot || null} />
         ) : (
           <ReadOnlyWelcomePage 
             onCompassResults={() => setShowResultsPage(true)}
@@ -10812,7 +11891,7 @@ function AppContent() {
           {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
           {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
           {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
-          {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} />}
+          {currentStep === 6 && <ReportPage project={project} scores={scores} setScores={setScores} assessments={assessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} compassResults={compassResults} savedBenchmark={project.benchmarkSnapshot || null} />}
         </>
       )}
     </div>
