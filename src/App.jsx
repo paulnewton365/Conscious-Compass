@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.21.1';
+const APP_VERSION = '2.21.2';
 import { 
   supabase, 
   signUp, 
@@ -1038,7 +1038,7 @@ function BenchmarkSpread({ benchmark, brandName }) {
       <div className="mb-4">
         <h3 className="font-semibold text-[#1A1A1A] text-sm">Attribute Benchmark Spread</h3>
         <p className="text-xs text-[#666666] mt-1">
-          {brandName} against {benchmark.cohortLabel.toLowerCase()}. The band is the range across the cohort, the line is the cohort average, the dot is {brandName}.
+          {brandName} against {benchmark.cohortLabel.toLowerCase()}. The band is the range across those brands, the line is their average, the dot is {brandName}.
         </p>
       </div>
 
@@ -1108,11 +1108,11 @@ function BenchmarkSpread({ benchmark, brandName }) {
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-0.5 h-3 bg-[#CFD32F] rounded" />
-          <span>Cohort average</span>
+          <span>{benchmark.scope === 'industry' ? 'Sector' : 'All brands'} average</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-6 h-1.5 rounded-full bg-[#1A1A1A]/20" />
-          <span>Cohort range</span>
+          <span>{benchmark.scope === 'industry' ? 'Sector' : 'All brands'} range</span>
         </div>
       </div>
     </div>
@@ -1126,62 +1126,80 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
   const cohort = benchmark.avgScore;
   const all = benchmark.allBrandsAvg;
   const delta = brand - cohort;
+  const isSector = benchmark.scope === 'industry';
+  const scopeNoun = isSector ? 'sector' : 'all brands';
+
+  // Markers collide when the values sit close together, which they usually do.
+  // Reference labels drop to a second row when they are within 10 points of
+  // each other, and the brand pill shifts its anchor near the extremes so it
+  // never runs off the edge of the track.
+  const refsCollide = Math.abs(cohort - all) < 10;
+  const pillAnchor = brand < 12 ? 'left' : brand > 88 ? 'right' : 'center';
+  const pillTransform = pillAnchor === 'left' ? 'translateX(0)' : pillAnchor === 'right' ? 'translateX(-100%)' : 'translateX(-50%)';
 
   return (
     <div className="bg-white border border-[#E8E6E1] rounded p-5">
       <div className="mb-4">
         <h3 className="font-semibold text-[#1A1A1A] text-sm">Overall Position</h3>
         <p className="text-xs text-[#666666] mt-1">
-          Where {brandName} sits against {benchmark.cohortLabel.toLowerCase()} and against every brand assessed.
+          Where {brandName} sits against {benchmark.cohortLabel.toLowerCase()}{isSector ? ' and against every brand assessed' : ''}.
         </p>
       </div>
 
-      <div className="relative h-16 mb-2">
-        <div className="absolute left-0 right-0 top-7 h-2 rounded-full bg-gradient-to-r from-[#94A3B8] via-[#D97706] to-[#6366F1] opacity-25" />
-        {MATURITY_STAGES.slice(1).map(s => (
-          <div key={s.id} className="absolute w-px h-4 bg-[#D9D6D0]" style={{ left: `${s.min}%`, top: 22 }} />
-        ))}
-
-        {/* All-brands average */}
-        <div className="absolute" style={{ left: `${all}%`, top: 20, transform: 'translateX(-50%)' }}>
-          <div className="w-0.5 h-6 bg-[#BBB] rounded mx-auto" />
-          <div className="text-[9px] text-[#999] whitespace-nowrap mt-0.5 text-center">all {all}</div>
-        </div>
-
-        {/* Cohort average */}
-        <div className="absolute" style={{ left: `${cohort}%`, top: 18, transform: 'translateX(-50%)' }}>
-          <div className="w-0.5 h-7 bg-[#CFD32F] rounded mx-auto" />
-          <div className="text-[9px] font-semibold text-[#6B6B00] whitespace-nowrap mt-0.5 text-center">cohort {cohort}</div>
-        </div>
-
-        {/* Brand */}
-        <div className="absolute z-10" style={{ left: `${brand}%`, top: 0, transform: 'translateX(-50%)' }}>
-          <div className="px-2 py-0.5 rounded text-white text-[10px] font-bold whitespace-nowrap"
+      <div className="relative" style={{ height: refsCollide ? 104 : 86 }}>
+        {/* Brand pill, above the track */}
+        <div className="absolute z-20" style={{ left: `${brand}%`, top: 0, transform: pillTransform }}>
+          <div className="px-2 py-0.5 rounded text-white text-[11px] font-bold whitespace-nowrap"
             style={{ backgroundColor: getMaturityStage(brand).color }}>
             {brandName} {brand}
           </div>
-          <div className="w-0.5 h-6 mx-auto" style={{ backgroundColor: getMaturityStage(brand).color }} />
+        </div>
+        <div className="absolute z-20" style={{ left: `${brand}%`, top: 20, transform: 'translateX(-50%)' }}>
+          <div className="w-0.5" style={{ height: 20, backgroundColor: getMaturityStage(brand).color }} />
+        </div>
+
+        {/* Track */}
+        <div className="absolute left-0 right-0 h-2 rounded-full bg-gradient-to-r from-[#94A3B8] via-[#D97706] to-[#6366F1] opacity-25" style={{ top: 38 }} />
+        {MATURITY_STAGES.slice(1).map(st => (
+          <div key={st.id} className="absolute w-px h-2 bg-[#C0BDB8]" style={{ left: `${st.min}%`, top: 38 }} />
+        ))}
+
+        {/* Sector average, first label row */}
+        <div className="absolute z-10" style={{ left: `${cohort}%`, top: 34, transform: 'translateX(-50%)' }}>
+          <div className="w-0.5 h-5 bg-[#CFD32F] rounded mx-auto" />
+          <div className="text-[10px] font-semibold text-[#6B6B00] whitespace-nowrap text-center mt-0.5">
+            {isSector ? 'sector' : 'average'} {cohort}
+          </div>
+        </div>
+
+        {/* All-brands average, dropped to a second row when it would collide */}
+        {isSector && (
+          <div className="absolute z-10" style={{ left: `${all}%`, top: 34, transform: 'translateX(-50%)' }}>
+            <div className="w-0.5 bg-[#BBB] rounded mx-auto" style={{ height: refsCollide ? 38 : 20 }} />
+            <div className="text-[10px] text-[#999] whitespace-nowrap text-center mt-0.5">all {all}</div>
+          </div>
+        )}
+
+        {/* Scale */}
+        <div className="absolute left-0 right-0 flex justify-between text-[10px] text-[#BBB] select-none" style={{ bottom: 0 }}>
+          {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
         </div>
       </div>
 
-      <div className="flex justify-between text-[10px] text-[#BBB] select-none mb-4">
-        {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 pt-3 border-t border-[#E8E6E1]">
+      <div className="grid grid-cols-3 gap-3 pt-3 mt-2 border-t border-[#E8E6E1]">
         <div>
           <div className={`text-lg font-bold ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#E53935]' : 'text-[#1A1A1A]'}`}>
             {delta > 0 ? `+${delta}` : delta}
           </div>
-          <div className="text-[10px] text-[#666666] leading-tight">vs cohort average</div>
+          <div className="text-[10px] text-[#666666] leading-tight">vs {scopeNoun} average</div>
         </div>
         <div>
           <div className="text-lg font-bold text-[#1A1A1A]">{benchmark.percentile ?? '—'}{benchmark.percentile != null ? 'th' : ''}</div>
-          <div className="text-[10px] text-[#666666] leading-tight">percentile in cohort</div>
+          <div className="text-[10px] text-[#666666] leading-tight">percentile in {scopeNoun}</div>
         </div>
         <div>
           <div className="text-lg font-bold text-[#1A1A1A]">{benchmark.count}</div>
-          <div className="text-[10px] text-[#666666] leading-tight">brands in cohort</div>
+          <div className="text-[10px] text-[#666666] leading-tight">brands compared</div>
         </div>
       </div>
     </div>
@@ -5489,7 +5507,7 @@ ${attrScoresText}
 ${campaignStage ? `${subDivider}
 CAMPAIGN COHERENCE
 ${subDivider}
-Level ${campaignStage.level} of 5: ${campaignStage.name}
+${campaignStage.level === 0 ? 'No tier reached' : `Level ${campaignStage.level} of 5`}: ${campaignStage.name}
 ${campaignStage.summary}
 ${campaign.verdict ? `\nVerdict: ${campaign.verdict}` : ''}
 ${campaign.rationale ? `Why this level: ${campaign.rationale}` : ''}
@@ -5500,13 +5518,13 @@ ${campaignAffected.length ? `\nScore adjustment applied:\n${campaignAffected.map
 ` : ''}${benchmark ? `${subDivider}
 BENCHMARK COMPARISON
 ${subDivider}
-Cohort: ${benchmark.cohortLabel} (n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''})
+Benchmarked against: ${benchmark.cohortLabel} (n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''})
 ${benchmark.fallbackReason ? `Note: ${benchmark.fallbackReason}\n` : ''}
-Overall: ${overall} vs cohort average ${benchmark.avgScore} (${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore})
-Percentile in cohort: ${benchmark.percentile ?? 'n/a'}
+Overall: ${overall} vs ${benchmark.scope === 'industry' ? 'sector' : 'all brands'} average ${benchmark.avgScore} (${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore})
+Percentile: ${benchmark.percentile ?? 'n/a'}
 All assessed brands average: ${benchmark.allBrandsAvg}
 
-Attribute vs cohort average:
+Attribute vs ${benchmark.scope === 'industry' ? 'sector' : 'all brands'} average:
 ${ATTRIBUTES.map(a => {
   const b = benchmark.attrAvgs?.[a.id] ?? 0;
   const s = scores[a.id]?.score || 0;
@@ -5876,7 +5894,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(0, 0, 0);
         checkPage();
-        pdf.text(`Level ${campaignStage.level} of 5: ${campaignStage.name}`, margin, y);
+        pdf.text(`${campaignStage.level === 0 ? 'No tier reached' : `Level ${campaignStage.level} of 5`}: ${campaignStage.name}`, margin, y);
         y += 7;
         addParagraph(campaignStage.summary);
         if (campaign.verdict) addParagraph(campaign.verdict);
@@ -5918,8 +5936,8 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
       // ========== BENCHMARK COMPARISON ==========
       if (benchmark) {
         addSection('BENCHMARK COMPARISON');
-        addParagraph(`Cohort: ${benchmark.cohortLabel} (n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}).${benchmark.fallbackReason ? ` ${benchmark.fallbackReason}` : ''}`, 9);
-        addParagraph(`${project.brandName} scores ${overall} against a cohort average of ${benchmark.avgScore}, a difference of ${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore} points, placing the brand in the ${benchmark.percentile ?? 'n/a'}${benchmark.percentile != null ? 'th' : ''} percentile of its cohort. The average across all assessed brands is ${benchmark.allBrandsAvg}.`);
+        addParagraph(`Benchmarked against: ${benchmark.cohortLabel} (n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}).${benchmark.fallbackReason ? ` ${benchmark.fallbackReason}` : ''}`, 9);
+        addParagraph(`${project.brandName} scores ${overall} against a ${benchmark.scope === 'industry' ? 'sector' : 'cross-industry'} average of ${benchmark.avgScore}, a difference of ${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore} points, placing the brand in the ${benchmark.percentile ?? 'n/a'}${benchmark.percentile != null ? 'th' : ''} percentile. The average across all assessed brands is ${benchmark.allBrandsAvg}.`);
 
         // Benchmark charts, captured from the live DOM the same way the radar is
         for (const [ref, gap] of [[benchmarkPositionRef, 6], [benchmarkSpreadRef, 6]]) {
@@ -5943,7 +5961,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         pdf.setTextColor(0, 0, 0);
         pdf.text('Attribute', margin, y);
         pdf.text(project.brandName.slice(0, 18), margin + 70, y);
-        pdf.text('Cohort', margin + 110, y);
+        pdf.text(benchmark.scope === 'industry' ? 'Sector' : 'All', margin + 110, y);
         pdf.text('Diff', margin + 140, y);
         y += 5;
         pdf.setFont('helvetica', 'normal');
@@ -6641,7 +6659,7 @@ ${content.slice(0, 8000)}`;
             ...(campaignStage ? [
               h2('Campaign Coherence', true),
               new Paragraph({ spacing: { before: 0, after: 80, ...LINE_SPACING }, children: [
-                new TextRun({ text: `Level ${campaignStage.level} of 5`, bold: true, size: 24, font: 'Inter', color: 'E53935' }),
+                new TextRun({ text: campaignStage.level === 0 ? 'No tier reached' : `Level ${campaignStage.level} of 5`, bold: true, size: 24, font: 'Inter', color: 'E53935' }),
                 new TextRun({ text: `  ${campaignStage.name}`, bold: true, size: 24, font: 'Inter' }),
               ]}),
               ...(campaign.verdict ? [new Paragraph({ spacing: { after: 100, ...LINE_SPACING }, children: [
@@ -6669,7 +6687,7 @@ ${content.slice(0, 8000)}`;
                     cell([new TextRun({ text: 'Name', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1800, '1A1A1A'),
                     cell([new TextRun({ text: 'Definition', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 6780, '1A1A1A'),
                   ]}),
-                  ...CAMPAIGN_LADDER.map(l => {
+                  ...CAMPAIGN_LADDER.filter(l => l.level > 0).map(l => {
                     const here = l.level === campaignStage.level;
                     const bg = here ? 'FDECEA' : (l.level % 2 === 0 ? 'FFFFFF' : 'F6F5F2');
                     return new TableRow({ children: [
@@ -6736,7 +6754,7 @@ ${content.slice(0, 8000)}`;
                   size: 18, font: 'Inter', color: '666666',
                 }),
               ]}),
-              body(clean(`${project.brandName} scores ${overall} against a cohort average of ${benchmark.avgScore}, a difference of ${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore} points. That places the brand in the ${benchmark.percentile ?? 'n/a'}${benchmark.percentile != null ? 'th' : ''} percentile of its cohort. The average across all assessed brands is ${benchmark.allBrandsAvg}.`), 140),
+              body(clean(`${project.brandName} scores ${overall} against a ${benchmark.scope === 'industry' ? 'sector' : 'cross-industry'} average of ${benchmark.avgScore}, a difference of ${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore} points. That places the brand in the ${benchmark.percentile ?? 'n/a'}${benchmark.percentile != null ? 'th' : ''} percentile. The average across all assessed brands is ${benchmark.allBrandsAvg}.`), 140),
 
               ...(bmPositionImg ? [new Paragraph({ spacing: { after: 160 }, children: [
                 new ImageRun({ data: bmPositionImg.data, transformation: { width: bmPositionImg.w, height: bmPositionImg.h }, type: 'png' }),
@@ -6753,7 +6771,7 @@ ${content.slice(0, 8000)}`;
                   new TableRow({ tableHeader: true, children: [
                     cell([new TextRun({ text: 'Attribute', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 4680, '1A1A1A'),
                     cell([new TextRun({ text: project.brandName.slice(0, 20), bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
-                    cell([new TextRun({ text: 'Cohort', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
+                    cell([new TextRun({ text: benchmark.scope === 'industry' ? 'Sector' : 'All brands', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
                     cell([new TextRun({ text: 'Diff', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
                   ]}),
                   ...ATTRIBUTES.map((attr, i) => {
@@ -7025,9 +7043,9 @@ ${content.slice(0, 8000)}`;
                 <div className="flex flex-wrap items-start gap-4 mb-4">
                   <div className="text-center flex-shrink-0">
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
-                      {campaignStage.level}
+                      {campaignStage.level === 0 ? '—' : campaignStage.level}
                     </div>
-                    <div className="text-[10px] text-[#666666] mt-1">of 5</div>
+                    <div className="text-[10px] text-[#666666] mt-1">{campaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-lg font-bold text-[#1A1A1A]">{campaignStage.name}</div>
@@ -7038,17 +7056,22 @@ ${content.slice(0, 8000)}`;
                   </div>
                 </div>
 
-                {/* Ladder */}
-                <div className="flex gap-1 mb-3">
-                  {CAMPAIGN_LADDER.map(l => (
+                {/* Ladder. Five tiers. Level 0 is the absence of a campaign,
+                    not a rung, so it reads as an empty ladder rather than a bar. */}
+                <div className="flex gap-1 mb-1">
+                  {CAMPAIGN_LADDER.filter(l => l.level > 0).map(l => (
                     <div key={l.level} className="flex-1 text-center">
-                      <div className={`h-1.5 rounded-full mb-1 ${l.level <= campaignStage.level ? 'bg-[#E53935]' : 'bg-[#E8E6E1]'}`} />
+                      <div className={`h-1.5 rounded-full mb-1 ${campaignStage.level >= l.level ? 'bg-[#E53935]' : 'bg-[#E8E6E1]'}`} />
                       <div className={`text-[9px] leading-tight ${l.level === campaignStage.level ? 'text-[#1A1A1A] font-semibold' : 'text-[#999]'}`}>
                         {l.name}
                       </div>
                     </div>
                   ))}
                 </div>
+                {campaignStage.level === 0 && (
+                  <p className="text-[10px] text-[#E53935] font-semibold mb-2">No campaign detected. The brand sits below the first rung.</p>
+                )}
+                <div className="mb-3" />
 
                 <p className="text-xs text-[#333333] leading-relaxed">{campaignStage.description}</p>
 
@@ -7151,7 +7174,7 @@ ${content.slice(0, 8000)}`;
                 <div className="mb-3">
                   <h3 className="font-semibold text-[#1A1A1A] text-sm">Profile Against Benchmark</h3>
                   <p className="text-xs text-[#666666] mt-1">
-                    {project.brandName} in solid, {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
+                    {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
                   </p>
                 </div>
                 <div className="flex justify-center">
@@ -10416,9 +10439,9 @@ function SharedReportView({ report, onClose }) {
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
-                    {sharedCampaignStage.level}
+                    {sharedCampaignStage.level === 0 ? '—' : sharedCampaignStage.level}
                   </div>
-                  <div className="text-[10px] text-[#666666] mt-1">of 5</div>
+                  <div className="text-[10px] text-[#666666] mt-1">{sharedCampaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-lg font-bold text-[#1A1A1A]">{sharedCampaignStage.name}</div>
@@ -10426,14 +10449,18 @@ function SharedReportView({ report, onClose }) {
                   {sharedCampaign.verdict && <p className="text-sm text-[#1A1A1A] font-medium leading-relaxed">{sharedCampaign.verdict}</p>}
                 </div>
               </div>
-              <div className="flex gap-1 mb-3">
-                {CAMPAIGN_LADDER.map(l => (
+              <div className="flex gap-1 mb-1">
+                {CAMPAIGN_LADDER.filter(l => l.level > 0).map(l => (
                   <div key={l.level} className="flex-1 text-center">
-                    <div className={`h-1.5 rounded-full mb-1 ${l.level <= sharedCampaignStage.level ? 'bg-[#E53935]' : 'bg-[#E8E6E1]'}`} />
+                    <div className={`h-1.5 rounded-full mb-1 ${sharedCampaignStage.level >= l.level ? 'bg-[#E53935]' : 'bg-[#E8E6E1]'}`} />
                     <div className={`text-[9px] leading-tight ${l.level === sharedCampaignStage.level ? 'text-[#1A1A1A] font-semibold' : 'text-[#999]'}`}>{l.name}</div>
                   </div>
                 ))}
               </div>
+              {sharedCampaignStage.level === 0 && (
+                <p className="text-[10px] text-[#E53935] font-semibold mb-2">No campaign detected. The brand sits below the first rung.</p>
+              )}
+              <div className="mb-3" />
               <p className="text-xs text-[#333333] leading-relaxed">{sharedCampaignStage.description}</p>
               {sharedCampaign.rationale && <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">Why this level:</span> {sharedCampaign.rationale}</p>}
               {sharedCampaign.toNextLevel && <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">To reach level {Math.min(5, sharedCampaignStage.level + 1)}:</span> {sharedCampaign.toNextLevel}</p>}
