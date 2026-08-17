@@ -9,11 +9,66 @@
 
 import { ATTRIBUTES, MATURITY_STAGES, CAMPAIGN_LADDER } from '../data/rubric';
 
-export const INK = '#1A1A1A';
+// Charts render on the dark deck ground, not in white boxes. A white chart
+// rectangle on a near-black slide reads as a hole punched in the page.
+export const PAPER = '#0D0D0F';   // must match deckExport PAPER
+export const INK = '#FFFFFF';     // primary chart text
 export const RED = '#E53935';
-export const MUTE = '#6B6B6B';
-export const LINE = '#E8E6E1';
-export const LIME = '#CFD32F';
+export const MUTE = '#A0A0A0';    // secondary chart text on dark
+export const LINE = '#3A3A40';    // gridlines on dark
+export const LIME = '#D6E039';
+
+// ── Contrast safety ──────────────────────────────────────────
+// The attribute palette is tuned for coloured dots and fills on screen, not
+// for text. Seven of the eight attribute colours fail WCAG AA as text on a
+// light background (Reflective yellow sits at 1.67:1, effectively invisible).
+// Rather than hand-pick replacements, which would break the moment the
+// palette changes, text colours are adjusted toward the readable direction
+// until they pass. Shape fills are left vivid, since fills do not need to
+// meet a text contrast bar.
+const hexToRgb = (h) => {
+  const x = String(h).replace('#', '');
+  return [0, 2, 4].map(i => parseInt(x.substr(i, 2), 16));
+};
+const rgbToHex = (r, g, b) => '#' + [r, g, b]
+  .map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+
+const relLum = (hex) => {
+  const c = hexToRgb(hex).map(v => v / 255)
+    .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+
+export const contrastRatio = (a, b) => {
+  const l1 = relLum(a), l2 = relLum(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+};
+
+/**
+ * Returns the nearest version of `color` that reads cleanly on `bg`.
+ * Darkens against light backgrounds, lightens against dark ones, preserving
+ * hue so the attribute stays recognisable.
+ */
+export function readable(color, bg = PAPER, target = 4.5) {
+  if (!color) return color;
+  let hex = color.startsWith('#') ? color : `#${color}`;
+  if (contrastRatio(hex, bg) >= target) return hex;
+
+  const bgIsDark = relLum(bg) < 0.5;
+  let [r, g, b] = hexToRgb(hex);
+
+  for (let i = 0; i < 24; i++) {
+    // 12% step toward white on dark backgrounds, toward black on light ones
+    if (bgIsDark) { r += (255 - r) * 0.12; g += (255 - g) * 0.12; b += (255 - b) * 0.12; }
+    else { r *= 0.88; g *= 0.88; b *= 0.88; }
+    hex = rgbToHex(r, g, b);
+    if (contrastRatio(hex, bg) >= target) return hex;
+  }
+  return bgIsDark ? '#FFFFFF' : '#1A1A1A';
+}
+
+/** Same, but returns the bare hex pptxgenjs expects (no leading #). */
+export const readableFlat = (color, bg, target) => readable(color, bg, target).replace('#', '');
 
 const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -80,7 +135,7 @@ export function buildRadarSvg(scores, { overlay = null, size = 620, labelBrand =
 
   const dots = ATTRIBUTES.map((a, i) => {
     const [x, y] = pt(i, brandVals[i]);
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8" fill="${a.color}" stroke="#FFFFFF" stroke-width="3"/>`;
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8" fill="${a.color}" stroke="${PAPER}" stroke-width="3"/>`;
   }).join('');
 
   const labels = ATTRIBUTES.map((a, i) => {
@@ -90,7 +145,7 @@ export function buildRadarSvg(scores, { overlay = null, size = 620, labelBrand =
     const anchor = Math.abs(Math.cos(ang)) < 0.25 ? 'middle' : (Math.cos(ang) > 0 ? 'start' : 'end');
     const v = brandVals[i];
     return `<text x="${x.toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="${INK}">${esc(a.name)}</text>
-<text x="${x.toFixed(1)}" y="${(y + 18).toFixed(1)}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="${a.color}">${v}</text>`;
+<text x="${x.toFixed(1)}" y="${(y + 18).toFixed(1)}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="${readable(a.color, PAPER)}">${v}</text>`;
   }).join('');
 
   const legend = overlayVals ? `
@@ -102,7 +157,7 @@ export function buildRadarSvg(scores, { overlay = null, size = 620, labelBrand =
 </g>` : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}" viewBox="0 0 ${box} ${box}">
-<rect width="${box}" height="${box}" fill="#FFFFFF"/>
+<rect width="${box}" height="${box}" fill="${PAPER}"/>
 ${rings}${spokes}
 ${overlayVals ? poly(overlayVals, MUTE, 'rgba(107,107,107,0.07)', true) : ''}
 ${poly(brandVals, RED, 'rgba(229,57,53,0.14)', false)}
@@ -138,20 +193,20 @@ export function buildMaturitySvg(score, sectorAvg, brandName) {
 
   // Sector marker labels BELOW the track, brand ABOVE it. They cannot collide.
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-<rect width="${W}" height="${H}" fill="#FFFFFF"/>
+<rect width="${W}" height="${H}" fill="${PAPER}"/>
 ${bands}${bandLabels}
 <g>
-  <line x1="${sx.toFixed(1)}" y1="${trackY - 4}" x2="${sx.toFixed(1)}" y2="${trackY + 24}" stroke="#8A8F00" stroke-width="4"/>
-  <text x="${sx.toFixed(1)}" y="${trackY + 92}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#6B6B00">Sector average ${sectorAvg}</text>
-  <line x1="${sx.toFixed(1)}" y1="${trackY + 62}" x2="${sx.toFixed(1)}" y2="${trackY + 74}" stroke="#8A8F00" stroke-width="2"/>
+  <line x1="${sx.toFixed(1)}" y1="${trackY - 4}" x2="${sx.toFixed(1)}" y2="${trackY + 24}" stroke="#D6E039" stroke-width="4"/>
+  <text x="${sx.toFixed(1)}" y="${trackY + 92}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#D6E039">Sector average ${sectorAvg}</text>
+  <line x1="${sx.toFixed(1)}" y1="${trackY + 62}" x2="${sx.toFixed(1)}" y2="${trackY + 74}" stroke="#D6E039" stroke-width="2"/>
 </g>
 <g>
   <rect x="${pillX.toFixed(1)}" y="16" width="${pillW.toFixed(1)}" height="46" rx="10" fill="${stage.color}"/>
-  <text x="${(pillX + pillW / 2).toFixed(1)}" y="46" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">${esc(label)}</text>
+  <text x="${(pillX + pillW / 2).toFixed(1)}" y="46" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="${INK}">${esc(label)}</text>
   <line x1="${bx.toFixed(1)}" y1="62" x2="${bx.toFixed(1)}" y2="${trackY + 4}" stroke="${stage.color}" stroke-width="4"/>
-  <circle cx="${bx.toFixed(1)}" cy="${trackY + 10}" r="12" fill="${stage.color}" stroke="#FFFFFF" stroke-width="4"/>
+  <circle cx="${bx.toFixed(1)}" cy="${trackY + 10}" r="12" fill="${stage.color}" stroke="${PAPER}" stroke-width="4"/>
 </g>
-${[0, 25, 50, 75, 100].map(v => `<text x="${x(v).toFixed(1)}" y="${trackY - 14}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#BBBBBB">${v}</text>`).join('')}
+${[0, 25, 50, 75, 100].map(v => `<text x="${x(v).toFixed(1)}" y="${trackY - 14}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#8A8A90">${v}</text>`).join('')}
 </svg>`;
 }
 
@@ -171,26 +226,26 @@ export function buildSpreadSvg(scores, benchmark, brandName) {
     const d = b - avg;
     return `
 <text x="${labelW}" y="${y + 7}" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="700" fill="${INK}">${esc(a.name)}</text>
-<line x1="${trackX}" y1="${y}" x2="${trackX + trackW}" y2="${y}" stroke="#F2F0EC" stroke-width="2"/>
+<line x1="${trackX}" y1="${y}" x2="${trackX + trackW}" y2="${y}" stroke="#2A2A30" stroke-width="2"/>
 <rect x="${x(rng.min).toFixed(1)}" y="${y - 6}" width="${Math.max(x(rng.max) - x(rng.min), 3).toFixed(1)}" height="12" rx="6" fill="${a.color}" opacity="0.28"/>
 <line x1="${x(avg).toFixed(1)}" y1="${y - 15}" x2="${x(avg).toFixed(1)}" y2="${y + 15}" stroke="${MUTE}" stroke-width="3.5"/>
-<circle cx="${x(b).toFixed(1)}" cy="${y}" r="12" fill="${a.color}" stroke="#FFFFFF" stroke-width="3.5"/>
-<text x="${W - numW + 62}" y="${y + 8}" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" fill="${a.color}">${b}</text>
-<text x="${W - 12}" y="${y + 8}" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="${d > 0 ? '#059669' : d < 0 ? RED : MUTE}">${d > 0 ? '+' : ''}${d}</text>`;
+<circle cx="${x(b).toFixed(1)}" cy="${y}" r="12" fill="${a.color}" stroke="${PAPER}" stroke-width="3.5"/>
+<text x="${W - numW + 62}" y="${y + 8}" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" fill="${readable(a.color, PAPER)}">${b}</text>
+<text x="${W - 12}" y="${y + 8}" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="${d > 0 ? readable('#5BD99B', PAPER) : d < 0 ? readable(RED, PAPER) : MUTE}">${d > 0 ? '+' : ''}${d}</text>`;
   }).join('');
 
   const axisY = top + ATTRIBUTES.length * rowH + 12;
   const axis = [0, 25, 50, 75, 100].map(v =>
-    `<text x="${x(v).toFixed(1)}" y="${axisY}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#BBBBBB">${v}</text>`).join('');
+    `<text x="${x(v).toFixed(1)}" y="${axisY}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#8A8A90">${v}</text>`).join('');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-<rect width="${W}" height="${H}" fill="#FFFFFF"/>
+<rect width="${W}" height="${H}" fill="${PAPER}"/>
 ${rows}${axis}
 <g transform="translate(${trackX}, ${axisY + 38})">
-  <circle cx="8" cy="-6" r="9" fill="${INK}" stroke="#FFFFFF" stroke-width="3"/>
+  <circle cx="8" cy="-6" r="9" fill="${INK}" stroke="${PAPER}" stroke-width="3"/>
   <text x="26" y="0" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="${INK}">${esc(brandName).slice(0, 30)}</text>
-  <line x1="250" y1="-16" x2="250" y2="4" stroke="${MUTE}" stroke-width="3.5"/>
-  <text x="264" y="0" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="${MUTE}">${esc(benchmark?.cohortLabel || 'Sector')} average</text>
+  <line x1="${Math.min(26 + esc(brandName).slice(0, 30).length * 9.2 + 40, trackW - 260)}" y1="-16" x2="${Math.min(26 + esc(brandName).slice(0, 30).length * 9.2 + 40, trackW - 260)}" y2="4" stroke="${MUTE}" stroke-width="3.5"/>
+  <text x="${Math.min(26 + esc(brandName).slice(0, 30).length * 9.2 + 54, trackW - 246)}" y="0" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="${MUTE}">${esc(benchmark?.cohortLabel || 'Sector')} average</text>
 </g>
 </svg>`;
 }
@@ -217,6 +272,6 @@ export function buildLadderSvg(level) {
     : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-<rect width="${W}" height="${H}" fill="#FFFFFF"/>${bars}${none}
+<rect width="${W}" height="${H}" fill="${PAPER}"/>${bars}${none}
 </svg>`;
 }
