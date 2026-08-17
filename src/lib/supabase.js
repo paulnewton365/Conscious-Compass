@@ -197,3 +197,87 @@ export const deleteUser = async (userId) => {
   if (!response.ok) return { error: data.error || 'Delete failed' };
   return { error: null };
 };
+
+// ─────────────────────────────────────────────────────────────
+// CLIENT REPORTS (gated share links)
+//
+// The existing share link base64-encodes the whole payload into the URL, so a
+// password on top of that would be decorative: anyone could decode the URL and
+// read everything. These links work differently.
+//
+// The payload is encrypted IN THE BROWSER with a key derived from the password
+// (PBKDF2, 250k iterations, AES-GCM). Supabase only ever stores ciphertext.
+// The password is never sent anywhere and is not recoverable, including by us.
+// A leaked row is useless without it.
+// ─────────────────────────────────────────────────────────────
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = (str) => Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+
+async function deriveKey(password, salt) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' },
+    base,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+export async function encryptPayload(payload, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(password, salt);
+  const data = enc.encode(JSON.stringify(payload));
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+  return { cipher: b64(cipher), salt: b64(salt), iv: b64(iv) };
+}
+
+export async function decryptPayload({ cipher, salt, iv }, password) {
+  const key = await deriveKey(password, unb64(salt));
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: unb64(iv) }, key, unb64(cipher)
+  );
+  return JSON.parse(dec.decode(plain));
+}
+
+const makeToken = () => b64(crypto.getRandomValues(new Uint8Array(12)))
+  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+export const createClientReport = async ({ brandName, payload, password }) => {
+  const token = makeToken();
+  const { cipher, salt, iv } = await encryptPayload(payload, password);
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase.from('client_reports').insert({
+    token,
+    brand_name: brandName,
+    cipher,
+    salt,
+    iv,
+    created_by: user?.id || null,
+  });
+  return { token, error };
+};
+
+export const fetchClientReport = async (token) => {
+  const { data, error } = await supabase
+    .from('client_reports')
+    .select('token, brand_name, cipher, salt, iv, created_at')
+    .eq('token', token)
+    .maybeSingle();
+  return { data, error };
+};
+
+export const listClientReports = async () => {
+  const { data, error } = await supabase
+    .from('client_reports')
+    .select('token, brand_name, created_at')
+    .order('created_at', { ascending: false });
+  return { data, error };
+};
+
+export const revokeClientReport = async (token) =>
+  supabase.from('client_reports').delete().eq('token', token);

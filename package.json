@@ -1,7 +1,7 @@
 {
   "name": "conscious-compass",
   "private": true,
-  "version": "2.23.2",
+  "version": "2.24.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,7 +18,6 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
     "lucide-react": "^0.562.0",
-    "pptxgenjs": "^3.12.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "^4.1.18",
