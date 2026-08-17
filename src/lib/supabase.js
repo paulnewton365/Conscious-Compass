@@ -247,7 +247,7 @@ export async function decryptPayload({ cipher, salt, iv }, password) {
 const makeToken = () => b64(crypto.getRandomValues(new Uint8Array(12)))
   .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-export const createClientReport = async ({ brandName, payload, password }) => {
+export const createClientReport = async ({ brandName, payload, password, createdByName }) => {
   const token = makeToken();
   const { cipher, salt, iv } = await encryptPayload(payload, password);
   const { data: { user } } = await supabase.auth.getUser();
@@ -258,8 +258,26 @@ export const createClientReport = async ({ brandName, payload, password }) => {
     salt,
     iv,
     created_by: user?.id || null,
+    // Stored at insert rather than joined at read. Reading another user's
+    // profile row would need a policy change, and the issuer's name at the
+    // time of issue is the honest record anyway.
+    created_by_name: createdByName || user?.email || null,
   });
   return { token, error };
+};
+
+// Resets the password on an existing link WITHOUT changing the URL.
+//
+// The payload cannot be decrypted without the old password, so a reset is a
+// re-encryption of freshly rebuilt content rather than a re-key of the stored
+// ciphertext. The token is preserved, so any link already sent keeps working.
+export const resetClientReportPassword = async ({ token, payload, password }) => {
+  const { cipher, salt, iv } = await encryptPayload(payload, password);
+  const { error } = await supabase
+    .from('client_reports')
+    .update({ cipher, salt, iv })
+    .eq('token', token);
+  return { error };
 };
 
 export const fetchClientReport = async (token) => {
@@ -274,7 +292,7 @@ export const fetchClientReport = async (token) => {
 export const listClientReports = async () => {
   const { data, error } = await supabase
     .from('client_reports')
-    .select('token, brand_name, created_at')
+    .select('token, brand_name, created_at, created_by, created_by_name')
     .order('created_at', { ascending: false });
   return { data, error };
 };
