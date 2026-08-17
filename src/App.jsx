@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.25.1';
+const APP_VERSION = '2.25.2';
 import { 
   supabase, 
   signUp, 
@@ -9975,14 +9975,19 @@ function AssessmentStatusIndicator({ assessments }) {
 // Active client links: who issued them, when, and the controls to reset or
 // revoke. Lives on the saved page because that is where the assessments are,
 // and a password reset needs the assessment to rebuild the payload from.
-function ClientLinksPanel({ assessments, profile }) {
+function ClientLinksModal({ assessments, profile, onClose }) {
   const [links, setLinks] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
   const [copied, setCopied] = useState(null);
   const [resetting, setResetting] = useState(null);
   const [newPassword, setNewPassword] = useState('');
-  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
   const load = async () => {
     const { data, error: err } = await listClientReports();
@@ -10039,22 +10044,36 @@ function ClientLinksPanel({ assessments, profile }) {
     setBusy(null);
   };
 
-  if (links && links.length === 0 && !error) return null;
+  // Portalled for the same reason as the client link modal: an ancestor with a
+  // transform would otherwise become the containing block for position:fixed.
+  return createPortal((
+    <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-[100]"
+      onClick={onClose}>
+      <div className="card p-6 max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-[#1A1A1A]">
+              Client links{links ? ` (${links.length})` : ''}
+            </h3>
+            <p className="text-xs text-[#666666] mt-0.5">
+              Active password-protected reports shared with clients.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-[#999] hover:text-[#1A1A1A]">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-  return (
-    <div className="mb-6">
-      <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors">
-        <span>CLIENT LINKS{links ? ` (${links.length})` : ''}</span>
-        <ChevronDown className={`w-5 h-5 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="card p-4">
+        <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
           {error && <p className="text-xs text-[#E53935] mb-3">{error}</p>}
           {!links && !error && (
-            <p className="text-xs text-[#666666] flex items-center gap-1.5">
+            <p className="text-xs text-[#666666] flex items-center gap-1.5 py-4">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading links...
+            </p>
+          )}
+          {links && links.length === 0 && !error && (
+            <p className="text-sm text-[#666666] py-6 text-center">
+              No active client links. Create one from the Client Link button on a report.
             </p>
           )}
 
@@ -10115,9 +10134,13 @@ function ClientLinksPanel({ assessments, profile }) {
             );
           })}
         </div>
-      )}
+
+        <div className="flex justify-end pt-4 mt-2 border-t border-[#E8E6E1]">
+          <button onClick={onClose} className="btn-secondary text-sm px-4 py-2">Close</button>
+        </div>
+      </div>
     </div>
-  );
+  ), document.body);
 }
 
 function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore, profile }) {
@@ -10184,9 +10207,17 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
     });
 
   const hasFilters = search || filterStage || filterIndustry;
+  const [showClientLinks, setShowClientLinks] = useState(false);
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
+      {showClientLinks && (
+        <ClientLinksModal
+          assessments={assessments}
+          profile={profile}
+          onClose={() => setShowClientLinks(false)}
+        />
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
@@ -10201,6 +10232,10 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                 className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
                 <Upload className="w-4 h-4" /> Import
               </button>
+              <button onClick={() => setShowClientLinks(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
+                <ExternalLink className="w-4 h-4" /> Client Links
+              </button>
             </>
           )}
           <button onClick={onBack}
@@ -10209,9 +10244,6 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           </button>
         </div>
       </div>
-
-      {/* Active client links */}
-      {!isReadonly && <ClientLinksPanel assessments={assessments} profile={profile} />}
 
       {/* Sharing tip */}
       {!isReadonly && (
