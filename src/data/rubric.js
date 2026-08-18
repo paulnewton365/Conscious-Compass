@@ -295,6 +295,70 @@ export function applyCampaignModifiers(scores, campaignLevel) {
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────
+// BRAND FOOTPRINT (v2.9)
+//
+// Where the brand actually shows up, across every surface a person could
+// encounter it. Descriptive only: the footprint NEVER adjusts attribute
+// scores. Presence and amplification are already judged inside AWAKE, AWARE
+// and COGENT, and feeding them in a second time would repeat the
+// double-counting problem the campaign modifier was built to avoid.
+//
+// The channel list is fixed and ordered so footprints stay comparable between
+// brands and can be benchmarked by sector later.
+// ─────────────────────────────────────────────────────────────
+
+export const FOOTPRINT_CHANNELS = [
+  { id: 'earned',     name: 'Earned media',          hint: 'Trade and national press, bylines, quotes in coverage' },
+  { id: 'social',     name: 'Social',                hint: 'Owned social channels and their visible engagement' },
+  { id: 'thirdParty', name: 'Third-party discussion', hint: 'Reddit, forums, review sites, community mentions' },
+  { id: 'owned',      name: 'Owned channels',        hint: 'Website, blog, newsletter, resource library' },
+  { id: 'ai',         name: 'AI / LLM answers',      hint: 'Whether AI systems cite the brand unprompted' },
+  { id: 'paid',       name: 'Paid',                  hint: 'Visible advertising across ad libraries' },
+  { id: 'podcast',    name: 'Podcasts / video',      hint: 'Appearances, interviews, YouTube presence' },
+  { id: 'analyst',    name: 'Analyst / research',    hint: 'Analyst notes, cited research, industry reports' },
+];
+
+// Brand-controlled surfaces versus surfaces the market controls. The split
+// answers the question the footprint exists to ask: is the brand talking about
+// itself, or is anyone else talking about it?
+export const FOOTPRINT_VOICE = {
+  brand:  ['owned', 'paid', 'social'],
+  market: ['earned', 'thirdParty', 'ai', 'podcast', 'analyst'],
+};
+
+export function summariseFootprint(footprint) {
+  if (!footprint || !footprint.channels) return null;
+  const rows = FOOTPRINT_CHANNELS.map(c => ({
+    ...c,
+    ...(footprint.channels[c.id] || {}),
+    share: Number(footprint.channels[c.id]?.share) || 0,
+    signals: Number(footprint.channels[c.id]?.signals) || 0,
+  }));
+  const present = rows.filter(r => r.share > 0 || r.signals > 0);
+  const total = present.reduce((t, r) => t + r.signals, 0);
+  // Shares are asked to sum to 100 but a model can return something else.
+  // Normalising here means the voice bar can never overflow its container.
+  const shareTotal = present.reduce((t, r) => t + r.share, 0) || 1;
+  const shareOf = (ids) => Math.round(
+    (present.filter(r => ids.includes(r.id)).reduce((t, r) => t + r.share, 0) / shareTotal) * 100
+  );
+  const brandVoice = present.length ? shareOf(FOOTPRINT_VOICE.brand) : 0;
+
+  return {
+    rows,
+    present,
+    channelsWithEvidence: present.length,
+    channelCount: FOOTPRINT_CHANNELS.length,
+    totalSignals: total,
+    // Largest share, so the mosaic can scale rows against the leader rather
+    // than against 100. A 33% leader should fill the row, not a quarter of it.
+    maxShare: present.reduce((m, r) => Math.max(m, r.share), 0),
+    brandVoice,
+    marketVoice: present.length ? 100 - brandVoice : 0,
+  };
+}
+
 export const SERVICE_RECOMMENDATIONS = {
   AWAKE: [
     { title: 'Original Research Program', description: 'Commission proprietary studies that generate unique insights others must cite. Design research to answer questions the industry is asking.', impact: 'Original research positions the brand as a primary source, earning media coverage and backlinks while creating assets competitors cannot replicate.', attributes: ['Awake', 'Cogent'], answersQuestion: 'Establishes the brand as the source others reference, shifting from participant to leader in discourse.' },

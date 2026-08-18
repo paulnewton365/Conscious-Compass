@@ -2,38 +2,72 @@
 @import "tailwindcss";
 
 :root {
-  --antenna-yellow: #E8FF00;
-  --antenna-yellow-dark: #D4E800;
-  --antenna-red: #E53935;
-  --antenna-black: #1A1A1A;
-  --antenna-dark-gray: #333333;
-  --antenna-gray: #666666;
-  --antenna-light-gray: #E8E6E1;
-  --antenna-cream: #F0EEEA;
-  --antenna-sand: #D9D6D0;
-  --antenna-text: #1A1A1A;
-  --antenna-text-muted: #666666;
+  /* ── Antenna redesign, August 2026 ──────────────────────────
+     Square edges throughout, warm paper ground, lime as a marker
+     colour rather than a text colour, and direction carried by the
+     sign rather than by red and green. */
+  --antenna-paper:      #F2F0EA;   /* page ground */
+  --antenna-white:      #FFFFFF;   /* panels */
+  --antenna-ink:        #0B0B0B;   /* headings, primary text */
+  --antenna-body:       #4A4840;   /* body copy */
+  --antenna-muted:      #8A877D;   /* labels, captions, negatives */
+  --antenna-faint:      #B3B0A8;   /* axis ticks, disabled */
+  --antenna-rule:       #DCDAD3;   /* borders and rules */
+  --antenna-rule-light: #E4E2DC;   /* secondary rules */
+  --antenna-lime:       #DEE42F;   /* accent: fills, markers, underlines */
+  --antenna-lime-dark:  #CFD32F;
+  --antenna-error:      #B23A3A;   /* form and system errors only */
+
+  /* Legacy aliases. Kept so existing references keep resolving
+     rather than silently falling back to nothing. */
+  --antenna-yellow: var(--antenna-lime);
+  --antenna-yellow-dark: var(--antenna-lime-dark);
+  --antenna-red: var(--antenna-ink);
+  --antenna-black: var(--antenna-ink);
+  --antenna-dark-gray: var(--antenna-body);
+  --antenna-gray: var(--antenna-muted);
+  --antenna-light-gray: var(--antenna-paper);
+  --antenna-cream: var(--antenna-rule-light);
+  --antenna-sand: var(--antenna-rule);
+  --antenna-text: var(--antenna-ink);
+  --antenna-text-muted: var(--antenna-muted);
 }
 
 * { box-sizing: border-box; }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--antenna-light-gray);
-  color: var(--antenna-text);
+  background: var(--antenna-paper);
+  color: var(--antenna-ink);
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3, h4 {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 600;
-  line-height: 1.2;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--antenna-ink);
 }
+
+/* Section kicker: small, heavily tracked, muted. Used above every
+   major section in place of the old red caps headings. */
+.kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--antenna-muted);
+}
+
+.rule { height: 1px; background: var(--antenna-rule); }
+.rule-strong { height: 2px; background: var(--antenna-ink); }
 
 /* Buttons */
 .btn-primary {
-  background: var(--antenna-yellow);
-  color: var(--antenna-black);
+  background: var(--antenna-lime);
+  color: var(--antenna-ink);
   font-weight: 600;
   padding: 14px 28px;
   border-radius: 0;
@@ -121,9 +155,9 @@ h1, h2, h3, h4 {
 
 /* Cards */
 .card {
-  background: white;
+  background: var(--antenna-white);
   border-radius: 0;
-  border: 1px solid var(--antenna-sand);
+  border: 1px solid var(--antenna-rule);
   box-shadow: none;
 }
 

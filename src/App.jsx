@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
+import { FOOTPRINT_CHANNELS, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.26.4';
+const APP_VERSION = '2.28.0';
 import { 
   supabase, 
   signUp, 
@@ -58,8 +58,8 @@ class ErrorBoundary extends React.Component {
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8 text-red-600" />
             </div>
-            <h1 className="text-2xl font-bold text-[#1A1A1A] mb-2">Something went wrong</h1>
-            <p className="text-[#666666] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
+            <h1 className="text-2xl font-bold text-[#0B0B0B] mb-2">Something went wrong</h1>
+            <p className="text-[#8A877D] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
             <button 
               onClick={() => window.location.reload()} 
               className="btn-primary"
@@ -116,52 +116,52 @@ function AuthPage({ onAuthSuccess }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#E8E6E1] flex items-center justify-center p-4 md:p-8">
+    <div className="min-h-screen bg-[#F2F0EA] flex items-center justify-center p-4 md:p-8">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
             <div className="h-6 w-px bg-[#1A1A1A]" />
-            <span className="text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
+            <span className="text-lg font-semibold text-[#0B0B0B]">Conscious Compass</span>
           </div>
-          <p className="text-[#666666]">{isLogin ? 'Sign in to access the assessment tool' : 'Create an account to get started'}</p>
+          <p className="text-[#8A877D]">{isLogin ? 'Sign in to access the assessment tool' : 'Create an account to get started'}</p>
         </div>
         
         <form onSubmit={handleSubmit} className="card p-6">
           {!isLogin && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Full Name</label>
+              <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Full Name</label>
               <input 
                 type="text" 
                 value={fullName} 
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Your name"
-                className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
+                className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white"
                 required={!isLogin}
               />
             </div>
           )}
           
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Email</label>
+            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Email</label>
             <input 
               type="email" 
               value={email} 
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
-              className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
+              className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white"
               required
             />
           </div>
           
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Password</label>
+            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Password</label>
             <input 
               type="password" 
               value={password} 
               onChange={(e) => setPassword(e.target.value)}
               placeholder={isLogin ? "Enter password" : "Create password (min 6 chars)"}
-              className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
+              className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white"
               required
               minLength={6}
             />
@@ -191,14 +191,14 @@ function AuthPage({ onAuthSuccess }) {
             <button 
               type="button"
               onClick={() => { setIsLogin(!isLogin); setError(''); setMessage(''); }}
-              className="text-sm text-[#E53935] hover:underline"
+              className="text-sm text-[#B23A3A] hover:underline"
             >
               {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
             </button>
           </div>
         </form>
         
-        <p className="text-center text-xs text-[#9CA3AF] mt-6">
+        <p className="text-center text-xs text-[#B3B0A8] mt-6">
           Antenna Group | Brand Consciousness Assessment
         </p>
       </div>
@@ -291,22 +291,22 @@ function AdminPage({ currentUser, onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F4F0]">
+    <div className="min-h-screen bg-[#F2F0EA]">
       <div className="max-w-3xl mx-auto p-4 md:p-8">
         <div className="flex items-center gap-4 mb-8">
           <button onClick={onBack} className="btn-secondary flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-[#1A1A1A]">User Management</h1>
-            <p className="text-sm text-[#666666]">Approve users and manage access</p>
+            <h1 className="text-2xl font-bold text-[#0B0B0B]">User Management</h1>
+            <p className="text-sm text-[#8A877D]">Approve users and manage access</p>
           </div>
         </div>
 
         {loading ? (
           <div className="card p-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#E53935]" />
-            <p className="mt-4 text-[#666666]">Loading users...</p>
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#B23A3A]" />
+            <p className="mt-4 text-[#8A877D]">Loading users...</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -314,7 +314,7 @@ function AdminPage({ currentUser, onBack }) {
             {/* Pending Users */}
             {users.filter(u => !u.is_approved).length > 0 && (
               <div>
-                <h2 className="text-sm font-semibold text-[#666666] uppercase tracking-wider mb-3 flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-[#8A877D] uppercase tracking-wider mb-3 flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-yellow-600" />
                   Pending Approval ({users.filter(u => !u.is_approved).length})
                 </h2>
@@ -326,9 +326,9 @@ function AdminPage({ currentUser, onBack }) {
                           {(user.full_name || user.email || '?')[0].toUpperCase()}
                         </div>
                         <div>
-                          <div className="font-semibold text-[#1A1A1A]">{user.full_name || 'No name'}</div>
-                          <div className="text-sm text-[#666666]">{user.email}</div>
-                          <div className="text-xs text-[#9CA3AF] mt-0.5">Signed up {formatDate(user.created_at)}</div>
+                          <div className="font-semibold text-[#0B0B0B]">{user.full_name || 'No name'}</div>
+                          <div className="text-sm text-[#8A877D]">{user.email}</div>
+                          <div className="text-xs text-[#B3B0A8] mt-0.5">Signed up {formatDate(user.created_at)}</div>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -352,17 +352,17 @@ function AdminPage({ currentUser, onBack }) {
 
             {/* Active Users */}
             <div>
-              <h2 className="text-sm font-semibold text-[#666666] uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-[#8A877D] uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Users className="w-4 h-4 text-[#059669]" />
                 Active Users ({users.filter(u => u.is_approved).length})
               </h2>
               <div className="space-y-3">
                 {users.filter(u => u.is_approved).map(user => {
                   const isSelf = user.id === currentUser.id;
-                  const roleColor = user.is_admin ? 'bg-[#E53935]' : user.is_readonly ? 'bg-[#9CA3AF]' : 'bg-[#059669]';
+                  const roleColor = user.is_admin ? 'bg-[#DEE42F]' : user.is_readonly ? 'bg-[#9CA3AF]' : 'bg-[#059669]';
                   const roleLabel = user.is_admin ? 'Admin' : user.is_readonly ? 'Read-only' : 'Full Access';
                   return (
-                    <div key={user.id} className="bg-white border border-[#E8E6E1] rounded-xl p-5">
+                    <div key={user.id} className="bg-white border border-[#DCDAD3] rounded-xl p-5">
                       {/* User info row */}
                       <div className="flex items-start gap-3 mb-4">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 ${roleColor}`}>
@@ -370,17 +370,17 @@ function AdminPage({ currentUser, onBack }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-[#1A1A1A]">{user.full_name || 'No name'}</span>
+                            <span className="font-semibold text-[#0B0B0B]">{user.full_name || 'No name'}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full text-white ${roleColor}`}>{roleLabel}</span>
-                            {isSelf && <span className="text-xs text-[#9CA3AF]">(you)</span>}
+                            {isSelf && <span className="text-xs text-[#B3B0A8]">(you)</span>}
                           </div>
-                          <div className="text-sm text-[#666666] mt-0.5 truncate">{user.email}</div>
+                          <div className="text-sm text-[#8A877D] mt-0.5 truncate">{user.email}</div>
                           <div className="flex gap-3 mt-1">
-                            <span className="text-xs text-[#9CA3AF]">
+                            <span className="text-xs text-[#B3B0A8]">
                               Joined {formatDate(user.created_at)}
                             </span>
                             {user.last_login && (
-                              <span className="text-xs text-[#9CA3AF]">
+                              <span className="text-xs text-[#B3B0A8]">
                                 · Last login {formatDate(user.last_login)}
                               </span>
                             )}
@@ -392,13 +392,13 @@ function AdminPage({ currentUser, onBack }) {
                       </div>
                       {/* Actions row */}
                       {!isSelf && (
-                        <div className="flex flex-wrap gap-2 pt-3 border-t border-[#F0EEEA]">
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-[#E4E2DC]">
                           {!user.is_admin && (
                             <button onClick={() => handleToggleReadonly(user.id, user.is_readonly)}
                               className={`text-sm px-3 py-1.5 rounded border transition-colors ${
                                 user.is_readonly
                                   ? 'border-[#059669] text-[#059669] hover:bg-[#059669]/10'
-                                  : 'border-[#9CA3AF] text-[#9CA3AF] hover:bg-[#9CA3AF]/10'
+                                  : 'border-[#9CA3AF] text-[#B3B0A8] hover:bg-[#9CA3AF]/10'
                               }`}>
                               {user.is_readonly ? 'Grant Full Access' : 'Set Read-only'}
                             </button>
@@ -406,8 +406,8 @@ function AdminPage({ currentUser, onBack }) {
                           <button onClick={() => handleToggleAdmin(user.id, user.is_admin)}
                             className={`text-sm px-3 py-1.5 rounded border transition-colors ${
                               user.is_admin
-                                ? 'border-[#E53935] text-[#E53935] hover:bg-[#E53935]/10'
-                                : 'border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+                                ? 'border-[#0B0B0B] text-[#B23A3A] hover:bg-[#DEE42F]/10'
+                                : 'border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
                             }`}>
                             <Shield className="w-3.5 h-3.5 inline mr-1" />
                             {user.is_admin ? 'Remove Admin' : 'Make Admin'}
@@ -939,11 +939,11 @@ function MiniSpiderChart({ scores, size = 120 }) {
           const r = (level / 100) * radius;
           return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
         });
-        return <polygon key={level} points={pts.join(' ')} fill="none" stroke="#D9D6D0" strokeWidth="0.5" />;
+        return <polygon key={level} points={pts.join(' ')} fill="none" stroke="#DCDAD3" strokeWidth="0.5" />;
       })}
       {attrs.map((_, i) => {
         const angle = angleStep * i - Math.PI / 2;
-        return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#D9D6D0" strokeWidth="0.5" />;
+        return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#DCDAD3" strokeWidth="0.5" />;
       })}
       <path d={pathD} fill="rgba(158, 157, 36, 0.35)" stroke="#9E9D24" strokeWidth="1.5" />
       {dataPoints.map((p, i) => (
@@ -995,16 +995,16 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
             const r = (level / 100) * radius;
             return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
           });
-          return <polygon key={level} points={pts.join(' ')} fill="none" stroke={level === 100 ? '#C0BDB8' : '#D9D6D0'} strokeWidth={level === 100 ? 1.5 : 1} />;
+          return <polygon key={level} points={pts.join(' ')} fill="none" stroke={level === 100 ? '#DCDAD3' : '#DCDAD3'} strokeWidth={level === 100 ? 1.5 : 1} />;
         })}
         {/* Grid value labels */}
         {[20, 40, 60, 80].map(level => (
-          <text key={`lbl-${level}`} x={center} y={center - (level / 100) * radius - 4} textAnchor="middle" style={{ fontSize: '8px', fill: '#9CA3AF' }}>{level}</text>
+          <text key={`lbl-${level}`} x={center} y={center - (level / 100) * radius - 4} textAnchor="middle" style={{ fontSize: '8px', fill: '#B3B0A8' }}>{level}</text>
         ))}
         {/* Axis lines */}
         {attrs.map((_, i) => {
           const angle = angleStep * i - Math.PI / 2;
-          return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#D9D6D0" strokeWidth="1" />;
+          return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#DCDAD3" strokeWidth="1" />;
         })}
         {/* Industry average overlay (dashed) */}
         {industryAvg && (() => {
@@ -1026,7 +1026,7 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
           const x = center + labelR * Math.cos(angle);
           const y = center + labelR * Math.sin(angle);
           return (
-            <text key={attr.id} x={x} y={y} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '11px', fontWeight: '600', fill: '#1A1A1A' }}>
+            <text key={attr.id} x={x} y={y} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '11px', fontWeight: '600', fill: '#0B0B0B' }}>
               {attr.name}
             </text>
           );
@@ -1037,14 +1037,14 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
         {brands.map((brand, bi) => (
           <div key={brand.id || bi} className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COMPARISON_COLORS[bi % COMPARISON_COLORS.length] }} />
-            <span className="text-xs font-medium text-[#1A1A1A]">{brand.brandName}</span>
-            <span className="text-xs text-[#666666]">({brand.totalScore})</span>
+            <span className="text-xs font-medium text-[#0B0B0B]">{brand.brandName}</span>
+            <span className="text-xs text-[#8A877D]">({brand.totalScore})</span>
           </div>
         ))}
         {industryAvg && (
           <div className="flex items-center gap-1.5">
             <div className="w-5 h-0.5 bg-[#9CA3AF] border-t border-dashed" style={{ borderTop: '2px dashed #9CA3AF' }} />
-            <span className="text-xs text-[#9CA3AF]">{avgLabel}</span>
+            <span className="text-xs text-[#B3B0A8]">{avgLabel}</span>
           </div>
         )}
       </div>
@@ -1120,9 +1120,9 @@ function CampaignLadder({ level }) {
       <div className="flex gap-1 mb-1">
         {CAMPAIGN_LADDER.filter(l => l.level > 0).map((l, i) => (
           <div key={l.level} className="flex-1 text-center">
-            <div className="h-1.5 rounded-full mb-1 bg-[#E8E6E1] overflow-hidden">
+            <div className="h-1.5 rounded-full mb-1 bg-[#F2F0EA] overflow-hidden">
               <div
-                className="h-full rounded-full bg-[#E53935] origin-left"
+                className="h-full rounded-full bg-[#DEE42F] origin-left"
                 style={{
                   transform: `scaleX(${inView && lvl >= l.level ? 1 : 0})`,
                   transition: 'transform 520ms cubic-bezier(0.22, 1, 0.36, 1)',
@@ -1131,7 +1131,7 @@ function CampaignLadder({ level }) {
               />
             </div>
             <div
-              className={`text-[9px] leading-tight ${l.level === lvl ? 'text-[#1A1A1A] font-semibold' : 'text-[#999]'}`}
+              className={`text-[9px] leading-tight ${l.level === lvl ? 'text-[#0B0B0B] font-semibold' : 'text-[#999]'}`}
               style={{
                 opacity: inView ? 1 : 0,
                 transition: 'opacity 400ms ease',
@@ -1144,11 +1144,172 @@ function CampaignLadder({ level }) {
         ))}
       </div>
       {lvl === 0 && (
-        <p className="text-[10px] text-[#E53935] font-semibold mb-2">
+        <p className="text-[10px] text-[#B23A3A] font-semibold mb-2">
           No campaign detected. The brand sits below the first rung.
         </p>
       )}
       <div className="mb-3" />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// BRAND FOOTPRINT — mosaic and ledger
+//
+// Palette is deliberately its own: warm paper, electric lime, near-black ink.
+// Intensity descends down the ranked rows so the eye reads the order without
+// needing the numbers.
+//
+// Note there is no reach column. Audience reach is not publicly observable and
+// inventing it would undermine everything else on the page. The ledger reports
+// SIGNALS instead: the count of distinct pieces of evidence actually found.
+// ─────────────────────────────────────────────────────────────
+const FP_PAPER = '#FFFFFF';
+const FP_INK   = '#0B0B0B';
+const FP_LIME  = '#DEE42F';
+const FP_EMPTY = '#E4E2DC';
+const FP_MUTED = '#8A877D';
+const FP_TILES = 13;
+
+// Ranked rows step from lime through olive to ink.
+const FP_RAMP = ['#DFF01F', '#D3E81C', '#BFDA18', '#A5C214', '#8AA810', '#3A3A36', '#0B0B0B', '#0B0B0B'];
+
+function FootprintMosaic({ footprint, brandName, compact = false }) {
+  const summary = summariseFootprint(footprint);
+  const [ref, inView] = useInView(0.15);
+  if (!summary) return null;
+
+  // Ranked by share, but every channel is shown. An empty channel is a finding,
+  // so the zeros stay on the page rather than being filtered out.
+  const rows = [...summary.rows].sort((a, b) => (b.share - a.share) || (b.signals - a.signals));
+
+  return (
+    <div ref={ref} style={{ backgroundColor: FP_PAPER }} className="p-6 sm:p-8">
+      {/* Masthead */}
+      <div className="flex flex-wrap items-start justify-between gap-6 mb-5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="inline-block w-2.5 h-2.5" style={{ backgroundColor: FP_LIME }} />
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: FP_INK }}>
+              Brand Footprint
+            </span>
+          </div>
+          <h3 className="font-bold tracking-tight leading-[0.95]"
+            style={{ color: FP_INK, fontSize: compact ? '1.9rem' : '2.6rem' }}>
+            Where the brand shows up.
+          </h3>
+        </div>
+        <div className="flex gap-8 flex-shrink-0">
+          <div className="text-right">
+            <div className="text-[9px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: FP_MUTED }}>
+              Total signals
+            </div>
+            <div className="font-bold tracking-tight" style={{ color: FP_INK, fontSize: compact ? '1.5rem' : '2rem' }}>
+              {summary.totalSignals.toLocaleString()}
+            </div>
+          </div>
+          <div className="text-right border-l pl-8" style={{ borderColor: FP_EMPTY }}>
+            <div className="text-[9px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: FP_MUTED }}>
+              Channels with evidence
+            </div>
+            <div className="font-bold tracking-tight" style={{ color: FP_INK, fontSize: compact ? '1.5rem' : '2rem' }}>
+              {summary.channelsWithEvidence} of {summary.channelCount}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ height: 2, backgroundColor: FP_INK }} className="mb-4" />
+
+      {/* Column headers */}
+      <div className="grid items-end gap-4 pb-2 text-[9px] font-bold uppercase tracking-[0.14em]"
+        style={{ gridTemplateColumns: '1.6fr 3fr 0.6fr 0.6fr 0.8fr', color: FP_MUTED }}>
+        <div>Channel</div>
+        <div className="hidden sm:block">Presence</div>
+        <div className="text-right">Share</div>
+        <div className="text-right">Signals</div>
+        <div className="text-right">Sentiment</div>
+      </div>
+
+      {/* Ledger */}
+      {rows.map((row, i) => {
+        const has = row.share > 0 || row.signals > 0;
+        // Scaled against the leading channel, not against 100. Otherwise a
+        // brand whose best channel is 33% never fills a single row and the
+        // mosaic reads as uniformly weak.
+        const filled = has
+          ? Math.max(1, Math.min(FP_TILES, Math.ceil((row.share / (summary.maxShare || 100)) * FP_TILES)))
+          : 0;
+        const tone = FP_RAMP[Math.min(i, FP_RAMP.length - 1)];
+        return (
+          <div key={row.id}
+            className="grid items-center gap-4 py-3 border-t"
+            style={{ gridTemplateColumns: '1.6fr 3fr 0.6fr 0.6fr 0.8fr', borderColor: FP_EMPTY }}>
+            <div className="min-w-0">
+              <div className="font-bold text-[15px] leading-tight truncate"
+                style={{ color: has ? FP_INK : FP_MUTED }}>{row.name}</div>
+              <div className="text-[11px] mt-0.5 truncate" style={{ color: FP_MUTED }}>
+                {row.evidence || 'No evidence found'}
+              </div>
+            </div>
+
+            <div className="hidden sm:flex gap-[3px]">
+              {Array.from({ length: FP_TILES }).map((_, t) => (
+                <div key={t} className="flex-1"
+                  style={{
+                    height: 26,
+                    backgroundColor: t < filled ? tone : FP_EMPTY,
+                    opacity: inView ? 1 : 0,
+                    transform: inView ? 'scaleY(1)' : 'scaleY(0.3)',
+                    transition: 'opacity 260ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
+                    transitionDelay: `${i * 60 + t * 22}ms`,
+                  }} />
+              ))}
+            </div>
+
+            <div className="text-right font-bold text-[17px] tabular-nums"
+              style={{ color: has ? FP_INK : FP_MUTED }}>
+              {has ? `${row.share}%` : '—'}
+            </div>
+            <div className="text-right text-[13px] tabular-nums" style={{ color: has ? FP_INK : FP_MUTED }}>
+              {has ? row.signals : '—'}
+            </div>
+            <div className="text-right text-[13px] tabular-nums" style={{ color: has ? FP_INK : FP_MUTED }}>
+              {row.sentiment == null ? '—' : `${row.sentiment > 0 ? '+' : ''}${row.sentiment}`}
+            </div>
+          </div>
+        );
+      })}
+
+      <div style={{ height: 2, backgroundColor: FP_INK }} className="mt-4 mb-4" />
+
+      {/* Voice split: the question the footprint exists to answer */}
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+        <div className="flex-1 min-w-[240px]">
+          <div className="text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: FP_MUTED }}>
+            Who is doing the talking
+          </div>
+          <div className="flex h-6 overflow-hidden">
+            <div style={{
+              width: `${inView ? summary.brandVoice : 0}%`, backgroundColor: FP_INK,
+              transition: 'width 900ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: '400ms',
+            }} />
+            <div style={{
+              width: `${inView ? summary.marketVoice : 0}%`, backgroundColor: FP_LIME,
+              transition: 'width 900ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: '520ms',
+            }} />
+          </div>
+          <div className="flex justify-between mt-2 text-[11px]" style={{ color: FP_INK }}>
+            <span><span className="font-bold">{summary.brandVoice}%</span> the brand</span>
+            <span><span className="font-bold">{summary.marketVoice}%</span> the market</span>
+          </div>
+        </div>
+        {footprint.verdict && (
+          <p className="flex-1 min-w-[240px] text-[13px] font-medium leading-snug" style={{ color: FP_INK }}>
+            {footprint.verdict}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -1165,10 +1326,10 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
   if (!benchmark) return null;
 
   return (
-    <div className="bg-white border border-[#E8E6E1] rounded p-5" ref={revealRef}>
+    <div className="bg-white border border-[#DCDAD3] rounded p-5" ref={revealRef}>
       <div className="mb-4">
-        {!hideTitle && <h3 className="font-semibold text-[#1A1A1A] text-sm">Attribute Benchmark Spread</h3>}
-        <p className="text-xs text-[#666666] mt-1">
+        {!hideTitle && <h3 className="font-semibold text-[#0B0B0B] text-sm">Attribute Benchmark Spread</h3>}
+        <p className="text-xs text-[#8A877D] mt-1">
           {brandName} against {benchmark.cohortLabel.toLowerCase()}. The band is the range across those brands, the line is their average, the dot is {brandName}.
         </p>
       </div>
@@ -1183,20 +1344,20 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
           return (
             <div key={attr.id}
-              className={`grid items-center gap-3 rounded px-2 py-1 -mx-2 transition-colors ${isHovered ? 'bg-[#F5F4F0]' : ''}`}
+              className={`grid items-center gap-3 rounded px-2 py-1 -mx-2 transition-colors ${isHovered ? 'bg-[#F2F0EA]' : ''}`}
               style={{ gridTemplateColumns: '104px 1fr 56px' }}
               onMouseEnter={() => setHovered(attr.id)}
               onMouseLeave={() => setHovered(null)}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
-                <span className="text-xs font-semibold text-[#1A1A1A] truncate">{attr.name}</span>
+                <span className="text-xs font-semibold text-[#0B0B0B] truncate">{attr.name}</span>
               </div>
 
               <div className="relative h-7 flex items-center" style={{ overflow: 'visible' }}>
                 <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
                 {[25, 40, 56, 70, 85].map(mark => (
-                  <div key={mark} className="absolute w-px h-2.5 bg-[#D9D6D0]"
+                  <div key={mark} className="absolute w-px h-2.5 bg-[#DCDAD3]"
                     style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
                 ))}
                 {/* Cohort range */}
@@ -1236,7 +1397,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
               <div className="text-right">
                 <div className="text-xs font-bold tabular-nums" style={{ color: attr.color }}>{brandScore}</div>
-                <div className={`text-[10px] tabular-nums font-medium ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#E53935]' : 'text-[#999]'}`}>
+                <div className={`text-[10px] tabular-nums font-medium ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#B23A3A]' : 'text-[#999]'}`}>
                   {delta > 0 ? `+${delta}` : delta}
                 </div>
               </div>
@@ -1253,7 +1414,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-[#E8E6E1] flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-[#666666]">
+      <div className="mt-4 pt-3 border-t border-[#DCDAD3] flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-[#8A877D]">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-[#1A1A1A] ring-2 ring-white" />
           <span>{brandName}</span>
@@ -1290,10 +1451,10 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
   const pillTransform = pillAnchor === 'left' ? 'translateX(0)' : pillAnchor === 'right' ? 'translateX(-100%)' : 'translateX(-50%)';
 
   return (
-    <div className="bg-white border border-[#E8E6E1] rounded p-5">
+    <div className="bg-white border border-[#DCDAD3] rounded p-5">
       <div className="mb-4">
-        <h3 className="font-semibold text-[#1A1A1A] text-sm">Overall Position</h3>
-        <p className="text-xs text-[#666666] mt-1">
+        <h3 className="font-semibold text-[#0B0B0B] text-sm">Overall Position</h3>
+        <p className="text-xs text-[#8A877D] mt-1">
           Where {brandName} sits against {benchmark.cohortLabel.toLowerCase()}{isSector ? ' and against every brand assessed' : ''}.
         </p>
       </div>
@@ -1338,26 +1499,26 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 pt-3 mt-2 border-t border-[#E8E6E1]">
+      <div className="grid grid-cols-3 gap-3 pt-3 mt-2 border-t border-[#DCDAD3]">
         <div>
-          <div className={`text-lg font-bold ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#E53935]' : 'text-[#1A1A1A]'}`}>
+          <div className={`text-lg font-bold ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#B23A3A]' : 'text-[#0B0B0B]'}`}>
             {delta > 0 ? `+${delta}` : delta}
           </div>
-          <div className="text-[10px] text-[#666666] leading-tight">vs {scopeNoun} average</div>
+          <div className="text-[10px] text-[#8A877D] leading-tight">vs {scopeNoun} average</div>
         </div>
         <div>
-          <div className="text-lg font-bold text-[#1A1A1A]">
+          <div className="text-lg font-bold text-[#0B0B0B]">
             {benchmark.rank ? `${ordinal(benchmark.rank)} of ${benchmark.count}` : `${benchmark.count}`}
           </div>
-          <div className="text-[10px] text-[#666666] leading-tight">
+          <div className="text-[10px] text-[#8A877D] leading-tight">
             {benchmark.rank ? `rank in ${scopeNoun}` : 'brands compared'}
           </div>
         </div>
         <div>
-          <div className="text-lg font-bold text-[#1A1A1A]">
+          <div className="text-lg font-bold text-[#0B0B0B]">
             {benchmark.percentile != null ? ordinal(benchmark.percentile) : '—'}
           </div>
-          <div className="text-[10px] text-[#666666] leading-tight">percentile</div>
+          <div className="text-[10px] text-[#8A877D] leading-tight">percentile</div>
         </div>
       </div>
     </div>
@@ -1375,8 +1536,8 @@ function BenchmarkProvenance({ benchmark }) {
   const span = from && to ? (from === to ? from : `${from} to ${to}`) : null;
 
   return (
-    <div className="text-[11px] text-[#666666] bg-[#F5F4F0] border border-[#E8E6E1] rounded px-3 py-2 leading-relaxed">
-      <span className="font-medium text-[#1A1A1A]">Benchmark basis:</span>{' '}
+    <div className="text-[11px] text-[#8A877D] bg-[#F2F0EA] border border-[#DCDAD3] rounded px-3 py-2 leading-relaxed">
+      <span className="font-medium text-[#0B0B0B]">Benchmark basis:</span>{' '}
       {benchmark.cohortLabel}, n={benchmark.count}
       {span ? `, assessed ${span}` : ''}
       {benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}.
@@ -1435,7 +1596,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
   
   return (
     <div ref={containerRef} className="card p-6 overflow-hidden">
-      {!hideTitle && <h3 className="text-lg font-semibold text-[#1A1A1A] mb-6">Brand Consciousness Maturity</h3>}
+      {!hideTitle && <h3 className="text-lg font-semibold text-[#0B0B0B] mb-6">Brand Consciousness Maturity</h3>}
       
       {/* Progress Track */}
       <div className="relative mb-4">
@@ -1482,10 +1643,10 @@ function MaturityContinuum({ score, hideTitle = false }) {
       
       {/* Score display */}
       <div className="flex justify-between items-center mb-6">
-        <div className="text-sm text-[#666666]">Progress</div>
+        <div className="text-sm text-[#8A877D]">Progress</div>
         <div className="flex items-baseline gap-1">
           <span className="text-3xl font-bold" style={{ color: stage.color }}>{animatedScore}</span>
-          <span className="text-lg text-[#999999]">/100</span>
+          <span className="text-lg text-[#B3B0A8]">/100</span>
         </div>
       </div>
       
@@ -1508,7 +1669,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
                     borderColor: s.color
                   }}
                 />
-                <span className={`text-[10px] text-center leading-tight hidden sm:block ${isCurrent ? 'font-bold text-[#1A1A1A]' : 'text-[#666666]'}`}>
+                <span className={`text-[10px] text-center leading-tight hidden sm:block ${isCurrent ? 'font-bold text-[#0B0B0B]' : 'text-[#8A877D]'}`}>
                   {s.name}
                 </span>
               </div>
@@ -1527,11 +1688,11 @@ function MaturityContinuum({ score, hideTitle = false }) {
         }}
       >
         <div className="text-xl font-bold mb-1" style={{ color: stage.color }}>{stage.name}</div>
-        <p className="text-sm text-[#333333] mb-3">{stage.description}</p>
+        <p className="text-sm text-[#4A4840] mb-3">{stage.description}</p>
         
         {/* Progress to next stage */}
         {score < 100 && (
-          <div className="text-xs text-[#666666]">
+          <div className="text-xs text-[#8A877D]">
             <span className="font-medium" style={{ color: stage.color }}>{Math.min(100, MATURITY_STAGES.find(s => s.min > score)?.min || 100) - score} points</span> to next level
           </div>
         )}
@@ -1549,23 +1710,23 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
     `flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg transition-colors ${
       activePage === page
         ? 'bg-[#1A1A1A] text-white font-medium'
-        : 'text-[#333333] hover:text-[#1A1A1A] hover:bg-[#D9D6D0]'
+        : 'text-[#4A4840] hover:text-[#0B0B0B] hover:bg-[#DCDAD3]'
     }`;
 
   const mobileNavBtnClass = (page) =>
     `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
       activePage === page
         ? 'bg-[#1A1A1A] text-white font-medium'
-        : 'text-[#333333] hover:bg-[#F0EEEA]'
+        : 'text-[#4A4840] hover:bg-[#E4E2DC]'
     }`;
   
   return (
-    <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-4 md:py-5 px-4 md:px-6">
+    <header className="bg-[#F2F0EA] border-b border-[#DCDAD3] py-4 md:py-5 px-4 md:px-6">
       <div className="max-w-6xl mx-auto flex items-center justify-between">
         <button onClick={onGoHome || onNewAssessment} className="flex items-center gap-2 md:gap-4 hover:opacity-75 transition-opacity">
           <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
           <div className="hidden lg:block h-6 w-px bg-[#1A1A1A]" />
-          <span className="hidden lg:block text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
+          <span className="hidden lg:block text-lg font-semibold text-[#0B0B0B]">Conscious Compass</span>
         </button>
         
         {/* Desktop Navigation */}
@@ -1583,25 +1744,25 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             <FileText className="w-4 h-4" /> Saved
           </button>
           {!isReadonly && (
-            <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#E53935] text-white hover:bg-[#C62828] px-4 py-1.5 rounded-lg transition-colors ml-1">
+            <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#DEE42F] text-white hover:bg-[#C62828] px-4 py-1.5 rounded-lg transition-colors ml-1">
               <Plus className="w-4 h-4" /> New
             </button>
           )}
           
           {/* User Menu */}
-          <div className="ml-2 pl-3 border-l border-[#D9D6D0] flex items-center gap-3">
+          <div className="ml-2 pl-3 border-l border-[#DCDAD3] flex items-center gap-3">
             {profile?.is_admin && (
-              <button onClick={onAdmin} className="flex items-center gap-1.5 text-sm text-[#E53935] hover:text-[#C62828] transition-colors font-medium">
+              <button onClick={onAdmin} className="flex items-center gap-1.5 text-sm text-[#B23A3A] hover:text-[#C62828] transition-colors font-medium">
                 <Shield className="w-4 h-4" /> Admin
               </button>
             )}
             {isReadonly && (
               <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only</span>
             )}
-            <span className="text-xs text-[#666666] max-w-[120px] truncate" title={user?.email}>
+            <span className="text-xs text-[#8A877D] max-w-[120px] truncate" title={user?.email}>
               {profile?.full_name || user?.email?.split('@')[0]}
             </span>
-            <button onClick={onLogout} className="flex items-center gap-1 text-sm text-[#666666] hover:text-[#E53935] transition-colors" title="Sign out">
+            <button onClick={onLogout} className="flex items-center gap-1 text-sm text-[#8A877D] hover:text-[#0B0B0B] transition-colors" title="Sign out">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -1610,7 +1771,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
         {/* Mobile Menu Button */}
         <button 
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 text-[#1A1A1A]"
+          className="md:hidden p-2 text-[#0B0B0B]"
         >
           {mobileMenuOpen ? <X className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
         </button>
@@ -1618,7 +1779,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-4 pt-4 border-t border-[#D9D6D0] space-y-1">
+        <div className="md:hidden mt-4 pt-4 border-t border-[#DCDAD3] space-y-1">
           {isReadonly && (
             <div className="px-4 py-2">
               <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only Access</span>
@@ -1637,22 +1798,22 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             <FileText className="w-5 h-5" /> Saved Assessments
           </button>
           {!isReadonly && (
-            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#E53935] text-white rounded-lg transition-colors">
+            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#DEE42F] text-white rounded-lg transition-colors">
               <Plus className="w-5 h-5" /> New Assessment
             </button>
           )}
           
           {/* Mobile User Controls */}
-          <div className="pt-2 mt-2 border-t border-[#D9D6D0]">
-            <div className="px-4 py-2 text-sm text-[#666666]">
+          <div className="pt-2 mt-2 border-t border-[#DCDAD3]">
+            <div className="px-4 py-2 text-sm text-[#8A877D]">
               Signed in as <span className="font-medium">{profile?.full_name || user?.email}</span>
             </div>
             {profile?.is_admin && (
-              <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#E53935] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+              <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#B23A3A] hover:bg-[#E4E2DC] rounded-lg transition-colors">
                 <Shield className="w-5 h-5" /> User Management
               </button>
             )}
-            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#666666] hover:bg-[#F0EEEA] rounded-lg transition-colors">
+            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#8A877D] hover:bg-[#E4E2DC] rounded-lg transition-colors">
               <LogOut className="w-5 h-5" /> Sign Out
             </button>
           </div>
@@ -1669,14 +1830,14 @@ function CompletionIndicator({ items }) {
   const percentage = Math.round((completed / total) * 100);
   
   return (
-    <div className="bg-white border border-[#E8E6E1] rounded-lg p-3 mb-6">
+    <div className="bg-white border border-[#DCDAD3] rounded-lg p-3 mb-6">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-[#666666] uppercase tracking-wide">Progress</span>
-        <span className="text-xs font-medium text-[#1A1A1A]">{completed}/{total} complete</span>
+        <span className="text-xs font-medium text-[#8A877D] uppercase tracking-wide">Progress</span>
+        <span className="text-xs font-medium text-[#0B0B0B]">{completed}/{total} complete</span>
       </div>
-      <div className="h-1.5 bg-[#E8E6E1] rounded-full overflow-hidden mb-3">
+      <div className="h-1.5 bg-[#F2F0EA] rounded-full overflow-hidden mb-3">
         <div 
-          className="h-full bg-[#E53935] rounded-full transition-all duration-300"
+          className="h-full bg-[#DEE42F] rounded-full transition-all duration-300"
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -1686,8 +1847,8 @@ function CompletionIndicator({ items }) {
             key={i}
             className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${
               item.done 
-                ? 'bg-[#E53935]/10 text-[#E53935]' 
-                : 'bg-[#F0EEEA] text-[#999999]'
+                ? 'bg-[#DEE42F]/10 text-[#B23A3A]' 
+                : 'bg-[#E4E2DC] text-[#B3B0A8]'
             }`}
           >
             {item.done ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-current" />}
@@ -1702,32 +1863,32 @@ function CompletionIndicator({ items }) {
 // Progress Steps
 function ProgressSteps({ currentStep, steps, assessments }) {
   return (
-    <div className="bg-white border-b border-[#D9D6D0] py-3 md:py-4 px-4 md:px-6">
+    <div className="bg-white border-b border-[#DCDAD3] py-3 md:py-4 px-4 md:px-6">
       <div className="max-w-6xl mx-auto">
         {/* Desktop Progress */}
         <div className="hidden md:flex items-center justify-center gap-2">
           {steps.map((step, i) => (
             <div key={step.id} className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
-                i < currentStep ? 'bg-[#E53935] text-white' : i === currentStep ? 'bg-[#E53935]/10 text-[#E53935] ring-2 ring-[#E53935]' : 'bg-[#F0EEEA] text-gray-400'
+                i < currentStep ? 'bg-[#DEE42F] text-white' : i === currentStep ? 'bg-[#DEE42F]/10 text-[#B23A3A] ring-2 ring-[#E53935]' : 'bg-[#E4E2DC] text-gray-400'
               }`}>
                 {i < currentStep ? <Check className="w-4 h-4" /> : i + 1}
               </div>
-              {i < steps.length - 1 && <div className={`w-8 h-0.5 mx-1 ${i < currentStep ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`} />}
+              {i < steps.length - 1 && <div className={`w-8 h-0.5 mx-1 ${i < currentStep ? 'bg-[#DEE42F]' : 'bg-[#DCDAD3]'}`} />}
             </div>
           ))}
         </div>
         
         {/* Mobile Progress */}
         <div className="md:hidden flex items-center justify-between">
-          <span className="text-sm font-medium text-[#1A1A1A]">
+          <span className="text-sm font-medium text-[#0B0B0B]">
             Step {currentStep} of {steps.length - 1}: {steps[currentStep]?.name}
           </span>
           <div className="flex items-center gap-1">
             {steps.slice(1).map((_, i) => (
               <div 
                 key={i}
-                className={`w-2 h-2 rounded-full ${i < currentStep ? 'bg-[#E53935]' : i === currentStep - 1 ? 'bg-[#E53935]' : 'bg-[#D9D6D0]'}`}
+                className={`w-2 h-2 rounded-full ${i < currentStep ? 'bg-[#DEE42F]' : i === currentStep - 1 ? 'bg-[#DEE42F]' : 'bg-[#DCDAD3]'}`}
               />
             ))}
           </div>
@@ -1766,7 +1927,7 @@ function WelcomePage({ onStart }) {
 
         {/* Headline */}
         <h1 
-          className={`text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight transition-all duration-1000 ease-out ${
+          className={`text-5xl md:text-6xl font-bold text-[#0B0B0B] mb-6 leading-tight transition-all duration-1000 ease-out ${
             animate 
               ? 'opacity-100 translate-y-0' 
               : 'opacity-0 translate-y-8'
@@ -1779,7 +1940,7 @@ function WelcomePage({ onStart }) {
         
         {/* Subtitle */}
         <p 
-          className={`text-xl text-[#333333] mb-8 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
+          className={`text-xl text-[#4A4840] mb-8 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
             animate 
               ? 'opacity-100 translate-y-0' 
               : 'opacity-0 translate-y-6'
@@ -1805,7 +1966,7 @@ function WelcomePage({ onStart }) {
         </div>
       </div>
       
-      <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
+      <div className="absolute bottom-4 right-4 text-xs text-[#B3B0A8]">
         v{APP_VERSION}
       </div>
     </div>
@@ -1840,7 +2001,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
 
         {/* Headline */}
         <h1 
-          className={`text-5xl md:text-6xl font-bold text-[#1A1A1A] mb-6 leading-tight transition-all duration-1000 ease-out ${
+          className={`text-5xl md:text-6xl font-bold text-[#0B0B0B] mb-6 leading-tight transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
           style={{ transitionDelay: animate ? '200ms' : '0ms' }}
@@ -1851,7 +2012,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
         
         {/* Subtitle */}
         <p 
-          className={`text-xl text-[#333333] mb-4 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
+          className={`text-xl text-[#4A4840] mb-4 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
           style={{ transitionDelay: animate ? '400ms' : '0ms' }}
@@ -1860,7 +2021,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
         </p>
         
         <p 
-          className={`text-sm text-[#666666] mb-8 transition-all duration-1000 ease-out ${
+          className={`text-sm text-[#8A877D] mb-8 transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
           style={{ transitionDelay: animate ? '500ms' : '0ms' }}
@@ -1887,7 +2048,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
         </div>
       </div>
       
-      <div className="absolute bottom-4 right-4 text-xs text-[#9CA3AF]">
+      <div className="absolute bottom-4 right-4 text-xs text-[#B3B0A8]">
         v{APP_VERSION} · Read-only
       </div>
     </div>
@@ -1941,30 +2102,30 @@ function AdditionalPropertiesInput({ project, setProject }) {
   };
 
   return (
-    <div className="border border-[#D9D6D0] rounded-lg overflow-hidden">
+    <div className="border border-[#DCDAD3] rounded-lg overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-[#FAFAF8] hover:bg-[#F5F4F0] transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-3 bg-[#FAFAF8] hover:bg-[#F2F0EA] transition-colors text-left"
       >
         <div className="flex items-center gap-2">
-          <Plus className="w-4 h-4 text-[#666666]" />
-          <span className="text-sm font-medium text-[#1A1A1A]">Additional Properties</span>
+          <Plus className="w-4 h-4 text-[#8A877D]" />
+          <span className="text-sm font-medium text-[#0B0B0B]">Additional Properties</span>
           {props.length > 0 && (
             <span className="text-xs font-semibold px-2 py-0.5 bg-[#1A1A1A] text-white rounded-full">{props.length}</span>
           )}
         </div>
-        <ChevronDown className={`w-4 h-4 text-[#666666] transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="p-4 space-y-4 border-t border-[#D9D6D0]">
-          <p className="text-xs text-[#666666]">
+        <div className="p-4 space-y-4 border-t border-[#DCDAD3]">
+          <p className="text-xs text-[#8A877D]">
             Add regional sites, translated versions, microsites or other digital properties owned by this brand. Leave blank to assess the primary URL only.
           </p>
 
           {/* Primary language */}
-          <div className="flex items-center gap-3 p-3 bg-[#F0EEEA] rounded-lg">
+          <div className="flex items-center gap-3 p-3 bg-[#E4E2DC] rounded-lg">
             <span className="text-xs font-semibold text-[#666] w-4">✦</span>
             <div className="flex-1 text-xs text-[#444] font-medium">Primary site</div>
             <input
@@ -1972,22 +2133,22 @@ function AdditionalPropertiesInput({ project, setProject }) {
               value={project.primaryLanguage || ''}
               onChange={e => setProject({ ...project, primaryLanguage: e.target.value })}
               placeholder="Language (e.g. English)"
-              className="px-2 py-1.5 text-xs border border-[#D9D6D0] rounded bg-white w-40"
+              className="px-2 py-1.5 text-xs border border-[#DCDAD3] rounded bg-white w-40"
             />
           </div>
 
           {props.map((prop, i) => (
-            <div key={i} className="p-3 bg-[#F5F4F0] rounded-lg space-y-2">
+            <div key={i} className="p-3 bg-[#F2F0EA] rounded-lg space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#666666] w-4">{i + 1}</span>
+                <span className="text-xs font-semibold text-[#8A877D] w-4">{i + 1}</span>
                 <input
                   type="url"
                   value={prop.url}
                   onChange={e => updateProperty(i, 'url', e.target.value)}
                   placeholder="https://de.example.com"
-                  className="flex-1 px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white"
+                  className="flex-1 px-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white"
                 />
-                <button type="button" onClick={() => removeProperty(i)} className="text-[#999] hover:text-[#E53935] transition-colors flex-shrink-0">
+                <button type="button" onClick={() => removeProperty(i)} className="text-[#999] hover:text-[#0B0B0B] transition-colors flex-shrink-0">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1995,7 +2156,7 @@ function AdditionalPropertiesInput({ project, setProject }) {
                 <select
                   value={prop.type}
                   onChange={e => updateProperty(i, 'type', e.target.value)}
-                  className="px-2 py-1.5 text-xs border border-[#D9D6D0] rounded bg-white flex-1"
+                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] rounded bg-white flex-1"
                 >
                   {PROPERTY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
@@ -2004,14 +2165,14 @@ function AdditionalPropertiesInput({ project, setProject }) {
                   value={prop.language}
                   onChange={e => updateProperty(i, 'language', e.target.value)}
                   placeholder="Language (e.g. German)"
-                  className="px-2 py-1.5 text-xs border border-[#D9D6D0] rounded bg-white flex-1"
+                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] rounded bg-white flex-1"
                 />
                 <input
                   type="text"
                   value={prop.label}
                   onChange={e => updateProperty(i, 'label', e.target.value)}
                   placeholder="Label (e.g. DACH)"
-                  className="px-2 py-1.5 text-xs border border-[#D9D6D0] rounded bg-white flex-1"
+                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] rounded bg-white flex-1"
                 />
               </div>
             </div>
@@ -2020,7 +2181,7 @@ function AdditionalPropertiesInput({ project, setProject }) {
           <button
             type="button"
             onClick={addProperty}
-            className="flex items-center gap-2 text-sm text-[#1A1A1A] font-medium hover:text-[#E53935] transition-colors"
+            className="flex items-center gap-2 text-sm text-[#0B0B0B] font-medium hover:text-[#0B0B0B] transition-colors"
           >
             <Plus className="w-4 h-4" /> Add property
           </button>
@@ -2036,65 +2197,65 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
   return (
     <div className="max-w-2xl mx-auto p-8 animate-fade-in">
       <MobileAssessmentBanner />
-      <h2 className="text-3xl font-bold text-[#1A1A1A] mb-2">Brand Details</h2>
-      <p className="text-[#333333] mb-8">Tell us about the brand you're assessing.</p>
+      <h2 className="text-3xl font-bold text-[#0B0B0B] mb-2">Brand Details</h2>
+      <p className="text-[#4A4840] mb-8">Tell us about the brand you're assessing.</p>
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Brand Name *</label>
+          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Brand Name *</label>
           <input type="text" value={project.brandName} onChange={(e) => setProject({ ...project, brandName: e.target.value })}
-            placeholder="e.g., Antenna Group" className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white" />
+            placeholder="e.g., Antenna Group" className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white" />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Website URL *</label>
+          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Website URL *</label>
           <input type="url" value={project.websiteUrl} onChange={(e) => setProject({ ...project, websiteUrl: e.target.value })}
-            placeholder="https://www.example.com" className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white" />
+            placeholder="https://www.example.com" className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white" />
         </div>
 
         <AdditionalPropertiesInput project={project} setProject={setProject} />
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Business Model</label>
+          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Business Model</label>
           <select value={project.businessModel} onChange={(e) => setProject({ ...project, businessModel: e.target.value })}
-            className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white">
+            className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white">
             {BUSINESS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Industry</label>
+          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Industry</label>
           <select value={project.industry || 'other'} onChange={(e) => setProject({ ...project, industry: e.target.value })}
-            className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white">
+            className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white">
             {INDUSTRIES.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-          <p className="text-xs text-[#666666] mt-1">Used for industry context in the assessment</p>
+          <p className="text-xs text-[#8A877D] mt-1">Used for industry context in the assessment</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Assessor Context</label>
+          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Assessor Context</label>
           <textarea
             value={project.assessorContext || ''}
             onChange={(e) => setProject({ ...project, assessorContext: e.target.value })}
             rows={5}
             placeholder={`State what the brand wants to achieve, and the report will assess its readiness to get there. For example:\n\n- Strategic goals and aspirations (repositioning, new audience, new market, launch)\n- What the client has told you about their challenges\n- Key competitors: [names]\n- Known sensitivities or live issues to be aware of\n- The purpose of this assessment (new business, existing client review, benchmark)`}
-            className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white text-sm leading-relaxed resize-y"
+            className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white text-sm leading-relaxed resize-y"
             style={{ minHeight: '120px' }}
           />
-          <p className="text-xs text-[#666666] mt-1">Optional. This is the lens for the whole report. State what the brand wants, for example to reposition, reach a new audience, or launch, and the assessment will judge how ready the brand is to get there. It is not quoted in the report, only reflected as the brand's stated ambition. Leave it blank and this lens is not applied.</p>
+          <p className="text-xs text-[#8A877D] mt-1">Optional. This is the lens for the whole report. State what the brand wants, for example to reposition, reach a new audience, or launch, and the assessment will judge how ready the brand is to get there. It is not quoted in the report, only reflected as the brand's stated ambition. Leave it blank and this lens is not applied.</p>
         </div>
 
         {/* Only show API key field if no default is configured */}
         {!DEFAULT_API_KEY && (
-          <div className="pt-4 border-t border-[#D9D6D0]">
-            <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Claude API Key *</label>
+          <div className="pt-4 border-t border-[#DCDAD3]">
+            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Claude API Key *</label>
             <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white font-mono text-sm" />
-            <p className="text-xs text-[#666666] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#E53935] hover:underline">console.anthropic.com</a></p>
+              placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white font-mono text-sm" />
+            <p className="text-xs text-[#8A877D] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#B23A3A] hover:underline">console.anthropic.com</a></p>
           </div>
         )}
         {DEFAULT_API_KEY && (
-          <div className="pt-4 border-t border-[#D9D6D0]">
+          <div className="pt-4 border-t border-[#DCDAD3]">
             <div className="flex items-center gap-2 text-sm text-[#059669]">
               <Check className="w-4 h-4" />
               <span>API key configured</span>
@@ -2241,7 +2402,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
 
   // Score colour helper
   const scoreColor = (s) => {
-    if (s == null) return '#D9D6D0';
+    if (s == null) return '#DCDAD3';
     if (s >= 80) return '#059669';
     if (s >= 50) return '#F59E0B';
     return '#E53935';
@@ -2263,12 +2424,12 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
     <div className="card p-5 mb-4 border-l-4 border-[#1976D2]">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="text-sm font-medium text-[#1A1A1A] mb-1 flex items-center gap-2">
+          <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
             <Globe className="w-4 h-4 text-[#1976D2]" />
             Digital Property Consistency
-            <span className="text-xs font-normal text-[#666666]">— {additionalProperties.length} additional {additionalProperties.length === 1 ? 'property' : 'properties'}</span>
+            <span className="text-xs font-normal text-[#8A877D]">— {additionalProperties.length} additional {additionalProperties.length === 1 ? 'property' : 'properties'}</span>
           </h3>
-          <p className="text-xs text-[#666666]">Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis.</p>
+          <p className="text-xs text-[#8A877D]">Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis.</p>
         </div>
         {extractRisk(propertyData.consistencyAnalysis) && (
           <span className="text-xs font-bold px-3 py-1 rounded-full text-white flex-shrink-0"
@@ -2282,7 +2443,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
       <div className="overflow-x-auto mb-4">
         <table className="w-full text-xs border-collapse">
           <thead>
-            <tr className="border-b border-[#E8E6E1]">
+            <tr className="border-b border-[#DCDAD3]">
               <th className="text-left py-2 pr-3 font-semibold text-[#666] w-32">Property</th>
               <th className="text-left py-2 pr-3 font-semibold text-[#666]">URL</th>
               <th className="text-left py-2 pr-3 font-semibold text-[#666] w-20">Type</th>
@@ -2296,10 +2457,10 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
             {allProperties.map((prop, i) => {
               return (
                 <tr key={i} className={i % 2 === 0 ? 'bg-[#FAFAF8]' : ''}>
-                  <td className="py-2 pr-3 font-semibold text-[#1A1A1A]">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
+                  <td className="py-2 pr-3 font-semibold text-[#0B0B0B]">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
                   <td className="py-2 pr-3 text-[#666] max-w-[180px] truncate" title={prop.url}>{prop.url}</td>
                   <td className="py-2 pr-3">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#E8E6E1] text-[#444]">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F2F0EA] text-[#444]">
                       {PROPERTY_TYPES.find(t => t.id === prop.type)?.label || prop.type}
                     </span>
                   </td>
@@ -2318,7 +2479,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
                             {val}
                           </span>
                         ) : hasError && i > 0 ? (
-                          <span className="text-[#E53935] text-[10px]">err</span>
+                          <span className="text-[#B23A3A] text-[10px]">err</span>
                         ) : i === 0 ? (
                           <span className="text-[10px] text-[#BBB]" title="Run Technical Performance Audit above">—</span>
                         ) : (
@@ -2355,10 +2516,10 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
         </button>
       </div>
 
-      {error && <p className="text-xs text-[#E53935] mt-2">{error}</p>}
+      {error && <p className="text-xs text-[#B23A3A] mt-2">{error}</p>}
 
       {propertyData.consistencyAnalysis && (
-        <div className="mt-4 bg-[#F0EEEA] rounded-lg p-4">
+        <div className="mt-4 bg-[#E4E2DC] rounded-lg p-4">
           <div className="text-[10px] font-semibold text-[#666] uppercase tracking-wider mb-2">Consistency Analysis</div>
           <pre className="text-sm text-[#333] whitespace-pre-wrap font-sans leading-relaxed">{propertyData.consistencyAnalysis}</pre>
         </div>
@@ -2377,7 +2538,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
 
   // Helper function to get color based on PageSpeed score
   const getScoreColor = (score) => {
-    if (score === '' || score === undefined || score === null) return '#666666';
+    if (score === '' || score === undefined || score === null) return '#8A877D';
     const num = parseInt(score);
     if (num >= 90) return '#059669'; // Green - Good
     if (num >= 50) return '#D97706'; // Amber - Needs Improvement
@@ -2459,8 +2620,8 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
     <div className="card p-5 mb-4">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-medium text-[#1A1A1A]">Technical Performance Audit</h3>
-          <p className="text-xs text-[#666666]">PageSpeed scores impact ATTENTIVE & COGENT</p>
+          <h3 className="text-sm font-medium text-[#0B0B0B]">Technical Performance Audit</h3>
+          <p className="text-xs text-[#8A877D]">PageSpeed scores impact ATTENTIVE & COGENT</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -2490,8 +2651,8 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       )}
 
       {!fetchError && (
-        <div className="bg-[#F0EEEA] rounded-lg p-3 mb-4">
-          <p className="text-xs text-[#666666]">
+        <div className="bg-[#E4E2DC] rounded-lg p-3 mb-4">
+          <p className="text-xs text-[#8A877D]">
             Click "Auto-Fetch" to get scores automatically, or "Manual" to verify on Google PageSpeed.
           </p>
         </div>
@@ -2513,10 +2674,10 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
               value={techAudit.scores[item.key] ?? ''}
               onChange={(e) => updateScore(item.key, e.target.value)}
               placeholder="-"
-              className="w-full text-center text-2xl font-bold py-2 border border-[#D9D6D0] rounded-lg bg-white focus:ring-2 focus:ring-[#E53935] focus:border-transparent"
+              className="w-full text-center text-2xl font-bold py-2 border border-[#DCDAD3] rounded-lg bg-white focus:ring-2 focus:ring-[#E53935] focus:border-transparent"
               style={{ color: getScoreColor(techAudit.scores[item.key]) }}
             />
-            <div className="text-xs text-[#666666] mt-1">{item.label}</div>
+            <div className="text-xs text-[#8A877D] mt-1">{item.label}</div>
             <div 
               className="text-[10px] font-medium"
               style={{ color: getScoreColor(techAudit.scores[item.key]) }}
@@ -2528,9 +2689,9 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       </div>
 
       {hasAnyScore && (
-        <div className="mt-3 pt-3 border-t border-[#E8E6E1] flex items-center gap-2">
+        <div className="mt-3 pt-3 border-t border-[#DCDAD3] flex items-center gap-2">
           <Check className="w-4 h-4 text-[#059669]" />
-          <span className="text-xs text-[#666666]">Scores will be included in assessment</span>
+          <span className="text-xs text-[#8A877D]">Scores will be included in assessment</span>
         </div>
       )}
     </div>
@@ -2982,26 +3143,26 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#E53935]/10 rounded-xl flex items-center justify-center">
-          <Globe className="w-6 h-6 text-[#E53935]" />
+        <div className="w-12 h-12 bg-[#DEE42F]/10 rounded-xl flex items-center justify-center">
+          <Globe className="w-6 h-6 text-[#B23A3A]" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-[#1A1A1A]">Website Assessment</h2>
-          <p className="text-sm text-[#666666]">{project.brandName} · {project.websiteUrl}</p>
+          <h2 className="text-xl font-bold text-[#0B0B0B]">Website Assessment</h2>
+          <p className="text-sm text-[#8A877D]">{project.brandName} · {project.websiteUrl}</p>
         </div>
       </div>
 
       <CompletionIndicator items={completionItems} />
 
       {/* Auto-Assess Website */}
-      <div className="card p-5 mb-4 border-l-4 border-[#E53935]">
+      <div className="card p-5 mb-4 border-l-4 border-[#0B0B0B]">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#E53935]" />
+            <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#B23A3A]" />
               Auto-Assess Website
             </h3>
-            <p className="text-xs text-[#666666]">
+            <p className="text-xs text-[#8A877D]">
               AI-powered comprehensive analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization.
             </p>
           </div>
@@ -3018,10 +3179,10 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
               <Check className="w-4 h-4 text-[#10B981]" />
-              <span className="text-sm font-medium text-[#1A1A1A]">Website Assessment Complete</span>
+              <span className="text-sm font-medium text-[#0B0B0B]">Website Assessment Complete</span>
             </div>
-            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
+            <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-80 overflow-y-auto">
+              <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
             </div>
           </div>
         )}
@@ -3029,21 +3190,21 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 
       {/* Pages Reviewed */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Pages Reviewed</h3>
-        <p className="text-sm text-[#666666] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Pages Reviewed</h3>
+        <p className="text-sm text-[#8A877D] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
         <input 
           type="text" 
           value={pagesReviewed} 
           onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ ...assessmentData, pagesReviewed: e.target.value }); }}
           placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact"
-          className="w-full px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white"
+          className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white"
         />
       </div>
 
       {/* Recognition & Credentials */}
       <div className="card p-5 mb-4">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-[#1A1A1A]">Recognition & Credentials (Optional)</h3>
+          <h3 className="text-sm font-medium text-[#0B0B0B]">Recognition & Credentials (Optional)</h3>
           <button 
             onClick={runCredentialsAssess} 
             disabled={isAssessingCredentials || !project.brandName}
@@ -3056,12 +3217,12 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
             )}
           </button>
         </div>
-        <p className="text-sm text-[#666666] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
+        <p className="text-sm text-[#8A877D] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
         <textarea 
           value={credentialsContent} 
           onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ ...assessmentData, credentialsContent: e.target.value }); }}
           placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor..."
-          className={`w-full h-24 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none ${credentialsContent ? 'bg-[#F0EEEA]' : ''}`}
+          className={`w-full h-24 px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white resize-none ${credentialsContent ? 'bg-[#E4E2DC]' : ''}`}
         />
         {credentialsContent && (
           <p className="text-xs text-[#059669] mt-1">✓ Recognition data captured</p>
@@ -3070,17 +3231,17 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 
       {/* Screenshots */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2 flex items-center gap-2">
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2 flex items-center gap-2">
           <Image className="w-5 h-5" /> Website Screenshots (up to 4)
         </h3>
-        <p className="text-sm text-[#666666] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
+        <p className="text-sm text-[#8A877D] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
         
         <div className="grid grid-cols-2 gap-4 mb-4">
           {images.map((img, index) => (
             <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#D9D6D0]" />
+              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#DCDAD3]" />
               <button onClick={() => removeImage(index)}
                 className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100">
                 <X className="w-4 h-4" />
@@ -3093,11 +3254,11 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           
           {images.length < 4 && (
             <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#E53935] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#E53935]/5 transition-colors">
+              className="h-40 border-2 border-dashed border-[#0B0B0B] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#DEE42F]/5 transition-colors">
               {isCompressing ? (
-                <><Loader2 className="w-6 h-6 text-[#E53935] animate-spin" /><span className="text-sm text-[#E53935]">Compressing...</span></>
+                <><Loader2 className="w-6 h-6 text-[#B23A3A] animate-spin" /><span className="text-sm text-[#B23A3A]">Compressing...</span></>
               ) : (
-                <><Upload className="w-6 h-6 text-[#E53935]" /><span className="text-sm text-[#E53935] font-medium">Add Screenshot</span><span className="text-xs text-[#666666]">{4 - images.length} remaining</span></>
+                <><Upload className="w-6 h-6 text-[#B23A3A]" /><span className="text-sm text-[#B23A3A] font-medium">Add Screenshot</span><span className="text-xs text-[#8A877D]">{4 - images.length} remaining</span></>
               )}
             </button>
           )}
@@ -3112,8 +3273,8 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 
       {/* Website Content */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Website Content (Optional)</h3>
-        <p className="text-sm text-[#666666] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Website Content (Optional)</h3>
+        <p className="text-sm text-[#8A877D] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
         <textarea 
           value={websiteContent} 
           onChange={(e) => { setWebsiteContent(e.target.value); setAssessmentData({ ...assessmentData, websiteContent: e.target.value }); }}
@@ -3125,7 +3286,7 @@ TAGLINE: 'Enterprise solutions for the modern era'
 ABOUT: 'Founded in 2015, we help companies...'
 VALUE PROP: 'Reduce costs by 40% while improving...'
 ..."
-          className="w-full h-28 px-4 py-3 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
+          className="w-full h-28 px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm"
         />
       </div>
 
@@ -3133,14 +3294,14 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       <div className="card p-5 mb-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-semibold text-[#1A1A1A]">SEO Visibility Assessment</h3>
-            <p className="text-sm text-[#666666]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
+            <h3 className="font-semibold text-[#0B0B0B]">SEO Visibility Assessment</h3>
+            <p className="text-sm text-[#8A877D]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
           </div>
         </div>
 
         {!seoAssessment ? (
           <div>
-            <p className="text-sm text-[#666666] mb-4">
+            <p className="text-sm text-[#8A877D] mb-4">
               Claude will analyze {project.brandName}'s likely SEO visibility based on brand name uniqueness, 
               industry competitiveness, content signals, and identify target keywords they should rank for.
             </p>
@@ -3165,21 +3326,21 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         ) : (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
+              <span className="text-sm font-medium text-[#0B0B0B] flex items-center gap-2">
                 <Check className="w-4 h-4 text-green-600" /> SEO Assessment Complete
-                <span className="text-xs text-[#666666] font-normal">(will be included in Website Analysis)</span>
+                <span className="text-xs text-[#8A877D] font-normal">(will be included in Website Analysis)</span>
               </span>
               <button 
                 onClick={runSeoAssessment} 
                 disabled={isAssessingSeo}
-                className="text-sm text-[#E53935] hover:underline flex items-center gap-1"
+                className="text-sm text-[#B23A3A] hover:underline flex items-center gap-1"
               >
                 {isAssessingSeo ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                 Regenerate Analysis
               </button>
             </div>
-            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-64 overflow-y-auto">
-              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{seoAssessment}</pre>
+            <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-64 overflow-y-auto">
+              <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{seoAssessment}</pre>
             </div>
           </div>
         )}
@@ -3202,8 +3363,8 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 
       {/* Assessor Observations */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
-        <p className="text-sm text-[#666666] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
+        <p className="text-sm text-[#8A877D] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Add your observations about:
 - Brand alignment issues
@@ -3211,7 +3372,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 - Consistency across pages
 - Navigation or UX concerns
 - Content gaps
-- Competitive positioning..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
+- Competitive positioning..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -3227,8 +3388,8 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       {isComplete && (
         <div className="card p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#E53935]" /> Analysis Complete
+            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#B23A3A]" /> Analysis Complete
             </h3>
             <button 
               onClick={() => {
@@ -3241,8 +3402,8 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
@@ -3254,7 +3415,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#DCDAD3]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -3877,22 +4038,22 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         <Check className="w-3.5 h-3.5 text-[#059669]" />
         <span className="text-[10px] font-semibold text-[#059669] uppercase tracking-wider">Auto-checked</span>
       </div>
-      <pre className="text-xs text-[#333333] whitespace-pre-wrap font-sans leading-relaxed max-h-44 overflow-y-auto">{content}</pre>
+      <pre className="text-xs text-[#4A4840] whitespace-pre-wrap font-sans leading-relaxed max-h-44 overflow-y-auto">{content}</pre>
     </div>
   ) : null;
 
   const AccordionHeader = ({ title, icon: Icon, isOpen, onClick, badge, hasContent }) => (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center justify-between p-4 rounded-lg transition-colors ${isOpen ? 'bg-[#F0EEEA]' : 'bg-white hover:bg-[#F8F7F5]'} border border-[#E8E6E1]`}
+      className={`w-full flex items-center justify-between p-4 rounded-lg transition-colors ${isOpen ? 'bg-[#E4E2DC]' : 'bg-white hover:bg-[#F2F0EA]'} border border-[#DCDAD3]`}
     >
       <div className="flex items-center gap-3">
-        <Icon className="w-5 h-5 text-[#666666]" />
-        <span className="font-medium text-[#1A1A1A]">{title}</span>
+        <Icon className="w-5 h-5 text-[#8A877D]" />
+        <span className="font-medium text-[#0B0B0B]">{title}</span>
         {badge && <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">{badge}</span>}
         {hasContent && <Check className="w-4 h-4 text-[#059669]" />}
       </div>
-      <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
     </button>
   );
 
@@ -3904,22 +4065,22 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           <Users className="w-6 h-6 text-[#8B5CF6]" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-[#1A1A1A]">Social Media Assessment</h2>
-          <p className="text-sm text-[#666666]">{project.brandName}'s social presence</p>
+          <h2 className="text-xl font-bold text-[#0B0B0B]">Social Media Assessment</h2>
+          <p className="text-sm text-[#8A877D]">{project.brandName}'s social presence</p>
         </div>
       </div>
 
       <CompletionIndicator items={completionItems} />
 
       {/* Run Everything */}
-      <div className="card p-4 mb-4 border-l-4 border-[#E53935]">
+      <div className="card p-4 mb-4 border-l-4 border-[#0B0B0B]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
           <div className="min-w-0">
-            <h3 className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#E53935]" />
+            <h3 className="text-sm font-medium text-[#0B0B0B] flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#B23A3A]" />
               Run Everything
             </h3>
-            <p className="text-xs text-[#666666]">Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
+            <p className="text-xs text-[#8A877D]">Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
           </div>
           <button
             onClick={runEverything}
@@ -3931,10 +4092,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </div>
         {isRunningAll && (
           <div className="mt-3">
-            <div className="w-full bg-[#E8E6E1] rounded-full h-2 mb-1.5">
-              <div className="bg-[#E53935] h-2 rounded-full transition-all duration-500 ease-out" style={{ width: `${runAllProgress}%` }} />
+            <div className="w-full bg-[#F2F0EA] rounded-full h-2 mb-1.5">
+              <div className="bg-[#DEE42F] h-2 rounded-full transition-all duration-500 ease-out" style={{ width: `${runAllProgress}%` }} />
             </div>
-            <p className="text-xs text-[#666666]">{runAllStage}</p>
+            <p className="text-xs text-[#8A877D]">{runAllStage}</p>
           </div>
         )}
       </div>
@@ -3943,11 +4104,11 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       <div className="card p-4 mb-4 border-l-4 border-[#8B5CF6]">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] flex items-center gap-2">
+            <h3 className="text-sm font-medium text-[#0B0B0B] flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
               Social Media Health Check
             </h3>
-            <p className="text-xs text-[#666666]">Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes.</p>
+            <p className="text-xs text-[#8A877D]">Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes.</p>
           </div>
           <button 
             onClick={() => runAutoCheck()} 
@@ -3959,13 +4120,13 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </div>
         
         {socialHealthCheck && (
-          <div className="mt-3 border-t border-[#E8E6E1] pt-3">
+          <div className="mt-3 border-t border-[#DCDAD3] pt-3">
             <div className="flex items-center gap-2 mb-2">
               <Check className="w-4 h-4 text-[#059669]" />
-              <span className="text-sm font-medium text-[#1A1A1A]">Health Check Complete</span>
+              <span className="text-sm font-medium text-[#0B0B0B]">Health Check Complete</span>
             </div>
-            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{socialHealthCheck}</pre>
+            <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-80 overflow-y-auto">
+              <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{socialHealthCheck}</pre>
             </div>
           </div>
         )}
@@ -3973,17 +4134,17 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       {/* Screenshots - Matching Website Style */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2 flex items-center gap-2">
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2 flex items-center gap-2">
           <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) <span className="text-red-500">*</span>
         </h3>
-        <p className="text-sm text-[#666666] mb-4">Upload screenshots of key social profiles for visual analysis. Required to proceed.</p>
+        <p className="text-sm text-[#8A877D] mb-4">Upload screenshots of key social profiles for visual analysis. Required to proceed.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
         
         <div className="grid grid-cols-2 gap-4 mb-4">
           {images.map((img, index) => (
             <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#D9D6D0]" />
+              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#DCDAD3]" />
               <button onClick={() => removeImage(index)}
                 className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100">
                 <X className="w-4 h-4" />
@@ -3996,11 +4157,11 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           
           {images.length < SOCIAL_SCREENSHOT_MAX && (
             <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#E53935] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#E53935]/5 transition-colors">
+              className="h-40 border-2 border-dashed border-[#0B0B0B] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#DEE42F]/5 transition-colors">
               {isCompressing ? (
-                <><Loader2 className="w-6 h-6 text-[#E53935] animate-spin" /><span className="text-sm text-[#E53935]">Compressing...</span></>
+                <><Loader2 className="w-6 h-6 text-[#B23A3A] animate-spin" /><span className="text-sm text-[#B23A3A]">Compressing...</span></>
               ) : (
-                <><Upload className="w-6 h-6 text-[#E53935]" /><span className="text-sm text-[#E53935] font-medium">Add Screenshot</span><span className="text-xs text-[#666666]">{SOCIAL_SCREENSHOT_MAX - images.length} remaining</span></>
+                <><Upload className="w-6 h-6 text-[#B23A3A]" /><span className="text-sm text-[#B23A3A] font-medium">Add Screenshot</span><span className="text-xs text-[#8A877D]">{SOCIAL_SCREENSHOT_MAX - images.length} remaining</span></>
               )}
             </button>
           )}
@@ -4025,11 +4186,11 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.linkedinAuto || inputs.linkedinAbout || inputs.linkedinPosts)}
         />
         {expanded.linkedin && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
             <AutoPanel content={inputs.linkedinAuto} />
             <div className="flex gap-2">
               <input type="url" value={inputs.linkedinUrl} onChange={(e) => updateInput('linkedinUrl', e.target.value)}
-                placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
+                placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm" />
               {inputs.linkedinUrl && (
                 <a href={inputs.linkedinUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#0A66C2] text-white rounded-lg text-xs hover:bg-[#004182] flex items-center gap-1">
                   <ExternalLink className="w-3 h-3" /> Open
@@ -4037,14 +4198,14 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               )}
             </div>
             <div>
-              <label className="text-xs font-medium text-[#666666] mb-1 block">Company Profile & About Section</label>
+              <label className="text-xs font-medium text-[#8A877D] mb-1 block">Company Profile & About Section</label>
               <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
-                placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#666666] mb-1 block">Recent Posts & Engagement</label>
+              <label className="text-xs font-medium text-[#8A877D] mb-1 block">Recent Posts & Engagement</label>
               <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
-                placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -4063,11 +4224,11 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.xAuto || inputs.xContent)}
         />
         {expanded.x && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
             <AutoPanel content={inputs.xAuto} />
             <div className="flex gap-2">
               <input type="url" value={inputs.xUrl} onChange={(e) => updateInput('xUrl', e.target.value)}
-                placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm" />
+                placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm" />
               {inputs.xUrl && (
                 <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#1A1A1A] text-white rounded-lg text-xs hover:bg-[#333] flex items-center gap-1">
                   <ExternalLink className="w-3 h-3" /> Open
@@ -4075,7 +4236,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               )}
             </div>
             <textarea value={inputs.xContent} onChange={(e) => updateInput('xContent', e.target.value)}
-              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
           </div>
         )}
       </div>
@@ -4093,10 +4254,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.instagramAuto || inputs.instagramContent)}
         />
         {expanded.instagram && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
             <AutoPanel content={inputs.instagramAuto} />
             <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
-              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
           </div>
         )}
       </div>
@@ -4114,7 +4275,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.youtubeAuto || inputs.youtubeContent)}
         />
         {expanded.other && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
             <AutoPanel content={inputs.youtubeAuto} />
             <div>
               <div className="flex items-center justify-end mb-1">
@@ -4124,7 +4285,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
                 </a>
               </div>
               <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
-                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -4134,7 +4295,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {/* Other platforms, auto only */}
       {inputs.otherPlatformsAuto && (
         <div className="card p-4 mb-3">
-          <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Facebook, TikTok, Bluesky, Substack</h3>
+          <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Facebook, TikTok, Bluesky, Substack</h3>
           <AutoPanel content={inputs.otherPlatformsAuto} />
         </div>
       )}
@@ -4143,7 +4304,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {relevance.secondary.length > 0 && (
         <button
           onClick={() => setShowAllChannels(v => !v)}
-          className="text-xs text-[#666666] hover:text-[#E53935] transition-colors mb-4 flex items-center gap-1.5"
+          className="text-xs text-[#8A877D] hover:text-[#0B0B0B] transition-colors mb-4 flex items-center gap-1.5"
         >
           <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAllChannels ? 'rotate-180' : ''}`} />
           {showAllChannels ? 'Show priority channels only' : `Show all channels (${relevance.secondary.length} more)`}
@@ -4161,10 +4322,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.glassdoorContent || inputs.wipoContent)}
         />
         {expanded.reputation && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#666666]">Glassdoor <span className="text-purple-600">(→ Reflective)</span></label>
+                <label className="text-xs font-medium text-[#8A877D]">Glassdoor <span className="text-purple-600">(→ Reflective)</span></label>
                 <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
                    className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium rounded hover:bg-purple-200 transition-colors flex items-center gap-1">
                   Verify <ExternalLink className="w-2.5 h-2.5" />
@@ -4172,7 +4333,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               </div>
               {inputs.glassdoorAuto && <div className="mb-2"><AutoPanel content={inputs.glassdoorAuto} /></div>}
               <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
-                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
@@ -4213,8 +4374,8 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.campaignAuto || inputs.campaignContent)}
         />
         {expanded.campaign && (
-          <div className="border border-t-0 border-[#E8E6E1] rounded-b-lg p-4 bg-white space-y-3">
-            <p className="text-xs text-[#666666]">
+          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
+            <p className="text-xs text-[#8A877D]">
               This is what drives the Campaign Coherence score. What matters is whether a strategy and a creative idea thread the activity together, not how much activity there is.
               {project.businessModel === 'b2b'
                 ? ' For B2B, LinkedIn Ads and Google Search usually carry the weight.'
@@ -4262,7 +4423,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             </div>
 
             <div>
-              <label className="text-xs font-medium text-[#666666] mb-1 block">Your notes</label>
+              <label className="text-xs font-medium text-[#8A877D] mb-1 block">Your notes</label>
               <textarea value={inputs.campaignContent} onChange={(e) => updateInput('campaignContent', e.target.value)}
                 placeholder={`Anything the auto-check missed. Most useful:
 
@@ -4270,7 +4431,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 • Whether one idea threads them together, or they are separate bursts
 • Whether paid creative matches the organic work
 • Whether anyone outside the brand has picked the idea up`} 
-                className="w-full h-28 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+                className="w-full h-28 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -4279,16 +4440,16 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {/* Third-party conversation, auto only */}
       {inputs.thirdPartyAuto && (
         <div className="card p-4 mb-4">
-          <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Third-Party Conversation</h3>
+          <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Third-Party Conversation</h3>
           <AutoPanel content={inputs.thirdPartyAuto} />
         </div>
       )}
 
       {/* Observations - Simplified */}
       <div className="card p-4 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Notes</h3>
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Notes</h3>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm" />
+          placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
       </div>
 
       {/* Analysis Button & Results */}
@@ -4303,7 +4464,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {isComplete && (
         <div className="card p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
             </h3>
             <button 
@@ -4314,8 +4475,8 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
@@ -4327,7 +4488,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-4 border-t border-[#D9D6D0]">
+      <div className="flex items-center justify-between pt-4 border-t border-[#DCDAD3]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -4558,8 +4719,8 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
           <Bot className="w-6 h-6 text-[#3B82F6]" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-[#1A1A1A]">AI Reputation Assessment</h2>
-          <p className="text-sm text-[#666666]">What prospects discover when researching {project.brandName}</p>
+          <h2 className="text-xl font-bold text-[#0B0B0B]">AI Reputation Assessment</h2>
+          <p className="text-sm text-[#8A877D]">What prospects discover when researching {project.brandName}</p>
         </div>
       </div>
 
@@ -4569,14 +4730,14 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       <div className="card p-4 mb-4 border-l-4 border-[#3B82F6]">
         <div className="flex items-start justify-between mb-2">
           <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-0.5">AI Brand Research Prompt</h3>
-            <p className="text-xs text-[#666666]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
+            <h3 className="text-sm font-medium text-[#0B0B0B] mb-0.5">AI Brand Research Prompt</h3>
+            <p className="text-xs text-[#8A877D]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
           </div>
         </div>
-        <div className="bg-[#F8F7F5] rounded-lg p-3 max-h-32 overflow-y-auto mb-2">
-          <pre className="text-xs text-[#333333] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 400)}...</pre>
+        <div className="bg-[#F2F0EA] rounded-lg p-3 max-h-32 overflow-y-auto mb-2">
+          <pre className="text-xs text-[#4A4840] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 400)}...</pre>
         </div>
-        <p className="text-xs text-[#999999]">Customised for <strong>{project.brandName}</strong> · {industryName}</p>
+        <p className="text-xs text-[#B3B0A8]">Customised for <strong>{project.brandName}</strong> · {industryName}</p>
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
@@ -4584,15 +4745,15 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       {/* AI Engine Cards — uniform pattern */}
       <div className="space-y-3 mb-4">
         {engines.map(engine => (
-          <div key={engine.key} className={`card p-4 ${manualInput[engine.key] ? 'bg-[#F0EEEA]' : ''}`}>
+          <div key={engine.key} className={`card p-4 ${manualInput[engine.key] ? 'bg-[#E4E2DC]' : ''}`}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#E53935] text-white' : 'bg-[#F0EEEA]'}`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#DEE42F] text-white' : 'bg-[#E4E2DC]'}`}>
                   {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
                 </div>
                 <div>
                   <h4 className="font-medium">{engine.name}</h4>
-                  <p className="text-sm text-[#666666]">{engine.brand}</p>
+                  <p className="text-sm text-[#8A877D]">{engine.brand}</p>
                 </div>
               </div>
               <a
@@ -4616,7 +4777,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 setAssessmentData({ ...assessmentData, [`${engine.key}Manual`]: val });
               }}
               placeholder={`Paste ${engine.name}'s response here...`}
-              className={`w-full h-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-sm ${manualInput[engine.key] ? 'bg-[#F0EEEA]' : 'bg-white'}`}
+              className={`w-full h-24 px-3 py-2 border border-[#DCDAD3] rounded-lg text-sm ${manualInput[engine.key] ? 'bg-[#E4E2DC]' : 'bg-white'}`}
             />
           </div>
         ))}
@@ -4624,13 +4785,13 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
 
       {/* AI Training Sources */}
       <div className="card p-4 mb-4 border-l-4 border-[#6366F1]">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">AI Training Sources</h3>
-        <p className="text-xs text-[#666666] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">AI Training Sources</h3>
+        <p className="text-xs text-[#8A877D] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
         <div className="space-y-3">
           {/* Wikipedia */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#666666]">Wikipedia</label>
+              <label className="text-xs font-medium text-[#8A877D]">Wikipedia</label>
               <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer"
                  className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium rounded hover:bg-gray-200 transition-colors flex items-center gap-1">
                 Search Wikipedia <ExternalLink className="w-2.5 h-2.5" />
@@ -4640,13 +4801,13 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               value={wikipediaContent}
               onChange={(e) => { setWikipediaContent(e.target.value); setAssessmentData({ ...assessmentData, wikipediaContent: e.target.value }); }}
               placeholder={`Does ${project.brandName} have a Wikipedia page? Record what it says — or note its absence.`}
-              className="w-full h-16 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
+              className="w-full h-16 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm"
             />
           </div>
           {/* Reddit Answers */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-orange-800">Reddit Answers <span className="text-[#666666] font-normal">(AI search visibility)</span></label>
+              <label className="text-xs font-medium text-orange-800">Reddit Answers <span className="text-[#8A877D] font-normal">(AI search visibility)</span></label>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => copyToClipboard(redditPrompt)}
@@ -4671,9 +4832,9 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       </div>
 
       {/* Third-Party & Search Signals (auto-fetched, NOT AI engines) */}
-      <div className="card p-4 mb-4 border-l-4 border-[#E53935]">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-1">Third-Party &amp; Search Signals</h3>
-        <p className="text-xs text-[#666666] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
+      <div className="card p-4 mb-4 border-l-4 border-[#0B0B0B]">
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">Third-Party &amp; Search Signals</h3>
+        <p className="text-xs text-[#8A877D] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
         <div className="space-y-3">
           {[
             { key: 'news', label: 'Google News', value: googleNewsContent, setter: setGoogleNewsContent, field: 'googleNewsContent', run: fetchGoogleNews, placeholder: `Recent press and news coverage of ${project.brandName}...` },
@@ -4682,11 +4843,11 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
           ].map(row => (
             <div key={row.key}>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#666666]">{row.label} {row.sub && <span className="font-normal text-[#999]">{row.sub}</span>}</label>
+                <label className="text-xs font-medium text-[#8A877D]">{row.label} {row.sub && <span className="font-normal text-[#999]">{row.sub}</span>}</label>
                 <button
                   onClick={row.run}
                   disabled={!!fetching[row.label]}
-                  className="px-2 py-0.5 bg-[#E53935] text-white text-[10px] font-medium rounded hover:bg-[#C62828] transition-colors flex items-center gap-1 disabled:opacity-50"
+                  className="px-2 py-0.5 bg-[#DEE42F] text-white text-[10px] font-medium rounded hover:bg-[#C62828] transition-colors flex items-center gap-1 disabled:opacity-50"
                 >
                   {fetching[row.label] ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Fetching</> : <><Search className="w-2.5 h-2.5" /> Auto-fetch</>}
                 </button>
@@ -4695,7 +4856,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 value={row.value}
                 onChange={(e) => { row.setter(e.target.value); setAssessmentData({ ...assessmentData, [row.field]: e.target.value }); }}
                 placeholder={row.placeholder}
-                className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
+                className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm"
               />
             </div>
           ))}
@@ -4704,10 +4865,10 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
 
       {/* Assessor Observations */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
-        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the synthesis.</p>
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
+        <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the synthesis.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
+          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none" />
       </div>
 
       {canSynthesize && !isComplete && (
@@ -4719,7 +4880,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       {isComplete && (
         <div className="card p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#3B82F6]" /> Synthesis Complete
             </h3>
             <button
@@ -4730,7 +4891,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-64 overflow-y-auto text-sm text-[#333333]">{assessmentData.content}</div>
+          <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-64 overflow-y-auto text-sm text-[#4A4840]">{assessmentData.content}</div>
         </div>
       )}
 
@@ -4741,7 +4902,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#DCDAD3]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -4902,8 +5063,8 @@ Write in flowing prose with specific examples. End with priority recommendations
           <Newspaper className="w-6 h-6 text-[#10B981]" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-[#1A1A1A]">Earned Media Assessment</h2>
-          <p className="text-sm text-[#666666]">{project.brandName}'s press coverage</p>
+          <h2 className="text-xl font-bold text-[#0B0B0B]">Earned Media Assessment</h2>
+          <p className="text-sm text-[#8A877D]">{project.brandName}'s press coverage</p>
         </div>
       </div>
 
@@ -4911,8 +5072,8 @@ Write in flowing prose with specific examples. End with priority recommendations
 
       {/* Coverage Paste Field */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Media Coverage (Last 3 Months)</h3>
-        <p className="text-sm text-[#666666] mb-4">
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Media Coverage (Last 3 Months)</h3>
+        <p className="text-sm text-[#8A877D] mb-4">
           Paste any press coverage, news articles, mentions, or media clips from the last 3 months.
         </p>
         <textarea 
@@ -4928,9 +5089,9 @@ Example:
 - Gartner Cool Vendor 2025: Named in category report
 - Inc. 5000 (2025): Ranked #234 fastest growing
 ..."
-          className="w-full h-28 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none text-sm"
+          className="w-full h-28 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm"
         />
-        <p className="text-xs text-[#666666] mt-2">
+        <p className="text-xs text-[#8A877D] mt-2">
           Include: news articles, podcast appearances, conference keynotes, analyst mentions, awards announcements, industry rankings
         </p>
       </div>
@@ -4939,11 +5100,11 @@ Example:
       <div className="card p-5 mb-4 border-l-4 border-[#10B981]">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium text-[#1A1A1A] mb-1 flex items-center gap-2">
+            <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#10B981]" />
               Auto-Assess Earned Media Performance
             </h3>
-            <p className="text-xs text-[#666666]">
+            <p className="text-xs text-[#8A877D]">
               AI-powered comprehensive analysis across 7 dimensions: Coverage Quality, Reach, Sentiment, Share of Voice, Message Consistency, Thought Leadership, and Audience Relevance.
             </p>
           </div>
@@ -4960,10 +5121,10 @@ Example:
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
               <Check className="w-4 h-4 text-[#10B981]" />
-              <span className="text-sm font-medium text-[#1A1A1A]">Performance Assessment Complete</span>
+              <span className="text-sm font-medium text-[#0B0B0B]">Performance Assessment Complete</span>
             </div>
-            <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
+            <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-80 overflow-y-auto">
+              <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
             </div>
           </div>
         )}
@@ -4971,10 +5132,10 @@ Example:
 
       {/* Assessor Observations - before analysis button */}
       <div className="card p-5 mb-4">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Assessor Observations</h3>
-        <p className="text-sm text-[#666666] mb-3">Your observations will be included in the analysis and final report.</p>
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
+        <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white resize-none" />
+          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -4988,7 +5149,7 @@ Example:
       {isComplete && (
         <div className="card p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#10B981]" /> Analysis Complete
             </h3>
             <button 
@@ -5002,8 +5163,8 @@ Example:
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#F0EEEA] rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
@@ -5015,7 +5176,7 @@ Example:
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#D9D6D0]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#DCDAD3]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -5062,6 +5223,7 @@ function ReportPage({ project, setProject, scores, setScores, assessments, apiKe
     services: true,
     conclusions: true,
     justification: false,
+    footprint: true,
     campaign: true,
     benchmark: true,
     evaluated: false,
@@ -5249,6 +5411,22 @@ RULES:
 - Level 5 requires publicly observable evidence of influence. Do not infer impact from the brand's own marketing claims.
 - Be sceptical. A hashtag is not a campaign. A content series is not a campaign. Most brands sit at 1 or 2.
 
+BRAND FOOTPRINT:
+
+Map where ${project.brandName} actually shows up across every surface a person could encounter it. This is DESCRIPTIVE ONLY. It does not change any attribute score. Do not adjust your scoring because of it.
+
+For each of these eight channels, report what you can actually observe in the evidence above:
+
+${FOOTPRINT_CHANNELS.map(c => `- ${c.id}: ${c.name}. ${c.hint}`).join('\n')}
+
+RULES, and the first one matters most:
+- COUNT ONLY WHAT YOU CAN SEE. "signals" is the number of distinct pieces of evidence you actually observed for that channel: named articles, named accounts, named threads, specific citations. If you observed three articles, that is 3, not an estimate of total coverage.
+- NEVER estimate audience reach, impressions or total mention volume. Those are not publicly observable and a fabricated number would discredit the whole report. There is no reach field for this reason.
+- A channel with no observable evidence gets share 0, signals 0 and evidence "No evidence found". Do not invent presence to fill the table. An empty channel is a finding.
+- "share" is that channel's percentage of the brand's total observed footprint. Shares across all channels must sum to 100. Channels with no evidence get 0.
+- "sentiment" runs -100 to 100 and is only for channels where others are speaking about the brand. Use null for owned and paid, where the brand controls the message.
+- "evidence" is a short factual descriptor of what was found, max 6 words. For example "National trade, 3 tier-one titles" or "LinkedIn-led, founder account".
+
 SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 - AWAKE: Executive Visibility, PR & Media Relations, Thought Leadership Content
 - AWARE: Audience Research, Social Media Strategy, Community Management, Influencer & Creator Strategy, GEO
@@ -5264,6 +5442,12 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
   "headline": "Single pithy sentence (max 20 words) capturing brand state and primary opportunity. Specific, not generic.",
   "conclusion": "2-3 sentences naming the specific transformation available. Reference actual findings. No generic phrases.",
   "justification": "Under 150 words. Why the overall score is what it is. Call out notably high/low scores with evidence.",
+  "footprint": {
+    "verdict": "One sentence on where this brand shows up and where it does not. Direct. Max 20 words.",
+    "channels": {
+${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, "evidence": "max 6 words, or 'No evidence found'", "sentiment": -100 to 100 or null }`).join(',\n')}
+    }
+  },
   "campaignCoherence": {
     "level": 0-5,
     "levelName": "Ad hoc|Themed|Packaged|Integrated|Platform|Consequential",
@@ -5373,48 +5557,48 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
     return (
       <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
         <div className="flex items-start gap-4 mb-8">
-          <div className="w-14 h-14 bg-[#E53935]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-            <BarChart3 className="w-7 h-7 text-[#E53935]" />
+          <div className="w-14 h-14 bg-[#DEE42F]/10 rounded-xl flex items-center justify-center flex-shrink-0">
+            <BarChart3 className="w-7 h-7 text-[#B23A3A]" />
           </div>
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Generate Brand Report</h2>
-            <p className="text-[#333333] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
+            <h2 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Generate Brand Report</h2>
+            <p className="text-[#4A4840] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
           </div>
         </div>
 
         <div className="card p-6 md:p-8 text-center mb-6">
           {isScoring ? (
             <div className="max-w-lg mx-auto">
-              <Loader2 className="w-16 h-16 text-[#E53935] mx-auto mb-6 animate-spin" />
-              <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Generating Report...</h3>
-              <p className="text-[#666666] mb-6">{scoringStage}</p>
+              <Loader2 className="w-16 h-16 text-[#B23A3A] mx-auto mb-6 animate-spin" />
+              <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Generating Report...</h3>
+              <p className="text-[#8A877D] mb-6">{scoringStage}</p>
               
               {/* Progress bar */}
-              <div className="w-full bg-[#E8E6E1] rounded-full h-3 mb-2">
+              <div className="w-full bg-[#F2F0EA] rounded-full h-3 mb-2">
                 <div 
-                  className="bg-[#E53935] h-3 rounded-full transition-all duration-500 ease-out"
+                  className="bg-[#DEE42F] h-3 rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${scoringProgress}%` }}
                 />
               </div>
-              <p className="text-sm text-[#666666] mb-8">{scoringProgress}% complete</p>
+              <p className="text-sm text-[#8A877D] mb-8">{scoringProgress}% complete</p>
               
               {/* Progress steps - centered */}
               <div className="space-y-3">
                 {/* Data Collection */}
                 <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 25 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 25 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
                     {scoringProgress >= 25 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
                     <span>Website</span>
                   </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 40 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 40 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
                     {scoringProgress >= 40 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
                     <span>Social</span>
                   </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 55 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 55 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
                     {scoringProgress >= 55 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
                     <span>AI Rep</span>
                   </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 70 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 70 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
                     {scoringProgress >= 70 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
                     <span>Earned</span>
                   </div>
@@ -5422,11 +5606,11 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
                 
                 {/* Processing */}
                 <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 85 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 85 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
                     {scoringProgress >= 85 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
                     <span>Scoring</span>
                   </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 95 ? 'text-[#E53935]' : 'text-[#999999]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 95 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
                     {scoringProgress >= 95 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
                     <span>Recommendations</span>
                   </div>
@@ -5434,17 +5618,17 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
               </div>
 
               {waitingStories.length > 0 && (
-                <div className="mt-8 pt-6 border-t border-[#E8E6E1]">
-                  <p className="text-xs font-semibold text-[#999999] uppercase tracking-wider text-center">While you're waiting</p>
-                  <p className="text-xs text-[#666666] mb-4 text-center">The latest from Stay Conscious</p>
+                <div className="mt-8 pt-6 border-t border-[#DCDAD3]">
+                  <p className="text-xs font-semibold text-[#B3B0A8] uppercase tracking-wider text-center">While you're waiting</p>
+                  <p className="text-xs text-[#8A877D] mb-4 text-center">The latest from Stay Conscious</p>
                   <div className="space-y-3">
                     {waitingStories.map((s, i) => (
                       <div key={i} className="card p-3 text-left">
                         {s.category && (
-                          <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-[#E53935] mb-1">{s.category}</span>
+                          <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-[#B23A3A] mb-1">{s.category}</span>
                         )}
-                        <div className="font-semibold text-sm text-[#1A1A1A] leading-snug">{s.headline}</div>
-                        {s.summary && <div className="text-xs text-[#666666] mt-1 leading-relaxed">{s.summary}</div>}
+                        <div className="font-semibold text-sm text-[#0B0B0B] leading-snug">{s.headline}</div>
+                        {s.summary && <div className="text-xs text-[#8A877D] mt-1 leading-relaxed">{s.summary}</div>}
                       </div>
                     ))}
                   </div>
@@ -5453,9 +5637,9 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
             </div>
           ) : (
             <>
-              <Compass className="w-16 h-16 text-[#E53935] mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Assessment Complete</h3>
-              <p className="text-[#666666] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
+              <Compass className="w-16 h-16 text-[#B23A3A] mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Assessment Complete</h3>
+              <p className="text-[#8A877D] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
               
               <button 
                 onClick={runScoring} 
@@ -5493,14 +5677,14 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
       <div className="max-w-4xl mx-auto p-8">
         <div className="card p-6 text-center">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">Report Generation Issue</h3>
-          <p className="text-[#666666] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
+          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-2">Report Generation Issue</h3>
+          <p className="text-[#8A877D] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
           <button onClick={() => setScores(null)} className="btn-primary">
             Try Again
           </button>
-          <details className="mt-4 text-left text-xs text-[#999999]">
+          <details className="mt-4 text-left text-xs text-[#B3B0A8]">
             <summary className="cursor-pointer">Debug Info</summary>
-            <pre className="mt-2 p-2 bg-[#F0EEEA] rounded overflow-auto max-h-40">
+            <pre className="mt-2 p-2 bg-[#E4E2DC] rounded overflow-auto max-h-40">
               {JSON.stringify(scores, null, 2)}
             </pre>
           </details>
@@ -7055,8 +7239,8 @@ ${content.slice(0, 8000)}`;
             </button>
           )}
           <div className="min-w-0">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1A1A] leading-tight">{project.brandName}</h2>
-            <p className="text-sm text-[#666666] mt-0.5">Conscious Compass Assessment Report | {industryName}</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#0B0B0B] leading-tight">{project.brandName}</h2>
+            <p className="text-sm text-[#8A877D] mt-0.5">Conscious Compass Assessment Report | {industryName}</p>
           </div>
         </div>
         {!isReadonly ? (
@@ -7071,7 +7255,7 @@ ${content.slice(0, 8000)}`;
             </button>
           </div>
         ) : (
-          <span className="text-sm text-[#666666] bg-[#F0EEEA] px-3 py-1.5 rounded-full self-start">Viewing Report</span>
+          <span className="text-sm text-[#8A877D] bg-[#E4E2DC] px-3 py-1.5 rounded-full self-start">Viewing Report</span>
         )}
       </div>
 
@@ -7085,21 +7269,21 @@ ${content.slice(0, 8000)}`;
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold" style={{ backgroundColor: stage.color }}>
                   {animatedScore}
                 </div>
-                <div className="text-xs text-[#666666] mt-1">out of 100</div>
+                <div className="text-xs text-[#8A877D] mt-1">out of 100</div>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-lg font-bold text-[#1A1A1A] mb-1">{stage.name}</div>
-                <p className="text-sm text-[#666666] leading-relaxed">{stage.description}</p>
+                <div className="text-lg font-bold text-[#0B0B0B] mb-1">{stage.name}</div>
+                <p className="text-sm text-[#8A877D] leading-relaxed">{stage.description}</p>
               </div>
             </div>
-            <div className="border-t border-[#E8E6E1] pt-4">
+            <div className="border-t border-[#DCDAD3] pt-4">
               {scores.headline && (
-                <p className="text-base font-medium text-[#1A1A1A] mb-3 italic">
+                <p className="text-base font-medium text-[#0B0B0B] mb-3 italic">
                   "{scores.headline}"
                 </p>
               )}
-              <p className="text-sm text-[#333333] leading-relaxed">
-                <strong>{project.brandName}</strong> demonstrates strength in <span className="text-[#059669] font-medium">{sortedAttrs.slice(-2).map(a => a.name).join(' and ')}</span>, with opportunities to grow in <span className="text-[#E53935] font-medium">{sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}</span>.
+              <p className="text-sm text-[#4A4840] leading-relaxed">
+                <strong>{project.brandName}</strong> demonstrates strength in <span className="text-[#059669] font-medium">{sortedAttrs.slice(-2).map(a => a.name).join(' and ')}</span>, with opportunities to grow in <span className="text-[#B23A3A] font-medium">{sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}</span>.
               </p>
             </div>
           </div>
@@ -7116,7 +7300,7 @@ ${content.slice(0, 8000)}`;
         {ATTRIBUTES.map(attr => (
           <div key={attr.id} className="card p-3 text-center">
             <div className="text-xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-            <div className="text-[9px] text-[#666666] uppercase tracking-wide leading-tight break-words">{attr.name}</div>
+            <div className="text-[9px] text-[#8A877D] uppercase tracking-wide leading-tight break-words">{attr.name}</div>
           </div>
         ))}
       </div>
@@ -7128,7 +7312,7 @@ ${content.slice(0, 8000)}`;
       <div className="mt-6 mb-6">
         <button 
           onClick={() => toggleSection('attributes')} 
-          className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
+          className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
         >
           <span>ATTRIBUTE ANALYSIS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.attributes ? 'rotate-180' : ''}`} />
@@ -7140,14 +7324,14 @@ ${content.slice(0, 8000)}`;
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
                   <div className="min-w-0">
-                    <h4 className="font-semibold text-[#1A1A1A] text-sm">{attr.name}</h4>
-                    <p className="text-xs text-[#666666]">{attr.fullName}</p>
+                    <h4 className="font-semibold text-[#0B0B0B] text-sm">{attr.name}</h4>
+                    <p className="text-xs text-[#8A877D]">{attr.fullName}</p>
                   </div>
                 </div>
                 {campaignAdjustment(attr.id) !== 0 && (
                   <p className="text-[10px] text-[#999] mb-2 tabular-nums">
                     {scores[attr.id]?.baseScore} base
-                    <span className={campaignAdjustment(attr.id) > 0 ? ' text-[#059669]' : ' text-[#E53935]'}>
+                    <span className={campaignAdjustment(attr.id) > 0 ? ' text-[#059669]' : ' text-[#B23A3A]'}>
                       {' '}{campaignAdjustment(attr.id) > 0 ? '+' : ''}{campaignAdjustment(attr.id)}
                     </span>{' '}campaign coherence
                   </p>
@@ -7157,19 +7341,19 @@ ${content.slice(0, 8000)}`;
                     {benchmark.cohortLabel} average {benchmark.attrAvgs?.[attr.id] ?? 0}
                     {(() => {
                       const d = (scores[attr.id]?.score || 0) - (benchmark.attrAvgs?.[attr.id] ?? 0);
-                      return <span className={d > 0 ? ' text-[#059669]' : d < 0 ? ' text-[#E53935]' : ''}>{' '}({d > 0 ? '+' : ''}{d})</span>;
+                      return <span className={d > 0 ? ' text-[#059669]' : d < 0 ? ' text-[#B23A3A]' : ''}>{' '}({d > 0 ? '+' : ''}{d})</span>;
                     })()}
                   </p>
                 )}
-                <p className="text-xs text-[#333333] leading-relaxed">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+                <p className="text-xs text-[#4A4840] leading-relaxed">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
                 {scores[attr.id]?.impact && (
-                  <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
+                  <p className="text-xs text-[#4A4840] mt-2 leading-relaxed"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
                 )}
                 {scores[attr.id]?.actions && (
-                  <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
+                  <p className="text-xs text-[#4A4840] mt-2 leading-relaxed"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
                 )}
                 {scores[attr.id]?.opportunity && (
-                  <p className="text-xs text-[#E53935] mt-2 italic">→ {scores[attr.id].opportunity}</p>
+                  <p className="text-xs text-[#B23A3A] mt-2 italic">→ {scores[attr.id].opportunity}</p>
                 )}
               </div>
             ))}
@@ -7186,12 +7370,30 @@ ${content.slice(0, 8000)}`;
         />
       )}
 
+      {/* Brand Footprint - Collapsible */}
+      {scores?.footprint && (
+        <div className="mb-6">
+          <button
+            onClick={() => toggleSection('footprint')}
+            className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
+          >
+            <span>BRAND FOOTPRINT</span>
+            <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.footprint ? 'rotate-180' : ''}`} />
+          </button>
+          {expandedSections.footprint && (
+            <div className="animate-fade-in">
+              <FootprintMosaic footprint={scores.footprint} brandName={project.brandName} />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Campaign Coherence - Collapsible */}
       {!campaignStage && (
         <div className="mb-6">
-          <div className="text-base font-semibold text-[#1A1A1A] mb-3">CAMPAIGN COHERENCE</div>
+          <div className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">CAMPAIGN COHERENCE</div>
           <div className="card p-4 border-l-4 border-amber-400">
-            <p className="text-sm text-[#333333] leading-relaxed">
+            <p className="text-sm text-[#4A4840] leading-relaxed">
               These scores were produced before campaign coherence existed, or the scoring pass did not return it.
               Regenerate the report to score campaign coherence and apply the framework {FRAMEWORK_VERSION} adjustment.
             </p>
@@ -7208,7 +7410,7 @@ ${content.slice(0, 8000)}`;
         <div className="mb-6">
           <button
             onClick={() => toggleSection('campaign')}
-            className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
+            className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
           >
             <span>CAMPAIGN COHERENCE</span>
             <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.campaign ? 'rotate-180' : ''}`} />
@@ -7221,28 +7423,28 @@ ${content.slice(0, 8000)}`;
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
                       {campaignStage.level === 0 ? '—' : campaignStage.level}
                     </div>
-                    <div className="text-[10px] text-[#666666] mt-1">{campaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
+                    <div className="text-[10px] text-[#8A877D] mt-1">{campaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-lg font-bold text-[#1A1A1A]">{campaignStage.name}</div>
-                    <p className="text-sm text-[#666666] leading-relaxed mb-2">{campaignStage.summary}</p>
+                    <div className="text-lg font-bold text-[#0B0B0B]">{campaignStage.name}</div>
+                    <p className="text-sm text-[#8A877D] leading-relaxed mb-2">{campaignStage.summary}</p>
                     {campaign.verdict && (
-                      <p className="text-sm text-[#1A1A1A] font-medium leading-relaxed">{campaign.verdict}</p>
+                      <p className="text-sm text-[#0B0B0B] font-medium leading-relaxed">{campaign.verdict}</p>
                     )}
                   </div>
                 </div>
 
                 <CampaignLadder level={campaignStage.level} />
 
-                <p className="text-xs text-[#333333] leading-relaxed">{campaignStage.description}</p>
+                <p className="text-xs text-[#4A4840] leading-relaxed">{campaignStage.description}</p>
 
                 {campaign.rationale && (
-                  <p className="text-xs text-[#333333] mt-2 leading-relaxed">
+                  <p className="text-xs text-[#4A4840] mt-2 leading-relaxed">
                     <span className="font-semibold">Why this level:</span> {campaign.rationale}
                   </p>
                 )}
                 {campaign.toNextLevel && (
-                  <p className="text-xs text-[#333333] mt-2 leading-relaxed">
+                  <p className="text-xs text-[#4A4840] mt-2 leading-relaxed">
                     <span className="font-semibold">To reach level {Math.min(5, campaignStage.level + 1)}:</span> {campaign.toNextLevel}
                   </p>
                 )}
@@ -7256,16 +7458,16 @@ ${content.slice(0, 8000)}`;
                 <div className="grid md:grid-cols-2 gap-3">
                   {campaign.campaigns.map((c, i) => (
                     <div key={i} className="card p-4">
-                      <h4 className="font-semibold text-[#1A1A1A] text-sm mb-1">{c.name}</h4>
+                      <h4 className="font-semibold text-[#0B0B0B] text-sm mb-1">{c.name}</h4>
                       {Array.isArray(c.channels) && c.channels.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-2">
                           {c.channels.map((ch, j) => (
-                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#F0EEEA] text-[#666666] rounded-full">{ch}</span>
+                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E4E2DC] text-[#8A877D] rounded-full">{ch}</span>
                           ))}
                         </div>
                       )}
-                      {c.idea && <p className="text-xs text-[#333333] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
-                      {c.evidence && <p className="text-xs text-[#666666] leading-relaxed">{c.evidence}</p>}
+                      {c.idea && <p className="text-xs text-[#4A4840] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
+                      {c.evidence && <p className="text-xs text-[#8A877D] leading-relaxed">{c.evidence}</p>}
                     </div>
                   ))}
                 </div>
@@ -7274,8 +7476,8 @@ ${content.slice(0, 8000)}`;
               {/* Score adjustment, shown openly */}
               {campaignAffected.length > 0 && (
                 <div className="card p-4">
-                  <h4 className="text-sm font-semibold text-[#1A1A1A] mb-1">Score Adjustment</h4>
-                  <p className="text-xs text-[#666666] mb-3 leading-relaxed">
+                  <h4 className="text-sm font-semibold text-[#0B0B0B] mb-1">Score Adjustment</h4>
+                  <p className="text-xs text-[#8A877D] mb-3 leading-relaxed">
                     Attribute scores judge the quality of the work. Campaign coherence is scored separately and applied here, so the two are never counted twice.
                     Level {campaignStage.level} adjusts {CAMPAIGN_MODIFIER_ATTRIBUTES.primary.map(id => ATTRIBUTES.find(a => a.id === id)?.name).join(' and ')} by {CAMPAIGN_MODIFIERS[campaignStage.level].primary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].primary}, and {CAMPAIGN_MODIFIER_ATTRIBUTES.secondary.map(id => ATTRIBUTES.find(a => a.id === id)?.name).join(', ')} by {CAMPAIGN_MODIFIERS[campaignStage.level].secondary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].secondary}.
                   </p>
@@ -7283,12 +7485,12 @@ ${content.slice(0, 8000)}`;
                     {campaignAffected.map(attr => {
                       const adj = campaignAdjustment(attr.id);
                       return (
-                        <div key={attr.id} className="flex items-center justify-between bg-[#F8F7F5] rounded px-2.5 py-1.5">
-                          <span className="text-xs font-medium text-[#1A1A1A] truncate">{attr.name}</span>
-                          <span className="text-xs tabular-nums text-[#666666] flex-shrink-0 ml-2">
+                        <div key={attr.id} className="flex items-center justify-between bg-[#F2F0EA] rounded px-2.5 py-1.5">
+                          <span className="text-xs font-medium text-[#0B0B0B] truncate">{attr.name}</span>
+                          <span className="text-xs tabular-nums text-[#8A877D] flex-shrink-0 ml-2">
                             {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
-                            <span className={adj > 0 ? 'text-[#059669] font-semibold' : 'text-[#E53935] font-semibold'}> {adj > 0 ? '+' : ''}{adj} </span>
-                            <span className="font-bold text-[#1A1A1A]">{scores[attr.id]?.score}</span>
+                            <span className={adj > 0 ? 'text-[#059669] font-semibold' : 'text-[#B23A3A] font-semibold'}> {adj > 0 ? '+' : ''}{adj} </span>
+                            <span className="font-bold text-[#0B0B0B]">{scores[attr.id]?.score}</span>
                           </span>
                         </div>
                       );
@@ -7304,9 +7506,9 @@ ${content.slice(0, 8000)}`;
       {/* Industry Benchmark - Collapsible */}
       {benchmarkUnavailableReason && (
         <div className="mb-6">
-          <div className="text-base font-semibold text-[#1A1A1A] mb-3">BENCHMARK COMPARISON</div>
+          <div className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">BENCHMARK COMPARISON</div>
           <div className="card p-4 border-l-4 border-amber-400">
-            <p className="text-sm text-[#333333] leading-relaxed">{benchmarkUnavailableReason}</p>
+            <p className="text-sm text-[#4A4840] leading-relaxed">{benchmarkUnavailableReason}</p>
           </div>
         </div>
       )}
@@ -7314,7 +7516,7 @@ ${content.slice(0, 8000)}`;
         <div className="mb-6">
           <button
             onClick={() => toggleSection('benchmark')}
-            className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
+            className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
           >
             <span>BENCHMARK COMPARISON</span>
             <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.benchmark ? 'rotate-180' : ''}`} />
@@ -7331,10 +7533,10 @@ ${content.slice(0, 8000)}`;
                 <BenchmarkSpread benchmark={benchmark} brandName={project.brandName} />
               </div>
 
-              <div className="bg-white border border-[#E8E6E1] rounded p-5" ref={benchmarkRadarRef}>
+              <div className="bg-white border border-[#DCDAD3] rounded p-5" ref={benchmarkRadarRef}>
                 <div className="mb-3">
-                  <h3 className="font-semibold text-[#1A1A1A] text-sm">Profile Against Benchmark</h3>
-                  <p className="text-xs text-[#666666] mt-1">
+                  <h3 className="font-semibold text-[#0B0B0B] text-sm">Profile Against Benchmark</h3>
+                  <p className="text-xs text-[#8A877D] mt-1">
                     {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
                   </p>
                 </div>
@@ -7357,7 +7559,7 @@ ${content.slice(0, 8000)}`;
       <div className="mb-6">
         <button 
           onClick={() => toggleSection('recommendations')} 
-          className="w-full flex items-center justify-between text-base font-semibold text-[#1A1A1A] mb-3 hover:text-[#E53935] transition-colors"
+          className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
         >
           <span>RECOMMENDATIONS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.recommendations ? 'rotate-180' : ''}`} />
@@ -7368,18 +7570,18 @@ ${content.slice(0, 8000)}`;
               {recommendations.slice(0, 6).map((r, i) => (
                 <div key={i} className="card p-4">
                   <div className="flex gap-3 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</div>
+                    <div className="w-6 h-6 rounded-full bg-[#DEE42F] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-[#1A1A1A] text-sm">{r.title}</h4>
+                      <h4 className="font-medium text-[#0B0B0B] text-sm">{r.title}</h4>
                     </div>
                   </div>
-                  <p className="text-xs text-[#666666] leading-relaxed mb-2">{r.description}</p>
-                  <div className="bg-[#F0EEEA] rounded-lg p-2 mb-2">
-                    <p className="text-xs text-[#333333] leading-relaxed"><span className="font-medium text-[#E53935]">Benefit:</span> {r.impact}</p>
+                  <p className="text-xs text-[#8A877D] leading-relaxed mb-2">{r.description}</p>
+                  <div className="bg-[#E4E2DC] rounded-lg p-2 mb-2">
+                    <p className="text-xs text-[#4A4840] leading-relaxed"><span className="font-medium text-[#B23A3A]">Benefit:</span> {r.impact}</p>
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {r.attributes.slice(0, 3).map((attr, j) => (
-                      <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E53935]/10 text-[#E53935] rounded-full">{attr}</span>
+                      <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEE42F]/10 text-[#B23A3A] rounded-full">{attr}</span>
                     ))}
                   </div>
                 </div>
@@ -7387,23 +7589,23 @@ ${content.slice(0, 8000)}`;
             </div>
             {recommendations.length > 6 && (
               <details className="mt-3">
-                <summary className="text-sm text-[#E53935] cursor-pointer hover:underline">View {recommendations.length - 6} more recommendations</summary>
+                <summary className="text-sm text-[#B23A3A] cursor-pointer hover:underline">View {recommendations.length - 6} more recommendations</summary>
                 <div className="grid md:grid-cols-2 gap-3 mt-3">
                   {recommendations.slice(6).map((r, i) => (
                     <div key={i + 6} className="card p-4">
                       <div className="flex gap-3 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-[#E53935]/20 text-[#E53935] flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 7}</div>
+                        <div className="w-6 h-6 rounded-full bg-[#DEE42F]/20 text-[#B23A3A] flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 7}</div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-[#1A1A1A] text-sm">{r.title}</h4>
+                          <h4 className="font-medium text-[#0B0B0B] text-sm">{r.title}</h4>
                         </div>
                       </div>
-                      <p className="text-xs text-[#666666] leading-relaxed mb-2">{r.description}</p>
-                      <div className="bg-[#F0EEEA] rounded-lg p-2 mb-2">
-                        <p className="text-xs text-[#333333] leading-relaxed"><span className="font-medium text-[#E53935]">Benefit:</span> {r.impact}</p>
+                      <p className="text-xs text-[#8A877D] leading-relaxed mb-2">{r.description}</p>
+                      <div className="bg-[#E4E2DC] rounded-lg p-2 mb-2">
+                        <p className="text-xs text-[#4A4840] leading-relaxed"><span className="font-medium text-[#B23A3A]">Benefit:</span> {r.impact}</p>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {r.attributes.slice(0, 3).map((attr, j) => (
-                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E53935]/10 text-[#E53935] rounded-full">{attr}</span>
+                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEE42F]/10 text-[#B23A3A] rounded-full">{attr}</span>
                         ))}
                       </div>
                     </div>
@@ -7426,14 +7628,14 @@ ${content.slice(0, 8000)}`;
           <div className="mb-6">
             <button 
               onClick={() => toggleSection('services')} 
-              className="w-full flex items-center justify-between text-xl font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+              className="w-full flex items-center justify-between text-xl font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
             >
               <span>RECOMMENDED ANTENNA GROUP SERVICES</span>
               <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.services ? 'rotate-180' : ''}`} />
             </button>
             {expandedSections.services && (
               <div className="animate-fade-in">
-                <p className="text-[#666666] mb-4 text-sm md:text-base">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
+                <p className="text-[#8A877D] mb-4 text-sm md:text-base">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
                 <div className="grid md:grid-cols-2 gap-4">
                   {topServices.map((rec, i) => {
                     const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
@@ -7441,8 +7643,8 @@ ${content.slice(0, 8000)}`;
                       <div key={i} className="card p-4 md:p-5 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
                         <div className="flex items-start justify-between mb-3">
                           <div>
-                            <h4 className="font-semibold text-[#1A1A1A] text-sm md:text-base">{rec.service.name}</h4>
-                            <p className="text-xs text-[#666666]">{rec.service.category}</p>
+                            <h4 className="font-semibold text-[#0B0B0B] text-sm md:text-base">{rec.service.name}</h4>
+                            <p className="text-xs text-[#8A877D]">{rec.service.category}</p>
                           </div>
                           <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                             rec.priorityLevel === 'critical' ? 'bg-red-100 text-red-700' :
@@ -7453,8 +7655,8 @@ ${content.slice(0, 8000)}`;
                              rec.priorityLevel === 'moderate' ? 'Recommended' : 'Opportunity'}
                           </span>
                         </div>
-                        <p className="text-xs md:text-sm text-[#333333] mb-3">{rec.rationale}</p>
-                        <div className="flex items-center justify-between text-xs text-[#666666]">
+                        <p className="text-xs md:text-sm text-[#4A4840] mb-3">{rec.rationale}</p>
+                        <div className="flex items-center justify-between text-xs text-[#8A877D]">
                           <span className="flex items-center gap-1">
                             <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr?.color || '#E53935' }}></span>
                             Improves {attr?.name} (currently {rec.attributeScore})
@@ -7462,7 +7664,7 @@ ${content.slice(0, 8000)}`;
                           <span className="font-medium">{formatBudget(rec.service)}</span>
                         </div>
                         {rec.service.note && (
-                          <p className="text-xs text-[#999999] mt-2 italic">{rec.service.note}</p>
+                          <p className="text-xs text-[#B3B0A8] mt-2 italic">{rec.service.note}</p>
                         )}
                       </div>
                     );
@@ -7478,14 +7680,14 @@ ${content.slice(0, 8000)}`;
       <div className="mb-6">
         <button 
           onClick={() => toggleSection('conclusions')} 
-          className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+          className="w-full flex items-center justify-between text-lg font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
         >
           <span>CONCLUSIONS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.conclusions ? 'rotate-180' : ''}`} />
         </button>
         {expandedSections.conclusions && (
           <div className="card p-4 md:p-6 animate-fade-in">
-            <p className="text-sm md:text-base text-[#333333] leading-relaxed">
+            <p className="text-sm md:text-base text-[#4A4840] leading-relaxed">
               {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
             </p>
           </div>
@@ -7497,14 +7699,14 @@ ${content.slice(0, 8000)}`;
         <div className="mb-6">
           <button 
             onClick={() => toggleSection('justification')} 
-            className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+            className="w-full flex items-center justify-between text-lg font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
           >
             <span>SCORE JUSTIFICATION</span>
             <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.justification ? 'rotate-180' : ''}`} />
           </button>
           {expandedSections.justification && (
-            <div className="card p-4 md:p-6 animate-fade-in bg-[#FAFAF9]">
-              <p className="text-sm text-[#333333] leading-relaxed">
+            <div className="card p-4 md:p-6 animate-fade-in bg-[#F2F0EA]">
+              <p className="text-sm text-[#4A4840] leading-relaxed">
                 {scores.justification}
               </p>
             </div>
@@ -7516,14 +7718,14 @@ ${content.slice(0, 8000)}`;
       <div className="mb-8">
         <button 
           onClick={() => toggleSection('evaluated')} 
-          className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+          className="w-full flex items-center justify-between text-lg font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
         >
           <span>WHAT WE EVALUATED</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.evaluated ? 'rotate-180' : ''}`} />
         </button>
         {expandedSections.evaluated && (
           <div className="card p-4 md:p-6 animate-fade-in">
-            <p className="text-sm md:text-base text-[#333333] leading-relaxed">
+            <p className="text-sm md:text-base text-[#4A4840] leading-relaxed">
               This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
           </div>
@@ -7534,7 +7736,7 @@ ${content.slice(0, 8000)}`;
       <div className="mb-8">
         <button 
           onClick={() => toggleSection('readouts')} 
-          className="w-full flex items-center justify-between text-lg font-semibold text-[#1A1A1A] mb-4 hover:text-[#E53935] transition-colors"
+          className="w-full flex items-center justify-between text-lg font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
         >
           <span>ASSESSMENT READOUTS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.readouts ? 'rotate-180' : ''}`} />
@@ -7545,42 +7747,42 @@ ${content.slice(0, 8000)}`;
             <div className="card overflow-hidden">
               <button 
                 onClick={() => toggleSection('readoutWebsite')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
+                className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#E53935]/10 rounded-lg flex items-center justify-center">
-                    <Globe className="w-5 h-5 text-[#E53935]" />
+                  <div className="w-10 h-10 bg-[#DEE42F]/10 rounded-lg flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-[#B23A3A]" />
                   </div>
                   <div className="text-left">
-                    <h4 className="font-medium text-[#1A1A1A]">Website Assessment</h4>
-                    <p className="text-xs text-[#666666]">Auto-assess, SEO visibility, and full analysis</p>
+                    <h4 className="font-medium text-[#0B0B0B]">Website Assessment</h4>
+                    <p className="text-xs text-[#8A877D]">Auto-assess, SEO visibility, and full analysis</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutWebsite ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${expandedSections.readoutWebsite ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutWebsite && (
-                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
+                <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
                   {assessments.website?.autoAssessContent && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#E53935] mb-2">Auto-Assess Analysis</h5>
+                      <h5 className="text-sm font-medium text-[#B23A3A] mb-2">Auto-Assess Analysis</h5>
                       <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.website.autoAssessContent}</pre>
+                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.website.autoAssessContent}</pre>
                       </div>
                     </div>
                   )}
                   {assessments.website?.seoAssessment && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#E53935] mb-2">SEO Visibility Assessment</h5>
+                      <h5 className="text-sm font-medium text-[#B23A3A] mb-2">SEO Visibility Assessment</h5>
                       <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.website.seoAssessment}</pre>
+                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.website.seoAssessment}</pre>
                       </div>
                     </div>
                   )}
                   {assessments.website?.content && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#E53935] mb-2">Full Website Analysis</h5>
+                      <h5 className="text-sm font-medium text-[#B23A3A] mb-2">Full Website Analysis</h5>
                       <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.website.content}</pre>
+                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.website.content}</pre>
                       </div>
                     </div>
                   )}
@@ -7592,26 +7794,26 @@ ${content.slice(0, 8000)}`;
             <div className="card overflow-hidden">
               <button 
                 onClick={() => toggleSection('readoutSocial')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
+                className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#8B5CF6]/10 rounded-lg flex items-center justify-center">
                     <Users className="w-5 h-5 text-[#8B5CF6]" />
                   </div>
                   <div className="text-left">
-                    <h4 className="font-medium text-[#1A1A1A]">Social Media Assessment</h4>
-                    <p className="text-xs text-[#666666]">Platform analysis and Reddit Answers AI visibility</p>
+                    <h4 className="font-medium text-[#0B0B0B]">Social Media Assessment</h4>
+                    <p className="text-xs text-[#8A877D]">Platform analysis and Reddit Answers AI visibility</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutSocial ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${expandedSections.readoutSocial ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutSocial && (
-                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
+                <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
                   {assessments.social?.redditAnswersContent && (
                     <div>
                       <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Reddit Answers (AI Search Visibility)</h5>
                       <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.social.redditAnswersContent}</pre>
+                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.social.redditAnswersContent}</pre>
                       </div>
                     </div>
                   )}
@@ -7619,7 +7821,7 @@ ${content.slice(0, 8000)}`;
                     <div>
                       <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Full Social Media Analysis</h5>
                       <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.social.content}</pre>
+                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.social.content}</pre>
                       </div>
                     </div>
                   )}
@@ -7631,27 +7833,27 @@ ${content.slice(0, 8000)}`;
             <div className="card overflow-hidden">
               <button 
                 onClick={() => toggleSection('readoutAI')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
+                className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#3B82F6]/10 rounded-lg flex items-center justify-center">
                     <Bot className="w-5 h-5 text-[#3B82F6]" />
                   </div>
                   <div className="text-left">
-                    <h4 className="font-medium text-[#1A1A1A]">AI Reputation Assessment</h4>
-                    <p className="text-xs text-[#666666]">AI engine reputation synthesis</p>
+                    <h4 className="font-medium text-[#0B0B0B]">AI Reputation Assessment</h4>
+                    <p className="text-xs text-[#8A877D]">AI engine reputation synthesis</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutAI ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${expandedSections.readoutAI ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutAI && (
-                <div className="border-t border-[#E8E6E1] p-4 bg-[#FAFAF9]">
+                <div className="border-t border-[#DCDAD3] p-4 bg-[#F2F0EA]">
                   {assessments.aiReputation?.content ? (
                     <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                      <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
+                      <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
                     </div>
                   ) : (
-                    <p className="text-sm text-[#666666]">No synthesis generated yet.</p>
+                    <p className="text-sm text-[#8A877D]">No synthesis generated yet.</p>
                   )}
                 </div>
               )}
@@ -7661,26 +7863,26 @@ ${content.slice(0, 8000)}`;
             <div className="card overflow-hidden">
               <button 
                 onClick={() => toggleSection('readoutEarned')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F8F7F5] transition-colors"
+                className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#10B981]/10 rounded-lg flex items-center justify-center">
                     <Newspaper className="w-5 h-5 text-[#10B981]" />
                   </div>
                   <div className="text-left">
-                    <h4 className="font-medium text-[#1A1A1A]">Earned Media Assessment</h4>
-                    <p className="text-xs text-[#666666]">Auto-assess performance and coverage analysis</p>
+                    <h4 className="font-medium text-[#0B0B0B]">Earned Media Assessment</h4>
+                    <p className="text-xs text-[#8A877D]">Auto-assess performance and coverage analysis</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform ${expandedSections.readoutEarned ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${expandedSections.readoutEarned ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutEarned && (
-                <div className="border-t border-[#E8E6E1] p-4 space-y-4 bg-[#FAFAF9]">
+                <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
                   {assessments.earnedMedia?.autoAssessContent && (
                     <div>
                       <h5 className="text-sm font-medium text-[#10B981] mb-2">Auto-Assess Earned Media Performance</h5>
                       <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earnedMedia.autoAssessContent}</pre>
+                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.earnedMedia.autoAssessContent}</pre>
                       </div>
                     </div>
                   )}
@@ -7688,7 +7890,7 @@ ${content.slice(0, 8000)}`;
                     <div>
                       <h5 className="text-sm font-medium text-[#10B981] mb-2">Full Earned Media Analysis</h5>
                       <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#333333] whitespace-pre-wrap font-sans">{assessments.earnedMedia.content}</pre>
+                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.earnedMedia.content}</pre>
                       </div>
                     </div>
                   )}
@@ -7699,7 +7901,7 @@ ${content.slice(0, 8000)}`;
         )}
       </div>
 
-      <div className="flex items-center justify-start pt-6 border-t border-[#D9D6D0]">
+      <div className="flex items-center justify-start pt-6 border-t border-[#DCDAD3]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
       </div>
     </div>
@@ -7854,7 +8056,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F4F0]">
+    <div className="min-h-screen bg-[#F2F0EA]">
       <div className="max-w-7xl mx-auto p-4 md:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-4">
@@ -7862,8 +8064,8 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Compass Results</h1>
-              <span className="text-sm text-[#666666]">{results.length} assessments</span>
+              <h1 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Compass Results</h1>
+              <span className="text-sm text-[#8A877D]">{results.length} assessments</span>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -7884,13 +8086,13 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
             <div className="flex flex-wrap items-center gap-3">
               {/* Search */}
               <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#999999]" />
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#B3B0A8]" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search brands..."
-                  className="w-full pl-9 pr-4 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
+                  className="w-full pl-9 pr-4 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm"
                 />
               </div>
 
@@ -7898,7 +8100,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <select
                 value={filterIndustry}
                 onChange={(e) => setFilterIndustry(e.target.value)}
-                className="px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
+                className="px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm"
               >
                 <option value="all">All Industries</option>
                 {uniqueIndustries.map(ind => (
@@ -7910,7 +8112,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <select
                 value={filterMaturity}
                 onChange={(e) => setFilterMaturity(e.target.value)}
-                className="px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
+                className="px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm"
               >
                 <option value="all">All Maturity Levels</option>
                 {uniqueMaturityLevels.map(level => (
@@ -7922,7 +8124,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <select
                 value={filterBusinessModel}
                 onChange={(e) => setFilterBusinessModel(e.target.value)}
-                className="px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm"
+                className="px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm"
               >
                 <option value="all">All Models</option>
                 <option value="b2b">B2B</option>
@@ -7934,7 +8136,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
-                  className="px-3 py-2 text-sm text-[#E53935] hover:bg-[#E53935]/10 rounded-lg transition-colors flex items-center gap-1"
+                  className="px-3 py-2 text-sm text-[#B23A3A] hover:bg-[#DEE42F]/10 rounded-lg transition-colors flex items-center gap-1"
                 >
                   <X className="w-4 h-4" /> Clear
                 </button>
@@ -7943,7 +8145,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
             {/* Results count */}
             {hasActiveFilters && (
-              <div className="mt-3 text-sm text-[#666666]">
+              <div className="mt-3 text-sm text-[#8A877D]">
                 Showing {filteredResults.length} of {results.length} results
               </div>
             )}
@@ -7952,9 +8154,9 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
         {results.length === 0 ? (
           <div className="card p-12 text-center">
-            <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Results Yet</h3>
-            <p className="text-[#666666] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
+            <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results Yet</h3>
+            <p className="text-[#8A877D] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
             {profile?.is_admin && (
               <button onClick={() => setShowAddModal(true)} className="btn-primary">
                 Add Manual Entry
@@ -7963,9 +8165,9 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
           </div>
         ) : filteredResults.length === 0 ? (
           <div className="card p-12 text-center">
-            <Search className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Matching Results</h3>
-            <p className="text-[#666666] mb-4">Try adjusting your search or filters.</p>
+            <Search className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Matching Results</h3>
+            <p className="text-[#8A877D] mb-4">Try adjusting your search or filters.</p>
             <button onClick={clearFilters} className="btn-secondary">
               Clear Filters
             </button>
@@ -7980,18 +8182,18 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                 <div key={r.id || i} className="card overflow-hidden">
                   {/* Main Row */}
                   <div 
-                    className="flex items-center gap-4 p-4 cursor-pointer hover:bg-[#F8F7F5] transition-colors"
+                    className="flex items-center gap-4 p-4 cursor-pointer hover:bg-[#F2F0EA] transition-colors"
                     onClick={() => toggleRow(r.id || i)}
                   >
                     {/* Brand & Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-[#1A1A1A] truncate">{r.brandName}</span>
+                        <span className="font-semibold text-[#0B0B0B] truncate">{r.brandName}</span>
                         {r.isManual && (
                           <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">Manual</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-[#666666] mt-0.5">
+                      <div className="flex items-center gap-2 text-xs text-[#8A877D] mt-0.5">
                         <span>{r.businessModel?.toUpperCase()}</span>
                         <span>•</span>
                         <span className="truncate">{r.industry}</span>
@@ -8003,10 +8205,10 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     {/* Date Badge */}
                     {assessmentDate && (
                       <div className="text-center px-2">
-                        <div className="text-xs font-medium text-[#666666]">
+                        <div className="text-xs font-medium text-[#8A877D]">
                           {assessmentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </div>
-                        <div className="text-[10px] text-[#999999]">
+                        <div className="text-[10px] text-[#B3B0A8]">
                           {assessmentDate.getFullYear()}
                         </div>
                       </div>
@@ -8023,12 +8225,12 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     </div>
                     
                     {/* Expand Icon */}
-                    <ChevronDown className={`w-4 h-4 text-[#666666] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
                   
                   {/* Expanded Details */}
                   {isExpanded && (
-                    <div className="border-t border-[#E8E6E1] bg-[#F8F7F5] p-4 animate-fade-in">
+                    <div className="border-t border-[#DCDAD3] bg-[#F2F0EA] p-4 animate-fade-in">
                       <div className="flex flex-col md:flex-row gap-4 mb-4">
                         {/* Mini Spider Chart */}
                         <div className="flex-shrink-0 flex justify-center md:justify-start">
@@ -8040,7 +8242,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                             {ATTRIBUTES.map(attr => (
                               <div key={attr.id} className="text-center p-2 bg-white rounded-lg">
                                 <div className="text-lg font-bold" style={{ color: attr.color }}>{r.scores?.[attr.id] || 0}</div>
-                                <div className="text-[10px] text-[#666666] truncate">{attr.name}</div>
+                                <div className="text-[10px] text-[#8A877D] truncate">{attr.name}</div>
                               </div>
                             ))}
                           </div>
@@ -8048,7 +8250,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       </div>
                       
                       {/* Meta Info */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#666666]">
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#8A877D]">
                         <span><strong>Assessor:</strong> {r.assessorName || 'Unknown'}</span>
                         <span><strong>Full Date:</strong> {r.savedAt ? new Date(r.savedAt).toLocaleString() : '-'}</span>
                         {profile?.is_admin && (
@@ -8073,30 +8275,30 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-[#D9D6D0]">
-              <h3 className="text-xl font-bold text-[#1A1A1A]">Add Manual Entry</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-[#666666] hover:text-[#1A1A1A]">
+            <div className="flex items-center justify-between p-6 border-b border-[#DCDAD3]">
+              <h3 className="text-xl font-bold text-[#0B0B0B]">Add Manual Entry</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-[#8A877D] hover:text-[#0B0B0B]">
                 <X className="w-6 h-6" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Brand Name *</label>
+                <label className="block text-sm font-medium text-[#0B0B0B] mb-1">Brand Name *</label>
                 <input
                   type="text"
                   value={manualEntry.brandName}
                   onChange={(e) => setManualEntry({ ...manualEntry, brandName: e.target.value })}
                   placeholder="Enter brand name"
-                  className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg"
+                  className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Business Model</label>
+                  <label className="block text-sm font-medium text-[#0B0B0B] mb-1">Business Model</label>
                   <select
                     value={manualEntry.businessModel}
                     onChange={(e) => setManualEntry({ ...manualEntry, businessModel: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg"
+                    className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg"
                   >
                     <option value="b2b">B2B</option>
                     <option value="b2c">B2C</option>
@@ -8104,11 +8306,11 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Industry</label>
+                  <label className="block text-sm font-medium text-[#0B0B0B] mb-1">Industry</label>
                   <select
                     value={manualEntry.industry}
                     onChange={(e) => setManualEntry({ ...manualEntry, industry: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg"
+                    className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg"
                   >
                     {industries.map(ind => (
                       <option key={ind.id} value={ind.id}>{ind.name}</option>
@@ -8118,8 +8320,8 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               </div>
               
               {/* Total Compass Score */}
-              <div className="bg-[#F0EEEA] rounded-lg p-4">
-                <label className="block text-sm font-medium text-[#1A1A1A] mb-2">Total Compass Score (0-100) *</label>
+              <div className="bg-[#E4E2DC] rounded-lg p-4">
+                <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Total Compass Score (0-100) *</label>
                 <div className="flex items-center gap-4">
                   <input
                     type="number"
@@ -8127,21 +8329,21 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     max="100"
                     value={manualEntry.totalScore}
                     onChange={(e) => setManualEntry({ ...manualEntry, totalScore: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
-                    className="w-24 px-3 py-2 border border-[#D9D6D0] rounded-lg text-center text-lg font-bold"
+                    className="w-24 px-3 py-2 border border-[#DCDAD3] rounded-lg text-center text-lg font-bold"
                   />
-                  <span className="text-sm text-[#666666]">
+                  <span className="text-sm text-[#8A877D]">
                     Weighted score (not auto-calculated from attributes)
                   </span>
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-[#1A1A1A] mb-3">Attribute Scores (0-100)</label>
+                <label className="block text-sm font-medium text-[#0B0B0B] mb-3">Attribute Scores (0-100)</label>
                 <div className="grid grid-cols-2 gap-3">
                   {ATTRIBUTES.map(attr => (
                     <div key={attr.id} className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }}></span>
-                      <span className="text-sm text-[#666666] w-24">{attr.name}</span>
+                      <span className="text-sm text-[#8A877D] w-24">{attr.name}</span>
                       <input
                         type="number"
                         min="0"
@@ -8151,7 +8353,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                           ...manualEntry,
                           scores: { ...manualEntry.scores, [attr.id]: parseInt(e.target.value) || 0 }
                         })}
-                        className="w-20 px-2 py-1 border border-[#D9D6D0] rounded text-center"
+                        className="w-20 px-2 py-1 border border-[#DCDAD3] rounded text-center"
                       />
                     </div>
                   ))}
@@ -8164,7 +8366,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                 </p>
               </div>
             </div>
-            <div className="p-6 border-t border-[#D9D6D0] flex justify-end gap-3">
+            <div className="p-6 border-t border-[#DCDAD3] flex justify-end gap-3">
               <button onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
               <button onClick={handleAddManual} className="btn-primary">Add Entry</button>
             </div>
@@ -8214,12 +8416,12 @@ function OnboardingTour({ onComplete }) {
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-[#1A1A1A] rounded-lg max-w-lg w-full overflow-hidden animate-fade-in">
         <div className="bg-[#E8FF00] p-8 text-center">
-          <Icon className="w-16 h-16 text-[#1A1A1A] mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">{currentStep.title}</h2>
+          <Icon className="w-16 h-16 text-[#0B0B0B] mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-[#0B0B0B]">{currentStep.title}</h2>
         </div>
         
         <div className="p-6">
-          <p className="text-[#E8E6E1] text-center mb-6">{currentStep.description}</p>
+          <p className="text-[#B3B0A8] text-center mb-6">{currentStep.description}</p>
           
           {/* Progress dots */}
           <div className="flex justify-center gap-2 mb-6">
@@ -8235,7 +8437,7 @@ function OnboardingTour({ onComplete }) {
             {step > 0 && (
               <button 
                 onClick={() => setStep(step - 1)} 
-                className="flex-1 bg-transparent border border-[#E8FF00] text-[#E8FF00] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#E8FF00] hover:text-[#1A1A1A] transition-colors"
+                className="flex-1 bg-transparent border border-[#E8FF00] text-[#E8FF00] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#E8FF00] hover:text-[#0B0B0B] transition-colors"
               >
                 Back
               </button>
@@ -8243,7 +8445,7 @@ function OnboardingTour({ onComplete }) {
             {step < steps.length - 1 ? (
               <button 
                 onClick={() => setStep(step + 1)} 
-                className="flex-1 bg-[#E8FF00] text-[#1A1A1A] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
+                className="flex-1 bg-[#E8FF00] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
               >
                 Next
               </button>
@@ -8253,7 +8455,7 @@ function OnboardingTour({ onComplete }) {
                   localStorage.setItem('conscious-compass-onboarded', 'true');
                   onComplete();
                 }} 
-                className="flex-1 bg-[#E8FF00] text-[#1A1A1A] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
+                className="flex-1 bg-[#E8FF00] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
               >
                 Get Started
               </button>
@@ -8266,7 +8468,7 @@ function OnboardingTour({ onComplete }) {
                 localStorage.setItem('conscious-compass-onboarded', 'true');
                 onComplete();
               }}
-              className="w-full text-center text-sm text-[#666666] mt-4 hover:text-[#E8FF00] transition-colors"
+              className="w-full text-center text-sm text-[#8A877D] mt-4 hover:text-[#E8FF00] transition-colors"
             >
               Skip tour
             </button>
@@ -8399,9 +8601,9 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
   if (!portfolioStats) {
     return (
       <div className="card p-12 text-center">
-        <TrendingUp className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Data for Insights</h3>
-        <p className="text-[#666666]">Add some brand assessments to see portfolio insights.</p>
+        <TrendingUp className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Data for Insights</h3>
+        <p className="text-[#8A877D]">Add some brand assessments to see portfolio insights.</p>
       </div>
     );
   }
@@ -8413,40 +8615,40 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
       {/* Portfolio Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card p-5 text-center">
-          <div className="text-4xl font-bold text-[#1A1A1A] mb-1">{portfolioStats.totalBrands}</div>
-          <div className="text-sm text-[#666666]">Brands Assessed</div>
+          <div className="text-4xl font-bold text-[#0B0B0B] mb-1">{portfolioStats.totalBrands}</div>
+          <div className="text-sm text-[#8A877D]">Brands Assessed</div>
         </div>
         <div className="card p-5 text-center">
           <div className="text-4xl font-bold mb-1" style={{ color: getMaturityStage(portfolioStats.avgScore).color }}>
             {portfolioStats.avgScore}
           </div>
-          <div className="text-sm text-[#666666]">Portfolio Average</div>
+          <div className="text-sm text-[#8A877D]">Portfolio Average</div>
         </div>
         <div className="card p-5 text-center">
           <div className="text-lg font-bold text-[#059669] mb-1 flex items-center justify-center gap-1">
             <TrendingUp className="w-5 h-5" />
             {ATTRIBUTES.find(a => a.id === portfolioStats.strongestAttr[0])?.name}
           </div>
-          <div className="text-sm text-[#666666]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
+          <div className="text-sm text-[#8A877D]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
         </div>
         <div className="card p-5 text-center">
           <div className="text-lg font-bold text-[#F59E0B] mb-1 flex items-center justify-center gap-1">
             <TrendingDown className="w-5 h-5" />
             {ATTRIBUTES.find(a => a.id === portfolioStats.weakestAttr[0])?.name}
           </div>
-          <div className="text-sm text-[#666666]">Growth Opportunity ({portfolioStats.weakestAttr[1]})</div>
+          <div className="text-sm text-[#8A877D]">Growth Opportunity ({portfolioStats.weakestAttr[1]})</div>
         </div>
       </div>
 
       {/* Score Distribution Visualization */}
       <div className="card p-6">
-        <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Portfolio Maturity Distribution</h3>
+        <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Portfolio Maturity Distribution</h3>
         <div className="flex items-end gap-3 mb-4" style={{ height: '160px' }}>
           {portfolioStats.scoreDistribution.map((bucket, idx) => {
             const barHeight = bucket.count > 0 ? Math.max((bucket.count / maxCount) * 140, 16) : 8;
             return (
               <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full">
-                <div className="text-sm font-medium text-[#1A1A1A] mb-2">{bucket.count}</div>
+                <div className="text-sm font-medium text-[#0B0B0B] mb-2">{bucket.count}</div>
                 <div 
                   className="w-full rounded-t-lg transition-all duration-500"
                   style={{ 
@@ -8462,8 +8664,8 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         <div className="flex gap-3">
           {portfolioStats.scoreDistribution.map((bucket, idx) => (
             <div key={idx} className="flex-1 text-center">
-              <div className="text-xs text-[#666666]">{bucket.label}</div>
-              <div className="text-[10px] text-[#999999]">{bucket.range}</div>
+              <div className="text-xs text-[#8A877D]">{bucket.label}</div>
+              <div className="text-[10px] text-[#B3B0A8]">{bucket.range}</div>
             </div>
           ))}
         </div>
@@ -8473,10 +8675,10 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
       <div className="card p-6">
         <div className="flex items-start justify-between mb-4 gap-4">
           <div>
-            <h3 className="font-semibold text-[#1A1A1A] flex items-center gap-2">
+            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Lightbulb className="w-5 h-5 text-[#E8FF00]" style={{filter: 'drop-shadow(0 0 2px #E8FF00)'}} /> Story Opportunities
             </h3>
-            <p className="text-xs text-[#666666] mt-1">Thought leadership angles from your assessment data. Refreshes automatically every Sunday night.</p>
+            <p className="text-xs text-[#8A877D] mt-1">Thought leadership angles from your assessment data. Refreshes automatically every Sunday night.</p>
             {refreshedAt && (
               <p className="text-[10px] text-[#999] mt-1">
                 Last updated {refreshedAt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {refreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -8502,15 +8704,15 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         )}
 
         {loading && (
-          <div className="text-center py-8 text-[#666666]">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#D9D6D0]" />
+          <div className="text-center py-8 text-[#8A877D]">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#DCDAD3]" />
             <p className="text-sm">Loading story opportunities…</p>
           </div>
         )}
 
         {!aiInsights && !loading && !error && (
-          <div className="text-center py-8 text-[#666666]">
-            <Lightbulb className="w-12 h-12 mx-auto mb-3 text-[#D9D6D0]" />
+          <div className="text-center py-8 text-[#8A877D]">
+            <Lightbulb className="w-12 h-12 mx-auto mb-3 text-[#DCDAD3]" />
             <p className="text-sm">No stories available yet. They will appear here after the first Sunday night refresh.</p>
             {isAdmin && <p className="text-xs text-[#999] mt-2">As an admin, you can trigger it now using Force Refresh above.</p>}
           </div>
@@ -8521,12 +8723,12 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
             {aiInsights.map((story, idx) => (
               <div key={idx} className="p-5 bg-[#1A1A1A] rounded-xl">
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-full bg-[#E8FF00] text-[#1A1A1A] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
+                  <div className="w-8 h-8 rounded-full bg-[#E8FF00] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
                     {idx + 1}
                   </div>
                   <div>
                     <div className="font-semibold text-white mb-2 leading-snug">{story.headline}</div>
-                    <div className="text-sm text-[#9CA3AF] leading-relaxed">{story.body}</div>
+                    <div className="text-sm text-[#B3B0A8] leading-relaxed">{story.body}</div>
                   </div>
                 </div>
               </div>
@@ -8736,8 +8938,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
     return (
       <div className="card p-12 text-center">
         <div className="text-4xl mb-4">🌐</div>
-        <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Landscape Data Yet</h3>
-        <p className="text-[#666666]">Complete assessments across multiple sectors to see the consciousness landscape.</p>
+        <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Landscape Data Yet</h3>
+        <p className="text-[#8A877D]">Complete assessments across multiple sectors to see the consciousness landscape.</p>
       </div>
     );
   }
@@ -8759,7 +8961,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       {/* Controls row */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-[#666666] uppercase tracking-wide">Year:</span>
+          <span className="text-xs font-semibold text-[#8A877D] uppercase tracking-wide">Year:</span>
           {['all', ...years].map(y => (
             <button
               key={y}
@@ -8767,16 +8969,16 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               className={`px-3 py-1 text-xs font-medium transition-colors ${
                 (y === 'all' && selectedYears.includes('all')) || (!selectedYears.includes('all') && selectedYears.includes(y))
                   ? 'bg-[#1A1A1A] text-white'
-                  : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+                  : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
               }`}
             >
               {y === 'all' ? 'All time' : y}
             </button>
           ))}
         </div>
-        <div className="flex gap-4 text-xs text-[#666666]">
-          <span><strong className="text-[#1A1A1A]">{filteredResults.length}</strong> assessments</span>
-          <span><strong className="text-[#1A1A1A]">{sectors.length}</strong> sectors</span>
+        <div className="flex gap-4 text-xs text-[#8A877D]">
+          <span><strong className="text-[#0B0B0B]">{filteredResults.length}</strong> assessments</span>
+          <span><strong className="text-[#0B0B0B]">{sectors.length}</strong> sectors</span>
         </div>
       </div>
 
@@ -8793,19 +8995,19 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             color: '#CFD32F',
           },
         ].map((tile, i) => (
-          <div key={i} className="bg-white border border-[#E8E6E1] p-4 rounded">
+          <div key={i} className="bg-white border border-[#DCDAD3] p-4 rounded">
             <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wide mb-1">{tile.label}</div>
-            <div className="font-bold text-lg text-[#1A1A1A] truncate" style={{ color: tile.color }}>{tile.value}</div>
-            {tile.sub !== undefined && <div className="text-xs text-[#666666]">avg {tile.sub}</div>}
+            <div className="font-bold text-lg text-[#0B0B0B] truncate" style={{ color: tile.color }}>{tile.value}</div>
+            {tile.sub !== undefined && <div className="text-xs text-[#8A877D]">avg {tile.sub}</div>}
           </div>
         ))}
       </div>
 
       {/* Hero: Landscape Octagon + Sector Legend */}
-      <div className="bg-white border border-[#E8E6E1] rounded p-6">
+      <div className="bg-white border border-[#DCDAD3] rounded p-6">
         <div className="mb-5">
-          <h3 className="font-semibold text-[#1A1A1A]">Consciousness Landscape</h3>
-          <p className="text-xs text-[#666666] mt-1">
+          <h3 className="font-semibold text-[#0B0B0B]">Consciousness Landscape</h3>
+          <p className="text-xs text-[#8A877D] mt-1">
             Each sector's average brand consciousness — hover a sector to isolate. Dashed yellow = cross-sector mean.
           </p>
         </div>
@@ -8968,13 +9170,13 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             {/* Overall avg legend entry */}
             <div
               className={`flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer select-none transition-all ${
-                showAllAvg ? 'ring-1 ring-[#D9D6D0] bg-[#FFFEF0]' : 'bg-[#FAFAF8] hover:bg-[#F5F4F0]'
+                showAllAvg ? 'ring-1 ring-[#DCDAD3] bg-[#FFFEF0]' : 'bg-[#FAFAF8] hover:bg-[#F2F0EA]'
               }`}
               onClick={handleAllAvgClick}
             >
               <svg width="20" height="10" className="flex-shrink-0"><line x1="0" y1="5" x2="20" y2="5" stroke="#CFD32F" strokeWidth="2.5" strokeDasharray="5 3"/></svg>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-[#1A1A1A]">All sectors avg</div>
+                <div className="text-sm font-semibold text-[#0B0B0B]">All sectors avg</div>
                 <div className="text-xs text-[#666]">{filteredResults.length} brands</div>
               </div>
               <span className="text-xl font-bold text-[#6B6B00] tabular-nums">{overallScore}</span>
@@ -8988,7 +9190,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 <div
                   key={sector.key}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer transition-all select-none ${
-                    isActive ? 'ring-1 ring-[#D9D6D0]' : 'hover:bg-[#FAFAF8]'
+                    isActive ? 'ring-1 ring-[#DCDAD3]' : 'hover:bg-[#FAFAF8]'
                   }`}
                   style={{ backgroundColor: isActive ? sector.color + '15' : '' }}
                   onClick={() => handleSectorClick(sector.key)}
@@ -8997,7 +9199,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 >
                   <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[#1A1A1A] leading-tight">{sector.name}</div>
+                    <div className="text-sm font-medium text-[#0B0B0B] leading-tight">{sector.name}</div>
                     <div className="text-xs text-[#666]">{sector.count}b{isPinned ? ' · pinned' : ''}</div>
                   </div>
                   <span className="text-xl font-bold tabular-nums" style={{ color: stage.color }}>{sector.avgScore}</span>
@@ -9009,10 +9211,10 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       </div>
 
       {/* Attribute Landscape — dot range chart */}
-      <div className="bg-white border border-[#E8E6E1] rounded p-6">
+      <div className="bg-white border border-[#DCDAD3] rounded p-6">
         <div className="mb-5">
-          <h3 className="font-semibold text-[#1A1A1A]">Attribute Landscape</h3>
-          <p className="text-xs text-[#666666] mt-1">
+          <h3 className="font-semibold text-[#0B0B0B]">Attribute Landscape</h3>
+          <p className="text-xs text-[#8A877D] mt-1">
             Where each sector scores on every attribute — see the legend below to read the chart.
           </p>
         </div>
@@ -9021,13 +9223,13 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           {attrLandscapeData.map(({ attr, sectorScores, min, max, mean }) => (
             <div key={attr.id} className="grid items-center gap-3"
               style={{ gridTemplateColumns: '96px 1fr 36px' }}>
-              <div className="text-xs font-semibold text-[#1A1A1A] text-right leading-tight pr-1">{attr.name}</div>
+              <div className="text-xs font-semibold text-[#0B0B0B] text-right leading-tight pr-1">{attr.name}</div>
               <div className="relative h-9 flex items-center" style={{ overflow: 'visible' }}>
                 {/* Background track */}
                 <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
                 {/* Stage markers */}
                 {[25, 40, 56, 70, 85].map(mark => (
-                  <div key={mark} className="absolute w-px h-3 bg-[#D9D6D0]"
+                  <div key={mark} className="absolute w-px h-3 bg-[#DCDAD3]"
                     style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
                 ))}
                 {/* Range fill */}
@@ -9087,7 +9289,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   );
                 })}
               </div>
-              <div className="text-xs font-bold text-[#1A1A1A] tabular-nums">{mean}</div>
+              <div className="text-xs font-bold text-[#0B0B0B] tabular-nums">{mean}</div>
             </div>
           ))}
 
@@ -9101,7 +9303,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           </div>
 
           {/* Legend */}
-          <div className="mt-5 pt-4 border-t border-[#E8E6E1]">
+          <div className="mt-5 pt-4 border-t border-[#DCDAD3]">
             <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-3">How to read this chart</div>
             <div className="flex flex-col sm:flex-row gap-4">
               {/* Visual example */}
@@ -9127,20 +9329,20 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 </svg>
               </div>
               {/* Text explanations */}
-              <div className="flex flex-col gap-2 justify-center text-xs text-[#666666]">
+              <div className="flex flex-col gap-2 justify-center text-xs text-[#8A877D]">
                 <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 mt-0.5 w-3 h-3 rounded-full bg-[#E53935] ring-2 ring-white" style={{ minWidth: 12 }} />
-                  <span><strong className="text-[#1A1A1A]">Coloured dots</strong> — each dot is one sector's average score for this attribute. Hover the octagon or cards above to match colours to sectors.</span>
+                  <div className="flex-shrink-0 mt-0.5 w-3 h-3 rounded-full bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 12 }} />
+                  <span><strong className="text-[#0B0B0B]">Coloured dots</strong> — each dot is one sector's average score for this attribute. Hover the octagon or cards above to match colours to sectors.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
                     <div className="w-0.5 h-4 bg-[#CFD32F] rounded mx-auto" />
                   </div>
-                  <span><strong className="text-[#1A1A1A]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
+                  <span><strong className="text-[#0B0B0B]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
                 </div>
                 <div className="flex items-start gap-2">
                 <div className="flex-shrink-0 mt-1.5 w-7 h-2 rounded-full" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
-                  <span><strong className="text-[#1A1A1A]">Light red band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
+                  <span><strong className="text-[#0B0B0B]">Light red band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
                 </div>
               </div>
             </div>
@@ -9149,10 +9351,10 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       </div>
 
       {/* Sector Attribute Spread — rows = sectors, tracks = attributes */}
-      <div className="bg-white border border-[#E8E6E1] rounded p-6">
+      <div className="bg-white border border-[#DCDAD3] rounded p-6">
         <div className="mb-5">
-          <h3 className="font-semibold text-[#1A1A1A]">Sector Attribute Spread</h3>
-          <p className="text-xs text-[#666666] mt-1">
+          <h3 className="font-semibold text-[#0B0B0B]">Sector Attribute Spread</h3>
+          <p className="text-xs text-[#8A877D] mt-1">
             Each sector's score across all eight attributes. Each dot is one attribute score — yellow line = that sector's overall average.
           </p>
         </div>
@@ -9174,7 +9376,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             return (
               <div key={sector.key}
                 className={`grid items-center gap-3 rounded px-2 py-1 -mx-2 cursor-pointer transition-colors ${
-                  isActive ? 'bg-[#F5F4F0]' : 'hover:bg-[#FAFAF8]'
+                  isActive ? 'bg-[#F2F0EA]' : 'hover:bg-[#FAFAF8]'
                 }`}
                 style={{ gridTemplateColumns: '140px 1fr 36px' }}
                 onClick={() => handleSectorClick(sector.key)}
@@ -9185,7 +9387,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 <div className="flex items-center gap-2 pr-1">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[#1A1A1A] truncate leading-tight">{sector.name}</div>
+                    <div className="text-xs font-semibold text-[#0B0B0B] truncate leading-tight">{sector.name}</div>
                     <div className="text-[10px] text-[#666]">{sector.count}b</div>
                   </div>
                 </div>
@@ -9196,7 +9398,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
                   {/* Stage markers */}
                   {[25, 40, 56, 70, 85].map(mark => (
-                    <div key={mark} className="absolute w-px h-3 bg-[#D9D6D0]"
+                    <div key={mark} className="absolute w-px h-3 bg-[#DCDAD3]"
                       style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
                   ))}
                   {/* Range fill */}
@@ -9259,7 +9461,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           </div>
 
           {/* Legend */}
-          <div className="mt-5 pt-4 border-t border-[#E8E6E1]">
+          <div className="mt-5 pt-4 border-t border-[#DCDAD3]">
             <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-3">How to read this chart</div>
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-shrink-0 flex items-center" style={{ width: 220 }}>
@@ -9278,20 +9480,20 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   <text x="155" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
                 </svg>
               </div>
-              <div className="flex flex-col gap-2 justify-center text-xs text-[#666666]">
+              <div className="flex flex-col gap-2 justify-center text-xs text-[#8A877D]">
                 <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 mt-0.5 w-2.5 h-2.5 rounded-full bg-[#E53935] ring-2 ring-white" style={{ minWidth: 10 }} />
-                  <span><strong className="text-[#1A1A1A]">Coloured dots</strong> — each dot is one attribute score for that sector. Hover to see the attribute name and score.</span>
+                  <div className="flex-shrink-0 mt-0.5 w-2.5 h-2.5 rounded-full bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 10 }} />
+                  <span><strong className="text-[#0B0B0B]">Coloured dots</strong> — each dot is one attribute score for that sector. Hover to see the attribute name and score.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
                     <div className="w-0.5 h-4 rounded mx-auto" style={{ backgroundColor: '#E53935' }} />
                   </div>
-                  <span><strong className="text-[#1A1A1A]">Coloured line</strong> — the sector's overall average score across all eight attributes. The number on the right is this value.</span>
+                  <span><strong className="text-[#0B0B0B]">Coloured line</strong> — the sector's overall average score across all eight attributes. The number on the right is this value.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1.5 w-7 h-2 rounded-full" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
-                  <span><strong className="text-[#1A1A1A]">Light band</strong> — spans from the lowest to highest attribute score for that sector, showing how consistent or varied the sector is.</span>
+                  <span><strong className="text-[#0B0B0B]">Light band</strong> — spans from the lowest to highest attribute score for that sector, showing how consistent or varied the sector is.</span>
                 </div>
               </div>
             </div>
@@ -9301,7 +9503,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
       {/* Sector profile cards */}
       <div>
-        <h3 className="font-semibold text-[#1A1A1A] mb-4">Sector Profiles</h3>
+        <h3 className="font-semibold text-[#0B0B0B] mb-4">Sector Profiles</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {sectors.map((sector) => {
             const sorted = ATTRIBUTES
@@ -9313,7 +9515,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             return (
               <div key={sector.key}
                 className={`bg-white border rounded p-5 transition-all hover:shadow-sm cursor-pointer select-none ${
-                  activeSector === sector.key ? 'border-[#1A1A1A] shadow-sm' : 'border-[#E8E6E1]'
+                  activeSector === sector.key ? 'border-[#1A1A1A] shadow-sm' : 'border-[#DCDAD3]'
                 }`}
                 onClick={() => handleSectorClick(sector.key)}
                 onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
@@ -9323,7 +9525,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-1.5 rounded-full self-stretch" style={{ backgroundColor: sector.color }} />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-[#1A1A1A] text-sm leading-tight">{sector.name}</div>
+                    <div className="font-semibold text-[#0B0B0B] text-sm leading-tight">{sector.name}</div>
                     <div className="text-[10px] text-[#666] mt-0.5">{sector.count} brand{sector.count !== 1 ? 's' : ''} · {stage.name}</div>
                   </div>
                   <div className="text-2xl font-bold tabular-nums" style={{ color: sector.color }}>{sector.avgScore}</div>
@@ -9337,11 +9539,11 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     const isBot = bot2.some(t => t.id === attr.id);
                     return (
                       <div key={attr.id}
-                        className={`rounded p-1.5 text-center ${isTop ? 'bg-[#1A1A1A]' : isBot ? 'bg-[#F5F4F0]' : 'bg-[#FAFAF8]'}`}>
+                        className={`rounded p-1.5 text-center ${isTop ? 'bg-[#1A1A1A]' : isBot ? 'bg-[#F2F0EA]' : 'bg-[#FAFAF8]'}`}>
                         <div className={`text-[9px] font-semibold leading-none mb-0.5 ${isTop ? 'text-[#E2E65A]' : 'text-[#999]'}`}>
                           {attr.name.slice(0, 3).toUpperCase()}
                         </div>
-                        <div className={`text-sm font-bold leading-none tabular-nums ${isTop ? 'text-white' : isBot ? 'text-[#BBB]' : 'text-[#1A1A1A]'}`}>
+                        <div className={`text-sm font-bold leading-none tabular-nums ${isTop ? 'text-white' : isBot ? 'text-[#BBB]' : 'text-[#0B0B0B]'}`}>
                           {score}
                         </div>
                       </div>
@@ -9355,8 +9557,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wide mb-1.5">Strongest</div>
                     {top2.map(a => (
                       <div key={a.id} className="flex items-center justify-between">
-                        <span className="text-[#1A1A1A] font-medium">{a.name}</span>
-                        <span className="font-bold tabular-nums text-[#1A1A1A]">{a.score}</span>
+                        <span className="text-[#0B0B0B] font-medium">{a.name}</span>
+                        <span className="font-bold tabular-nums text-[#0B0B0B]">{a.score}</span>
                       </div>
                     ))}
                   </div>
@@ -9381,7 +9583,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
         <div className="flex items-start justify-between gap-4 mb-2">
           <div>
             <h3 className="font-semibold text-white">Landscape Analysis</h3>
-            <p className="text-xs text-[#9CA3AF] mt-1">
+            <p className="text-xs text-[#B3B0A8] mt-1">
               AI-powered read of industry averages, attribute spread, sector strengths and gaps, and what it all means.
               Refreshes automatically every Sunday night.
             </p>
@@ -9396,7 +9598,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               onClick={forceRefreshLandscapeAI}
               disabled={landscapeAIRefreshing || landscapeAILoading}
               className="flex-shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ backgroundColor: '#E8FF00', color: '#1A1A1A' }}
+              style={{ backgroundColor: '#E8FF00', color: '#0B0B0B' }}
             >
               {landscapeAIRefreshing ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Refreshing…</>
@@ -9435,19 +9637,19 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               {landscapeAI.headline && (
                 <p className="font-bold leading-snug mb-2" style={{ color: '#FFFFFF', fontSize: '1.05rem' }}>{landscapeAI.headline}</p>
               )}
-              <p className="text-sm leading-relaxed" style={{ color: '#E8E6E1' }}>{landscapeAI.summary}</p>
+              <p className="text-sm leading-relaxed" style={{ color: '#DCDAD3' }}>{landscapeAI.summary}</p>
             </div>
 
             {landscapeAI.sectorAnalysis && (
               <div className="p-4 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#9CA3AF' }}>Sector Analysis</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#B3B0A8' }}>Sector Analysis</div>
                 <div className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#D1D5DB' }}>{landscapeAI.sectorAnalysis}</div>
               </div>
             )}
 
             {landscapeAI.insights && (
               <div className="p-4 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#9CA3AF' }}>Key Insights</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#B3B0A8' }}>Key Insights</div>
                 <div className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#D1D5DB' }}>{landscapeAI.insights}</div>
               </div>
             )}
@@ -9554,7 +9756,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F4F0]">
+    <div className="min-h-screen bg-[#F2F0EA]">
       <div className="max-w-7xl mx-auto p-4 md:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
@@ -9562,8 +9764,8 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Compare</h1>
-              <p className="text-sm text-[#666666]">Compare brands or explore the consciousness landscape</p>
+              <h1 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Compare</h1>
+              <p className="text-sm text-[#8A877D]">Compare brands or explore the consciousness landscape</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -9596,7 +9798,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               viewMode === 'brands' 
                 ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
             }`}
           >
             Compare Brands
@@ -9606,7 +9808,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               viewMode === 'landscape' 
                 ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
             }`}
           >
             🌐 Landscape
@@ -9616,7 +9818,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               viewMode === 'insights' 
                 ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#D9D6D0] text-[#666666] hover:border-[#1A1A1A]'
+                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
             }`}
           >
             ✨ Insights
@@ -9625,9 +9827,9 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
 
         {results.length === 0 ? (
           <div className="card p-12 text-center">
-            <BarChart3 className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">No Results to Compare</h3>
-            <p className="text-[#666666]">Complete some assessments first to compare brands.</p>
+            <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results to Compare</h3>
+            <p className="text-[#8A877D]">Complete some assessments first to compare brands.</p>
           </div>
         ) : viewMode === 'insights' ? (
           /* AI Insights View */
@@ -9642,14 +9844,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             <div className="lg:col-span-1 space-y-4">
               {/* Filters */}
               <div className="card p-4">
-                <h3 className="text-sm font-medium text-[#1A1A1A] mb-2">Filters</h3>
+                <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Filters</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs text-[#666666] mb-1 block">Industry</label>
+                    <label className="text-xs text-[#8A877D] mb-1 block">Industry</label>
                     <select
                       value={filterIndustry}
                       onChange={(e) => setFilterIndustry(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#D9D6D0] rounded text-sm"
+                      className="w-full px-3 py-2 border border-[#DCDAD3] rounded text-sm"
                     >
                       {industries.map(ind => (
                         <option key={ind.id} value={ind.id}>{ind.name}</option>
@@ -9657,11 +9859,11 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-[#666666] mb-1 block">Business Model</label>
+                    <label className="text-xs text-[#8A877D] mb-1 block">Business Model</label>
                     <select
                       value={filterBusinessModel}
                       onChange={(e) => setFilterBusinessModel(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#D9D6D0] rounded text-sm"
+                      className="w-full px-3 py-2 border border-[#DCDAD3] rounded text-sm"
                     >
                       {businessModels.map(bm => (
                         <option key={bm.id} value={bm.id}>{bm.name}</option>
@@ -9672,14 +9874,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                 
                 {/* Quick select by industry */}
                 {industriesWithData.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-[#E8E6E1]">
-                    <label className="text-xs text-[#666666] mb-2 block">Quick Select Industry</label>
+                  <div className="mt-4 pt-4 border-t border-[#DCDAD3]">
+                    <label className="text-xs text-[#8A877D] mb-2 block">Quick Select Industry</label>
                     <div className="flex flex-wrap gap-1">
                       {industriesWithData.slice(0, 5).map(industry => (
                         <button
                           key={industry}
                           onClick={() => selectAllInIndustry(industry)}
-                          className="text-xs px-2 py-1 bg-[#F0EEEA] hover:bg-[#E8E6E1] rounded transition-colors"
+                          className="text-xs px-2 py-1 bg-[#E4E2DC] hover:bg-[#F2F0EA] rounded transition-colors"
                         >
                           {industries.find(i => i.id === industry)?.name || industry}
                         </button>
@@ -9691,10 +9893,10 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
 
               {/* Brand List */}
               <div className="card p-4">
-                <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">
+                <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">
                   Select Brands ({selectedBrands.length}/{maxComparison})
                   {filteredResults.length !== results.length && (
-                    <span className="text-xs font-normal text-[#666666] ml-2">
+                    <span className="text-xs font-normal text-[#8A877D] ml-2">
                       Showing {filteredResults.length} of {results.length}
                     </span>
                   )}
@@ -9710,16 +9912,16 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         disabled={isDisabled}
                         className={`w-full text-left p-3 rounded-lg border transition-colors ${
                           isSelected 
-                            ? 'border-[#E53935] bg-[#E53935]/5' 
+                            ? 'border-[#0B0B0B] bg-[#DEE42F]/5' 
                             : isDisabled 
-                              ? 'border-[#E8E6E1] bg-[#F5F4F0] opacity-50 cursor-not-allowed'
-                              : 'border-[#D9D6D0] hover:border-[#E53935]/50'
+                              ? 'border-[#DCDAD3] bg-[#F2F0EA] opacity-50 cursor-not-allowed'
+                              : 'border-[#DCDAD3] hover:border-[#0B0B0B]/50'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <span className="font-medium text-[#1A1A1A]">{r.brandName}</span>
-                            <div className="text-xs text-[#666666]">
+                            <span className="font-medium text-[#0B0B0B]">{r.brandName}</span>
+                            <div className="text-xs text-[#8A877D]">
                               {r.industry && <span>{industries.find(i => i.id === r.industry)?.name || r.industry}</span>}
                               {r.industry && r.businessModel && <span> · </span>}
                               {r.businessModel && <span>{r.businessModel.toUpperCase()}</span>}
@@ -9727,14 +9929,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                           </div>
                           <div className="text-right">
                             <span className="font-bold text-lg">{r.totalScore}</span>
-                            <div className="text-xs text-[#666666]">{r.maturityLevel}</div>
+                            <div className="text-xs text-[#8A877D]">{r.maturityLevel}</div>
                           </div>
                         </div>
                       </button>
                     );
                   })}
                   {filteredResults.length === 0 && (
-                    <div className="text-center py-8 text-[#666666] text-sm">
+                    <div className="text-center py-8 text-[#8A877D] text-sm">
                       No brands match the selected filters
                     </div>
                   )}
@@ -9746,28 +9948,28 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             <div className="lg:col-span-2">
               {selectedBrands.length < 2 ? (
                 <div className="card p-12 text-center">
-                  <Users className="w-16 h-16 text-[#D9D6D0] mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-[#1A1A1A] mb-2">Select Brands to Compare</h3>
-                  <p className="text-[#666666]">Choose at least 2 brands from the list to see a comparison.</p>
+                  <Users className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Select Brands to Compare</h3>
+                  <p className="text-[#8A877D]">Choose at least 2 brands from the list to see a comparison.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
                   {/* Overall Score Comparison */}
                   <div className="card p-4 md:p-6">
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <h3 className="text-sm font-medium text-[#1A1A1A]">Overall Scores</h3>
+                      <h3 className="text-sm font-medium text-[#0B0B0B]">Overall Scores</h3>
                       {/* Chart type toggle — only show if ≤ maxRadar brands */}
                       {selectedBrands.length <= maxRadar && (
                         <div className="flex gap-1 text-xs">
                           <button
                             onClick={() => setChartType('radar')}
-                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'radar' ? 'bg-[#1A1A1A] text-white' : 'bg-[#F0EEEA] text-[#666666] hover:bg-[#E8E6E1]'}`}
+                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'radar' ? 'bg-[#1A1A1A] text-white' : 'bg-[#E4E2DC] text-[#8A877D] hover:bg-[#F2F0EA]'}`}
                           >
                             Radar
                           </button>
                           <button
                             onClick={() => setChartType('bars')}
-                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'bars' ? 'bg-[#1A1A1A] text-white' : 'bg-[#F0EEEA] text-[#666666] hover:bg-[#E8E6E1]'}`}
+                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'bars' ? 'bg-[#1A1A1A] text-white' : 'bg-[#E4E2DC] text-[#8A877D] hover:bg-[#F2F0EA]'}`}
                           >
                             Bars
                           </button>
@@ -9786,17 +9988,17 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                             >
                               {brand.totalScore}
                             </div>
-                            <div className="font-medium text-xs text-[#1A1A1A] truncate max-w-[80px]">{brand.brandName}</div>
-                            <div className="text-[10px] text-[#666666]">{brand.maturityLevel}</div>
+                            <div className="font-medium text-xs text-[#0B0B0B] truncate max-w-[80px]">{brand.brandName}</div>
+                            <div className="text-[10px] text-[#8A877D]">{brand.maturityLevel}</div>
                           </div>
                         );
                       })}
-                      <div className="text-center border-l-2 border-[#D9D6D0] pl-4">
+                      <div className="text-center border-l-2 border-[#DCDAD3] pl-4">
                         <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl bg-[#1A1A1A]">
                           {Math.round(selectedBrands.reduce((sum, b) => sum + b.totalScore, 0) / selectedBrands.length)}
                         </div>
-                        <div className="font-medium text-xs text-[#1A1A1A]">AVG</div>
-                        <div className="text-[10px] text-[#666666]">{selectedBrands.length} brands</div>
+                        <div className="font-medium text-xs text-[#0B0B0B]">AVG</div>
+                        <div className="text-[10px] text-[#8A877D]">{selectedBrands.length} brands</div>
                       </div>
                     </div>
                   </div>
@@ -9816,11 +10018,11 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     return (
                       <div className="card p-4 md:p-6">
                         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                          <h3 className="text-sm font-medium text-[#1A1A1A]">Radar Comparison</h3>
+                          <h3 className="text-sm font-medium text-[#0B0B0B]">Radar Comparison</h3>
                           {commonIndustry && (
                             <button
                               onClick={() => setShowIndustryAvg(!showIndustryAvg)}
-                              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${showIndustryAvg ? 'bg-[#F0EEEA] border-[#9CA3AF] text-[#666666]' : 'border-[#D9D6D0] text-[#999999] hover:border-[#999999]'}`}
+                              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${showIndustryAvg ? 'bg-[#E4E2DC] border-[#9CA3AF] text-[#8A877D]' : 'border-[#DCDAD3] text-[#B3B0A8] hover:border-[#999999]'}`}
                             >
                               {showIndustryAvg ? '✓ ' : ''}Industry avg overlay
                             </button>
@@ -9834,17 +10036,17 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                   {/* Bar chart view (always shown when chartType === 'bars', or when > maxRadar brands) */}
                   {(chartType === 'bars' || selectedBrands.length > maxRadar) && (
                     <div className="card p-4 md:p-6">
-                      <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Attribute Comparison</h3>
+                      <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Attribute Comparison</h3>
                       <div className="overflow-x-auto">
                         <div style={{ minWidth: `${Math.max(400, selectedBrands.length * 80 + 120)}px` }}>
                           {/* Brand labels header */}
-                          <div className="flex items-center gap-2 mb-3 text-xs text-[#666666]">
+                          <div className="flex items-center gap-2 mb-3 text-xs text-[#8A877D]">
                             <div className="w-24 flex-shrink-0"></div>
                             <div className="flex-1 flex gap-1">
                               {selectedBrands.map((brand, bi) => (
-                                <div key={brand.id} className="flex-1 truncate text-center font-medium" style={{ color: selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#1A1A1A' }}>{brand.brandName}</div>
+                                <div key={brand.id} className="flex-1 truncate text-center font-medium" style={{ color: selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#0B0B0B' }}>{brand.brandName}</div>
                               ))}
-                              <div className="flex-1 text-center font-medium text-[#1A1A1A]">AVG</div>
+                              <div className="flex-1 text-center font-medium text-[#0B0B0B]">AVG</div>
                             </div>
                           </div>
                           <div className="space-y-3">
@@ -9854,14 +10056,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                                 <div key={attr.id} className="flex items-center gap-2">
                                   <div className="w-24 flex-shrink-0 flex items-center gap-2">
                                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
-                                    <span className="text-xs font-medium text-[#1A1A1A] truncate">{attr.name}</span>
+                                    <span className="text-xs font-medium text-[#0B0B0B] truncate">{attr.name}</span>
                                   </div>
                                   <div className="flex-1 flex gap-1">
                                     {selectedBrands.map((brand) => {
                                       const score = brand.scores?.[attr.id] || 0;
                                       return (
                                         <div key={brand.id} className="flex-1 relative">
-                                          <div className="h-5 bg-[#E8E6E1] rounded overflow-hidden">
+                                          <div className="h-5 bg-[#F2F0EA] rounded overflow-hidden">
                                             <div className="h-full rounded transition-all duration-500" style={{ width: `${score}%`, backgroundColor: attr.color }} />
                                           </div>
                                           <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{score}</div>
@@ -9869,7 +10071,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                                       );
                                     })}
                                     <div className="flex-1 relative">
-                                      <div className="h-5 bg-[#E8E6E1] rounded overflow-hidden">
+                                      <div className="h-5 bg-[#F2F0EA] rounded overflow-hidden">
                                         <div className="h-full rounded transition-all duration-500 bg-[#1A1A1A]" style={{ width: `${avgScore}%` }} />
                                       </div>
                                       <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{avgScore}</div>
@@ -9886,10 +10088,10 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
 
                   {/* Consciousness Profile */}
                   <div className="card p-4 md:p-6">
-                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-4">Consciousness Profiles</h3>
+                    <h3 className="text-sm font-medium text-[#0B0B0B] mb-4">Consciousness Profiles</h3>
                     <div className="space-y-4">
                       {selectedBrands.map((brand, bi) => {
-                        const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#1A1A1A';
+                        const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#0B0B0B';
                         const attrScores = ATTRIBUTES.map(a => ({ ...a, score: brand.scores?.[a.id] || 0 }));
                         const strongest = attrScores.reduce((a, b) => a.score > b.score ? a : b);
                         const weakest = attrScores.reduce((a, b) => a.score < b.score ? a : b);
@@ -9900,22 +10102,22 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                           return diff > best.diff ? { ...a, diff } : best;
                         }, { diff: -Infinity, name: '-', score: 0 });
                         return (
-                          <div key={brand.id} className="flex items-start gap-3 p-3 rounded-lg bg-[#F8F7F5]">
+                          <div key={brand.id} className="flex items-start gap-3 p-3 rounded-lg bg-[#F2F0EA]">
                             <div className="w-2 h-12 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: color }} />
                             <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-sm text-[#1A1A1A] mb-2">{brand.brandName}</div>
+                              <div className="font-semibold text-sm text-[#0B0B0B] mb-2">{brand.brandName}</div>
                               <div className="grid grid-cols-3 gap-2 text-xs">
                                 <div>
-                                  <div className="text-[#9CA3AF] mb-0.5">Strongest</div>
-                                  <div className="font-medium text-[#059669]">{strongest.name} <span className="text-[#9CA3AF]">({strongest.score})</span></div>
+                                  <div className="text-[#B3B0A8] mb-0.5">Strongest</div>
+                                  <div className="font-medium text-[#059669]">{strongest.name} <span className="text-[#B3B0A8]">({strongest.score})</span></div>
                                 </div>
                                 <div>
-                                  <div className="text-[#9CA3AF] mb-0.5">Weakest</div>
-                                  <div className="font-medium text-[#E53935]">{weakest.name} <span className="text-[#9CA3AF]">({weakest.score})</span></div>
+                                  <div className="text-[#B3B0A8] mb-0.5">Weakest</div>
+                                  <div className="font-medium text-[#B23A3A]">{weakest.name} <span className="text-[#B3B0A8]">({weakest.score})</span></div>
                                 </div>
                                 <div>
-                                  <div className="text-[#9CA3AF] mb-0.5">Most distinct</div>
-                                  <div className="font-medium text-[#1976D2]">{mostDiff.name} <span className="text-[#9CA3AF]">(+{Math.round(mostDiff.diff)})</span></div>
+                                  <div className="text-[#B3B0A8] mb-0.5">Most distinct</div>
+                                  <div className="font-medium text-[#1976D2]">{mostDiff.name} <span className="text-[#B3B0A8]">(+{Math.round(mostDiff.diff)})</span></div>
                                 </div>
                               </div>
                             </div>
@@ -9933,19 +10135,19 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     const tied = ATTRIBUTES.filter(attr => (a.scores?.[attr.id] || 0) === (b.scores?.[attr.id] || 0));
                     return (
                       <div className="card p-4 md:p-6">
-                        <h3 className="text-sm font-medium text-[#1A1A1A] mb-4">Head to Head</h3>
+                        <h3 className="text-sm font-medium text-[#0B0B0B] mb-4">Head to Head</h3>
                         <div className="grid grid-cols-3 gap-3 text-center mb-4">
-                          <div className="bg-[#F0EEEA] rounded-lg p-3">
+                          <div className="bg-[#E4E2DC] rounded-lg p-3">
                             <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
-                            <div className="text-xs text-[#666666] mt-1 truncate">{a.brandName} leads</div>
+                            <div className="text-xs text-[#8A877D] mt-1 truncate">{a.brandName} leads</div>
                           </div>
-                          <div className="bg-[#F0EEEA] rounded-lg p-3">
-                            <div className="text-2xl font-bold text-[#9CA3AF]">{tied.length}</div>
-                            <div className="text-xs text-[#666666] mt-1">Tied</div>
+                          <div className="bg-[#E4E2DC] rounded-lg p-3">
+                            <div className="text-2xl font-bold text-[#B3B0A8]">{tied.length}</div>
+                            <div className="text-xs text-[#8A877D] mt-1">Tied</div>
                           </div>
-                          <div className="bg-[#F0EEEA] rounded-lg p-3">
+                          <div className="bg-[#E4E2DC] rounded-lg p-3">
                             <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
-                            <div className="text-xs text-[#666666] mt-1 truncate">{b.brandName} leads</div>
+                            <div className="text-xs text-[#8A877D] mt-1 truncate">{b.brandName} leads</div>
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -9957,16 +10159,16 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                             return (
                               <div key={attr.id} className="flex items-center gap-2 text-xs">
                                 <div className="flex-1 text-right">
-                                  <span className={`font-bold ${winner === 0 ? 'text-[#E53935]' : 'text-[#9CA3AF]'}`}>{aScore}</span>
+                                  <span className={`font-bold ${winner === 0 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>{aScore}</span>
                                 </div>
                                 <div className="w-20 text-center flex-shrink-0">
                                   <div className="flex items-center gap-1 justify-center">
                                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: attr.color }} />
-                                    <span className="text-[#666666]">{attr.name}</span>
+                                    <span className="text-[#8A877D]">{attr.name}</span>
                                   </div>
                                 </div>
                                 <div className="flex-1">
-                                  <span className={`font-bold ${winner === 1 ? 'text-[#1976D2]' : 'text-[#9CA3AF]'}`}>{bScore}</span>
+                                  <span className={`font-bold ${winner === 1 ? 'text-[#1976D2]' : 'text-[#B3B0A8]'}`}>{bScore}</span>
                                 </div>
                               </div>
                             );
@@ -9978,17 +10180,17 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
 
                   {/* Quick Insights */}
                   <div className="card p-4 md:p-6">
-                    <h3 className="text-sm font-medium text-[#1A1A1A] mb-3">Quick Insights</h3>
+                    <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Quick Insights</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                      <div className="bg-[#F0EEEA] rounded-lg p-3">
-                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Highest Overall Score</div>
-                        <div className="text-[#E53935] font-bold text-sm">
+                      <div className="bg-[#E4E2DC] rounded-lg p-3">
+                        <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Highest Overall Score</div>
+                        <div className="text-[#B23A3A] font-bold text-sm">
                           {selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).brandName}
-                          <span className="text-[#666666] font-normal ml-2 text-xs">({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})</span>
+                          <span className="text-[#8A877D] font-normal ml-2 text-xs">({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})</span>
                         </div>
                       </div>
-                      <div className="bg-[#F0EEEA] rounded-lg p-3">
-                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Largest Attribute Gap</div>
+                      <div className="bg-[#E4E2DC] rounded-lg p-3">
+                        <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Largest Attribute Gap</div>
                         {(() => {
                           let maxGap = 0, gapAttr = ATTRIBUTES[0];
                           ATTRIBUTES.forEach(attr => {
@@ -9996,29 +10198,29 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                             const gap = Math.max(...scores) - Math.min(...scores);
                             if (gap > maxGap) { maxGap = gap; gapAttr = attr; }
                           });
-                          return <div className="text-[#E53935] font-bold text-sm">{gapAttr.name} <span className="text-[#666666] font-normal text-xs">({maxGap} pts spread)</span></div>;
+                          return <div className="text-[#B23A3A] font-bold text-sm">{gapAttr.name} <span className="text-[#8A877D] font-normal text-xs">({maxGap} pts spread)</span></div>;
                         })()}
                       </div>
-                      <div className="bg-[#F0EEEA] rounded-lg p-3">
-                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Collective Strength</div>
+                      <div className="bg-[#E4E2DC] rounded-lg p-3">
+                        <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Collective Strength</div>
                         {(() => {
                           let maxAvg = 0, strongAttr = ATTRIBUTES[0];
                           ATTRIBUTES.forEach(attr => {
                             const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
                             if (avg > maxAvg) { maxAvg = avg; strongAttr = attr; }
                           });
-                          return <div className="text-[#059669] font-bold text-sm">{strongAttr.name} <span className="text-[#666666] font-normal text-xs">({Math.round(maxAvg)} avg)</span></div>;
+                          return <div className="text-[#059669] font-bold text-sm">{strongAttr.name} <span className="text-[#8A877D] font-normal text-xs">({Math.round(maxAvg)} avg)</span></div>;
                         })()}
                       </div>
-                      <div className="bg-[#F0EEEA] rounded-lg p-3">
-                        <div className="font-medium text-[#1A1A1A] mb-1 text-xs">Collective Weakness</div>
+                      <div className="bg-[#E4E2DC] rounded-lg p-3">
+                        <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Collective Weakness</div>
                         {(() => {
                           let minAvg = 100, weakAttr = ATTRIBUTES[0];
                           ATTRIBUTES.forEach(attr => {
                             const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
                             if (avg < minAvg) { minAvg = avg; weakAttr = attr; }
                           });
-                          return <div className="text-[#F57C00] font-bold text-sm">{weakAttr.name} <span className="text-[#666666] font-normal text-xs">({Math.round(minAvg)} avg)</span></div>;
+                          return <div className="text-[#F57C00] font-bold text-sm">{weakAttr.name} <span className="text-[#8A877D] font-normal text-xs">({Math.round(minAvg)} avg)</span></div>;
                         })()}
                       </div>
                     </div>
@@ -10080,7 +10282,7 @@ function AssessmentStatusIndicator({ assessments }) {
           className={`w-2 h-2 rounded-full ${
             status === 'complete' ? 'bg-green-500' : 
             status === 'partial' ? 'bg-yellow-500' : 
-            'bg-[#D9D6D0]'
+            'bg-[#DCDAD3]'
           }`}
           title={`${key}: ${status}`}
         />
@@ -10170,27 +10372,27 @@ function ClientLinksModal({ assessments, profile, onClose }) {
       <div className="card p-6 max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-bold text-[#1A1A1A]">
+            <h3 className="text-lg font-bold text-[#0B0B0B]">
               Client links{links ? ` (${links.length})` : ''}
             </h3>
-            <p className="text-xs text-[#666666] mt-0.5">
+            <p className="text-xs text-[#8A877D] mt-0.5">
               Active password-protected reports shared with clients.
             </p>
           </div>
-          <button onClick={onClose} className="text-[#999] hover:text-[#1A1A1A]">
+          <button onClick={onClose} className="text-[#999] hover:text-[#0B0B0B]">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
-          {error && <p className="text-xs text-[#E53935] mb-3">{error}</p>}
+          {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
           {!links && !error && (
-            <p className="text-xs text-[#666666] flex items-center gap-1.5 py-4">
+            <p className="text-xs text-[#8A877D] flex items-center gap-1.5 py-4">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading links...
             </p>
           )}
           {links && links.length === 0 && !error && (
-            <p className="text-sm text-[#666666] py-6 text-center">
+            <p className="text-sm text-[#8A877D] py-6 text-center">
               No active client links. Create one from the Client Link button on a report.
             </p>
           )}
@@ -10199,11 +10401,11 @@ function ClientLinksModal({ assessments, profile, onClose }) {
             const mine = link.created_by === profile?.id;
             const canManage = mine || profile?.is_admin;
             return (
-              <div key={link.token} className="py-3 border-b border-[#E8E6E1] last:border-0">
+              <div key={link.token} className="py-3 border-b border-[#DCDAD3] last:border-0">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="font-semibold text-sm text-[#1A1A1A]">{link.brand_name}</div>
-                    <div className="text-[11px] text-[#666666] mt-0.5">
+                    <div className="font-semibold text-sm text-[#0B0B0B]">{link.brand_name}</div>
+                    <div className="text-[11px] text-[#8A877D] mt-0.5">
                       Issued by {link.created_by_name || 'unknown'}
                       {link.created_at ? ` on ${new Date(link.created_at).toLocaleDateString()}` : ''}
                       {mine ? '' : ' (not yours)'}
@@ -10221,7 +10423,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                           Reset password
                         </button>
                         <button onClick={() => revoke(link)} disabled={busy === link.token}
-                          className="btn-secondary text-[11px] px-2 py-1 text-[#E53935]">
+                          className="btn-secondary text-[11px] px-2 py-1 text-[#B23A3A]">
                           {busy === link.token ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Revoke'}
                         </button>
                       </>
@@ -10230,8 +10432,8 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                 </div>
 
                 {resetting === link.token && (
-                  <div className="mt-3 bg-[#F5F4F0] rounded-lg p-3">
-                    <p className="text-[11px] text-[#666666] mb-2 leading-relaxed">
+                  <div className="mt-3 bg-[#F2F0EA] rounded-lg p-3">
+                    <p className="text-[11px] text-[#8A877D] mb-2 leading-relaxed">
                       The old password cannot be recovered, so the report is rebuilt from the saved
                       assessment and re-encrypted. The URL stays the same, so any link already sent keeps working.
                       {sourceFor(link) ? '' : ` No saved assessment found for ${link.brand_name}.`}
@@ -10240,7 +10442,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                       <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && doReset(link)}
                         placeholder="New password"
-                        className="flex-1 px-2 py-1.5 border border-[#D9D6D0] rounded bg-white text-xs" />
+                        className="flex-1 px-2 py-1.5 border border-[#DCDAD3] rounded bg-white text-xs" />
                       <button onClick={() => doReset(link)} disabled={busy === link.token || !sourceFor(link)}
                         className="btn-primary text-xs px-3 py-1.5">
                         {busy === link.token ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Set'}
@@ -10253,7 +10455,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
           })}
         </div>
 
-        <div className="flex justify-end pt-4 mt-2 border-t border-[#E8E6E1]">
+        <div className="flex justify-end pt-4 mt-2 border-t border-[#DCDAD3]">
           <button onClick={onClose} className="btn-secondary text-sm px-4 py-2">Close</button>
         </div>
       </div>
@@ -10339,25 +10541,25 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Saved Assessments</h2>
-          <p className="text-sm text-[#666666]">Your assessments are stored securely in the cloud</p>
+          <h2 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Saved Assessments</h2>
+          <p className="text-sm text-[#8A877D]">Your assessments are stored securely in the cloud</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           {!isReadonly && (
             <>
               <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
               <button onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors">
                 <Upload className="w-4 h-4" /> Import
               </button>
               <button onClick={() => setShowClientLinks(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors">
                 <ExternalLink className="w-4 h-4" /> Client Links
               </button>
             </>
           )}
           <button onClick={onBack}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#D9D6D0] bg-white text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
         </div>
@@ -10374,10 +10576,10 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
       {assessments.length === 0 ? (
         <div className="card p-12 text-center">
-          <FileText className="w-12 h-12 text-[#D9D6D0] mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">No Saved Assessments</h3>
-          <p className="text-[#666666] mb-4">Complete an assessment and click Save to store it here.</p>
-          <p className="text-sm text-[#9CA3AF]">Or import a previously exported assessment using the Import button above.</p>
+          <FileText className="w-12 h-12 text-[#DCDAD3] mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-2">No Saved Assessments</h3>
+          <p className="text-[#8A877D] mb-4">Complete an assessment and click Save to store it here.</p>
+          <p className="text-sm text-[#B3B0A8]">Or import a previously exported assessment using the Import button above.</p>
         </div>
       ) : (
         <>
@@ -10385,16 +10587,16 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
             {/* Search */}
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B3B0A8]" />
               <input
                 type="text"
                 placeholder="Search brands…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#1A1A1A]">
+                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#B3B0A8] hover:text-[#0B0B0B]">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -10402,7 +10604,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             {/* Stage filter */}
             {usedStages.length > 1 && (
               <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
-                className="px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#444444]">
+                className="px-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#4A4840]">
                 <option value="">All stages</option>
                 {usedStages.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -10410,14 +10612,14 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             {/* Industry filter */}
             {usedIndustries.length > 1 && (
               <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
-                className="px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#444444]">
+                className="px-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#4A4840]">
                 <option value="">All industries</option>
                 {usedIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
               </select>
             )}
             {/* Sort */}
             <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-              className="px-3 py-2 text-sm border border-[#D9D6D0] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#444444]">
+              className="px-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#4A4840]">
               <option value="date-desc">Newest first</option>
               <option value="date-asc">Oldest first</option>
               <option value="score-desc">Highest score</option>
@@ -10429,15 +10631,15 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           {/* Results count when filtering */}
           {hasFilters && (
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-[#666666]">{filtered.length} of {assessments.length} assessments</p>
+              <p className="text-xs text-[#8A877D]">{filtered.length} of {assessments.length} assessments</p>
               <button onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); }}
-                className="text-xs text-[#E53935] hover:underline">Clear filters</button>
+                className="text-xs text-[#B23A3A] hover:underline">Clear filters</button>
             </div>
           )}
 
           {filtered.length === 0 ? (
             <div className="card p-8 text-center">
-              <p className="text-[#666666]">No assessments match your filters.</p>
+              <p className="text-[#8A877D]">No assessments match your filters.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -10454,11 +10656,11 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
                     {/* Brand info */}
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-[#1A1A1A] text-sm leading-tight">{a.project.brandName}</h4>
+                      <h4 className="font-semibold text-[#0B0B0B] text-sm leading-tight">{a.project.brandName}</h4>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                        <span className="text-xs text-[#9CA3AF] whitespace-nowrap">{a.project.date || '—'}</span>
-                        {industryName && <><span className="text-xs text-[#9CA3AF]">·</span><span className="text-xs text-[#666666]">{industryName}</span></>}
-                        {maturity && <><span className="text-xs text-[#9CA3AF]">·</span><span className="text-xs font-medium" style={{ color: maturity.color }}>{maturity.name}</span></>}
+                        <span className="text-xs text-[#B3B0A8] whitespace-nowrap">{a.project.date || '—'}</span>
+                        {industryName && <><span className="text-xs text-[#B3B0A8]">·</span><span className="text-xs text-[#8A877D]">{industryName}</span></>}
+                        {maturity && <><span className="text-xs text-[#B3B0A8]">·</span><span className="text-xs font-medium" style={{ color: maturity.color }}>{maturity.name}</span></>}
                       </div>
                     </div>
 
@@ -10467,15 +10669,15 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       {!isReadonly && (
                         <>
                           <button onClick={() => onShare(a)} title="Share link"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#9CA3AF] hover:text-[#E53935] hover:bg-[#E5393508] rounded transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] hover:bg-[#E5393508] rounded transition-colors">
                             <Share2 className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onExport(a)} title="Export JSON"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] hover:bg-[#E4E2DC] rounded transition-colors">
                             <Download className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onRescore(a)}
-                            className="px-3 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors whitespace-nowrap hidden sm:block">
+                            className="px-3 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors whitespace-nowrap hidden sm:block">
                             Rescore
                           </button>
                         </>
@@ -10486,7 +10688,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       </button>
                       {!isReadonly && (
                         <button onClick={() => onDelete(i)} title="Delete"
-                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#D9D6D0] hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#DCDAD3] hover:text-red-500 hover:bg-red-50 rounded transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -10495,21 +10697,21 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
                   {/* Mobile-only secondary actions */}
                   {!isReadonly && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#F0EEEA] sm:hidden">
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#E4E2DC] sm:hidden">
                       <button onClick={() => onShare(a)} title="Share"
-                        className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#E53935] rounded transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] rounded transition-colors">
                         <Share2 className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onExport(a)} title="Export"
-                        className="w-8 h-8 flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A1A] rounded transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] rounded transition-colors">
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onRescore(a)}
-                        className="px-3 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#444444] hover:border-[#1A1A1A] hover:bg-[#F0EEEA] rounded transition-colors">
+                        className="px-3 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors">
                         Rescore
                       </button>
                       <button onClick={() => onDelete(i)} title="Delete"
-                        className="w-8 h-8 flex items-center justify-center text-[#D9D6D0] hover:text-red-500 rounded transition-colors ml-auto">
+                        className="w-8 h-8 flex items-center justify-center text-[#DCDAD3] hover:text-red-500 rounded transition-colors ml-auto">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -10519,7 +10721,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             </div>
           )}
 
-          <p className="text-center text-sm text-[#9CA3AF] mt-8">
+          <p className="text-center text-sm text-[#B3B0A8] mt-8">
             {assessments.length} assessment{assessments.length !== 1 ? 's' : ''} saved
           </p>
         </>
@@ -10571,6 +10773,7 @@ function makeClientPayload({ project, scores, benchmark }) {
           }, {}),
         }
       : null,
+    footprint: scores?.footprint || null,
     conclusion: String(scores?.conclusion || scores?.justification || '').replace(/[\u2014\u2013]/g, '-'),
     generatedAt: new Date().toISOString(),
   };
@@ -10630,38 +10833,38 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
       <div className="card p-6 max-w-lg w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-bold text-[#1A1A1A]">Client link</h3>
-            <p className="text-xs text-[#666666] mt-0.5">
+            <h3 className="text-lg font-bold text-[#0B0B0B]">Client link</h3>
+            <p className="text-xs text-[#8A877D] mt-0.5">
               A cleansed, password-protected report for {brandName}.
             </p>
           </div>
-          <button onClick={onClose} className="text-[#999] hover:text-[#1A1A1A]">
+          <button onClick={onClose} className="text-[#999] hover:text-[#0B0B0B]">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {!url ? (
           <>
-            <div className="bg-[#F5F4F0] rounded-lg p-3 mb-4">
-              <p className="text-xs text-[#333333] leading-relaxed">
+            <div className="bg-[#F2F0EA] rounded-lg p-3 mb-4">
+              <p className="text-xs text-[#4A4840] leading-relaxed">
                 The client sees scores, maturity, attribute analysis, campaign coherence,
                 the benchmark profile and the conclusion. They do not see recommendations,
                 channel assessments, or any internal notes.
               </p>
             </div>
 
-            <label className="text-xs font-medium text-[#666666] mb-1 block">Password</label>
+            <label className="text-xs font-medium text-[#8A877D] mb-1 block">Password</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder="Set a password for the client"
-              className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm mb-3" />
+              className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm mb-3" />
 
-            <label className="text-xs font-medium text-[#666666] mb-1 block">Confirm password</label>
+            <label className="text-xs font-medium text-[#8A877D] mb-1 block">Confirm password</label>
             <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && create()}
               placeholder="Repeat it"
-              className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm mb-3" />
+              className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm mb-3" />
 
-            {error && <p className="text-xs text-[#E53935] mb-3">{error}</p>}
+            {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
 
             <p className="text-[11px] text-[#999] leading-relaxed mb-4">
               The report is encrypted with this password before it is stored. It cannot be
@@ -10682,9 +10885,9 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
                 <Check className="w-3.5 h-3.5 text-[#059669]" />
                 <span className="text-xs font-semibold text-[#059669]">Link created</span>
               </div>
-              <p className="text-xs text-[#333333]">Send the password separately.</p>
+              <p className="text-xs text-[#4A4840]">Send the password separately.</p>
             </div>
-            <div className="bg-[#F5F4F0] rounded-lg p-3 mb-3 break-all text-xs text-[#333333] font-mono">
+            <div className="bg-[#F2F0EA] rounded-lg p-3 mb-3 break-all text-xs text-[#4A4840] font-mono">
               {url}
             </div>
             <div className="flex gap-2">
@@ -10735,7 +10938,7 @@ function ClientReportView({ payload }) {
     : null;
 
   return (
-    <div className="min-h-screen bg-[#E8E6E1]">
+    <div className="min-h-screen bg-[#F2F0EA]">
       <div className="max-w-5xl mx-auto p-6 sm:p-8">
         {/* Masthead. Client-facing view only; the internal report has no
             equivalent and should not gain one. */}
@@ -10746,17 +10949,17 @@ function ClientReportView({ payload }) {
             className="h-7 sm:h-8 mb-5"
             style={{ filter: 'brightness(0)' }}
           />
-          <div className="text-xs font-bold text-[#E53935] uppercase tracking-[0.14em] mb-2">
+          <div className="text-xs font-bold text-[#B23A3A] uppercase tracking-[0.14em] mb-2">
             Brand Facing Report
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A1A] leading-tight">{project.brandName}</h1>
-          <p className="text-sm text-[#666666] mt-0.5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#0B0B0B] leading-tight">{project.brandName}</h1>
+          <p className="text-sm text-[#8A877D] mt-0.5">
             Conscious Compass Assessment{industryName ? ` | ${industryName}` : ''}
           </p>
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        <h3 className="text-base font-semibold text-[#1A1A1A] mb-3">RESULTS AT A GLANCE</h3>
+        <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">RESULTS AT A GLANCE</h3>
         <div className="card p-6 mb-4">
           <div className="grid md:grid-cols-2 gap-6 items-start">
             <div>
@@ -10766,30 +10969,30 @@ function ClientReportView({ payload }) {
                     style={{ backgroundColor: stage.color }}>
                     {overall}
                   </div>
-                  <div className="text-xs text-[#666666] mt-1.5">out of 100</div>
+                  <div className="text-xs text-[#8A877D] mt-1.5">out of 100</div>
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-xl font-bold text-[#1A1A1A]">{stage.name}</h2>
-                  <p className="text-sm text-[#666666] leading-relaxed mt-1">{stage.description}</p>
+                  <h2 className="text-xl font-bold text-[#0B0B0B]">{stage.name}</h2>
+                  <p className="text-sm text-[#8A877D] leading-relaxed mt-1">{stage.description}</p>
                 </div>
               </div>
 
-              <div className="border-t border-[#E8E6E1] my-5" />
+              <div className="border-t border-[#DCDAD3] my-5" />
 
               {scores?.headline && (
-                <p className="text-lg font-bold italic text-[#1A1A1A] leading-snug mb-3">
+                <p className="text-lg font-bold italic text-[#0B0B0B] leading-snug mb-3">
                   "{scores.headline}"
                 </p>
               )}
-              <p className="text-sm text-[#333333] leading-relaxed">
+              <p className="text-sm text-[#4A4840] leading-relaxed">
                 <span className="font-semibold">{project.brandName}</span> demonstrates strength in{' '}
                 <span className="text-[#059669] font-medium">{strengths.map(a => a.name).join(' and ')}</span>
                 , with opportunities to grow in{' '}
-                <span className="text-[#E53935] font-medium">{growth.map(a => a.name).join(' and ')}</span>.
+                <span className="text-[#B23A3A] font-medium">{growth.map(a => a.name).join(' and ')}</span>.
               </p>
             </div>
 
-            <div className="bg-[#F0EEEA] rounded-lg p-4 flex justify-center">
+            <div className="bg-[#E4E2DC] rounded-lg p-4 flex justify-center">
               <SpiderChart scores={scores} size={340} />
             </div>
           </div>
@@ -10800,19 +11003,19 @@ function ClientReportView({ payload }) {
           {ATTRIBUTES.map(a => (
             <div key={a.id} className="card p-3 text-center">
               <div className="text-2xl font-bold" style={{ color: a.color }}>{scores?.[a.id]?.score || 0}</div>
-              <div className="text-[10px] text-[#666666] uppercase tracking-wide mt-0.5">{a.name}</div>
+              <div className="text-[10px] text-[#8A877D] uppercase tracking-wide mt-0.5">{a.name}</div>
             </div>
           ))}
         </div>
 
         {/* ── Maturity ────────────────────────────────────────── */}
-        <h3 className="text-base font-semibold text-[#1A1A1A] mb-3">BRAND MATURITY</h3>
+        <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">BRAND MATURITY</h3>
         <div className="mb-6">
           <MaturityContinuum score={overall} hideTitle />
         </div>
 
         {/* ── Attribute analysis, no recommendations ──────────── */}
-        <h3 className="text-base font-semibold text-[#1A1A1A] mb-3">ATTRIBUTE ANALYSIS</h3>
+        <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">ATTRIBUTE ANALYSIS</h3>
         <div className="grid md:grid-cols-2 gap-3 mb-6">
           {ATTRIBUTES.map(a => {
             const sc = scores?.[a.id] || {};
@@ -10821,15 +11024,15 @@ function ClientReportView({ payload }) {
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-2xl font-bold" style={{ color: a.color }}>{sc.score || 0}</span>
                   <div className="min-w-0">
-                    <h4 className="font-semibold text-[#1A1A1A] text-sm">{a.name}</h4>
-                    <p className="text-xs text-[#666666]">{a.fullName}</p>
+                    <h4 className="font-semibold text-[#0B0B0B] text-sm">{a.name}</h4>
+                    <p className="text-xs text-[#8A877D]">{a.fullName}</p>
                   </div>
                 </div>
                 {sc.findings && (
-                  <p className="text-xs text-[#333333] leading-relaxed mb-2">{sc.findings}</p>
+                  <p className="text-xs text-[#4A4840] leading-relaxed mb-2">{sc.findings}</p>
                 )}
                 {sc.impact && (
-                  <p className="text-xs text-[#333333] leading-relaxed">
+                  <p className="text-xs text-[#4A4840] leading-relaxed">
                     <span className="font-semibold">What's driving it: </span>
                     {String(sc.impact).replace(/^What'?s driving it:?\s*/i, '')}
                   </p>
@@ -10840,39 +11043,49 @@ function ClientReportView({ payload }) {
           })}
         </div>
 
+        {/* ── Brand footprint ─────────────────────────────────── */}
+        {payload.footprint && (
+          <>
+            <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">BRAND FOOTPRINT</h3>
+            <div className="mb-6 overflow-hidden">
+              <FootprintMosaic footprint={payload.footprint} brandName={project.brandName} compact />
+            </div>
+          </>
+        )}
+
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
           <>
-            <h3 className="text-base font-semibold text-[#1A1A1A] mb-3">CAMPAIGN COHERENCE</h3>
+            <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">CAMPAIGN COHERENCE</h3>
             <div className="card p-5 mb-6">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
                     {campaignStage.level === 0 ? '—' : campaignStage.level}
                   </div>
-                  <div className="text-[10px] text-[#666666] mt-1">
+                  <div className="text-[10px] text-[#8A877D] mt-1">
                     {campaignStage.level === 0 ? 'no tier' : 'of 5'}
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-lg font-bold text-[#1A1A1A]">{campaignStage.name}</div>
-                  <p className="text-sm text-[#666666] leading-relaxed mb-2">{campaignStage.summary}</p>
+                  <div className="text-lg font-bold text-[#0B0B0B]">{campaignStage.name}</div>
+                  <p className="text-sm text-[#8A877D] leading-relaxed mb-2">{campaignStage.summary}</p>
                   {campaign.verdict && (
-                    <p className="text-sm text-[#1A1A1A] font-medium leading-relaxed">{campaign.verdict}</p>
+                    <p className="text-sm text-[#0B0B0B] font-medium leading-relaxed">{campaign.verdict}</p>
                   )}
                 </div>
               </div>
 
               <CampaignLadder level={campaignStage.level} />
 
-              <p className="text-xs text-[#333333] leading-relaxed">{campaignStage.description}</p>
+              <p className="text-xs text-[#4A4840] leading-relaxed">{campaignStage.description}</p>
               {campaign.rationale && (
-                <p className="text-xs text-[#333333] mt-2 leading-relaxed">
+                <p className="text-xs text-[#4A4840] mt-2 leading-relaxed">
                   <span className="font-semibold">Why this level: </span>{campaign.rationale}
                 </p>
               )}
               {campaign.toNextLevel && (
-                <p className="text-xs text-[#333333] mt-2 leading-relaxed">
+                <p className="text-xs text-[#4A4840] mt-2 leading-relaxed">
                   <span className="font-semibold">To reach level {Math.min(5, campaignStage.level + 1)}: </span>
                   {campaign.toNextLevel}
                 </p>
@@ -10884,9 +11097,9 @@ function ClientReportView({ payload }) {
         {/* ── Profile against benchmark ───────────────────────── */}
         {benchmark && benchmarkAvg && (
           <>
-          <h3 className="text-base font-semibold text-[#1A1A1A] mb-3">BENCHMARK COMPARISON</h3>
+          <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">BENCHMARK COMPARISON</h3>
           <div className="card p-5 mb-3">
-            <p className="text-xs text-[#666666] mb-3">
+            <p className="text-xs text-[#8A877D] mb-3">
               {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
             </p>
             <div className="flex justify-center">
@@ -10917,9 +11130,9 @@ function ClientReportView({ payload }) {
         {/* ── Conclusion ──────────────────────────────────────── */}
         {payload.conclusion && (
           <>
-            <h3 className="text-base font-semibold text-[#1A1A1A] mb-3">CONCLUSIONS</h3>
+            <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">CONCLUSIONS</h3>
             <div className="card p-6 mb-6">
-              <p className="text-sm text-[#333333] leading-relaxed">{payload.conclusion}</p>
+              <p className="text-sm text-[#4A4840] leading-relaxed">{payload.conclusion}</p>
             </div>
           </>
         )}
@@ -10970,7 +11183,7 @@ function ClientReportGate({ token }) {
   if (status === 'open' && payload) return <ClientReportView payload={payload} />;
 
   return (
-    <div className="min-h-screen bg-[#E8E6E1] flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-[#F2F0EA] flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md mb-7 text-center">
         <img
           src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
@@ -10978,7 +11191,7 @@ function ClientReportGate({ token }) {
           className="h-9 mx-auto mb-4"
           style={{ filter: 'brightness(0)' }}
         />
-        <p className="text-2xl sm:text-3xl font-bold text-[#1A1A1A] leading-tight tracking-tight">
+        <p className="text-2xl sm:text-3xl font-bold text-[#0B0B0B] leading-tight tracking-tight">
           Consequential brands are conscious brands
         </p>
       </div>
@@ -10986,15 +11199,15 @@ function ClientReportGate({ token }) {
       <div className="card p-8 max-w-md w-full">
         {status === 'loading' && (
           <div className="text-center">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#E53935]" />
-            <p className="mt-3 text-sm text-[#666666]">Loading report...</p>
+            <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#B23A3A]" />
+            <p className="mt-3 text-sm text-[#8A877D]">Loading report...</p>
           </div>
         )}
 
         {status === 'missing' && (
           <div className="text-center">
-            <h1 className="text-lg font-bold text-[#1A1A1A]">Report not found</h1>
-            <p className="text-sm text-[#666666] mt-2">
+            <h1 className="text-lg font-bold text-[#0B0B0B]">Report not found</h1>
+            <p className="text-sm text-[#8A877D] mt-2">
               This link is no longer active. Contact the person who shared it with you.
             </p>
           </div>
@@ -11002,8 +11215,8 @@ function ClientReportGate({ token }) {
 
         {status === 'locked' && row && (
           <>
-            <h1 className="text-xl font-bold text-[#1A1A1A]">{row.brand_name}</h1>
-            <p className="text-sm text-[#666666] mt-1 mb-5">
+            <h1 className="text-xl font-bold text-[#0B0B0B]">{row.brand_name}</h1>
+            <p className="text-sm text-[#8A877D] mt-1 mb-5">
               Conscious Compass assessment. Enter the password you were given to view this report.
             </p>
             <input
@@ -11013,9 +11226,9 @@ function ClientReportGate({ token }) {
               onKeyDown={(e) => e.key === 'Enter' && unlock()}
               placeholder="Password"
               autoFocus
-              className="w-full px-3 py-2 border border-[#D9D6D0] rounded-lg bg-white text-sm mb-3"
+              className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm mb-3"
             />
-            {error && <p className="text-xs text-[#E53935] mb-3">{error}</p>}
+            {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
             <button onClick={unlock} disabled={checking || !password}
               className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-2">
               {checking ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening...</> : 'View report'}
@@ -11076,17 +11289,17 @@ function SharedReportView({ report, onClose }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#E8E6E1]">
+    <div className="min-h-screen bg-[#F2F0EA]">
       {/* Header */}
-      <header className="bg-[#E8E6E1] border-b border-[#D9D6D0] py-5 px-6">
+      <header className="bg-[#F2F0EA] border-b border-[#DCDAD3] py-5 px-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
             <div className="h-6 w-px bg-[#1A1A1A]" />
-            <span className="text-lg font-semibold text-[#1A1A1A]">Conscious Compass</span>
+            <span className="text-lg font-semibold text-[#0B0B0B]">Conscious Compass</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-[#666666] bg-[#F0EEEA] px-3 py-1 rounded-full">Shared Report (Read-only)</span>
+            <span className="text-sm text-[#8A877D] bg-[#E4E2DC] px-3 py-1 rounded-full">Shared Report (Read-only)</span>
             <button onClick={onClose} className="btn-secondary text-sm">
               Start New Assessment
             </button>
@@ -11097,20 +11310,20 @@ function SharedReportView({ report, onClose }) {
       <div className="max-w-4xl mx-auto p-8 animate-fade-in">
         {/* Report Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-[#1A1A1A] mb-2">Brand Consciousness Report</h1>
-          <p className="text-xl text-[#333333]">{project.brandName}</p>
-          <p className="text-sm text-[#666666] mt-2">{industryName} | {project.businessModel?.toUpperCase() || 'B2B'} | {project.date || 'No date'}</p>
+          <h1 className="text-4xl font-bold text-[#0B0B0B] mb-2">Brand Consciousness Report</h1>
+          <p className="text-xl text-[#4A4840]">{project.brandName}</p>
+          <p className="text-sm text-[#8A877D] mt-2">{industryName} | {project.businessModel?.toUpperCase() || 'B2B'} | {project.date || 'No date'}</p>
         </div>
 
         {/* Overall Score */}
         <div className="card p-8 mb-8 text-center bg-gradient-to-br from-[#E53935]/5 to-[#E53935]/10">
-          <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-[#E53935] text-white mb-4">
+          <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-[#DEE42F] text-white mb-4">
             <span className="text-5xl font-bold">{overall}</span>
           </div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A] mb-2">{stage.name}</h2>
-          <p className="text-[#333333] mb-4">{stage.description}</p>
+          <h2 className="text-2xl font-bold text-[#0B0B0B] mb-2">{stage.name}</h2>
+          <p className="text-[#4A4840] mb-4">{stage.description}</p>
           {scores.headline && (
-            <p className="text-lg italic text-[#1A1A1A] border-t border-[#E8E6E1] pt-4 mt-4">
+            <p className="text-lg italic text-[#0B0B0B] border-t border-[#DCDAD3] pt-4 mt-4">
               "{scores.headline}"
             </p>
           )}
@@ -11118,26 +11331,26 @@ function SharedReportView({ report, onClose }) {
 
         {/* Spider Chart */}
         <div className="card p-6 mb-8">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4 text-center">Brand Consciousness Profile</h3>
+          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4 text-center">Brand Consciousness Profile</h3>
           <SpiderChart scores={scores} size={450} animate={false} />
         </div>
 
         {/* Executive Summary */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">EXECUTIVE SUMMARY</h3>
-          <p className="text-[#333333] leading-relaxed">
+          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">EXECUTIVE SUMMARY</h3>
+          <p className="text-[#4A4840] leading-relaxed">
             {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
           </p>
         </div>
 
         {/* Score Summary */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">SCORE SUMMARY</h3>
+          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">SCORE SUMMARY</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="text-center p-3 bg-[#F0EEEA] rounded-lg">
+              <div key={attr.id} className="text-center p-3 bg-[#E4E2DC] rounded-lg">
                 <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-                <div className="text-xs text-[#666666] mt-1">{attr.name}</div>
+                <div className="text-xs text-[#8A877D] mt-1">{attr.name}</div>
               </div>
             ))}
           </div>
@@ -11148,8 +11361,8 @@ function SharedReportView({ report, onClose }) {
 
         {/* Maturity Stage Context */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">MATURITY STAGE CONTEXT</h3>
-          <p className="text-[#333333] leading-relaxed">
+          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">MATURITY STAGE CONTEXT</h3>
+          <p className="text-[#4A4840] leading-relaxed">
             With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
           </p>
         </div>
@@ -11253,9 +11466,9 @@ function SharedReportView({ report, onClose }) {
             <div className="card p-5 mb-4 border-l-4 border-[#F59E0B]">
               <div className="flex items-center gap-2 mb-4">
                 <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0" />
-                <h3 className="text-lg font-semibold text-[#1A1A1A]">SIGNAL CONFLICTS</h3>
+                <h3 className="text-lg font-semibold text-[#0B0B0B]">SIGNAL CONFLICTS</h3>
               </div>
-              <p className="text-sm text-[#666666] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
+              <p className="text-sm text-[#8A877D] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
               <div className="space-y-4">
                 {conflicts.map((c, i) => (
                   <div key={i} className="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-4">
@@ -11281,32 +11494,32 @@ function SharedReportView({ report, onClose }) {
         {/* Campaign Coherence */}
         {sharedCampaignStage && (
           <>
-            <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">CAMPAIGN COHERENCE</h3>
+            <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">CAMPAIGN COHERENCE</h3>
             <div className="card p-5 mb-8">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
                     {sharedCampaignStage.level === 0 ? '—' : sharedCampaignStage.level}
                   </div>
-                  <div className="text-[10px] text-[#666666] mt-1">{sharedCampaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
+                  <div className="text-[10px] text-[#8A877D] mt-1">{sharedCampaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-lg font-bold text-[#1A1A1A]">{sharedCampaignStage.name}</div>
-                  <p className="text-sm text-[#666666] leading-relaxed mb-2">{sharedCampaignStage.summary}</p>
-                  {sharedCampaign.verdict && <p className="text-sm text-[#1A1A1A] font-medium leading-relaxed">{sharedCampaign.verdict}</p>}
+                  <div className="text-lg font-bold text-[#0B0B0B]">{sharedCampaignStage.name}</div>
+                  <p className="text-sm text-[#8A877D] leading-relaxed mb-2">{sharedCampaignStage.summary}</p>
+                  {sharedCampaign.verdict && <p className="text-sm text-[#0B0B0B] font-medium leading-relaxed">{sharedCampaign.verdict}</p>}
                 </div>
               </div>
               <CampaignLadder level={sharedCampaignStage.level} />
-              <p className="text-xs text-[#333333] leading-relaxed">{sharedCampaignStage.description}</p>
-              {sharedCampaign.rationale && <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">Why this level:</span> {sharedCampaign.rationale}</p>}
-              {sharedCampaign.toNextLevel && <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">To reach level {Math.min(5, sharedCampaignStage.level + 1)}:</span> {sharedCampaign.toNextLevel}</p>}
+              <p className="text-xs text-[#4A4840] leading-relaxed">{sharedCampaignStage.description}</p>
+              {sharedCampaign.rationale && <p className="text-xs text-[#4A4840] mt-2 leading-relaxed"><span className="font-semibold">Why this level:</span> {sharedCampaign.rationale}</p>}
+              {sharedCampaign.toNextLevel && <p className="text-xs text-[#4A4840] mt-2 leading-relaxed"><span className="font-semibold">To reach level {Math.min(5, sharedCampaignStage.level + 1)}:</span> {sharedCampaign.toNextLevel}</p>}
               {Array.isArray(sharedCampaign.campaigns) && sharedCampaign.campaigns.length > 0 && (
                 <div className="grid md:grid-cols-2 gap-3 mt-4">
                   {sharedCampaign.campaigns.map((c, i) => (
-                    <div key={i} className="bg-[#F8F7F5] rounded-lg p-3">
-                      <h4 className="font-semibold text-[#1A1A1A] text-sm mb-1">{c.name}</h4>
-                      {c.idea && <p className="text-xs text-[#333333] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
-                      {c.evidence && <p className="text-xs text-[#666666] leading-relaxed">{c.evidence}</p>}
+                    <div key={i} className="bg-[#F2F0EA] rounded-lg p-3">
+                      <h4 className="font-semibold text-[#0B0B0B] text-sm mb-1">{c.name}</h4>
+                      {c.idea && <p className="text-xs text-[#4A4840] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
+                      {c.evidence && <p className="text-xs text-[#8A877D] leading-relaxed">{c.evidence}</p>}
                     </div>
                   ))}
                 </div>
@@ -11318,7 +11531,7 @@ function SharedReportView({ report, onClose }) {
         {/* Benchmark */}
         {sharedBenchmark && (
           <>
-            <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">BENCHMARK COMPARISON</h3>
+            <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">BENCHMARK COMPARISON</h3>
             <div className="space-y-3 mb-8">
               <BenchmarkProvenance benchmark={sharedBenchmark} />
               <BenchmarkPositionBar benchmark={sharedBenchmark} brandName={project.brandName} />
@@ -11328,7 +11541,7 @@ function SharedReportView({ report, onClose }) {
         )}
 
         {/* Attribute Analysis */}
-        <h3 className="text-xl font-semibold text-[#1A1A1A] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
+        <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
         <div className="space-y-4 mb-8">
           {ATTRIBUTES.map(attr => (
             <div key={attr.id} className="card p-5">
@@ -11338,41 +11551,41 @@ function SharedReportView({ report, onClose }) {
                     {scores[attr.id]?.score || 0}
                   </div>
                   <div>
-                    <h4 className="font-bold text-[#1A1A1A]">{attr.name}</h4>
-                    <p className="text-sm text-[#666666]">{attr.fullName}</p>
+                    <h4 className="font-bold text-[#0B0B0B]">{attr.name}</h4>
+                    <p className="text-sm text-[#8A877D]">{attr.fullName}</p>
                   </div>
                 </div>
               </div>
-              <p className="text-sm text-[#333333] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+              <p className="text-sm text-[#4A4840] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
               {scores[attr.id]?.impact && (
-                <p className="text-sm text-[#333333] mb-2"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
+                <p className="text-sm text-[#4A4840] mb-2"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
               )}
               {scores[attr.id]?.actions && (
-                <p className="text-sm text-[#333333] mb-2"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
+                <p className="text-sm text-[#4A4840] mb-2"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
               )}
               {scores[attr.id]?.opportunity && (
-                <p className="text-sm text-[#E53935] italic">{scores[attr.id].opportunity}</p>
+                <p className="text-sm text-[#B23A3A] italic">{scores[attr.id].opportunity}</p>
               )}
             </div>
           ))}
         </div>
 
         {/* Recommendations */}
-        <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
-        <p className="text-[#666666] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
+        <h3 className="text-xl font-semibold text-[#0B0B0B] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
+        <p className="text-[#8A877D] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
         <div className="space-y-4 mb-6">
           {recommendations.map((r, i) => (
             <div key={i} className="card p-5">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-[#E53935] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
+                <div className="w-8 h-8 rounded-full bg-[#DEE42F] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
                 <div className="flex-1">
-                  <h4 className="font-semibold text-[#1A1A1A] mb-2">{r.title}</h4>
-                  <p className="text-sm text-[#333333] leading-relaxed mb-2">
+                  <h4 className="font-semibold text-[#0B0B0B] mb-2">{r.title}</h4>
+                  <p className="text-sm text-[#4A4840] leading-relaxed mb-2">
                     {r.description} {r.impact}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {r.attributes.map((attr, j) => (
-                      <span key={j} className="text-xs px-2 py-1 bg-[#E53935]/10 text-[#E53935] rounded-full font-medium">{attr}</span>
+                      <span key={j} className="text-xs px-2 py-1 bg-[#DEE42F]/10 text-[#B23A3A] rounded-full font-medium">{attr}</span>
                     ))}
                   </div>
                 </div>
@@ -11390,8 +11603,8 @@ function SharedReportView({ report, onClose }) {
           
           return (
             <>
-              <h3 className="text-xl font-semibold text-[#1A1A1A] mb-4">RECOMMENDED ANTENNA GROUP SERVICES</h3>
-              <p className="text-[#666666] mb-4">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
+              <h3 className="text-xl font-semibold text-[#0B0B0B] mb-4">RECOMMENDED ANTENNA GROUP SERVICES</h3>
+              <p className="text-[#8A877D] mb-4">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
               <div className="grid md:grid-cols-2 gap-4 mb-8">
                 {topServices.map((rec, i) => {
                   const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
@@ -11402,9 +11615,9 @@ function SharedReportView({ report, onClose }) {
                   
                   return (
                     <div key={i} className="card p-4 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
-                      <h4 className="font-semibold text-[#1A1A1A] mb-2">{rec.service.name}</h4>
-                      <p className="text-xs text-[#666666] mb-2">{rec.service.category}</p>
-                      <p className="text-sm text-[#333333] mb-2">
+                      <h4 className="font-semibold text-[#0B0B0B] mb-2">{rec.service.name}</h4>
+                      <p className="text-xs text-[#8A877D] mb-2">{rec.service.category}</p>
+                      <p className="text-sm text-[#4A4840] mb-2">
                         Improves <span style={{ color: attr?.color }}>{attr?.name}</span> (currently {attrScore})
                       </p>
                       <p className="text-sm font-medium text-[#059669]">{budgetStr}</p>
@@ -11418,29 +11631,29 @@ function SharedReportView({ report, onClose }) {
 
         {/* Conclusions */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">CONCLUSIONS</h3>
-          <p className="text-[#333333] leading-relaxed">
+          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">CONCLUSIONS</h3>
+          <p className="text-[#4A4840] leading-relaxed">
             {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
           </p>
         </div>
 
         {/* What We Evaluated */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">WHAT WE EVALUATED</h3>
-          <p className="text-[#333333] leading-relaxed mb-4">
+          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">WHAT WE EVALUATED</h3>
+          <p className="text-[#4A4840] leading-relaxed mb-4">
             This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model ({project.businessModel?.toUpperCase() || 'B2B'}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
           </p>
           {report.assessmentSummary && (
             <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div className="bg-[#F0EEEA] p-3 rounded-lg">
-                <h4 className="font-semibold text-[#1A1A1A] mb-2">Website Analysis</h4>
-                <p className="text-[#666666]">
+              <div className="bg-[#E4E2DC] p-3 rounded-lg">
+                <h4 className="font-semibold text-[#0B0B0B] mb-2">Website Analysis</h4>
+                <p className="text-[#8A877D]">
                   {report.assessmentSummary.pagesReviewed || 'Key pages reviewed'}
                 </p>
               </div>
-              <div className="bg-[#F0EEEA] p-3 rounded-lg">
-                <h4 className="font-semibold text-[#1A1A1A] mb-2">Social Media</h4>
-                <p className="text-[#666666]">
+              <div className="bg-[#E4E2DC] p-3 rounded-lg">
+                <h4 className="font-semibold text-[#0B0B0B] mb-2">Social Media</h4>
+                <p className="text-[#8A877D]">
                   {[
                     report.assessmentSummary.hasLinkedIn && 'LinkedIn',
                     report.assessmentSummary.hasX && 'X/Twitter',
@@ -11451,9 +11664,9 @@ function SharedReportView({ report, onClose }) {
                   ].filter(Boolean).join(', ') || 'Social platforms reviewed'}
                 </p>
               </div>
-              <div className="bg-[#F0EEEA] p-3 rounded-lg">
-                <h4 className="font-semibold text-[#1A1A1A] mb-2">AI Reputation</h4>
-                <p className="text-[#666666]">
+              <div className="bg-[#E4E2DC] p-3 rounded-lg">
+                <h4 className="font-semibold text-[#0B0B0B] mb-2">AI Reputation</h4>
+                <p className="text-[#8A877D]">
                   {[
                     report.assessmentSummary.hasClaudeAI && 'Claude',
                     report.assessmentSummary.hasGeminiAI && 'Gemini',
@@ -11461,9 +11674,9 @@ function SharedReportView({ report, onClose }) {
                   ].filter(Boolean).join(', ') || 'AI platforms queried'}
                 </p>
               </div>
-              <div className="bg-[#F0EEEA] p-3 rounded-lg">
-                <h4 className="font-semibold text-[#1A1A1A] mb-2">Earned Media</h4>
-                <p className="text-[#666666]">
+              <div className="bg-[#E4E2DC] p-3 rounded-lg">
+                <h4 className="font-semibold text-[#0B0B0B] mb-2">Earned Media</h4>
+                <p className="text-[#8A877D]">
                   {report.assessmentSummary.hasEarnedMedia ? 'Coverage from past 3 months reviewed' : 'Media coverage analyzed'}
                 </p>
               </div>
@@ -11473,20 +11686,20 @@ function SharedReportView({ report, onClose }) {
 
         {/* Score Justification */}
         {scores.justification && (
-          <div className="card p-5 mb-4 bg-[#FAFAF9]">
-            <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">SCORE JUSTIFICATION</h3>
-            <p className="text-sm text-[#333333] leading-relaxed">
+          <div className="card p-5 mb-4 bg-[#F2F0EA]">
+            <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">SCORE JUSTIFICATION</h3>
+            <p className="text-sm text-[#4A4840] leading-relaxed">
               {scores.justification}
             </p>
           </div>
         )}
 
         {/* Footer */}
-        <div className="text-center pt-8 border-t border-[#D9D6D0]">
-          <p className="text-sm text-[#9CA3AF]">
+        <div className="text-center pt-8 border-t border-[#DCDAD3]">
+          <p className="text-sm text-[#B3B0A8]">
             This report was generated using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}
           </p>
-          <p className="text-xs text-[#9CA3AF] mt-2">
+          <p className="text-xs text-[#B3B0A8] mt-2">
             Shared on {report.sharedAt ? new Date(report.sharedAt).toLocaleDateString() : 'Unknown date'}
           </p>
         </div>
@@ -11581,7 +11794,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
     'Social Signals':      '#10B981',
     'Assessment Practice': '#8B5CF6',
   };
-  const catColor  = (cat) => CATEGORY_COLORS[cat] || '#666666';
+  const catColor  = (cat) => CATEGORY_COLORS[cat] || '#8A877D';
   const catBg     = (cat) => (catColor(cat)) + '18';
 
   const clean = (t) => (t || '').replace(/[—–]/g, '-');
@@ -11746,7 +11959,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
       const body = (text, after = 160) => new Paragraph({ ...sp(0, after), children: [new TextRun({ text: clean(text), font: 'Inter', size: 20, color: '1A1A1A' })] });
       const h2   = (text) => new Paragraph({ heading: HeadingLevel.HEADING_2, ...sp(280, 80), children: [new TextRun({ text, font: 'Inter', bold: true, size: 28, color: '1A1A1A' })] });
       const rule = () => new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D9D6D0', space: 1 } }, ...sp(0, 0) });
-      const label = (text, color) => new Paragraph({ ...sp(0, 60), children: [new TextRun({ text: text.toUpperCase(), font: 'Inter', size: 16, bold: true, color: hex(color || '#666666') })] });
+      const label = (text, color) => new Paragraph({ ...sp(0, 60), children: [new TextRun({ text: text.toUpperCase(), font: 'Inter', size: 16, bold: true, color: hex(color || '#8A877D') })] });
 
       const doc = new Document({
         styles: {
@@ -11864,7 +12077,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
 
   // ── Render ──────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F5F4F0]">
+    <div className="min-h-screen bg-[#F2F0EA]">
       <div className="max-w-5xl mx-auto p-4 md:p-8">
 
         {/* Header */}
@@ -11876,15 +12089,15 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Sparkles className="w-5 h-5 text-[#6366F1]" />
-                <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Stay Conscious</h1>
+                <h1 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Stay Conscious</h1>
                 {newsletter && (
                   <span className="text-xs font-medium px-2 py-0.5 bg-[#1A1A1A] text-white rounded-full">
                     Issue #{newsletter.issueNumber}
                   </span>
                 )}
               </div>
-              <p className="text-sm text-[#666666]">Brand intelligence for assessors. What's shifting, why it matters.</p>
-              <div className="text-xs text-[#9CA3AF] mt-0.5 space-y-0.5">
+              <p className="text-sm text-[#8A877D]">Brand intelligence for assessors. What's shifting, why it matters.</p>
+              <div className="text-xs text-[#B3B0A8] mt-0.5 space-y-0.5">
                 {refreshedAt && <p>Updated {fmtDate(refreshedAt)}</p>}
                 <p>Next update {fmtDate(nextSunday())}</p>
               </div>
@@ -11940,15 +12153,15 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             <div className="w-12 h-12 rounded-full bg-[#6366F1]/10 flex items-center justify-center">
               <Loader2 className="w-6 h-6 text-[#6366F1] animate-spin" />
             </div>
-            <p className="text-sm text-[#666666]">{refreshing ? 'Composing this week\'s edition...' : 'Loading newsletter...'}</p>
+            <p className="text-sm text-[#8A877D]">{refreshing ? 'Composing this week\'s edition...' : 'Loading newsletter...'}</p>
           </div>
         )}
 
         {/* Error */}
         {error && !loading && !refreshing && (
           <div className="card p-8 text-center">
-            <AlertCircle className="w-10 h-10 text-[#E53935] mx-auto mb-3" />
-            <p className="text-[#666666] mb-4">{error}</p>
+            <AlertCircle className="w-10 h-10 text-[#B23A3A] mx-auto mb-3" />
+            <p className="text-[#8A877D] mb-4">{error}</p>
             <button onClick={loadNewsletter} className="btn-primary">Try Again</button>
           </div>
         )}
@@ -11956,9 +12169,9 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
         {/* Empty */}
         {!newsletter && !loading && !error && (
           <div className="card p-12 text-center">
-            <Sparkles className="w-10 h-10 text-[#D9D6D0] mx-auto mb-3" />
-            <p className="text-[#666666]">No newsletter available yet.</p>
-            {isAdmin && <p className="text-sm text-[#9CA3AF] mt-2">Use Force Refresh to generate the first edition.</p>}
+            <Sparkles className="w-10 h-10 text-[#DCDAD3] mx-auto mb-3" />
+            <p className="text-[#8A877D]">No newsletter available yet.</p>
+            {isAdmin && <p className="text-sm text-[#B3B0A8] mt-2">Use Force Refresh to generate the first edition.</p>}
           </div>
         )}
 
@@ -11983,14 +12196,14 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
               <p className="text-[#D1D5DB] leading-relaxed mb-4">{newsletter.leadStory?.insight}</p>
               <div className="border-t border-white/10 pt-4">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280]">Why it matters for assessment</span>
-                <p className="text-sm text-[#9CA3AF] leading-relaxed mt-1">{newsletter.leadStory?.whyItMatters}</p>
+                <p className="text-sm text-[#B3B0A8] leading-relaxed mt-1">{newsletter.leadStory?.whyItMatters}</p>
               </div>
             </div>
 
             {/* Intelligence items */}
             {newsletter.intelligenceItems?.length > 0 && (
               <div>
-                <h2 className="text-sm font-semibold text-[#1A1A1A] uppercase tracking-wider mb-4">Brand Intelligence</h2>
+                <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Brand Intelligence</h2>
                 <div className="space-y-4">
                   {newsletter.intelligenceItems.map((item, i) => (
                     <div key={i} className="card p-5 hover:shadow-md transition-shadow">
@@ -12003,13 +12216,13 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                             </span>
                             <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(item.category) }} />
                           </div>
-                          <h3 className="font-semibold text-[#1A1A1A] leading-snug mb-2">{item.headline}</h3>
-                          <p className="text-sm text-[#444444] leading-relaxed">{item.insight}</p>
+                          <h3 className="font-semibold text-[#0B0B0B] leading-snug mb-2">{item.headline}</h3>
+                          <p className="text-sm text-[#4A4840] leading-relaxed">{item.insight}</p>
                         </div>
                       </div>
-                      <div className="border-t border-[#E8E6E1] pt-3 mt-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] mb-1">Why it matters for assessment</div>
-                        <p className="text-xs text-[#666666] leading-relaxed">{item.whyItMatters}</p>
+                      <div className="border-t border-[#DCDAD3] pt-3 mt-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#B3B0A8] mb-1">Why it matters for assessment</div>
+                        <p className="text-xs text-[#8A877D] leading-relaxed">{item.whyItMatters}</p>
                       </div>
                     </div>
                   ))}
@@ -12020,15 +12233,15 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             {/* Landscape Insights */}
             {newsletter.landscapeAnalysis?.summary && (
               <div>
-                <h2 className="text-sm font-semibold text-[#1A1A1A] uppercase tracking-wider mb-4">Landscape Insights</h2>
-                <div className="bg-white border border-[#E8E6E1] rounded-xl p-6">
+                <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Landscape Insights</h2>
+                <div className="bg-white border border-[#DCDAD3] rounded-xl p-6">
                   {newsletter.landscapeAnalysis.brandCount && (
                     <p className="text-xs text-[#999] mb-3">
                       Based on {newsletter.landscapeAnalysis.brandCount} brands across {newsletter.landscapeAnalysis.sectorCount} sectors
                     </p>
                   )}
                   {newsletter.landscapeAnalysis.headline && (
-                    <h3 className="font-bold text-[#1A1A1A] text-lg leading-snug mb-3">
+                    <h3 className="font-bold text-[#0B0B0B] text-lg leading-snug mb-3">
                       {newsletter.landscapeAnalysis.headline}
                     </h3>
                   )}
@@ -12051,16 +12264,16 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             {/* Story Opportunities */}
             {newsletter.storyOpportunities?.length > 0 && (
               <div>
-                <h2 className="text-sm font-semibold text-[#1A1A1A] uppercase tracking-wider mb-4">Story Opportunities</h2>
+                <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Story Opportunities</h2>
                 <div className="space-y-3">
                   {newsletter.storyOpportunities.map((story, idx) => (
                     <div key={idx} className="card p-4 flex items-start gap-4">
-                      <div className="w-7 h-7 rounded-full bg-[#E8FF00] text-[#1A1A1A] flex items-center justify-center flex-shrink-0 font-bold text-xs mt-0.5">
+                      <div className="w-7 h-7 rounded-full bg-[#E8FF00] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-xs mt-0.5">
                         {idx + 1}
                       </div>
                       <div>
-                        <div className="font-semibold text-[#1A1A1A] leading-snug">{story.headline}</div>
-                        <div className="text-sm text-[#666666] mt-1">
+                        <div className="font-semibold text-[#0B0B0B] leading-snug">{story.headline}</div>
+                        <div className="text-sm text-[#8A877D] mt-1">
                           {(story.body || '').split(/[.!?]/)[0].trim()}{story.body?.match(/[.!?]/) ? '.' : ''}
                         </div>
                       </div>
@@ -12071,7 +12284,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             )}
 
             {/* Footer note */}
-            <p className="text-center text-xs text-[#9CA3AF] mt-8">
+            <p className="text-center text-xs text-[#B3B0A8] mt-8">
               Insights generated by Claude. Always apply your own professional judgement.
             </p>
           </div>
@@ -12458,6 +12671,11 @@ function AppContent() {
           // Campaign level rides inside scores so it persists without a schema
           // change and becomes benchmarkable once enough assessments carry it.
           campaignLevel: scores.campaignCoherence?.level ?? null,
+          // Channel shares only. Enough to build sector footprint averages
+          // later without carrying the prose evidence into the results table.
+          footprintShares: scores.footprint?.channels
+            ? Object.fromEntries(FOOTPRINT_CHANNELS.map(c => [c.id, Number(scores.footprint.channels[c.id]?.share) || 0]))
+            : null,
           isManual: false,
           assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
           rubricVersion: FRAMEWORK_VERSION,
@@ -12583,10 +12801,10 @@ function AppContent() {
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#E8E6E1] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F2F0EA] flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#E53935]" />
-          <p className="mt-4 text-[#666666]">Loading...</p>
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#B23A3A]" />
+          <p className="mt-4 text-[#8A877D]">Loading...</p>
         </div>
       </div>
     );
@@ -12613,7 +12831,7 @@ function AppContent() {
   // Show Stay Conscious page
   if (showStayConsciousPage) {
     return (
-      <div className="min-h-screen bg-[#E8E6E1]">
+      <div className="min-h-screen bg-[#F2F0EA]">
         <Header 
           onNewAssessment={handleNewAssessment}
           onGoHome={handleGoHome}
@@ -12640,7 +12858,7 @@ function AppContent() {
   // Show comparison page
   if (showComparisonPage) {
     return (
-      <div className="min-h-screen bg-[#E8E6E1]">
+      <div className="min-h-screen bg-[#F2F0EA]">
         <Header 
           onNewAssessment={handleNewAssessment}
           onGoHome={handleGoHome} 
@@ -12669,7 +12887,7 @@ function AppContent() {
   // Show compass results page
   if (showResultsPage) {
     return (
-      <div className="min-h-screen bg-[#E8E6E1]">
+      <div className="min-h-screen bg-[#F2F0EA]">
         <Header 
           onNewAssessment={handleNewAssessment}
           onGoHome={handleGoHome} 
@@ -12698,7 +12916,7 @@ function AppContent() {
   // Show saved assessments page
   if (showSavedPage) {
     return (
-      <div className="min-h-screen bg-[#E8E6E1]">
+      <div className="min-h-screen bg-[#F2F0EA]">
         <Header 
           onNewAssessment={handleNewAssessment}
           onGoHome={handleGoHome} 
@@ -12732,7 +12950,7 @@ function AppContent() {
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
   return (
-    <div className="min-h-screen bg-[#E8E6E1]">
+    <div className="min-h-screen bg-[#F2F0EA]">
       {/* Onboarding Tour */}
       {showOnboarding && !isReadonly && (
         <OnboardingTour onComplete={() => setShowOnboarding(false)} />
@@ -12787,7 +13005,7 @@ function AppContent() {
                     </button>
                     <button
                       onClick={clearDraft}
-                      className="px-4 py-1.5 text-xs font-medium border border-[#D9D6D0] text-[#666666] rounded hover:bg-[#F0EEEA] transition-colors"
+                      className="px-4 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#8A877D] rounded hover:bg-[#E4E2DC] transition-colors"
                     >
                       Discard
                     </button>
