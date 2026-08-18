@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.3.1';
+const APP_VERSION = '3.4.0';
 import { 
   supabase, 
   signUp, 
@@ -5696,6 +5696,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
   const stage = getMaturityStage(overall);
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
+  // Footprint summary feeds the masthead signal count as well as its own section.
+  const footprintSummary = scores?.footprint ? summariseFootprint(scores.footprint) : null;
+
   // ── Campaign coherence ──────────────────────────────────────
   const campaign = scores?.campaignCoherence || null;
   const campaignLevel = campaign && Number.isFinite(Number(campaign.level)) ? Number(campaign.level) : null;
@@ -7229,78 +7232,146 @@ ${content.slice(0, 8000)}`;
     } finally { setIsGenerating(false); }
   };
 
+  // Section numbers are resolved from a fixed, condition-aware list rather than
+  // a counter incremented during render. React does not guarantee that child
+  // components execute in document order, and a counter would renumber itself
+  // the moment a section was toggled.
+  const sectionOrder = [
+    'Results at a glance',
+    'Attribute analysis',
+    ...(scores?.footprint ? ['Brand footprint'] : []),
+    'Campaign coherence',
+    'Benchmark comparison',
+    'Recommendations',
+    'Recommended Antenna Group services',
+    'Conclusions',
+    'Score justification',
+    'Assessment readouts',
+    'What we evaluated',
+  ];
+
+  const SectionHead = ({ label, open, onToggle }) => {
+    const idx = sectionOrder.indexOf(label);
+    const n = String(idx >= 0 ? idx + 1 : sectionOrder.length + 1).padStart(2, '0');
+    return (
+      <button onClick={onToggle}
+        className="w-full flex items-baseline gap-4 pb-3 border-b-2 border-[#0B0B0B] hover:opacity-60 transition-opacity text-left">
+        <span className="text-[11px] font-bold tracking-[0.16em] text-[#8A877D]">{n}</span>
+        <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#0B0B0B] flex-1">{label}</span>
+        {onToggle && <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${open ? 'rotate-180' : ''}`} />}
+      </button>
+    );
+  };
+
+  const rank = benchmark?.rank ? `${ordinalSuffix(benchmark.rank)}` : null;
+
   return (
     <div className="dc-wrap dc-page animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div className="flex items-center gap-4">
-          {isReadonly && (
-            <button onClick={onPrev} className="btn-secondary flex items-center gap-2 flex-shrink-0">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-          )}
-          <div className="min-w-0">
-            <div className="flex items-center gap-3 mb-4">
-              <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
-                alt="Antenna Group" className="h-5" style={{ filter: 'brightness(0)' }} />
-              <span className="w-px h-4 bg-[#DCDAD3]" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B0B0B]">The Conscious Compass</span>
+      {/* ── Masthead ─────────────────────────────────────────── */}
+      <header className="pt-6">
+        <div className="flex items-start justify-between gap-6 flex-wrap">
+          <div className="flex items-center gap-4 flex-wrap">
+            {isReadonly && (
+              <button onClick={onPrev} className="btn-secondary flex items-center gap-2 !text-[11px] !px-4 !py-3">
+                <ArrowLeft className="w-4 h-4" /> Back
+              </button>
+            )}
+            <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
+              alt="Antenna Group" className="h-6" style={{ filter: 'brightness(0)' }} />
+            <span className="w-px h-5 bg-[#DCDAD3]" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B0B0B]">The Conscious Compass</span>
+          </div>
+          {!isReadonly ? (
+            <div className="dc-btns flex-shrink-0">
+              <button onClick={copyReportText} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3"><Copy className="w-3.5 h-3.5" /> Copy Full Report</button>
+              <button onClick={onSave} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3"><Save className="w-3.5 h-3.5" /> Save</button>
+              <button onClick={() => setShowClientLink(true)} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3" title="Create a password-protected link for the client">
+                <ExternalLink className="w-3.5 h-3.5" /> Client Link
+              </button>
+              <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-1.5 !text-[11px] !px-4 !py-3">
+                {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} DOCX
+              </button>
             </div>
-            <h2 className="font-bold text-[#0B0B0B]"
-              style={{ fontSize: 'clamp(30px,4.4vw,60px)', letterSpacing: '-0.035em', lineHeight: 0.98, maxWidth: '22ch' }}>
-              {project.brandName}
-            </h2>
-            <p className="text-sm font-semibold text-[#8A877D] mt-5" style={{ letterSpacing: '0.04em' }}>
-              Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
+          ) : (
+            <span className="dc-meta self-start">Viewing report</span>
+          )}
+        </div>
+
+        <h1 style={{ fontSize: 'clamp(40px,6vw,88px)', fontWeight: 700, letterSpacing: '-.035em',
+          lineHeight: .92, margin: '28px 0 0', maxWidth: '18ch', textWrap: 'balance' }}>
+          {project.brandName}
+        </h1>
+        <p className="text-[14px] font-semibold text-[#8A877D] mt-5" style={{ letterSpacing: '.04em' }}>
+          Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
+        </p>
+
+        <div style={{ height: 2, background: '#0B0B0B', marginTop: 32 }} />
+
+        {/* Summary strip */}
+        <div className="grid gap-6 pt-5" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))' }}>
+          {[
+            ['Overall score', animatedScore, ' / 100'],
+            ['Maturity level', stage.name, ''],
+            ['Rank in sector', rank || '—', rank ? ` of ${benchmark.count}` : ''],
+            ['Total signals', footprintSummary ? footprintSummary.totalSignals : '—',
+              footprintSummary ? ` / ${footprintSummary.channelsWithEvidence} of ${footprintSummary.channelCount} channels` : ''],
+          ].map(([label, value, suffix]) => (
+            <div key={label}>
+              <div className="text-[9px] font-bold tracking-[0.16em] uppercase text-[#8A877D] mb-1.5">{label}</div>
+              <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
+                {value}
+                {suffix && <span style={{ fontSize: 15, fontWeight: 500, color: '#8A877D', letterSpacing: 0 }}>{suffix}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </header>
+
+      {/* ── 01 Results at a glance ───────────────────────────── */}
+      <section style={{ marginTop: 80 }}>
+        <SectionHead label="Results at a glance" />
+        <div className="grid gap-14 items-start pt-10" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
+          <div>
+            <div className="flex gap-6 items-start">
+              <div className="flex-shrink-0">
+                <div className="flex items-center justify-center"
+                  style={{ width: 96, height: 96, background: '#0B0B0B', color: '#DEE42F',
+                    fontSize: 44, fontWeight: 700, letterSpacing: '-.03em' }}>
+                  {animatedScore}
+                </div>
+                <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#8A877D] text-center mt-2">out of 100</div>
+              </div>
+              <div>
+                <h3 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.025em', lineHeight: 1.05 }}>{stage.name}</h3>
+                <p className="text-[15px] leading-relaxed text-[#4A4840] mt-2.5" style={{ maxWidth: '44ch' }}>{stage.description}</p>
+              </div>
+            </div>
+
+            {scores.headline && (
+              <blockquote style={{ margin: '36px 0 0', borderLeft: '6px solid #DEE42F', padding: '2px 0 2px 22px',
+                fontSize: 'clamp(21px,2.1vw,27px)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.25 }}>
+                &ldquo;{scores.headline}&rdquo;
+              </blockquote>
+            )}
+
+            <div style={{ height: 1, background: '#DCDAD3', margin: '32px 0 20px' }} />
+
+            <p className="text-[16px] leading-relaxed" style={{ maxWidth: '52ch' }}>
+              <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
+              <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
+                {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}
+              </span>, with opportunities to grow in{' '}
+              <span className="font-bold" style={{ borderBottom: '2px dotted #8A877D' }}>
+                {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}
+              </span>.
             </p>
           </div>
-        </div>
-        {!isReadonly ? (
-          <div className="dc-btns flex-shrink-0">
-            <button onClick={copyReportText} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3"><Copy className="w-3.5 h-3.5" /> Copy Full Report</button>
-            <button onClick={onSave} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3"><Save className="w-3.5 h-3.5" /> Save</button>
-            <button onClick={() => setShowClientLink(true)} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3" title="Create a password-protected link for the client">
-              <ExternalLink className="w-3.5 h-3.5" /> Client Link
-            </button>
-            <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-1.5 !text-[11px] !px-4 !py-3">
-              {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} DOCX
-            </button>
-          </div>
-        ) : (
-          <span className="text-sm text-[#8A877D] bg-[#E4E2DC] px-3 py-1.5 self-start">Viewing Report</span>
-        )}
-      </div>
 
-      {/* Hero — display masthead, tiles rather than a boxed card */}
-      <div className="mb-10">
-        <div className="grid md:grid-cols-2 gap-10 items-start">
-          {/* Left: Score & Summary */}
-          <div>
-            <div className="dc-kicker mb-3">{stage.name}</div>
-            <div className="flex items-end gap-4 mb-4">
-              <div className="dc-display" style={{ fontSize: 'clamp(64px, 9vw, 118px)', lineHeight: 0.82 }}>
-                {animatedScore}
-              </div>
-              <div className="dc-kicker-sm pb-3">out of 100</div>
-            </div>
-            <p className="text-sm text-[#8A877D] leading-relaxed mb-5" style={{ maxWidth: '46ch' }}>{stage.description}</p>
-            <div className="border-t border-[#0B0B0B] pt-5" style={{ borderTopWidth: 2 }}>
-              {scores.headline && (
-                <p className="dc-quote mb-4">
-                  "{scores.headline}"
-                </p>
-              )}
-              <p className="text-sm text-[#4A4840] leading-relaxed">
-                <strong>{project.brandName}</strong> demonstrates strength in <span className="text-[#059669] font-medium">{sortedAttrs.slice(-2).map(a => a.name).join(' and ')}</span>, with opportunities to grow in <span className="text-[#B23A3A] font-medium">{sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}</span>.
-              </p>
-            </div>
-          </div>
-          
-          {/* Right: Spider Chart */}
-          <div ref={chartRef} className="w-full max-w-md mx-auto">
+          <div className="bg-white" style={{ padding: 14 }} ref={chartRef}>
             <SpiderChart scores={scores} size={420} />
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Score tiles — separated by paper, not by borders */}
       <div className="dc-tiles grid-cols-4 md:grid-cols-8 mb-10" style={{ gridTemplateColumns: undefined }}>
@@ -7316,14 +7387,9 @@ ${content.slice(0, 8000)}`;
       <MaturityContinuum score={overall} />
 
       {/* Attribute Analysis - Collapsible */}
-      <div className="mt-6 mb-6">
-        <button 
-          onClick={() => toggleSection('attributes')} 
-          className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
-        >
-          <span>ATTRIBUTE ANALYSIS</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.attributes ? 'rotate-180' : ''}`} />
-        </button>
+      <div style={{ marginTop: 80 }}>
+        <SectionHead label="Attribute analysis" open={expandedSections.attributes}
+          onToggle={() => toggleSection('attributes')} />
         {expandedSections.attributes && (
           <div className="grid md:grid-cols-2 gap-3 animate-fade-in">
             {ATTRIBUTES.map(attr => (
@@ -7395,14 +7461,9 @@ ${content.slice(0, 8000)}`;
 
       {/* Brand Footprint - Collapsible */}
       {scores?.footprint && (
-        <div className="mb-6">
-          <button
-            onClick={() => toggleSection('footprint')}
-            className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
-          >
-            <span>BRAND FOOTPRINT</span>
-            <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.footprint ? 'rotate-180' : ''}`} />
-          </button>
+        <div style={{ marginTop: 80 }}>
+          <SectionHead label="Brand footprint" open={expandedSections.footprint}
+          onToggle={() => toggleSection('footprint')} />
           {expandedSections.footprint && (
             <div className="animate-fade-in">
               <FootprintMosaic footprint={scores.footprint} brandName={project.brandName} />
@@ -7413,8 +7474,8 @@ ${content.slice(0, 8000)}`;
 
       {/* Campaign Coherence - Collapsible */}
       {!campaignStage && (
-        <div className="mb-6">
-          <div className="dc-sec-head mb-4">CAMPAIGN COHERENCE</div>
+        <div style={{ marginTop: 80 }}>
+          <SectionHead label="Campaign coherence" />
           <div className="card border-l-4 border-[#DEE42F]">
             <p className="text-sm text-[#4A4840] leading-relaxed">
               These scores were produced before campaign coherence existed, or the scoring pass did not return it.
@@ -7430,14 +7491,9 @@ ${content.slice(0, 8000)}`;
         </div>
       )}
       {campaignStage && (
-        <div className="mb-6">
-          <button
-            onClick={() => toggleSection('campaign')}
-            className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
-          >
-            <span>CAMPAIGN COHERENCE</span>
-            <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.campaign ? 'rotate-180' : ''}`} />
-          </button>
+        <div style={{ marginTop: 80 }}>
+          <SectionHead label="Campaign coherence" open={expandedSections.campaign}
+          onToggle={() => toggleSection('campaign')} />
           {expandedSections.campaign && (
             <div className="animate-fade-in space-y-3">
               <div className="card">
@@ -7528,22 +7584,17 @@ ${content.slice(0, 8000)}`;
 
       {/* Industry Benchmark - Collapsible */}
       {benchmarkUnavailableReason && (
-        <div className="mb-6">
-          <div className="dc-sec-head mb-4">BENCHMARK COMPARISON</div>
+        <div style={{ marginTop: 80 }}>
+          <SectionHead label="Benchmark comparison" />
           <div className="card border-l-4 border-[#DEE42F]">
             <p className="text-sm text-[#4A4840] leading-relaxed">{benchmarkUnavailableReason}</p>
           </div>
         </div>
       )}
       {benchmark && (
-        <div className="mb-6">
-          <button
-            onClick={() => toggleSection('benchmark')}
-            className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
-          >
-            <span>BENCHMARK COMPARISON</span>
-            <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.benchmark ? 'rotate-180' : ''}`} />
-          </button>
+        <div style={{ marginTop: 80 }}>
+          <SectionHead label="Benchmark comparison" open={expandedSections.benchmark}
+          onToggle={() => toggleSection('benchmark')} />
           {expandedSections.benchmark && (
             <div className="animate-fade-in space-y-3">
               <BenchmarkProvenance benchmark={benchmark} />
@@ -7579,14 +7630,9 @@ ${content.slice(0, 8000)}`;
       )}
 
       {/* Recommendations - Collapsible */}
-      <div className="mb-6">
-        <button 
-          onClick={() => toggleSection('recommendations')} 
-          className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
-        >
-          <span>RECOMMENDATIONS</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.recommendations ? 'rotate-180' : ''}`} />
-        </button>
+      <div style={{ marginTop: 80 }}>
+        <SectionHead label="Recommendations" open={expandedSections.recommendations}
+          onToggle={() => toggleSection('recommendations')} />
         {expandedSections.recommendations && (
           <div className="animate-fade-in">
             <div className="grid md:grid-cols-2 gap-3">
