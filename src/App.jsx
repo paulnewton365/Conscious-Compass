@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.26.0';
+const APP_VERSION = '2.26.1';
 import { 
   supabase, 
   signUp, 
@@ -962,7 +962,11 @@ const LANDSCAPE_SECTOR_COLORS = [
   '#1565C0', '#2E7D32', '#E65100', '#4527A0',
 ];
 
-function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabel = 'Industry avg' }) {
+function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabel = 'Industry avg', animateOnScroll = false }) {
+  // Polygons grow out from the centre when the chart scrolls into view. With
+  // animation off, progress is pinned at 1, so the comparison page is unchanged.
+  const [wrapRef, inView] = useInView(0.3);
+  const progress = animateOnScroll ? (inView ? 1 : 0) : 1;
   const padding = 55;
   const viewBoxSize = size + padding * 2;
   const center = viewBoxSize / 2;
@@ -1059,7 +1063,12 @@ function useInView(threshold = 0.25) {
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    if (typeof IntersectionObserver === 'undefined') { setInView(true); return; }
+    // No observer support: reveal on the next tick rather than synchronously
+    // inside the effect, which would trigger a cascading render.
+    if (typeof IntersectionObserver === 'undefined') {
+      const t = setTimeout(() => setInView(true), 0);
+      return () => clearTimeout(t);
+    }
     const obs = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) { setInView(true); obs.disconnect(); }
     }, { threshold });
