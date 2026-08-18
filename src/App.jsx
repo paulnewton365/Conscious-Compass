@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.6.1';
+const APP_VERSION = '3.7.0';
 import { 
   supabase, 
   signUp, 
@@ -7630,32 +7630,115 @@ ${content.slice(0, 8000)}`;
           <SectionHead label="Benchmark comparison" open={expandedSections.benchmark}
           onToggle={() => toggleSection('benchmark')} />
           {expandedSections.benchmark && (
-            <div className="animate-fade-in space-y-3">
-              <BenchmarkProvenance benchmark={benchmark} />
+            <div className="animate-fade-in">
+              {/* Basis line */}
+              <p className="text-[12px] leading-relaxed text-[#8A877D]" style={{ marginTop: 20, maxWidth: '70ch' }}>
+                <b className="text-[#0B0B0B] font-bold">Benchmark basis:</b>{' '}
+                {benchmark.cohortLabel}, n={benchmark.count}
+                {benchmark.dateRange ? `, assessed ${new Date(benchmark.dateRange.from).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} to ${new Date(benchmark.dateRange.to).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ''}
+                {benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}.
+                {benchmark.fallbackReason ? ` ${benchmark.fallbackReason}` : ''}
+              </p>
 
-              <div ref={benchmarkPositionRef}>
-                <BenchmarkPositionBar benchmark={benchmark} brandName={project.brandName} />
+              {/* Overall position */}
+              <div style={{ marginTop: 36 }} ref={benchmarkPositionRef}>
+                <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Overall Position</h4>
+                <p className="text-[13px] text-[#8A877D] mt-1">
+                  Where {project.brandName} sits against {benchmark.cohortLabel.toLowerCase()}.
+                </p>
+
+                <div className="relative" style={{ padding: '56px 0 8px' }}>
+                  <div className="absolute flex flex-col items-center gap-1.5"
+                    style={{ left: `${overall}%`, top: 8, transform: 'translateX(-50%)' }}>
+                    <div style={{ background: '#0B0B0B', color: '#FFFFFF', fontSize: 11, fontWeight: 700, letterSpacing: '.02em', padding: '5px 9px', whiteSpace: 'nowrap' }}>
+                      {project.brandName} {overall}
+                    </div>
+                    <div style={{ width: 2, height: 14, background: '#0B0B0B' }} />
+                  </div>
+
+                  <div className="grid gap-[2px]" style={{ gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), height: 14 }}>
+                    {MATURITY_STAGES.map(st => (
+                      <div key={st.id} style={{ background: st.name === stage.name ? '#DEE42F' : '#DCDAD3' }} />
+                    ))}
+                  </div>
+
+                  <div className="absolute flex flex-col items-center gap-1"
+                    style={{ left: `${benchmark.avgScore}%`, top: 70, transform: 'translateX(-50%)' }}>
+                    <div style={{ width: 2, height: 14, background: '#8A877D' }} />
+                    <div className="text-[11px] font-bold text-[#8A877D]" style={{ whiteSpace: 'nowrap' }}>
+                      sector {benchmark.avgScore}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between text-[10px] font-semibold text-[#B3B0A8]" style={{ marginTop: 48 }}>
+                    {[0, 25, 50, 75, 100].map(v => <span key={v}>{v}</span>)}
+                  </div>
+                </div>
+
+                <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 2 }}>
+                  {[
+                    [`${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`, 'vs sector average'],
+                    [benchmark.rank ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
+                    [benchmark.percentile != null ? ordinalSuffix(benchmark.percentile) : '—', 'percentile'],
+                  ].map(([v, l]) => (
+                    <div key={l} className="bg-white" style={{ padding: '18px 20px' }}>
+                      <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>{v}</div>
+                      <div className="dc-kicker-sm" style={{ marginTop: 6 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div ref={benchmarkSpreadRef}>
-                <BenchmarkSpread benchmark={benchmark} brandName={project.brandName} />
-              </div>
+              {/* Spread and profile side by side */}
+              <div className="grid gap-14 items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 56 }}>
+                <div ref={benchmarkSpreadRef}>
+                  <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
+                  <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
+                    The band is the range across those brands, the line is their average, the dot is {project.brandName}.
+                  </p>
+                  <div style={{ marginTop: 24, borderTop: '1px solid #DCDAD3' }}>
+                    {ATTRIBUTES.map(attr => {
+                      const v = scores[attr.id]?.score || 0;
+                      const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
+                      const rng = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
+                      const d = v - avg;
+                      return (
+                        <div key={attr.id} className="grid gap-4 items-center"
+                          style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0', borderBottom: '1px solid #DCDAD3' }}>
+                          <div className="text-[13px] font-bold">{attr.name}</div>
+                          <div className="relative" style={{ height: 22 }}>
+                            <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
+                            <div className="absolute" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3' }} />
+                            <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#8A877D' }} />
+                            <div className="absolute" style={{ left: `${v}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF' }} />
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[15px] font-bold">{v}</span>
+                            <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B', background: d > 0 ? '#DEE42F' : 'transparent', border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
+                              {d > 0 ? '+' : ''}{d}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
-              <div className="bg-white border border-[#DCDAD3] p-5" ref={benchmarkRadarRef}>
-                <div className="mb-3">
-                  <h3 className="font-semibold text-[#0B0B0B] text-sm">Profile Against Benchmark</h3>
-                  <p className="text-xs text-[#8A877D] mt-1">
+                <div ref={benchmarkRadarRef}>
+                  <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
+                  <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
                     {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
                   </p>
-                </div>
-                <div className="flex justify-center">
-                  <ComparisonSpiderChart
-                    brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall, scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores[a.id]?.score || 0; return acc; }, {}) }]}
-                    size={320}
-                    industryAvg={benchmarkAvgScores}
-                    avgLabel={`${benchmark.cohortLabel} avg`}
-                    animateOnScroll
-                  />
+                  <div className="bg-white" style={{ padding: 14, marginTop: 24 }}>
+                    <ComparisonSpiderChart
+                      brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall,
+                        scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores[a.id]?.score || 0; return acc; }, {}) }]}
+                      size={320}
+                      industryAvg={benchmarkAvgScores}
+                      avgLabel={`${benchmark.cohortLabel} avg`}
+                      animateOnScroll
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -7713,23 +7796,24 @@ ${content.slice(0, 8000)}`;
             <SectionHead label="Recommended services" open={expandedSections.services}
               onToggle={() => toggleSection('services')} />
             {expandedSections.services && (
-              <div className="animate-fade-in">
-                <p className="text-[#8A877D] mb-4 text-sm md:text-base">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
-                <div className="grid md:grid-cols-2 gap-4">
+              <div className="animate-fade-in" style={{ marginTop: 32 }}>
+                <p className="text-[13px] text-[#8A877D]" style={{ maxWidth: '70ch', marginBottom: 24 }}>
+                  Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness.
+                </p>
+                <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
                   {topServices.map((rec, i) => {
                     const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
                     return (
-                      <div key={i} className="card border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h4 className="font-semibold text-[#0B0B0B] text-sm md:text-base">{rec.service.name}</h4>
-                            <p className="text-xs text-[#8A877D]">{rec.service.category}</p>
+                      <div key={i} className="bg-white" style={{ padding: 24 }}>
+                        <div className="flex items-start justify-between gap-4"
+                          style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14, marginBottom: 14 }}>
+                          <div className="min-w-0">
+                            <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{rec.service.name}</h4>
+                            <p className="text-[11px] font-semibold text-[#8A877D] mt-0.5" style={{ letterSpacing: '.04em' }}>{rec.service.category}</p>
                           </div>
-                          <span className={`text-xs px-2 py-1 font-medium ${
-                            rec.priorityLevel === 'critical' ? 'bg-[#F2F0EA] text-[#B23A3A]' :
-                            rec.priorityLevel === 'moderate' ? 'bg-[#DEE42F] text-[#0B0B0B]' :
-                            'bg-[#E4E2DC] text-[#059669]'
-                          }`}>
+                          <span className={`text-[10px] font-bold uppercase whitespace-nowrap ${
+                            rec.priorityLevel === 'critical' ? 'dc-pill' : 'dc-pill-o'
+                          }`} style={{ letterSpacing: '.12em' }}>
                             {rec.priorityLevel === 'critical' ? 'High Priority' : 
                              rec.priorityLevel === 'moderate' ? 'Recommended' : 'Opportunity'}
                           </span>
@@ -7760,8 +7844,9 @@ ${content.slice(0, 8000)}`;
         <SectionHead label="Conclusions" open={expandedSections.conclusions}
           onToggle={() => toggleSection('conclusions')} />
         {expandedSections.conclusions && (
-          <div className="card animate-fade-in">
-            <p className="text-sm md:text-base text-[#4A4840] leading-relaxed">
+          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+            <p style={{ fontSize: 'clamp(18px,1.7vw,22px)', fontWeight: 500, lineHeight: 1.45,
+              letterSpacing: '-.01em', maxWidth: '68ch' }}>
               {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
             </p>
           </div>
@@ -7788,8 +7873,8 @@ ${content.slice(0, 8000)}`;
         <SectionHead label="What we evaluated" open={expandedSections.evaluated}
           onToggle={() => toggleSection('evaluated')} />
         {expandedSections.evaluated && (
-          <div className="card animate-fade-in">
-            <p className="text-sm md:text-base text-[#4A4840] leading-relaxed">
+          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+            <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
               This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
           </div>
@@ -7801,12 +7886,12 @@ ${content.slice(0, 8000)}`;
         <SectionHead label="Assessment readouts" open={expandedSections.readouts}
           onToggle={() => toggleSection('readouts')} />
         {expandedSections.readouts && (
-          <div className="space-y-3 animate-fade-in">
+          <div className="animate-fade-in" style={{ marginTop: 32 }}>
             {/* Website Assessment Readout */}
-            <div className="card overflow-hidden">
+            <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutWebsite')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#DEE42F]/10 flex items-center justify-center">
@@ -7850,10 +7935,10 @@ ${content.slice(0, 8000)}`;
             </div>
 
             {/* Social Media Assessment Readout */}
-            <div className="card overflow-hidden">
+            <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutSocial')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#8B5CF6]/10 flex items-center justify-center">
@@ -7889,10 +7974,10 @@ ${content.slice(0, 8000)}`;
             </div>
 
             {/* AI Reputation Assessment Readout */}
-            <div className="card overflow-hidden">
+            <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutAI')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#3B82F6]/10 flex items-center justify-center">
@@ -7919,10 +8004,10 @@ ${content.slice(0, 8000)}`;
             </div>
 
             {/* Earned Media Assessment Readout */}
-            <div className="card overflow-hidden">
+            <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutEarned')} 
-                className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#10B981]/10 flex items-center justify-center">
