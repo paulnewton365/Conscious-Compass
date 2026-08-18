@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.6.0';
+const APP_VERSION = '3.6.1';
 import { 
   supabase, 
   signUp, 
@@ -5696,6 +5696,8 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
   const stage = getMaturityStage(overall);
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
+  const nextStage = MATURITY_STAGES.find(st => st.min > overall);
+
   // Footprint summary feeds the masthead signal count as well as its own section.
   const footprintSummary = scores?.footprint ? summariseFootprint(scores.footprint) : null;
 
@@ -7310,24 +7312,6 @@ ${content.slice(0, 8000)}`;
 
         <div style={{ height: 2, background: '#0B0B0B', marginTop: 32 }} />
 
-        {/* Summary strip */}
-        <div className="grid gap-6 pt-5" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))' }}>
-          {[
-            ['Overall score', animatedScore, ' / 100'],
-            ['Maturity level', stage.name, ''],
-            ['Rank in sector', rank || '—', rank ? ` of ${benchmark.count}` : ''],
-            ['Total signals', footprintSummary ? footprintSummary.totalSignals : '—',
-              footprintSummary ? ` / ${footprintSummary.channelsWithEvidence} of ${footprintSummary.channelCount} channels` : ''],
-          ].map(([label, value, suffix]) => (
-            <div key={label}>
-              <div className="text-[9px] font-bold tracking-[0.16em] uppercase text-[#8A877D] mb-1.5">{label}</div>
-              <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
-                {value}
-                {suffix && <span style={{ fontSize: 15, fontWeight: 500, color: '#8A877D', letterSpacing: 0 }}>{suffix}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
       </header>
 
       {/* ── 01 Results at a glance ───────────────────────────── */}
@@ -7389,8 +7373,40 @@ ${content.slice(0, 8000)}`;
       {/* ── 02 Brand maturity ────────────────────────────────── */}
       <section style={{ marginTop: 80 }}>
         <SectionHead label="Brand maturity" />
-        <div className="pt-10">
-          <MaturityContinuum score={overall} hideTitle />
+        {/* Segmented bar proportional to each band's width, with the score
+            marked above it. Replaces the gradient rail and dot markers. */}
+        <div style={{ paddingTop: 44 }}>
+          <div className="relative">
+            <div className="absolute flex flex-col items-center gap-1"
+              style={{ left: `${overall}%`, top: -30, transform: 'translateX(-50%)' }}>
+              <div className="text-[11px] font-bold" style={{ letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{overall}</div>
+              <div style={{ width: 2, height: 12, background: '#0B0B0B' }} />
+            </div>
+
+            <div className="grid gap-[2px]" style={{
+              gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), height: 16 }}>
+              {MATURITY_STAGES.map(st => (
+                <div key={st.id} style={{ background: st.name === stage.name ? '#DEE42F' : '#DCDAD3' }} />
+              ))}
+            </div>
+
+            <div className="grid gap-[2px]" style={{
+              gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), marginTop: 10 }}>
+              {MATURITY_STAGES.map(st => (
+                <div key={st.id} className="text-[11px]"
+                  style={{ fontWeight: st.name === stage.name ? 700 : 600,
+                    color: st.name === stage.name ? '#0B0B0B' : '#8A877D' }}>
+                  {st.name}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 28, borderLeft: '6px solid #DEE42F', padding: '6px 0 6px 20px',
+            fontSize: 18, fontWeight: 600, letterSpacing: '-.01em' }}>
+            <b className="font-bold">{stage.name}</b>
+            {nextStage && <span style={{ color: '#8A877D', fontWeight: 500 }}> · {nextStage.min - overall} points to {nextStage.name}</span>}
+          </div>
         </div>
       </section>
 
@@ -7430,14 +7446,19 @@ ${content.slice(0, 8000)}`;
                     )}
                   </div>
 
-                  {avg != null && (
-                    <p className="dc-kicker-sm" style={{ marginTop: 14 }}>Sector average {avg}</p>
-                  )}
-                  {adj !== 0 && (
-                    <p className="dc-kicker-sm" style={{ marginTop: 6 }}>
-                      {sc.baseScore} base {adj > 0 ? '+' : ''}{adj} campaign coherence
+                  {/* Fixed-height meta block. Without it, cards with no campaign
+                      modifier sat a line higher than their neighbours and the
+                      body copy stopped aligning across the grid. */}
+                  <div style={{ marginTop: 14, minHeight: 30 }}>
+                    {avg != null && (
+                      <p className="dc-kicker-sm">Sector average {avg}</p>
+                    )}
+                    <p className="dc-kicker-sm" style={{ marginTop: 4, visibility: adj !== 0 ? 'visible' : 'hidden' }}>
+                      {adj !== 0
+                        ? `${sc.baseScore} base ${adj > 0 ? '+' : ''}${adj} campaign coherence`
+                        : 'placeholder'}
                     </p>
-                  )}
+                  </div>
 
                   <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.55, marginTop: 12 }}>
                     {sc.findings || sc.summary || attr.description}
@@ -7459,7 +7480,6 @@ ${content.slice(0, 8000)}`;
                 </div>
               );
             })}
-            ))}
           </div>
         )}
       </div>
@@ -7472,22 +7492,6 @@ ${content.slice(0, 8000)}`;
           profile={profile}
         />
       )}
-
-      {/* Masthead stat bar */}
-      <div className="h-0.5 bg-[#0B0B0B] mt-2 mb-0" />
-      <div className="grid gap-6 pt-5 pb-8" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))' }}>
-        {[
-          ['Overall score', <>{overall}<span className="text-[15px] font-medium text-[#8A877D]" style={{ letterSpacing: 0 }}> / 100</span></>],
-          ['Maturity level', stage.name],
-          ['Sector', industryName],
-          ...(benchmark?.rank ? [['Rank in sector', `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}`]] : []),
-        ].map(([label, value], i) => (
-          <div key={i}>
-            <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#8A877D] mb-1.5">{label}</div>
-            <div className="font-bold text-[#0B0B0B]" style={{ fontSize: 30, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
-          </div>
-        ))}
-      </div>
 
       {/* Brand Footprint - Collapsible */}
       {scores?.footprint && (
@@ -7693,7 +7697,6 @@ ${content.slice(0, 8000)}`;
                 </div>
               </div>
             ))}
-            )}
           </div>
         )}
       </div>
