@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.7.0';
+const APP_VERSION = '3.8.0';
 import { 
   supabase, 
   signUp, 
@@ -7274,17 +7274,13 @@ ${content.slice(0, 8000)}`;
     <div className="dc-wrap dc-page animate-fade-in">
       {/* ── Masthead ─────────────────────────────────────────── */}
       <header className="pt-6">
-        <div className="flex items-start justify-between gap-6 flex-wrap">
-          <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex items-center gap-4 flex-wrap min-w-0">
             {isReadonly && (
               <button onClick={onPrev} className="btn-secondary flex items-center gap-2 !text-[11px] !px-4 !py-3">
                 <ArrowLeft className="w-4 h-4" /> Back
               </button>
             )}
-            <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
-              alt="Antenna Group" className="h-6" style={{ filter: 'brightness(0)' }} />
-            <span className="w-px h-5 bg-[#DCDAD3]" />
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B0B0B]">The Conscious Compass</span>
           </div>
           {!isReadonly ? (
             <div className="dc-btns flex-shrink-0">
@@ -7309,8 +7305,6 @@ ${content.slice(0, 8000)}`;
         <p className="text-[14px] font-semibold text-[#8A877D] mt-5" style={{ letterSpacing: '.04em' }}>
           Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
         </p>
-
-        <div style={{ height: 2, background: '#0B0B0B', marginTop: 32 }} />
 
       </header>
 
@@ -7804,7 +7798,7 @@ ${content.slice(0, 8000)}`;
                   {topServices.map((rec, i) => {
                     const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
                     return (
-                      <div key={i} className="bg-white" style={{ padding: 24 }}>
+                      <div key={i} className="bg-white flex flex-col" style={{ padding: 24 }}>
                         <div className="flex items-start justify-between gap-4"
                           style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14, marginBottom: 14 }}>
                           <div className="min-w-0">
@@ -7845,8 +7839,8 @@ ${content.slice(0, 8000)}`;
           onToggle={() => toggleSection('conclusions')} />
         {expandedSections.conclusions && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
-            <p style={{ fontSize: 'clamp(18px,1.7vw,22px)', fontWeight: 500, lineHeight: 1.45,
-              letterSpacing: '-.01em', maxWidth: '68ch' }}>
+            <p style={{ fontSize: 17, fontWeight: 500, lineHeight: 1.55,
+              letterSpacing: '-.005em', maxWidth: '72ch' }}>
               {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
             </p>
           </div>
@@ -11049,16 +11043,14 @@ function ClientReportView({ payload }) {
       <div className="dc-wrap dc-page pt-8">
         {/* Masthead. Client-facing view only; the internal report has no
             equivalent and should not gain one. */}
-        <div className="mb-6">
+        <div className="mb-10">
           <img
             src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
             alt="Antenna Group"
-            className="h-7 sm:h-8 mb-5"
+            className="h-6 mb-6"
             style={{ filter: 'brightness(0)' }}
           />
-          <div className="text-xs font-bold text-[#B23A3A] uppercase tracking-[0.14em] mb-2">
-            Brand Facing Report
-          </div>
+          <div className="dc-kicker mb-3">Brand Facing Report</div>
           <h1 className="text-[clamp(34px,5vw,60px)] font-bold tracking-[-0.035em] leading-[0.94] text-[#0B0B0B]">{project.brandName}</h1>
           <p className="dc-standfirst">
             Conscious Compass Assessment{industryName ? ` | ${industryName}` : ''}
@@ -11066,14 +11058,15 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        <h3 className="dc-sec-head mb-4">RESULTS AT A GLANCE</h3>
+        <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Results At A Glance</h3>
         <div className="card mb-[2px]">
           <div className="grid md:grid-cols-2 gap-6 items-start">
             <div>
               <div className="flex items-start gap-5">
                 <div className="text-center flex-shrink-0">
-                  <div className="w-20 h-20 flex items-center justify-center text-white text-4xl font-bold"
-                    style={{ backgroundColor: stage.color }}>
+                  <div className="flex items-center justify-center font-bold"
+                    style={{ width: 96, height: 96, background: '#0B0B0B', color: '#DEE42F',
+                      fontSize: 44, letterSpacing: '-.03em' }}>
                     {overall}
                   </div>
                   <div className="text-xs text-[#8A877D] mt-1.5">out of 100</div>
@@ -11087,15 +11080,17 @@ function ClientReportView({ payload }) {
               <div className="border-t border-[#DCDAD3] my-5" />
 
               {scores?.headline && (
-                <p className="text-lg font-bold italic text-[#0B0B0B] leading-snug mb-3">
-                  "{scores.headline}"
-                </p>
+                <blockquote style={{ margin: '32px 0 0', borderLeft: '6px solid #DEE42F',
+                  padding: '2px 0 2px 22px', fontSize: 'clamp(19px,1.9vw,24px)', fontWeight: 600,
+                  letterSpacing: '-.02em', lineHeight: 1.28 }}>
+                  &ldquo;{scores.headline}&rdquo;
+                </blockquote>
               )}
               <p className="text-sm text-[#4A4840] leading-relaxed">
                 <span className="font-semibold">{project.brandName}</span> demonstrates strength in{' '}
-                <span className="text-[#059669] font-medium">{strengths.map(a => a.name).join(' and ')}</span>
+                <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>{strengths.map(a => a.name).join(' and ')}</span>
                 , with opportunities to grow in{' '}
-                <span className="text-[#B23A3A] font-medium">{growth.map(a => a.name).join(' and ')}</span>.
+                <span className="font-bold" style={{ borderBottom: '2px dotted #8A877D' }}>{growth.map(a => a.name).join(' and ')}</span>.
               </p>
             </div>
 
@@ -11108,21 +11103,23 @@ function ClientReportView({ payload }) {
         {/* ── Attribute scores ────────────────────────────────── */}
         <div className="dc-tiles grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
           {ATTRIBUTES.map(a => (
-            <div key={a.id} className="dc-tile" style={{ gap: 6, padding: '14px 12px' }}>
+            <div key={a.id} className="dc-tile" style={{ gap: 6, padding: '16px 14px' }}>
               <div className="dc-kicker-sm leading-tight break-words">{a.name}</div>
-              <div className="text-3xl font-bold tracking-tight" style={{ color: a.color }}>{scores?.[a.id]?.score || 0}</div>
+              <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: a.color }}>
+                {scores?.[a.id]?.score || 0}
+              </div>
             </div>
           ))}
         </div>
 
         {/* ── Maturity ────────────────────────────────────────── */}
-        <h3 className="dc-sec-head mb-4">BRAND MATURITY</h3>
+        <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Brand Maturity</h3>
         <div className="mb-6">
           <MaturityContinuum score={overall} hideTitle />
         </div>
 
         {/* ── Attribute analysis, no recommendations ──────────── */}
-        <h3 className="dc-sec-head mb-4">ATTRIBUTE ANALYSIS</h3>
+        <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Attribute Analysis</h3>
         <div className="grid md:grid-cols-2 gap-3 mb-6">
           {ATTRIBUTES.map(a => {
             const sc = scores?.[a.id] || {};
@@ -11153,7 +11150,7 @@ function ClientReportView({ payload }) {
         {/* ── Brand footprint ─────────────────────────────────── */}
         {payload.footprint && (
           <>
-            <h3 className="dc-sec-head mb-4">BRAND FOOTPRINT</h3>
+            <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Brand Footprint</h3>
             <div className="mb-6 overflow-hidden">
               <FootprintMosaic footprint={payload.footprint} brandName={project.brandName} compact />
             </div>
@@ -11163,7 +11160,7 @@ function ClientReportView({ payload }) {
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
           <>
-            <h3 className="dc-sec-head mb-4">CAMPAIGN COHERENCE</h3>
+            <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Campaign Coherence</h3>
             <div className="card mb-[2px]">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
@@ -11204,7 +11201,7 @@ function ClientReportView({ payload }) {
         {/* ── Profile against benchmark ───────────────────────── */}
         {benchmark && benchmarkAvg && (
           <>
-          <h3 className="dc-sec-head mb-4">BENCHMARK COMPARISON</h3>
+          <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Benchmark Comparison</h3>
           <div className="card mb-[2px]">
             <p className="text-xs text-[#8A877D] mb-3">
               {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
@@ -11237,7 +11234,7 @@ function ClientReportView({ payload }) {
         {/* ── Conclusion ──────────────────────────────────────── */}
         {payload.conclusion && (
           <>
-            <h3 className="dc-sec-head mb-4">CONCLUSIONS</h3>
+            <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Conclusions</h3>
             <div className="card mb-[2px]">
               <p className="text-sm text-[#4A4840] leading-relaxed">{payload.conclusion}</p>
             </div>
@@ -11291,14 +11288,14 @@ function ClientReportGate({ token }) {
 
   return (
     <div className="min-h-screen bg-[#F2F0EA] flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md mb-7 text-center">
+      <div className="w-full max-w-md mb-7">
         <img
           src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
           alt="Antenna Group"
-          className="h-9 mx-auto mb-4"
+          className="h-6 mb-6"
           style={{ filter: 'brightness(0)' }}
         />
-        <p className="text-2xl sm:text-3xl font-bold text-[#0B0B0B] leading-tight tracking-tight">
+        <p style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1.05, maxWidth: '16ch' }}>
           Consequential brands are conscious brands
         </p>
       </div>
@@ -11322,8 +11319,8 @@ function ClientReportGate({ token }) {
 
         {status === 'locked' && row && (
           <>
-            <h1 className="text-[17px] font-bold tracking-tight">{row.brand_name}</h1>
-            <p className="text-sm text-[#8A877D] mt-1 mb-5">
+            <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.1 }}>{row.brand_name}</h1>
+            <p className="text-[13px] text-[#8A877D] mt-2 mb-6" style={{ lineHeight: 1.5 }}>
               Conscious Compass assessment. Enter the password you were given to view this report.
             </p>
             <input
@@ -11333,7 +11330,7 @@ function ClientReportGate({ token }) {
               onKeyDown={(e) => e.key === 'Enter' && unlock()}
               placeholder="Password"
               autoFocus
-              className="w-full px-3 py-2 border border-[#DCDAD3] bg-white text-sm mb-3"
+              className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA] text-sm mb-3"
             />
             {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
             <button onClick={unlock} disabled={checking || !password}

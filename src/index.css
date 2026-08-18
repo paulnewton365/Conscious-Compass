@@ -43,7 +43,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4 {
+:where(h1, h2, h3, h4) {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 700;
   line-height: 1.15;
@@ -161,10 +161,11 @@ h1, h2, h3, h4 {
   border-radius: 0;
   border: none;
   box-shadow: none;
+  padding: 24px;
 }
 
 /* Inputs */
-input, select, textarea {
+:where(input, select, textarea) {
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   border-radius: 0 !important;
@@ -174,12 +175,12 @@ input, select, textarea {
 }
 
 /* App-wide heading scale from the redesign */
-h1 { font-size: clamp(30px, 3.6vw, 52px); letter-spacing: -0.032em; line-height: 1; }
-h2 { font-size: clamp(26px, 2.8vw, 38px); letter-spacing: -0.028em; line-height: 1.02; }
-h3 { font-size: 26px; letter-spacing: -0.02em; }
+:where(h1) { font-size: clamp(30px, 3.6vw, 52px); letter-spacing: -0.032em; line-height: 1; }
+:where(h2) { font-size: clamp(26px, 2.8vw, 38px); letter-spacing: -0.028em; line-height: 1.02; }
+:where(h3) { font-size: 26px; letter-spacing: -0.02em; }
 
 /* Navigation */
-nav { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--antenna-muted); }
+:where(nav) { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--antenna-muted); }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
@@ -415,3 +416,13 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
 .dc-spread-band { position: absolute; top: 7px; height: 8px; background: var(--antenna-rule); }
 .dc-spread-mark { position: absolute; top: 2px; width: 2px; height: 18px; background: var(--antenna-ink); }
 .dc-spread-v { text-align: right; font-size: 16px; font-weight: 700; }
+
+/* Button groups butt together with 2px of ground between them.
+   Restored: an earlier edit that replaced the tail of this file removed it,
+   which is why report action buttons were stacking instead of sitting in a row. */
+.dc-btns { display: flex; flex-wrap: nowrap; gap: 2px; align-items: stretch; }
+.dc-btns > button { white-space: nowrap; }
+@media (max-width: 900px) { .dc-btns { flex-wrap: wrap; } }
+
+/* Accordion blocks in the assessment flow */
+.acc-white { background: var(--antenna-white); margin-bottom: 2px; }
