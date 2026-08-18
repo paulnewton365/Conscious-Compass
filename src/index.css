@@ -37,9 +37,9 @@
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--antenna-paper);
+  background: var(--antenna-rule-light);
   color: var(--antenna-ink);
-  line-height: 1.6;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -272,8 +272,43 @@ input:focus, select:focus, textarea:focus {
    grids separated by 2px of paper rather than boxed cards.
    ───────────────────────────────────────────────────────────── */
 
-.dc-page      { background: var(--antenna-paper); padding: 0 24px 96px; }
+/* Pages are paper panels sitting on the darker app ground. */
+.dc-page      { background: var(--antenna-paper); padding: 40px 32px 72px; }
 .dc-wrap      { max-width: 1180px; margin: 0 auto; }
+
+/* Page header: title with a tracked uppercase standfirst */
+.dc-pagehead  { display: flex; justify-content: space-between; align-items: flex-end;
+                gap: 24px; flex-wrap: wrap; margin-bottom: 32px; }
+.dc-standfirst{ font-size: 13px; font-weight: 600; letter-spacing: 0.06em;
+                text-transform: uppercase; color: var(--antenna-muted); margin-top: 10px; }
+
+/* White blocks separated by 2px of ground, never by borders */
+.dc-stack     { display: grid; gap: 2px; }
+.dc-block     { background: var(--antenna-white); padding: 22px 24px; }
+
+/* Stat: large figure, /100 suffix, tracked label */
+.dc-stat-n    { font-size: 38px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+.dc-stat-suf  { font-size: 15px; font-weight: 500; color: var(--antenna-muted); }
+.dc-stat-l    { font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+                text-transform: uppercase; color: var(--antenna-muted); margin-top: 8px; }
+
+/* Accordion */
+.dc-acc       { background: var(--antenna-white); margin-bottom: 2px; }
+.dc-acc-h     { display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+                border-bottom: 1px solid var(--antenna-rule);
+                font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+
+/* Small bordered meta pill */
+.dc-meta      { font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+                text-transform: uppercase; color: var(--antenna-muted);
+                border: 1px solid var(--antenna-rule); padding: 5px 9px; }
+
+/* Active nav item carries a lime underline rather than a colour change */
+.dc-nav-active{ color: var(--antenna-ink); font-weight: 700;
+                box-shadow: inset 0 -8px 0 var(--antenna-lime); }
+
+/* Lead paragraph */
+.dc-lead      { font-size: 18px; line-height: 1.5; color: var(--antenna-body); max-width: 56ch; }
 
 /* Display type */
 .dc-display   { font-size: clamp(38px, 6vw, 78px); font-weight: 700;
@@ -322,3 +357,6 @@ input:focus, select:focus, textarea:focus {
 
 .dc-panel     { background: var(--antenna-white); padding: 24px; }
 .dc-panel-dark{ background: var(--antenna-ink); color: #FFFFFF; padding: 40px; }
+
+input::placeholder, textarea::placeholder { color: #A9A69E; }
+a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; text-underline-offset: 2px; }

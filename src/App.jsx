@@ -10984,7 +10984,7 @@ function ClientReportView({ payload }) {
             Brand Facing Report
           </div>
           <h1 className="text-[clamp(34px,5vw,60px)] font-bold tracking-[-0.035em] leading-[0.94] text-[#0B0B0B]">{project.brandName}</h1>
-          <p className="text-sm text-[#8A877D] mt-0.5">
+          <p className="dc-standfirst">
             Conscious Compass Assessment{industryName ? ` | ${industryName}` : ''}
           </p>
         </div>
@@ -12304,7 +12304,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                       </div>
                       <div>
                         <div className="font-semibold text-[#0B0B0B] leading-snug">{story.headline}</div>
-                        <div className="text-sm text-[#8A877D] mt-1">
+                        <div className="dc-standfirst">
                           {(story.body || '').split(/[.!?]/)[0].trim()}{story.body?.match(/[.!?]/) ? '.' : ''}
                         </div>
                       </div>
