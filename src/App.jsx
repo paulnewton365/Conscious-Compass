@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.28.0';
+const APP_VERSION = '3.0.0';
 import { 
   supabase, 
   signUp, 
@@ -121,7 +121,7 @@ function AuthPage({ onAuthSuccess }) {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
-            <div className="h-6 w-px bg-[#1A1A1A]" />
+            <div className="h-6 w-px bg-[#0B0B0B]" />
             <span className="text-lg font-semibold text-[#0B0B0B]">Conscious Compass</span>
           </div>
           <p className="text-[#8A877D]">{isLogin ? 'Sign in to access the assessment tool' : 'Create an account to get started'}</p>
@@ -136,7 +136,7 @@ function AuthPage({ onAuthSuccess }) {
                 value={fullName} 
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Your name"
-                className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white"
+                className="w-full px-4 py-3 border border-[#DCDAD3] bg-white"
                 required={!isLogin}
               />
             </div>
@@ -149,7 +149,7 @@ function AuthPage({ onAuthSuccess }) {
               value={email} 
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
-              className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white"
+              className="w-full px-4 py-3 border border-[#DCDAD3] bg-white"
               required
             />
           </div>
@@ -161,20 +161,20 @@ function AuthPage({ onAuthSuccess }) {
               value={password} 
               onChange={(e) => setPassword(e.target.value)}
               placeholder={isLogin ? "Enter password" : "Create password (min 6 chars)"}
-              className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white"
+              className="w-full px-4 py-3 border border-[#DCDAD3] bg-white"
               required
               minLength={6}
             />
           </div>
           
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm">
               {error}
             </div>
           )}
           
           {message && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 text-sm">
               {message}
             </div>
           )}
@@ -320,7 +320,7 @@ function AdminPage({ currentUser, onBack }) {
                 </h2>
                 <div className="space-y-3">
                   {users.filter(u => !u.is_approved).map(user => (
-                    <div key={user.id} className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
+                    <div key={user.id} className="bg-yellow-50 border border-yellow-200 p-5">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center text-white font-semibold flex-shrink-0">
                           {(user.full_name || user.email || '?')[0].toUpperCase()}
@@ -340,7 +340,7 @@ function AdminPage({ currentUser, onBack }) {
                           Approve (Full Access)
                         </button>
                         <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                          className="text-sm px-3 py-2 rounded border border-red-300 text-red-600 hover:bg-red-50 transition-colors ml-auto">
+                          className="text-sm px-3 py-2 border border-red-300 text-red-600 hover:bg-red-50 transition-colors ml-auto">
                           <Trash2 className="w-4 h-4 inline mr-1" />Delete
                         </button>
                       </div>
@@ -359,10 +359,10 @@ function AdminPage({ currentUser, onBack }) {
               <div className="space-y-3">
                 {users.filter(u => u.is_approved).map(user => {
                   const isSelf = user.id === currentUser.id;
-                  const roleColor = user.is_admin ? 'bg-[#DEE42F]' : user.is_readonly ? 'bg-[#9CA3AF]' : 'bg-[#059669]';
+                  const roleColor = user.is_admin ? 'bg-[#DEE42F]' : user.is_readonly ? 'bg-[#B3B0A8]' : 'bg-[#059669]';
                   const roleLabel = user.is_admin ? 'Admin' : user.is_readonly ? 'Read-only' : 'Full Access';
                   return (
-                    <div key={user.id} className="bg-white border border-[#DCDAD3] rounded-xl p-5">
+                    <div key={user.id} className="bg-white border border-[#DCDAD3] p-5">
                       {/* User info row */}
                       <div className="flex items-start gap-3 mb-4">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 ${roleColor}`}>
@@ -395,30 +395,30 @@ function AdminPage({ currentUser, onBack }) {
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-[#E4E2DC]">
                           {!user.is_admin && (
                             <button onClick={() => handleToggleReadonly(user.id, user.is_readonly)}
-                              className={`text-sm px-3 py-1.5 rounded border transition-colors ${
+                              className={`text-sm px-3 py-1.5  border transition-colors ${
                                 user.is_readonly
                                   ? 'border-[#059669] text-[#059669] hover:bg-[#059669]/10'
-                                  : 'border-[#9CA3AF] text-[#B3B0A8] hover:bg-[#9CA3AF]/10'
+                                  : 'border-[#9CA3AF] text-[#B3B0A8] hover:bg-[#B3B0A8]/10'
                               }`}>
                               {user.is_readonly ? 'Grant Full Access' : 'Set Read-only'}
                             </button>
                           )}
                           <button onClick={() => handleToggleAdmin(user.id, user.is_admin)}
-                            className={`text-sm px-3 py-1.5 rounded border transition-colors ${
+                            className={`text-sm px-3 py-1.5  border transition-colors ${
                               user.is_admin
                                 ? 'border-[#0B0B0B] text-[#B23A3A] hover:bg-[#DEE42F]/10'
-                                : 'border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
+                                : 'border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
                             }`}>
                             <Shield className="w-3.5 h-3.5 inline mr-1" />
                             {user.is_admin ? 'Remove Admin' : 'Make Admin'}
                           </button>
                           <div className="flex gap-2 ml-auto">
                             <button onClick={() => handleRevoke(user.id)}
-                              className="text-sm px-3 py-1.5 rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+                              className="text-sm px-3 py-1.5 border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
                               <UserX className="w-3.5 h-3.5 inline mr-1" />Revoke
                             </button>
                             <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                              className="text-sm px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-50 transition-colors">
+                              className="text-sm px-3 py-1.5 border border-red-300 text-red-700 hover:bg-red-50 transition-colors">
                               <Trash2 className="w-3.5 h-3.5 inline mr-1" />Delete
                             </button>
                           </div>
@@ -583,6 +583,14 @@ function buildBenchmarkSnapshot(results, { industry, industryName, brandName, to
     brandScores,
     brandTotal: totalScore,
   };
+}
+
+// Ordinal suffix used by the masthead and the benchmark panel.
+function ordinalSuffix(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '';
+  const v = Math.abs(Math.round(Number(n))), l = v % 100;
+  if (l >= 11 && l <= 13) return `${v}th`;
+  return `${v}${['th', 'st', 'nd', 'rd'][v % 10] || 'th'}`;
 }
 
 // Compress image to max size for Claude API (5MB limit, we target 4MB)
@@ -1043,7 +1051,7 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
         ))}
         {industryAvg && (
           <div className="flex items-center gap-1.5">
-            <div className="w-5 h-0.5 bg-[#9CA3AF] border-t border-dashed" style={{ borderTop: '2px dashed #9CA3AF' }} />
+            <div className="w-5 h-0.5 bg-[#B3B0A8] border-t border-dashed" style={{ borderTop: '2px dashed #9CA3AF' }} />
             <span className="text-xs text-[#B3B0A8]">{avgLabel}</span>
           </div>
         )}
@@ -1326,7 +1334,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
   if (!benchmark) return null;
 
   return (
-    <div className="bg-white border border-[#DCDAD3] rounded p-5" ref={revealRef}>
+    <div className="bg-white border border-[#DCDAD3] p-5" ref={revealRef}>
       <div className="mb-4">
         {!hideTitle && <h3 className="font-semibold text-[#0B0B0B] text-sm">Attribute Benchmark Spread</h3>}
         <p className="text-xs text-[#8A877D] mt-1">
@@ -1344,7 +1352,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
           return (
             <div key={attr.id}
-              className={`grid items-center gap-3 rounded px-2 py-1 -mx-2 transition-colors ${isHovered ? 'bg-[#F2F0EA]' : ''}`}
+              className={`grid items-center gap-3  px-2 py-1 -mx-2 transition-colors ${isHovered ? 'bg-[#F2F0EA]' : ''}`}
               style={{ gridTemplateColumns: '104px 1fr 56px' }}
               onMouseEnter={() => setHovered(attr.id)}
               onMouseLeave={() => setHovered(null)}
@@ -1416,15 +1424,15 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
       <div className="mt-4 pt-3 border-t border-[#DCDAD3] flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-[#8A877D]">
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#1A1A1A] ring-2 ring-white" />
+          <div className="w-2.5 h-2.5 rounded-full bg-[#0B0B0B] ring-2 ring-white" />
           <span>{brandName}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-0.5 h-3 bg-[#CFD32F] rounded" />
+          <div className="w-0.5 h-3 bg-[#CFD32F] " />
           <span>{benchmark.scope === 'industry' ? 'Sector' : 'All brands'} average</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-6 h-1.5 rounded-full bg-[#1A1A1A]/20" />
+          <div className="w-6 h-1.5 rounded-full bg-[#0B0B0B]/20" />
           <span>{benchmark.scope === 'industry' ? 'Sector' : 'All brands'} range</span>
         </div>
       </div>
@@ -1451,7 +1459,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
   const pillTransform = pillAnchor === 'left' ? 'translateX(0)' : pillAnchor === 'right' ? 'translateX(-100%)' : 'translateX(-50%)';
 
   return (
-    <div className="bg-white border border-[#DCDAD3] rounded p-5">
+    <div className="bg-white border border-[#DCDAD3] p-5">
       <div className="mb-4">
         <h3 className="font-semibold text-[#0B0B0B] text-sm">Overall Position</h3>
         <p className="text-xs text-[#8A877D] mt-1">
@@ -1462,7 +1470,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
       <div className="relative" style={{ height: refsCollide ? 104 : 86 }}>
         {/* Brand pill, above the track */}
         <div className="absolute z-20" style={{ left: `${brand}%`, top: 0, transform: pillTransform }}>
-          <div className="px-2 py-0.5 rounded text-white text-[11px] font-bold whitespace-nowrap"
+          <div className="px-2 py-0.5 text-white text-[11px] font-bold whitespace-nowrap"
             style={{ backgroundColor: getMaturityStage(brand).color }}>
             {brandName} {brand}
           </div>
@@ -1479,7 +1487,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
 
         {/* Sector average, first label row */}
         <div className="absolute z-10" style={{ left: `${cohort}%`, top: 34, transform: 'translateX(-50%)' }}>
-          <div className="w-0.5 h-5 bg-[#CFD32F] rounded mx-auto" />
+          <div className="w-0.5 h-5 bg-[#CFD32F] mx-auto" />
           <div className="text-[10px] font-semibold text-[#6B6B00] whitespace-nowrap text-center mt-0.5">
             {isSector ? 'sector' : 'average'} {cohort}
           </div>
@@ -1488,7 +1496,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
         {/* All-brands average, dropped to a second row when it would collide */}
         {isSector && (
           <div className="absolute z-10" style={{ left: `${all}%`, top: 34, transform: 'translateX(-50%)' }}>
-            <div className="w-0.5 bg-[#BBB] rounded mx-auto" style={{ height: refsCollide ? 38 : 20 }} />
+            <div className="w-0.5 bg-[#BBB] mx-auto" style={{ height: refsCollide ? 38 : 20 }} />
             <div className="text-[10px] text-[#999] whitespace-nowrap text-center mt-0.5">all {all}</div>
           </div>
         )}
@@ -1536,7 +1544,7 @@ function BenchmarkProvenance({ benchmark }) {
   const span = from && to ? (from === to ? from : `${from} to ${to}`) : null;
 
   return (
-    <div className="text-[11px] text-[#8A877D] bg-[#F2F0EA] border border-[#DCDAD3] rounded px-3 py-2 leading-relaxed">
+    <div className="text-[11px] text-[#8A877D] bg-[#F2F0EA] border border-[#DCDAD3] px-3 py-2 leading-relaxed">
       <span className="font-medium text-[#0B0B0B]">Benchmark basis:</span>{' '}
       {benchmark.cohortLabel}, n={benchmark.count}
       {span ? `, assessed ${span}` : ''}
@@ -1635,7 +1643,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
           }}
         >
           <div 
-            className="absolute -top-1 -right-1 w-5 h-5 rounded-full border-3 border-white shadow-lg"
+            className="absolute -top-1 -right-1 w-5 h-5 rounded-full border-3 border-white "
             style={{ backgroundColor: stage.color }}
           />
         </div>
@@ -1680,7 +1688,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
       
       {/* Current stage card */}
       <div 
-        className={`rounded-xl p-5 text-center transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+        className={`p-5 text-center transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
         style={{ 
           backgroundColor: `${stage.color}15`,
           borderLeft: `4px solid ${stage.color}`,
@@ -1707,16 +1715,16 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
   const navBtnClass = (page) =>
-    `flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg transition-colors ${
+    `flex items-center gap-2 text-sm px-3 py-1.5  transition-colors ${
       activePage === page
-        ? 'bg-[#1A1A1A] text-white font-medium'
+        ? 'bg-[#0B0B0B] text-white font-medium'
         : 'text-[#4A4840] hover:text-[#0B0B0B] hover:bg-[#DCDAD3]'
     }`;
 
   const mobileNavBtnClass = (page) =>
-    `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+    `w-full flex items-center gap-3 px-4 py-3  transition-colors ${
       activePage === page
-        ? 'bg-[#1A1A1A] text-white font-medium'
+        ? 'bg-[#0B0B0B] text-white font-medium'
         : 'text-[#4A4840] hover:bg-[#E4E2DC]'
     }`;
   
@@ -1725,7 +1733,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
       <div className="max-w-6xl mx-auto flex items-center justify-between">
         <button onClick={onGoHome || onNewAssessment} className="flex items-center gap-2 md:gap-4 hover:opacity-75 transition-opacity">
           <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
-          <div className="hidden lg:block h-6 w-px bg-[#1A1A1A]" />
+          <div className="hidden lg:block h-6 w-px bg-[#0B0B0B]" />
           <span className="hidden lg:block text-lg font-semibold text-[#0B0B0B]">Conscious Compass</span>
         </button>
         
@@ -1744,7 +1752,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             <FileText className="w-4 h-4" /> Saved
           </button>
           {!isReadonly && (
-            <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#DEE42F] text-white hover:bg-[#C62828] px-4 py-1.5 rounded-lg transition-colors ml-1">
+            <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#DEE42F] text-white hover:bg-[#C62828] px-4 py-1.5 transition-colors ml-1">
               <Plus className="w-4 h-4" /> New
             </button>
           )}
@@ -1757,7 +1765,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
               </button>
             )}
             {isReadonly && (
-              <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only</span>
+              <span className="text-xs px-2 py-0.5 bg-[#B3B0A8] text-white rounded-full">Read-only</span>
             )}
             <span className="text-xs text-[#8A877D] max-w-[120px] truncate" title={user?.email}>
               {profile?.full_name || user?.email?.split('@')[0]}
@@ -1782,7 +1790,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
         <div className="md:hidden mt-4 pt-4 border-t border-[#DCDAD3] space-y-1">
           {isReadonly && (
             <div className="px-4 py-2">
-              <span className="text-xs px-2 py-0.5 bg-[#9CA3AF] text-white rounded-full">Read-only Access</span>
+              <span className="text-xs px-2 py-0.5 bg-[#B3B0A8] text-white rounded-full">Read-only Access</span>
             </div>
           )}
           <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
@@ -1798,7 +1806,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             <FileText className="w-5 h-5" /> Saved Assessments
           </button>
           {!isReadonly && (
-            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#DEE42F] text-white rounded-lg transition-colors">
+            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#DEE42F] text-white transition-colors">
               <Plus className="w-5 h-5" /> New Assessment
             </button>
           )}
@@ -1809,11 +1817,11 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
               Signed in as <span className="font-medium">{profile?.full_name || user?.email}</span>
             </div>
             {profile?.is_admin && (
-              <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#B23A3A] hover:bg-[#E4E2DC] rounded-lg transition-colors">
+              <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#B23A3A] hover:bg-[#E4E2DC] transition-colors">
                 <Shield className="w-5 h-5" /> User Management
               </button>
             )}
-            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#8A877D] hover:bg-[#E4E2DC] rounded-lg transition-colors">
+            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#8A877D] hover:bg-[#E4E2DC] transition-colors">
               <LogOut className="w-5 h-5" /> Sign Out
             </button>
           </div>
@@ -1830,7 +1838,7 @@ function CompletionIndicator({ items }) {
   const percentage = Math.round((completed / total) * 100);
   
   return (
-    <div className="bg-white border border-[#DCDAD3] rounded-lg p-3 mb-6">
+    <div className="bg-white border border-[#DCDAD3] p-3 mb-6">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-[#8A877D] uppercase tracking-wide">Progress</span>
         <span className="text-xs font-medium text-[#0B0B0B]">{completed}/{total} complete</span>
@@ -2060,7 +2068,7 @@ function MobileAssessmentBanner() {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
   return (
-    <div className="sm:hidden mb-5 flex items-start gap-3 bg-[#FFFBEB] border border-[#FCD34D] rounded-lg px-4 py-3">
+    <div className="sm:hidden mb-5 flex items-start gap-3 bg-[#FFFBEB] border border-[#FCD34D] px-4 py-3">
       <span className="text-lg leading-none mt-0.5">💡</span>
       <p className="flex-1 text-xs text-[#92400E] leading-relaxed">
         <strong>Best on a larger screen.</strong> This assessment is designed for tablet or desktop. You can continue on mobile, but the experience will be better with more space.
@@ -2102,17 +2110,17 @@ function AdditionalPropertiesInput({ project, setProject }) {
   };
 
   return (
-    <div className="border border-[#DCDAD3] rounded-lg overflow-hidden">
+    <div className="border border-[#DCDAD3] overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-[#FAFAF8] hover:bg-[#F2F0EA] transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-3 bg-[#FFFFFF] hover:bg-[#F2F0EA] transition-colors text-left"
       >
         <div className="flex items-center gap-2">
           <Plus className="w-4 h-4 text-[#8A877D]" />
           <span className="text-sm font-medium text-[#0B0B0B]">Additional Properties</span>
           {props.length > 0 && (
-            <span className="text-xs font-semibold px-2 py-0.5 bg-[#1A1A1A] text-white rounded-full">{props.length}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 bg-[#0B0B0B] text-white rounded-full">{props.length}</span>
           )}
         </div>
         <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -2125,7 +2133,7 @@ function AdditionalPropertiesInput({ project, setProject }) {
           </p>
 
           {/* Primary language */}
-          <div className="flex items-center gap-3 p-3 bg-[#E4E2DC] rounded-lg">
+          <div className="flex items-center gap-3 p-3 bg-[#E4E2DC] ">
             <span className="text-xs font-semibold text-[#666] w-4">✦</span>
             <div className="flex-1 text-xs text-[#444] font-medium">Primary site</div>
             <input
@@ -2133,12 +2141,12 @@ function AdditionalPropertiesInput({ project, setProject }) {
               value={project.primaryLanguage || ''}
               onChange={e => setProject({ ...project, primaryLanguage: e.target.value })}
               placeholder="Language (e.g. English)"
-              className="px-2 py-1.5 text-xs border border-[#DCDAD3] rounded bg-white w-40"
+              className="px-2 py-1.5 text-xs border border-[#DCDAD3] bg-white w-40"
             />
           </div>
 
           {props.map((prop, i) => (
-            <div key={i} className="p-3 bg-[#F2F0EA] rounded-lg space-y-2">
+            <div key={i} className="p-3 bg-[#F2F0EA] space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-[#8A877D] w-4">{i + 1}</span>
                 <input
@@ -2146,7 +2154,7 @@ function AdditionalPropertiesInput({ project, setProject }) {
                   value={prop.url}
                   onChange={e => updateProperty(i, 'url', e.target.value)}
                   placeholder="https://de.example.com"
-                  className="flex-1 px-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white"
+                  className="flex-1 px-3 py-2 text-sm border border-[#DCDAD3] bg-white"
                 />
                 <button type="button" onClick={() => removeProperty(i)} className="text-[#999] hover:text-[#0B0B0B] transition-colors flex-shrink-0">
                   <X className="w-4 h-4" />
@@ -2156,7 +2164,7 @@ function AdditionalPropertiesInput({ project, setProject }) {
                 <select
                   value={prop.type}
                   onChange={e => updateProperty(i, 'type', e.target.value)}
-                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] rounded bg-white flex-1"
+                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] bg-white flex-1"
                 >
                   {PROPERTY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
@@ -2165,14 +2173,14 @@ function AdditionalPropertiesInput({ project, setProject }) {
                   value={prop.language}
                   onChange={e => updateProperty(i, 'language', e.target.value)}
                   placeholder="Language (e.g. German)"
-                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] rounded bg-white flex-1"
+                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] bg-white flex-1"
                 />
                 <input
                   type="text"
                   value={prop.label}
                   onChange={e => updateProperty(i, 'label', e.target.value)}
                   placeholder="Label (e.g. DACH)"
-                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] rounded bg-white flex-1"
+                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] bg-white flex-1"
                 />
               </div>
             </div>
@@ -2204,13 +2212,13 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
         <div>
           <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Brand Name *</label>
           <input type="text" value={project.brandName} onChange={(e) => setProject({ ...project, brandName: e.target.value })}
-            placeholder="e.g., Antenna Group" className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white" />
+            placeholder="e.g., Antenna Group" className="w-full px-4 py-3 border border-[#DCDAD3] bg-white" />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Website URL *</label>
           <input type="url" value={project.websiteUrl} onChange={(e) => setProject({ ...project, websiteUrl: e.target.value })}
-            placeholder="https://www.example.com" className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white" />
+            placeholder="https://www.example.com" className="w-full px-4 py-3 border border-[#DCDAD3] bg-white" />
         </div>
 
         <AdditionalPropertiesInput project={project} setProject={setProject} />
@@ -2218,7 +2226,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
         <div>
           <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Business Model</label>
           <select value={project.businessModel} onChange={(e) => setProject({ ...project, businessModel: e.target.value })}
-            className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white">
+            className="w-full px-4 py-3 border border-[#DCDAD3] bg-white">
             {BUSINESS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
@@ -2226,7 +2234,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
         <div>
           <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Industry</label>
           <select value={project.industry || 'other'} onChange={(e) => setProject({ ...project, industry: e.target.value })}
-            className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white">
+            className="w-full px-4 py-3 border border-[#DCDAD3] bg-white">
             {INDUSTRIES.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
           <p className="text-xs text-[#8A877D] mt-1">Used for industry context in the assessment</p>
@@ -2239,7 +2247,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
             onChange={(e) => setProject({ ...project, assessorContext: e.target.value })}
             rows={5}
             placeholder={`State what the brand wants to achieve, and the report will assess its readiness to get there. For example:\n\n- Strategic goals and aspirations (repositioning, new audience, new market, launch)\n- What the client has told you about their challenges\n- Key competitors: [names]\n- Known sensitivities or live issues to be aware of\n- The purpose of this assessment (new business, existing client review, benchmark)`}
-            className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white text-sm leading-relaxed resize-y"
+            className="w-full px-4 py-3 border border-[#DCDAD3] bg-white text-sm leading-relaxed resize-y"
             style={{ minHeight: '120px' }}
           />
           <p className="text-xs text-[#8A877D] mt-1">Optional. This is the lens for the whole report. State what the brand wants, for example to reposition, reach a new audience, or launch, and the assessment will judge how ready the brand is to get there. It is not quoted in the report, only reflected as the brand's stated ambition. Leave it blank and this lens is not applied.</p>
@@ -2250,7 +2258,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
           <div className="pt-4 border-t border-[#DCDAD3]">
             <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Claude API Key *</label>
             <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white font-mono text-sm" />
+              placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#DCDAD3] bg-white font-mono text-sm" />
             <p className="text-xs text-[#8A877D] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#B23A3A] hover:underline">console.anthropic.com</a></p>
           </div>
         )}
@@ -2456,7 +2464,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
           <tbody>
             {allProperties.map((prop, i) => {
               return (
-                <tr key={i} className={i % 2 === 0 ? 'bg-[#FAFAF8]' : ''}>
+                <tr key={i} className={i % 2 === 0 ? 'bg-[#FFFFFF]' : ''}>
                   <td className="py-2 pr-3 font-semibold text-[#0B0B0B]">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
                   <td className="py-2 pr-3 text-[#666] max-w-[180px] truncate" title={prop.url}>{prop.url}</td>
                   <td className="py-2 pr-3">
@@ -2474,7 +2482,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
                     return (
                       <td key={metric} className="py-2 px-1 text-center">
                         {val != null ? (
-                          <span className="inline-block w-10 rounded text-center py-0.5 font-bold tabular-nums text-white text-[11px]"
+                          <span className="inline-block w-10 text-center py-0.5 font-bold tabular-nums text-white text-[11px]"
                             style={{ backgroundColor: scoreColor(val) }}>
                             {val}
                           </span>
@@ -2519,7 +2527,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
       {error && <p className="text-xs text-[#B23A3A] mt-2">{error}</p>}
 
       {propertyData.consistencyAnalysis && (
-        <div className="mt-4 bg-[#E4E2DC] rounded-lg p-4">
+        <div className="mt-4 bg-[#E4E2DC] p-4">
           <div className="text-[10px] font-semibold text-[#666] uppercase tracking-wider mb-2">Consistency Analysis</div>
           <pre className="text-sm text-[#333] whitespace-pre-wrap font-sans leading-relaxed">{propertyData.consistencyAnalysis}</pre>
         </div>
@@ -2645,13 +2653,13 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       </div>
 
       {fetchError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-xs text-red-700">
+        <div className="bg-red-50 border border-red-200 p-3 mb-4 text-xs text-red-700">
           {fetchError} — Try the Manual button instead.
         </div>
       )}
 
       {!fetchError && (
-        <div className="bg-[#E4E2DC] rounded-lg p-3 mb-4">
+        <div className="bg-[#E4E2DC] p-3 mb-4">
           <p className="text-xs text-[#8A877D]">
             Click "Auto-Fetch" to get scores automatically, or "Manual" to verify on Google PageSpeed.
           </p>
@@ -2674,7 +2682,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
               value={techAudit.scores[item.key] ?? ''}
               onChange={(e) => updateScore(item.key, e.target.value)}
               placeholder="-"
-              className="w-full text-center text-2xl font-bold py-2 border border-[#DCDAD3] rounded-lg bg-white focus:ring-2 focus:ring-[#E53935] focus:border-transparent"
+              className="w-full text-center text-2xl font-bold py-2 border border-[#DCDAD3] bg-white focus:ring-2 focus:ring-[#E53935] focus:border-transparent"
               style={{ color: getScoreColor(techAudit.scores[item.key]) }}
             />
             <div className="text-xs text-[#8A877D] mt-1">{item.label}</div>
@@ -3143,7 +3151,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#DEE42F]/10 rounded-xl flex items-center justify-center">
+        <div className="w-12 h-12 bg-[#DEE42F]/10 flex items-center justify-center">
           <Globe className="w-6 h-6 text-[#B23A3A]" />
         </div>
         <div>
@@ -3181,7 +3189,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
               <Check className="w-4 h-4 text-[#10B981]" />
               <span className="text-sm font-medium text-[#0B0B0B]">Website Assessment Complete</span>
             </div>
-            <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-80 overflow-y-auto">
+            <div className="bg-[#E4E2DC] p-4 max-h-80 overflow-y-auto">
               <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
             </div>
           </div>
@@ -3197,7 +3205,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           value={pagesReviewed} 
           onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ ...assessmentData, pagesReviewed: e.target.value }); }}
           placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact"
-          className="w-full px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white"
+          className="w-full px-4 py-3 border border-[#DCDAD3] bg-white"
         />
       </div>
 
@@ -3208,7 +3216,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           <button 
             onClick={runCredentialsAssess} 
             disabled={isAssessingCredentials || !project.brandName}
-            className="px-3 py-1.5 bg-[#8B5CF6] text-white text-xs font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-1.5 bg-[#8B5CF6] text-white text-xs font-medium hover:bg-[#7C3AED] transition-colors flex items-center gap-1.5 disabled:opacity-50"
           >
             {isAssessingCredentials ? (
               <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</>
@@ -3222,7 +3230,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           value={credentialsContent} 
           onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ ...assessmentData, credentialsContent: e.target.value }); }}
           placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor..."
-          className={`w-full h-24 px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white resize-none ${credentialsContent ? 'bg-[#E4E2DC]' : ''}`}
+          className={`w-full h-24 px-4 py-3 border border-[#DCDAD3]  bg-white resize-none ${credentialsContent ? 'bg-[#E4E2DC]' : ''}`}
         />
         {credentialsContent && (
           <p className="text-xs text-[#059669] mt-1">✓ Recognition data captured</p>
@@ -3241,12 +3249,12 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         <div className="grid grid-cols-2 gap-4 mb-4">
           {images.map((img, index) => (
             <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#DCDAD3]" />
+              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DCDAD3]" />
               <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100">
+                className="absolute top-2 right-2 bg-white rounded-full p-1 hover:bg-gray-100">
                 <X className="w-4 h-4" />
               </button>
-              <div className="absolute bottom-2 left-2 bg-[#1A1A1A] text-white text-xs px-2 py-1 rounded">
+              <div className="absolute bottom-2 left-2 bg-[#0B0B0B] text-white text-xs px-2 py-1 ">
                 {index + 1}
               </div>
             </div>
@@ -3254,7 +3262,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           
           {images.length < 4 && (
             <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#0B0B0B] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#DEE42F]/5 transition-colors">
+              className="h-40 border-2 border-dashed border-[#0B0B0B] flex flex-col items-center justify-center gap-2 hover:bg-[#DEE42F]/5 transition-colors">
               {isCompressing ? (
                 <><Loader2 className="w-6 h-6 text-[#B23A3A] animate-spin" /><span className="text-sm text-[#B23A3A]">Compressing...</span></>
               ) : (
@@ -3286,7 +3294,7 @@ TAGLINE: 'Enterprise solutions for the modern era'
 ABOUT: 'Founded in 2015, we help companies...'
 VALUE PROP: 'Reduce costs by 40% while improving...'
 ..."
-          className="w-full h-28 px-4 py-3 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm"
+          className="w-full h-28 px-4 py-3 border border-[#DCDAD3] bg-white resize-none text-sm"
         />
       </div>
 
@@ -3305,7 +3313,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
               Claude will analyze {project.brandName}'s likely SEO visibility based on brand name uniqueness, 
               industry competitiveness, content signals, and identify target keywords they should rank for.
             </p>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+            <div className="bg-yellow-50 border border-yellow-200 p-3 mb-4">
               <p className="text-sm text-yellow-800">
                 <strong>💡 Tip:</strong> Run this before the main Website Analysis for best results. 
                 SEO insights will be automatically integrated into the full assessment.
@@ -3339,7 +3347,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
                 Regenerate Analysis
               </button>
             </div>
-            <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-64 overflow-y-auto">
+            <div className="bg-[#E4E2DC] p-4 max-h-64 overflow-y-auto">
               <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{seoAssessment}</pre>
             </div>
           </div>
@@ -3372,7 +3380,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 - Consistency across pages
 - Navigation or UX concerns
 - Content gaps
-- Competitive positioning..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none" />
+- Competitive positioning..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -3383,7 +3391,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         </button>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 p-4 mb-6 text-red-700">{error}</div>}
 
       {isComplete && (
         <div className="card p-5 mb-4">
@@ -3402,14 +3410,14 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-96 overflow-y-auto">
+          <div className="bg-[#E4E2DC] p-4 max-h-96 overflow-y-auto">
             <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
       {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+        <div className="bg-amber-50 border border-amber-200 p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
@@ -4033,7 +4041,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
   // Read-only panel for auto-checked content. Sits above the notes field so it
   // is obvious which content the assessor owns and which was fetched.
   const AutoPanel = ({ content }) => content ? (
-    <div className="bg-[#F0F9F4] border border-[#BBE5CC] rounded-lg p-3">
+    <div className="bg-[#F0F9F4] border border-[#BBE5CC] p-3">
       <div className="flex items-center gap-1.5 mb-1.5">
         <Check className="w-3.5 h-3.5 text-[#059669]" />
         <span className="text-[10px] font-semibold text-[#059669] uppercase tracking-wider">Auto-checked</span>
@@ -4045,7 +4053,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
   const AccordionHeader = ({ title, icon: Icon, isOpen, onClick, badge, hasContent }) => (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center justify-between p-4 rounded-lg transition-colors ${isOpen ? 'bg-[#E4E2DC]' : 'bg-white hover:bg-[#F2F0EA]'} border border-[#DCDAD3]`}
+      className={`w-full flex items-center justify-between p-4  transition-colors ${isOpen ? 'bg-[#E4E2DC]' : 'bg-white hover:bg-[#F2F0EA]'} border border-[#DCDAD3]`}
     >
       <div className="flex items-center gap-3">
         <Icon className="w-5 h-5 text-[#8A877D]" />
@@ -4061,7 +4069,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#8B5CF6]/10 rounded-xl flex items-center justify-center">
+        <div className="w-12 h-12 bg-[#8B5CF6]/10 flex items-center justify-center">
           <Users className="w-6 h-6 text-[#8B5CF6]" />
         </div>
         <div>
@@ -4125,7 +4133,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               <Check className="w-4 h-4 text-[#059669]" />
               <span className="text-sm font-medium text-[#0B0B0B]">Health Check Complete</span>
             </div>
-            <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-80 overflow-y-auto">
+            <div className="bg-[#E4E2DC] p-4 max-h-80 overflow-y-auto">
               <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{socialHealthCheck}</pre>
             </div>
           </div>
@@ -4144,12 +4152,12 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         <div className="grid grid-cols-2 gap-4 mb-4">
           {images.map((img, index) => (
             <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover rounded-lg border border-[#DCDAD3]" />
+              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DCDAD3]" />
               <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100">
+                className="absolute top-2 right-2 bg-white rounded-full p-1 hover:bg-gray-100">
                 <X className="w-4 h-4" />
               </button>
-              <div className="absolute bottom-2 left-2 bg-[#1A1A1A] text-white text-xs px-2 py-1 rounded">
+              <div className="absolute bottom-2 left-2 bg-[#0B0B0B] text-white text-xs px-2 py-1 ">
                 {index + 1}
               </div>
             </div>
@@ -4157,7 +4165,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           
           {images.length < SOCIAL_SCREENSHOT_MAX && (
             <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#0B0B0B] rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-[#DEE42F]/5 transition-colors">
+              className="h-40 border-2 border-dashed border-[#0B0B0B] flex flex-col items-center justify-center gap-2 hover:bg-[#DEE42F]/5 transition-colors">
               {isCompressing ? (
                 <><Loader2 className="w-6 h-6 text-[#B23A3A] animate-spin" /><span className="text-sm text-[#B23A3A]">Compressing...</span></>
               ) : (
@@ -4186,13 +4194,13 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.linkedinAuto || inputs.linkedinAbout || inputs.linkedinPosts)}
         />
         {expanded.linkedin && (
-          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
             <AutoPanel content={inputs.linkedinAuto} />
             <div className="flex gap-2">
               <input type="url" value={inputs.linkedinUrl} onChange={(e) => updateInput('linkedinUrl', e.target.value)}
-                placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm" />
+                placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#DCDAD3] bg-white text-sm" />
               {inputs.linkedinUrl && (
-                <a href={inputs.linkedinUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#0A66C2] text-white rounded-lg text-xs hover:bg-[#004182] flex items-center gap-1">
+                <a href={inputs.linkedinUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#0A66C2] text-white text-xs hover:bg-[#004182] flex items-center gap-1">
                   <ExternalLink className="w-3 h-3" /> Open
                 </a>
               )}
@@ -4200,12 +4208,12 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             <div>
               <label className="text-xs font-medium text-[#8A877D] mb-1 block">Company Profile & About Section</label>
               <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
-                placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
             </div>
             <div>
               <label className="text-xs font-medium text-[#8A877D] mb-1 block">Recent Posts & Engagement</label>
               <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
-                placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -4224,19 +4232,19 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.xAuto || inputs.xContent)}
         />
         {expanded.x && (
-          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
             <AutoPanel content={inputs.xAuto} />
             <div className="flex gap-2">
               <input type="url" value={inputs.xUrl} onChange={(e) => updateInput('xUrl', e.target.value)}
-                placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm" />
+                placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#DCDAD3] bg-white text-sm" />
               {inputs.xUrl && (
-                <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#1A1A1A] text-white rounded-lg text-xs hover:bg-[#333] flex items-center gap-1">
+                <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#0B0B0B] text-white text-xs hover:bg-[#333] flex items-center gap-1">
                   <ExternalLink className="w-3 h-3" /> Open
                 </a>
               )}
             </div>
             <textarea value={inputs.xContent} onChange={(e) => updateInput('xContent', e.target.value)}
-              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
           </div>
         )}
       </div>
@@ -4254,10 +4262,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.instagramAuto || inputs.instagramContent)}
         />
         {expanded.instagram && (
-          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
             <AutoPanel content={inputs.instagramAuto} />
             <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
-              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
+              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
           </div>
         )}
       </div>
@@ -4275,17 +4283,17 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.youtubeAuto || inputs.youtubeContent)}
         />
         {expanded.other && (
-          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
             <AutoPanel content={inputs.youtubeAuto} />
             <div>
               <div className="flex items-center justify-end mb-1">
                 <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-medium rounded hover:bg-red-200 transition-colors flex items-center gap-1">
+                   className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-medium hover:bg-red-200 transition-colors flex items-center gap-1">
                   Verify <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               </div>
               <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
-                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -4322,32 +4330,32 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.glassdoorContent || inputs.wipoContent)}
         />
         {expanded.reputation && (
-          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[#8A877D]">Glassdoor <span className="text-purple-600">(→ Reflective)</span></label>
                 <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium rounded hover:bg-purple-200 transition-colors flex items-center gap-1">
+                   className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium hover:bg-purple-200 transition-colors flex items-center gap-1">
                   Verify <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               </div>
               {inputs.glassdoorAuto && <div className="mb-2"><AutoPanel content={inputs.glassdoorAuto} /></div>}
               <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
-                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
+                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="bg-blue-50 border border-blue-200 p-3">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-medium text-blue-800">WIPO Trademark <span className="font-normal">(→ Intentional)</span></label>
                 <div className="flex gap-2">
                   <button
                     onClick={runWipoSearch}
                     disabled={isSearchingWipo || !project.brandName}
-                    className="px-3 py-1 bg-[#8B5CF6] text-white text-xs font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-1 disabled:opacity-50"
+                    className="px-3 py-1 bg-[#8B5CF6] text-white text-xs font-medium hover:bg-[#7C3AED] transition-colors flex items-center gap-1 disabled:opacity-50"
                   >
                     {isSearchingWipo ? <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</> : <><Sparkles className="w-3 h-3" /> Auto-Search</>}
                   </button>
                   <a href="https://branddb.wipo.int/en/similarname" target="_blank" rel="noopener noreferrer" 
-                     className="px-3 py-1 bg-[#0067B9] text-white text-xs font-medium rounded-lg hover:bg-[#005299] transition-colors flex items-center gap-1">
+                     className="px-3 py-1 bg-[#0067B9] text-white text-xs font-medium hover:bg-[#005299] transition-colors flex items-center gap-1">
                     Manual <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
@@ -4357,7 +4365,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               )}
               <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
                 placeholder={`Trademark status for ${project.brandName}: registrations found, jurisdictions covered, any similar/conflicting marks, protection status...`}
-                className={`w-full h-20 px-3 py-2 border border-blue-300 rounded-lg bg-white resize-none text-sm ${inputs.wipoContent ? 'bg-blue-50' : ''}`} />
+                className={`w-full h-20 px-3 py-2 border border-blue-300  bg-white resize-none text-sm ${inputs.wipoContent ? 'bg-blue-50' : ''}`} />
             </div>
           </div>
         )}
@@ -4374,7 +4382,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.campaignAuto || inputs.campaignContent)}
         />
         {expanded.campaign && (
-          <div className="border border-t-0 border-[#DCDAD3] rounded-b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
             <p className="text-xs text-[#8A877D]">
               This is what drives the Campaign Coherence score. What matters is whether a strategy and a creative idea thread the activity together, not how much activity there is.
               {project.businessModel === 'b2b'
@@ -4390,19 +4398,19 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Ad libraries</div>
               <div className="grid grid-cols-2 gap-2">
                 <a href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q="${encodeURIComponent(project.brandName)}"&search_type=keyword_exact_phrase`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-[#1877F2] text-white text-xs font-medium rounded-lg hover:bg-[#166FE5] transition-colors flex items-center justify-center gap-1">
+                   className="px-2 py-1.5 bg-[#1877F2] text-white text-xs font-medium hover:bg-[#166FE5] transition-colors flex items-center justify-center gap-1">
                   <span>Meta</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://adstransparency.google.com/?region=anywhere&text="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-[#4285F4] text-white text-xs font-medium rounded-lg hover:bg-[#3367D6] transition-colors flex items-center justify-center gap-1">
+                   className="px-2 py-1.5 bg-[#4285F4] text-white text-xs font-medium hover:bg-[#3367D6] transition-colors flex items-center justify-center gap-1">
                   <span>Google</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://www.linkedin.com/ad-library/search?accountOwner="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                   className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#0A66C2] hover:bg-[#004182] ring-2 ring-[#0A66C2] ring-offset-1' : 'bg-[#0A66C2] hover:bg-[#004182]'}`}>
+                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#0A66C2] hover:bg-[#004182] ring-2 ring-[#0A66C2] ring-offset-1' : 'bg-[#0A66C2] hover:bg-[#004182]'}`}>
                   <span>LinkedIn{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                   className={`px-2 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : project.businessModel === 'b2c' ? 'bg-black hover:bg-gray-800 ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-gray-800'}`}>
+                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : project.businessModel === 'b2c' ? 'bg-black hover:bg-gray-800 ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-gray-800'}`}>
                   <span>TikTok{project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -4412,11 +4420,11 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Hashtag search</div>
               <div className="grid grid-cols-2 gap-2">
                 <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
+                   className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
                   <span>Instagram #</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://www.linkedin.com/search/results/content/?keywords=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-[#0A66C2] text-white text-xs font-medium rounded-lg hover:bg-[#004182] transition-colors flex items-center justify-center gap-1">
+                   className="px-2 py-1.5 bg-[#0A66C2] text-white text-xs font-medium hover:bg-[#004182] transition-colors flex items-center justify-center gap-1">
                   <span>LinkedIn #</span> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -4431,7 +4439,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 • Whether one idea threads them together, or they are separate bursts
 • Whether paid creative matches the organic work
 • Whether anyone outside the brand has picked the idea up`} 
-                className="w-full h-28 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
+                className="w-full h-28 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -4449,7 +4457,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       <div className="card p-4 mb-4">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Notes</h3>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm" />
+          placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
       </div>
 
       {/* Analysis Button & Results */}
@@ -4459,7 +4467,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </button>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 p-3 mb-4 text-red-700 text-sm">{error}</div>}
 
       {isComplete && (
         <div className="card p-5 mb-4">
@@ -4475,14 +4483,14 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-96 overflow-y-auto">
+          <div className="bg-[#E4E2DC] p-4 max-h-96 overflow-y-auto">
             <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
       {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+        <div className="bg-amber-50 border border-amber-200 p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
@@ -4715,7 +4723,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#3B82F6]/10 rounded-xl flex items-center justify-center">
+        <div className="w-12 h-12 bg-[#3B82F6]/10 flex items-center justify-center">
           <Bot className="w-6 h-6 text-[#3B82F6]" />
         </div>
         <div>
@@ -4734,13 +4742,13 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
             <p className="text-xs text-[#8A877D]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
           </div>
         </div>
-        <div className="bg-[#F2F0EA] rounded-lg p-3 max-h-32 overflow-y-auto mb-2">
+        <div className="bg-[#F2F0EA] p-3 max-h-32 overflow-y-auto mb-2">
           <pre className="text-xs text-[#4A4840] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 400)}...</pre>
         </div>
         <p className="text-xs text-[#B3B0A8]">Customised for <strong>{project.brandName}</strong> · {industryName}</p>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 p-3 mb-4 text-red-700 text-sm">{error}</div>}
 
       {/* AI Engine Cards — uniform pattern */}
       <div className="space-y-3 mb-4">
@@ -4761,7 +4769,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => copyToClipboard(aiPerceptionPrompt)}
-                className="px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1"
+                className="px-3 py-1.5 text-white text-xs font-medium transition-colors flex items-center gap-1"
                 style={{ backgroundColor: engine.color }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = engine.hover}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = engine.color}
@@ -4777,7 +4785,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 setAssessmentData({ ...assessmentData, [`${engine.key}Manual`]: val });
               }}
               placeholder={`Paste ${engine.name}'s response here...`}
-              className={`w-full h-24 px-3 py-2 border border-[#DCDAD3] rounded-lg text-sm ${manualInput[engine.key] ? 'bg-[#E4E2DC]' : 'bg-white'}`}
+              className={`w-full h-24 px-3 py-2 border border-[#DCDAD3]  text-sm ${manualInput[engine.key] ? 'bg-[#E4E2DC]' : 'bg-white'}`}
             />
           </div>
         ))}
@@ -4793,7 +4801,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-medium text-[#8A877D]">Wikipedia</label>
               <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer"
-                 className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium rounded hover:bg-gray-200 transition-colors flex items-center gap-1">
+                 className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium hover:bg-gray-200 transition-colors flex items-center gap-1">
                 Search Wikipedia <ExternalLink className="w-2.5 h-2.5" />
               </a>
             </div>
@@ -4801,7 +4809,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               value={wikipediaContent}
               onChange={(e) => { setWikipediaContent(e.target.value); setAssessmentData({ ...assessmentData, wikipediaContent: e.target.value }); }}
               placeholder={`Does ${project.brandName} have a Wikipedia page? Record what it says — or note its absence.`}
-              className="w-full h-16 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm"
+              className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
             />
           </div>
           {/* Reddit Answers */}
@@ -4811,12 +4819,12 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => copyToClipboard(redditPrompt)}
-                  className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium rounded hover:bg-orange-200 transition-colors flex items-center gap-1"
+                  className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium hover:bg-orange-200 transition-colors flex items-center gap-1"
                 >
                   <Copy className="w-2.5 h-2.5" /> Copy prompt
                 </button>
                 <a href="https://www.reddit.com/answers/" target="_blank" rel="noopener noreferrer"
-                   className="px-2 py-0.5 bg-[#FF4500] text-white text-[10px] font-medium rounded hover:bg-[#E03D00] transition-colors flex items-center gap-1">
+                   className="px-2 py-0.5 bg-[#FF4500] text-white text-[10px] font-medium hover:bg-[#E03D00] transition-colors flex items-center gap-1">
                   Open Reddit Answers <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               </div>
@@ -4825,7 +4833,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               value={redditContent}
               onChange={(e) => { setRedditContent(e.target.value); setAssessmentData({ ...assessmentData, redditAnswersContent: e.target.value }); }}
               placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation and community perception...`}
-              className="w-full h-24 px-3 py-2 border border-orange-200 rounded-lg bg-orange-50 resize-none text-sm"
+              className="w-full h-24 px-3 py-2 border border-orange-200 bg-orange-50 resize-none text-sm"
             />
           </div>
         </div>
@@ -4847,7 +4855,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 <button
                   onClick={row.run}
                   disabled={!!fetching[row.label]}
-                  className="px-2 py-0.5 bg-[#DEE42F] text-white text-[10px] font-medium rounded hover:bg-[#C62828] transition-colors flex items-center gap-1 disabled:opacity-50"
+                  className="px-2 py-0.5 bg-[#DEE42F] text-white text-[10px] font-medium hover:bg-[#C62828] transition-colors flex items-center gap-1 disabled:opacity-50"
                 >
                   {fetching[row.label] ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Fetching</> : <><Search className="w-2.5 h-2.5" /> Auto-fetch</>}
                 </button>
@@ -4856,7 +4864,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 value={row.value}
                 onChange={(e) => { row.setter(e.target.value); setAssessmentData({ ...assessmentData, [row.field]: e.target.value }); }}
                 placeholder={row.placeholder}
-                className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm"
+                className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
               />
             </div>
           ))}
@@ -4868,7 +4876,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
         <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the synthesis.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none" />
+          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
       </div>
 
       {canSynthesize && !isComplete && (
@@ -4891,12 +4899,12 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-64 overflow-y-auto text-sm text-[#4A4840]">{assessmentData.content}</div>
+          <div className="bg-[#E4E2DC] p-4 max-h-64 overflow-y-auto text-sm text-[#4A4840]">{assessmentData.content}</div>
         </div>
       )}
 
       {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+        <div className="bg-amber-50 border border-amber-200 p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
@@ -5059,7 +5067,7 @@ Write in flowing prose with specific examples. End with priority recommendations
     <div className="max-w-4xl mx-auto p-8 animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#10B981]/10 rounded-xl flex items-center justify-center">
+        <div className="w-12 h-12 bg-[#10B981]/10 flex items-center justify-center">
           <Newspaper className="w-6 h-6 text-[#10B981]" />
         </div>
         <div>
@@ -5089,7 +5097,7 @@ Example:
 - Gartner Cool Vendor 2025: Named in category report
 - Inc. 5000 (2025): Ranked #234 fastest growing
 ..."
-          className="w-full h-28 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none text-sm"
+          className="w-full h-28 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
         />
         <p className="text-xs text-[#8A877D] mt-2">
           Include: news articles, podcast appearances, conference keynotes, analyst mentions, awards announcements, industry rankings
@@ -5123,7 +5131,7 @@ Example:
               <Check className="w-4 h-4 text-[#10B981]" />
               <span className="text-sm font-medium text-[#0B0B0B]">Performance Assessment Complete</span>
             </div>
-            <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-80 overflow-y-auto">
+            <div className="bg-[#E4E2DC] p-4 max-h-80 overflow-y-auto">
               <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
             </div>
           </div>
@@ -5135,7 +5143,7 @@ Example:
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
         <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
-          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white resize-none" />
+          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -5144,7 +5152,7 @@ Example:
         </button>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 p-4 mb-6 text-red-700">{error}</div>}
 
       {isComplete && (
         <div className="card p-5 mb-4">
@@ -5163,14 +5171,14 @@ Example:
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#E4E2DC] rounded-lg p-4 max-h-96 overflow-y-auto">
+          <div className="bg-[#E4E2DC] p-4 max-h-96 overflow-y-auto">
             <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
       {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+        <div className="bg-amber-50 border border-amber-200 p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
@@ -5555,9 +5563,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
   // If no scores yet, show scoring prompt
   if (!hasValidScores) {
     return (
-      <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
+      <div className="dc-wrap dc-page pt-8 animate-fade-in">
         <div className="flex items-start gap-4 mb-8">
-          <div className="w-14 h-14 bg-[#DEE42F]/10 rounded-xl flex items-center justify-center flex-shrink-0">
+          <div className="w-14 h-14 bg-[#DEE42F]/10 flex items-center justify-center flex-shrink-0">
             <BarChart3 className="w-7 h-7 text-[#B23A3A]" />
           </div>
           <div>
@@ -5652,7 +5660,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
           )}
           
           {scoringError && (
-            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+            <div className="mt-4 bg-red-50 border border-red-200 p-4 text-red-700 text-sm">
               {scoringError}
             </div>
           )}
@@ -5684,7 +5692,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
           </button>
           <details className="mt-4 text-left text-xs text-[#B3B0A8]">
             <summary className="cursor-pointer">Debug Info</summary>
-            <pre className="mt-2 p-2 bg-[#E4E2DC] rounded overflow-auto max-h-40">
+            <pre className="mt-2 p-2 bg-[#E4E2DC] overflow-auto max-h-40">
               {JSON.stringify(scores, null, 2)}
             </pre>
           </details>
@@ -7239,8 +7247,19 @@ ${content.slice(0, 8000)}`;
             </button>
           )}
           <div className="min-w-0">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#0B0B0B] leading-tight">{project.brandName}</h2>
-            <p className="text-sm text-[#8A877D] mt-0.5">Conscious Compass Assessment Report | {industryName}</p>
+            <div className="flex items-center gap-3 mb-4">
+              <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
+                alt="Antenna Group" className="h-5" style={{ filter: 'brightness(0)' }} />
+              <span className="w-px h-4 bg-[#DCDAD3]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B0B0B]">The Conscious Compass</span>
+            </div>
+            <h2 className="font-bold text-[#0B0B0B]"
+              style={{ fontSize: 'clamp(34px,5.5vw,72px)', letterSpacing: '-0.035em', lineHeight: 0.92, maxWidth: '14ch' }}>
+              {project.brandName}
+            </h2>
+            <p className="text-sm font-semibold text-[#8A877D] mt-5" style={{ letterSpacing: '0.04em' }}>
+              Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
+            </p>
           </div>
         </div>
         {!isReadonly ? (
@@ -7259,26 +7278,22 @@ ${content.slice(0, 8000)}`;
         )}
       </div>
 
-      {/* Hero Section - Score & Chart Side by Side */}
-      <div className="card p-6 mb-6">
-        <div className="grid md:grid-cols-2 gap-6 items-start">
+      {/* Hero — display masthead, tiles rather than a boxed card */}
+      <div className="mb-10">
+        <div className="grid md:grid-cols-2 gap-10 items-start">
           {/* Left: Score & Summary */}
           <div>
-            <div className="flex items-start gap-4 mb-4">
-              <div className="text-center flex-shrink-0">
-                <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold" style={{ backgroundColor: stage.color }}>
-                  {animatedScore}
-                </div>
-                <div className="text-xs text-[#8A877D] mt-1">out of 100</div>
+            <div className="dc-kicker mb-3">{stage.name}</div>
+            <div className="flex items-end gap-4 mb-4">
+              <div className="dc-display" style={{ fontSize: 'clamp(64px, 9vw, 118px)', lineHeight: 0.82 }}>
+                {animatedScore}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-lg font-bold text-[#0B0B0B] mb-1">{stage.name}</div>
-                <p className="text-sm text-[#8A877D] leading-relaxed">{stage.description}</p>
-              </div>
+              <div className="dc-kicker-sm pb-3">out of 100</div>
             </div>
-            <div className="border-t border-[#DCDAD3] pt-4">
+            <p className="text-sm text-[#8A877D] leading-relaxed mb-5" style={{ maxWidth: '46ch' }}>{stage.description}</p>
+            <div className="border-t border-[#0B0B0B] pt-5" style={{ borderTopWidth: 2 }}>
               {scores.headline && (
-                <p className="text-base font-medium text-[#0B0B0B] mb-3 italic">
+                <p className="dc-quote mb-4">
                   "{scores.headline}"
                 </p>
               )}
@@ -7295,12 +7310,12 @@ ${content.slice(0, 8000)}`;
         </div>
       </div>
 
-      {/* Score Grid - Compact */}
-      <div className="grid grid-cols-4 md:grid-cols-8 gap-2 mb-6">
+      {/* Score tiles — separated by paper, not by borders */}
+      <div className="dc-tiles grid-cols-4 md:grid-cols-8 mb-10" style={{ gridTemplateColumns: undefined }}>
         {ATTRIBUTES.map(attr => (
-          <div key={attr.id} className="card p-3 text-center">
-            <div className="text-xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-            <div className="text-[9px] text-[#8A877D] uppercase tracking-wide leading-tight break-words">{attr.name}</div>
+          <div key={attr.id} className="dc-tile" style={{ gap: 6, padding: '14px 12px' }}>
+            <div className="dc-kicker-sm leading-tight break-words">{attr.name}</div>
+            <div className="text-3xl font-bold tracking-tight" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
           </div>
         ))}
       </div>
@@ -7312,7 +7327,7 @@ ${content.slice(0, 8000)}`;
       <div className="mt-6 mb-6">
         <button 
           onClick={() => toggleSection('attributes')} 
-          className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
+          className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
         >
           <span>ATTRIBUTE ANALYSIS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.attributes ? 'rotate-180' : ''}`} />
@@ -7370,12 +7385,28 @@ ${content.slice(0, 8000)}`;
         />
       )}
 
+      {/* Masthead stat bar */}
+      <div className="h-0.5 bg-[#0B0B0B] mt-2 mb-0" />
+      <div className="grid gap-6 pt-5 pb-8" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))' }}>
+        {[
+          ['Overall score', <>{overall}<span className="text-[15px] font-medium text-[#8A877D]" style={{ letterSpacing: 0 }}> / 100</span></>],
+          ['Maturity level', stage.name],
+          ['Sector', industryName],
+          ...(benchmark?.rank ? [['Rank in sector', `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}`]] : []),
+        ].map(([label, value], i) => (
+          <div key={i}>
+            <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#8A877D] mb-1.5">{label}</div>
+            <div className="font-bold text-[#0B0B0B]" style={{ fontSize: 30, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Brand Footprint - Collapsible */}
       {scores?.footprint && (
         <div className="mb-6">
           <button
             onClick={() => toggleSection('footprint')}
-            className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
+            className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
           >
             <span>BRAND FOOTPRINT</span>
             <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.footprint ? 'rotate-180' : ''}`} />
@@ -7391,7 +7422,7 @@ ${content.slice(0, 8000)}`;
       {/* Campaign Coherence - Collapsible */}
       {!campaignStage && (
         <div className="mb-6">
-          <div className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">CAMPAIGN COHERENCE</div>
+          <div className="dc-sec-head mb-4">CAMPAIGN COHERENCE</div>
           <div className="card p-4 border-l-4 border-amber-400">
             <p className="text-sm text-[#4A4840] leading-relaxed">
               These scores were produced before campaign coherence existed, or the scoring pass did not return it.
@@ -7410,7 +7441,7 @@ ${content.slice(0, 8000)}`;
         <div className="mb-6">
           <button
             onClick={() => toggleSection('campaign')}
-            className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
+            className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
           >
             <span>CAMPAIGN COHERENCE</span>
             <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.campaign ? 'rotate-180' : ''}`} />
@@ -7420,7 +7451,7 @@ ${content.slice(0, 8000)}`;
               <div className="card p-5">
                 <div className="flex flex-wrap items-start gap-4 mb-4">
                   <div className="text-center flex-shrink-0">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
+                    <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
                       {campaignStage.level === 0 ? '—' : campaignStage.level}
                     </div>
                     <div className="text-[10px] text-[#8A877D] mt-1">{campaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
@@ -7485,7 +7516,7 @@ ${content.slice(0, 8000)}`;
                     {campaignAffected.map(attr => {
                       const adj = campaignAdjustment(attr.id);
                       return (
-                        <div key={attr.id} className="flex items-center justify-between bg-[#F2F0EA] rounded px-2.5 py-1.5">
+                        <div key={attr.id} className="flex items-center justify-between bg-[#F2F0EA] px-2.5 py-1.5">
                           <span className="text-xs font-medium text-[#0B0B0B] truncate">{attr.name}</span>
                           <span className="text-xs tabular-nums text-[#8A877D] flex-shrink-0 ml-2">
                             {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
@@ -7506,7 +7537,7 @@ ${content.slice(0, 8000)}`;
       {/* Industry Benchmark - Collapsible */}
       {benchmarkUnavailableReason && (
         <div className="mb-6">
-          <div className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">BENCHMARK COMPARISON</div>
+          <div className="dc-sec-head mb-4">BENCHMARK COMPARISON</div>
           <div className="card p-4 border-l-4 border-amber-400">
             <p className="text-sm text-[#4A4840] leading-relaxed">{benchmarkUnavailableReason}</p>
           </div>
@@ -7516,7 +7547,7 @@ ${content.slice(0, 8000)}`;
         <div className="mb-6">
           <button
             onClick={() => toggleSection('benchmark')}
-            className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
+            className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
           >
             <span>BENCHMARK COMPARISON</span>
             <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.benchmark ? 'rotate-180' : ''}`} />
@@ -7533,7 +7564,7 @@ ${content.slice(0, 8000)}`;
                 <BenchmarkSpread benchmark={benchmark} brandName={project.brandName} />
               </div>
 
-              <div className="bg-white border border-[#DCDAD3] rounded p-5" ref={benchmarkRadarRef}>
+              <div className="bg-white border border-[#DCDAD3] p-5" ref={benchmarkRadarRef}>
                 <div className="mb-3">
                   <h3 className="font-semibold text-[#0B0B0B] text-sm">Profile Against Benchmark</h3>
                   <p className="text-xs text-[#8A877D] mt-1">
@@ -7559,7 +7590,7 @@ ${content.slice(0, 8000)}`;
       <div className="mb-6">
         <button 
           onClick={() => toggleSection('recommendations')} 
-          className="w-full flex items-center justify-between kicker mb-3 pb-2 border-b border-[#DCDAD3] hover:text-[#0B0B0B] transition-colors"
+          className="dc-sec-head mb-4 hover:opacity-60 transition-opacity"
         >
           <span>RECOMMENDATIONS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.recommendations ? 'rotate-180' : ''}`} />
@@ -7576,7 +7607,7 @@ ${content.slice(0, 8000)}`;
                     </div>
                   </div>
                   <p className="text-xs text-[#8A877D] leading-relaxed mb-2">{r.description}</p>
-                  <div className="bg-[#E4E2DC] rounded-lg p-2 mb-2">
+                  <div className="bg-[#E4E2DC] p-2 mb-2">
                     <p className="text-xs text-[#4A4840] leading-relaxed"><span className="font-medium text-[#B23A3A]">Benefit:</span> {r.impact}</p>
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -7600,7 +7631,7 @@ ${content.slice(0, 8000)}`;
                         </div>
                       </div>
                       <p className="text-xs text-[#8A877D] leading-relaxed mb-2">{r.description}</p>
-                      <div className="bg-[#E4E2DC] rounded-lg p-2 mb-2">
+                      <div className="bg-[#E4E2DC] p-2 mb-2">
                         <p className="text-xs text-[#4A4840] leading-relaxed"><span className="font-medium text-[#B23A3A]">Benefit:</span> {r.impact}</p>
                       </div>
                       <div className="flex flex-wrap gap-1">
@@ -7750,7 +7781,7 @@ ${content.slice(0, 8000)}`;
                 className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#DEE42F]/10 rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-[#DEE42F]/10 flex items-center justify-center">
                     <Globe className="w-5 h-5 text-[#B23A3A]" />
                   </div>
                   <div className="text-left">
@@ -7765,7 +7796,7 @@ ${content.slice(0, 8000)}`;
                   {assessments.website?.autoAssessContent && (
                     <div>
                       <h5 className="text-sm font-medium text-[#B23A3A] mb-2">Auto-Assess Analysis</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.website.autoAssessContent}</pre>
                       </div>
                     </div>
@@ -7773,7 +7804,7 @@ ${content.slice(0, 8000)}`;
                   {assessments.website?.seoAssessment && (
                     <div>
                       <h5 className="text-sm font-medium text-[#B23A3A] mb-2">SEO Visibility Assessment</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.website.seoAssessment}</pre>
                       </div>
                     </div>
@@ -7781,7 +7812,7 @@ ${content.slice(0, 8000)}`;
                   {assessments.website?.content && (
                     <div>
                       <h5 className="text-sm font-medium text-[#B23A3A] mb-2">Full Website Analysis</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.website.content}</pre>
                       </div>
                     </div>
@@ -7797,7 +7828,7 @@ ${content.slice(0, 8000)}`;
                 className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#8B5CF6]/10 rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-[#8B5CF6]/10 flex items-center justify-center">
                     <Users className="w-5 h-5 text-[#8B5CF6]" />
                   </div>
                   <div className="text-left">
@@ -7812,7 +7843,7 @@ ${content.slice(0, 8000)}`;
                   {assessments.social?.redditAnswersContent && (
                     <div>
                       <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Reddit Answers (AI Search Visibility)</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.social.redditAnswersContent}</pre>
                       </div>
                     </div>
@@ -7820,7 +7851,7 @@ ${content.slice(0, 8000)}`;
                   {assessments.social?.content && (
                     <div>
                       <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Full Social Media Analysis</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.social.content}</pre>
                       </div>
                     </div>
@@ -7836,7 +7867,7 @@ ${content.slice(0, 8000)}`;
                 className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#3B82F6]/10 rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-[#3B82F6]/10 flex items-center justify-center">
                     <Bot className="w-5 h-5 text-[#3B82F6]" />
                   </div>
                   <div className="text-left">
@@ -7849,7 +7880,7 @@ ${content.slice(0, 8000)}`;
               {expandedSections.readoutAI && (
                 <div className="border-t border-[#DCDAD3] p-4 bg-[#F2F0EA]">
                   {assessments.aiReputation?.content ? (
-                    <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                    <div className="bg-white p-4 max-h-64 overflow-y-auto">
                       <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
                     </div>
                   ) : (
@@ -7866,7 +7897,7 @@ ${content.slice(0, 8000)}`;
                 className="w-full flex items-center justify-between p-4 hover:bg-[#F2F0EA] transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#10B981]/10 rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-[#10B981]/10 flex items-center justify-center">
                     <Newspaper className="w-5 h-5 text-[#10B981]" />
                   </div>
                   <div className="text-left">
@@ -7881,7 +7912,7 @@ ${content.slice(0, 8000)}`;
                   {assessments.earnedMedia?.autoAssessContent && (
                     <div>
                       <h5 className="text-sm font-medium text-[#10B981] mb-2">Auto-Assess Earned Media Performance</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.earnedMedia.autoAssessContent}</pre>
                       </div>
                     </div>
@@ -7889,7 +7920,7 @@ ${content.slice(0, 8000)}`;
                   {assessments.earnedMedia?.content && (
                     <div>
                       <h5 className="text-sm font-medium text-[#10B981] mb-2">Full Earned Media Analysis</h5>
-                      <div className="bg-white rounded-lg p-4 max-h-64 overflow-y-auto">
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.earnedMedia.content}</pre>
                       </div>
                     </div>
@@ -8092,7 +8123,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search brands..."
-                  className="w-full pl-9 pr-4 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm"
+                  className="w-full pl-9 pr-4 py-2 border border-[#DCDAD3] bg-white text-sm"
                 />
               </div>
 
@@ -8100,7 +8131,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <select
                 value={filterIndustry}
                 onChange={(e) => setFilterIndustry(e.target.value)}
-                className="px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm"
+                className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm"
               >
                 <option value="all">All Industries</option>
                 {uniqueIndustries.map(ind => (
@@ -8112,7 +8143,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <select
                 value={filterMaturity}
                 onChange={(e) => setFilterMaturity(e.target.value)}
-                className="px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm"
+                className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm"
               >
                 <option value="all">All Maturity Levels</option>
                 {uniqueMaturityLevels.map(level => (
@@ -8124,7 +8155,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <select
                 value={filterBusinessModel}
                 onChange={(e) => setFilterBusinessModel(e.target.value)}
-                className="px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm"
+                className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm"
               >
                 <option value="all">All Models</option>
                 <option value="b2b">B2B</option>
@@ -8136,7 +8167,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
-                  className="px-3 py-2 text-sm text-[#B23A3A] hover:bg-[#DEE42F]/10 rounded-lg transition-colors flex items-center gap-1"
+                  className="px-3 py-2 text-sm text-[#B23A3A] hover:bg-[#DEE42F]/10 transition-colors flex items-center gap-1"
                 >
                   <X className="w-4 h-4" /> Clear
                 </button>
@@ -8190,7 +8221,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-[#0B0B0B] truncate">{r.brandName}</span>
                         {r.isManual && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">Manual</span>
+                          <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 ">Manual</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-[#8A877D] mt-0.5">
@@ -8240,7 +8271,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                         <div className="flex-1">
                           <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
                             {ATTRIBUTES.map(attr => (
-                              <div key={attr.id} className="text-center p-2 bg-white rounded-lg">
+                              <div key={attr.id} className="text-center p-2 bg-white ">
                                 <div className="text-lg font-bold" style={{ color: attr.color }}>{r.scores?.[attr.id] || 0}</div>
                                 <div className="text-[10px] text-[#8A877D] truncate">{attr.name}</div>
                               </div>
@@ -8274,7 +8305,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       {/* Add Manual Entry Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-[#DCDAD3]">
               <h3 className="text-xl font-bold text-[#0B0B0B]">Add Manual Entry</h3>
               <button onClick={() => setShowAddModal(false)} className="text-[#8A877D] hover:text-[#0B0B0B]">
@@ -8289,7 +8320,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                   value={manualEntry.brandName}
                   onChange={(e) => setManualEntry({ ...manualEntry, brandName: e.target.value })}
                   placeholder="Enter brand name"
-                  className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg"
+                  className="w-full px-3 py-2 border border-[#DCDAD3] "
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -8298,7 +8329,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                   <select
                     value={manualEntry.businessModel}
                     onChange={(e) => setManualEntry({ ...manualEntry, businessModel: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg"
+                    className="w-full px-3 py-2 border border-[#DCDAD3] "
                   >
                     <option value="b2b">B2B</option>
                     <option value="b2c">B2C</option>
@@ -8310,7 +8341,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                   <select
                     value={manualEntry.industry}
                     onChange={(e) => setManualEntry({ ...manualEntry, industry: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg"
+                    className="w-full px-3 py-2 border border-[#DCDAD3] "
                   >
                     {industries.map(ind => (
                       <option key={ind.id} value={ind.id}>{ind.name}</option>
@@ -8320,7 +8351,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               </div>
               
               {/* Total Compass Score */}
-              <div className="bg-[#E4E2DC] rounded-lg p-4">
+              <div className="bg-[#E4E2DC] p-4">
                 <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Total Compass Score (0-100) *</label>
                 <div className="flex items-center gap-4">
                   <input
@@ -8329,7 +8360,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     max="100"
                     value={manualEntry.totalScore}
                     onChange={(e) => setManualEntry({ ...manualEntry, totalScore: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
-                    className="w-24 px-3 py-2 border border-[#DCDAD3] rounded-lg text-center text-lg font-bold"
+                    className="w-24 px-3 py-2 border border-[#DCDAD3] text-center text-lg font-bold"
                   />
                   <span className="text-sm text-[#8A877D]">
                     Weighted score (not auto-calculated from attributes)
@@ -8353,14 +8384,14 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                           ...manualEntry,
                           scores: { ...manualEntry.scores, [attr.id]: parseInt(e.target.value) || 0 }
                         })}
-                        className="w-20 px-2 py-1 border border-[#DCDAD3] rounded text-center"
+                        className="w-20 px-2 py-1 border border-[#DCDAD3] text-center"
                       />
                     </div>
                   ))}
                 </div>
               </div>
               
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <div className="bg-yellow-50 border border-yellow-200 p-3">
                 <p className="text-sm text-yellow-800">
                   <strong>Note:</strong> Manual entries will be flagged as such in the results grid.
                 </p>
@@ -8414,8 +8445,8 @@ function OnboardingTour({ onComplete }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1A1A1A] rounded-lg max-w-lg w-full overflow-hidden animate-fade-in">
-        <div className="bg-[#E8FF00] p-8 text-center">
+      <div className="bg-[#0B0B0B] max-w-lg w-full overflow-hidden animate-fade-in">
+        <div className="bg-[#DEE42F] p-8 text-center">
           <Icon className="w-16 h-16 text-[#0B0B0B] mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-[#0B0B0B]">{currentStep.title}</h2>
         </div>
@@ -8428,7 +8459,7 @@ function OnboardingTour({ onComplete }) {
             {steps.map((_, i) => (
               <div 
                 key={i} 
-                className={`w-2 h-2 rounded-full transition-colors ${i === step ? 'bg-[#E8FF00]' : 'bg-[#666666]'}`}
+                className={`w-2 h-2 rounded-full transition-colors ${i === step ? 'bg-[#DEE42F]' : 'bg-[#666666]'}`}
               />
             ))}
           </div>
@@ -8437,7 +8468,7 @@ function OnboardingTour({ onComplete }) {
             {step > 0 && (
               <button 
                 onClick={() => setStep(step - 1)} 
-                className="flex-1 bg-transparent border border-[#E8FF00] text-[#E8FF00] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#E8FF00] hover:text-[#0B0B0B] transition-colors"
+                className="flex-1 bg-transparent border border-[#E8FF00] text-[#E8FF00] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#DEE42F] hover:text-[#0B0B0B] transition-colors"
               >
                 Back
               </button>
@@ -8445,7 +8476,7 @@ function OnboardingTour({ onComplete }) {
             {step < steps.length - 1 ? (
               <button 
                 onClick={() => setStep(step + 1)} 
-                className="flex-1 bg-[#E8FF00] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
+                className="flex-1 bg-[#DEE42F] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
               >
                 Next
               </button>
@@ -8455,7 +8486,7 @@ function OnboardingTour({ onComplete }) {
                   localStorage.setItem('conscious-compass-onboarded', 'true');
                   onComplete();
                 }} 
-                className="flex-1 bg-[#E8FF00] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
+                className="flex-1 bg-[#DEE42F] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
               >
                 Get Started
               </button>
@@ -8650,7 +8681,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
               <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full">
                 <div className="text-sm font-medium text-[#0B0B0B] mb-2">{bucket.count}</div>
                 <div 
-                  className="w-full rounded-t-lg transition-all duration-500"
+                  className="w-full -t-lg transition-all duration-500"
                   style={{ 
                     backgroundColor: bucket.color,
                     height: `${barHeight}px`,
@@ -8698,7 +8729,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         </div>
 
         {error && (
-          <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4 text-sm">
+          <div className="p-4 bg-red-50 text-red-700 mb-4 text-sm">
             {error}
           </div>
         )}
@@ -8721,9 +8752,9 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         {aiInsights && !loading && (
           <div className="space-y-4">
             {aiInsights.map((story, idx) => (
-              <div key={idx} className="p-5 bg-[#1A1A1A] rounded-xl">
+              <div key={idx} className="p-5 bg-[#0B0B0B] ">
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-full bg-[#E8FF00] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
+                  <div className="w-8 h-8 rounded-full bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
                     {idx + 1}
                   </div>
                   <div>
@@ -8968,8 +8999,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               onClick={() => toggleYear(y)}
               className={`px-3 py-1 text-xs font-medium transition-colors ${
                 (y === 'all' && selectedYears.includes('all')) || (!selectedYears.includes('all') && selectedYears.includes(y))
-                  ? 'bg-[#1A1A1A] text-white'
-                  : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
+                  ? 'bg-[#0B0B0B] text-white'
+                  : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
               }`}
             >
               {y === 'all' ? 'All time' : y}
@@ -8995,7 +9026,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             color: '#CFD32F',
           },
         ].map((tile, i) => (
-          <div key={i} className="bg-white border border-[#DCDAD3] p-4 rounded">
+          <div key={i} className="bg-white border border-[#DCDAD3] p-4 ">
             <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wide mb-1">{tile.label}</div>
             <div className="font-bold text-lg text-[#0B0B0B] truncate" style={{ color: tile.color }}>{tile.value}</div>
             {tile.sub !== undefined && <div className="text-xs text-[#8A877D]">avg {tile.sub}</div>}
@@ -9004,7 +9035,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       </div>
 
       {/* Hero: Landscape Octagon + Sector Legend */}
-      <div className="bg-white border border-[#DCDAD3] rounded p-6">
+      <div className="bg-white border border-[#DCDAD3] p-6">
         <div className="mb-5">
           <h3 className="font-semibold text-[#0B0B0B]">Consciousness Landscape</h3>
           <p className="text-xs text-[#8A877D] mt-1">
@@ -9169,8 +9200,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
             {/* Overall avg legend entry */}
             <div
-              className={`flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer select-none transition-all ${
-                showAllAvg ? 'ring-1 ring-[#DCDAD3] bg-[#FFFEF0]' : 'bg-[#FAFAF8] hover:bg-[#F2F0EA]'
+              className={`flex items-center gap-3 px-3 py-2.5  cursor-pointer select-none transition-all ${
+                showAllAvg ? 'ring-1 ring-[#DCDAD3] bg-[#FFFEF0]' : 'bg-[#FFFFFF] hover:bg-[#F2F0EA]'
               }`}
               onClick={handleAllAvgClick}
             >
@@ -9189,8 +9220,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               return (
                 <div
                   key={sector.key}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer transition-all select-none ${
-                    isActive ? 'ring-1 ring-[#DCDAD3]' : 'hover:bg-[#FAFAF8]'
+                  className={`flex items-center gap-3 px-3 py-2.5  cursor-pointer transition-all select-none ${
+                    isActive ? 'ring-1 ring-[#DCDAD3]' : 'hover:bg-[#FFFFFF]'
                   }`}
                   style={{ backgroundColor: isActive ? sector.color + '15' : '' }}
                   onClick={() => handleSectorClick(sector.key)}
@@ -9211,7 +9242,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       </div>
 
       {/* Attribute Landscape — dot range chart */}
-      <div className="bg-white border border-[#DCDAD3] rounded p-6">
+      <div className="bg-white border border-[#DCDAD3] p-6">
         <div className="mb-5">
           <h3 className="font-semibold text-[#0B0B0B]">Attribute Landscape</h3>
           <p className="text-xs text-[#8A877D] mt-1">
@@ -9259,7 +9290,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                             transform: 'translateX(-50%)',
                             whiteSpace: 'nowrap',
                           }}>
-                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded shadow-lg text-white text-xs font-semibold"
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-white text-xs font-semibold"
                             style={{ backgroundColor: s.color }}>
                             <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70 flex-shrink-0" />
                             {s.name}
@@ -9336,7 +9367,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
-                    <div className="w-0.5 h-4 bg-[#CFD32F] rounded mx-auto" />
+                    <div className="w-0.5 h-4 bg-[#CFD32F] mx-auto" />
                   </div>
                   <span><strong className="text-[#0B0B0B]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
                 </div>
@@ -9351,7 +9382,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       </div>
 
       {/* Sector Attribute Spread — rows = sectors, tracks = attributes */}
-      <div className="bg-white border border-[#DCDAD3] rounded p-6">
+      <div className="bg-white border border-[#DCDAD3] p-6">
         <div className="mb-5">
           <h3 className="font-semibold text-[#0B0B0B]">Sector Attribute Spread</h3>
           <p className="text-xs text-[#8A877D] mt-1">
@@ -9375,8 +9406,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
             return (
               <div key={sector.key}
-                className={`grid items-center gap-3 rounded px-2 py-1 -mx-2 cursor-pointer transition-colors ${
-                  isActive ? 'bg-[#F2F0EA]' : 'hover:bg-[#FAFAF8]'
+                className={`grid items-center gap-3  px-2 py-1 -mx-2 cursor-pointer transition-colors ${
+                  isActive ? 'bg-[#F2F0EA]' : 'hover:bg-[#FFFFFF]'
                 }`}
                 style={{ gridTemplateColumns: '140px 1fr 36px' }}
                 onClick={() => handleSectorClick(sector.key)}
@@ -9421,7 +9452,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                         {isHovered && (
                           <div className="absolute z-30 pointer-events-none"
                             style={{ bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
-                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded shadow-lg text-white text-xs font-semibold"
+                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-white text-xs font-semibold"
                               style={{ backgroundColor: sector.color }}>
                               <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70 flex-shrink-0" />
                               {a.name}
@@ -9487,7 +9518,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
-                    <div className="w-0.5 h-4 rounded mx-auto" style={{ backgroundColor: '#E53935' }} />
+                    <div className="w-0.5 h-4 mx-auto" style={{ backgroundColor: '#E53935' }} />
                   </div>
                   <span><strong className="text-[#0B0B0B]">Coloured line</strong> — the sector's overall average score across all eight attributes. The number on the right is this value.</span>
                 </div>
@@ -9514,8 +9545,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             const stage = getMaturityStage(sector.avgScore);
             return (
               <div key={sector.key}
-                className={`bg-white border rounded p-5 transition-all hover:shadow-sm cursor-pointer select-none ${
-                  activeSector === sector.key ? 'border-[#1A1A1A] shadow-sm' : 'border-[#DCDAD3]'
+                className={`bg-white border  p-5 transition-all cursor-pointer select-none ${
+                  activeSector === sector.key ? 'border-[#0B0B0B] ' : 'border-[#DCDAD3]'
                 }`}
                 onClick={() => handleSectorClick(sector.key)}
                 onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
@@ -9539,7 +9570,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     const isBot = bot2.some(t => t.id === attr.id);
                     return (
                       <div key={attr.id}
-                        className={`rounded p-1.5 text-center ${isTop ? 'bg-[#1A1A1A]' : isBot ? 'bg-[#F2F0EA]' : 'bg-[#FAFAF8]'}`}>
+                        className={`rounded p-1.5 text-center ${isTop ? 'bg-[#0B0B0B]' : isBot ? 'bg-[#F2F0EA]' : 'bg-[#FFFFFF]'}`}>
                         <div className={`text-[9px] font-semibold leading-none mb-0.5 ${isTop ? 'text-[#E2E65A]' : 'text-[#999]'}`}>
                           {attr.name.slice(0, 3).toUpperCase()}
                         </div>
@@ -9579,7 +9610,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       </div>
 
       {/* AI Landscape Analysis */}
-      <div className="bg-[#1A1A1A] rounded p-6">
+      <div className="bg-[#0B0B0B] p-6">
         <div className="flex items-start justify-between gap-4 mb-2">
           <div>
             <h3 className="font-semibold text-white">Landscape Analysis</h3>
@@ -9610,7 +9641,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
         </div>
 
         {landscapeAIError && (
-          <div className="mt-4 p-4 rounded text-sm" style={{ backgroundColor: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.3)', color: '#FCA5A5' }}>
+          <div className="mt-4 p-4 text-sm" style={{ backgroundColor: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.3)', color: '#FCA5A5' }}>
             {landscapeAIError}
           </div>
         )}
@@ -9623,7 +9654,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
         )}
 
         {!landscapeAI && !landscapeAILoading && !landscapeAIError && (
-          <div className="mt-6 text-center py-8 border border-dashed border-[#333] rounded">
+          <div className="mt-6 text-center py-8 border border-dashed border-[#333] ">
             <Sparkles className="w-8 h-8 text-[#444] mx-auto mb-3" />
             <p className="text-sm text-[#666]">No analysis available yet. It will appear here after the first Sunday night refresh.</p>
             {isAdmin && <p className="text-xs text-[#555] mt-2">As an admin, you can trigger it now using Force Refresh above.</p>}
@@ -9632,7 +9663,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
         {landscapeAI && !landscapeAILoading && (
           <div className="mt-5 space-y-4">
-            <div className="p-4 rounded" style={{ backgroundColor: 'rgba(232,255,0,0.08)', border: '1px solid rgba(232,255,0,0.2)' }}>
+            <div className="p-4 " style={{ backgroundColor: 'rgba(232,255,0,0.08)', border: '1px solid rgba(232,255,0,0.2)' }}>
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#E8FF00' }}>Landscape Summary</div>
               {landscapeAI.headline && (
                 <p className="font-bold leading-snug mb-2" style={{ color: '#FFFFFF', fontSize: '1.05rem' }}>{landscapeAI.headline}</p>
@@ -9641,14 +9672,14 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             </div>
 
             {landscapeAI.sectorAnalysis && (
-              <div className="p-4 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="p-4 " style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#B3B0A8' }}>Sector Analysis</div>
                 <div className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#D1D5DB' }}>{landscapeAI.sectorAnalysis}</div>
               </div>
             )}
 
             {landscapeAI.insights && (
-              <div className="p-4 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="p-4 " style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#B3B0A8' }}>Key Insights</div>
                 <div className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#D1D5DB' }}>{landscapeAI.insights}</div>
               </div>
@@ -9797,8 +9828,8 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             onClick={() => setViewMode('brands')}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               viewMode === 'brands' 
-                ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
+                ? 'bg-[#0B0B0B] text-white' 
+                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
             }`}
           >
             Compare Brands
@@ -9807,8 +9838,8 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             onClick={() => setViewMode('landscape')}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               viewMode === 'landscape' 
-                ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
+                ? 'bg-[#0B0B0B] text-white' 
+                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
             }`}
           >
             🌐 Landscape
@@ -9817,8 +9848,8 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             onClick={() => setViewMode('insights')}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               viewMode === 'insights' 
-                ? 'bg-[#1A1A1A] text-white' 
-                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#1A1A1A]'
+                ? 'bg-[#0B0B0B] text-white' 
+                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
             }`}
           >
             ✨ Insights
@@ -9851,7 +9882,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     <select
                       value={filterIndustry}
                       onChange={(e) => setFilterIndustry(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#DCDAD3] rounded text-sm"
+                      className="w-full px-3 py-2 border border-[#DCDAD3] text-sm"
                     >
                       {industries.map(ind => (
                         <option key={ind.id} value={ind.id}>{ind.name}</option>
@@ -9863,7 +9894,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     <select
                       value={filterBusinessModel}
                       onChange={(e) => setFilterBusinessModel(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#DCDAD3] rounded text-sm"
+                      className="w-full px-3 py-2 border border-[#DCDAD3] text-sm"
                     >
                       {businessModels.map(bm => (
                         <option key={bm.id} value={bm.id}>{bm.name}</option>
@@ -9881,7 +9912,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         <button
                           key={industry}
                           onClick={() => selectAllInIndustry(industry)}
-                          className="text-xs px-2 py-1 bg-[#E4E2DC] hover:bg-[#F2F0EA] rounded transition-colors"
+                          className="text-xs px-2 py-1 bg-[#E4E2DC] hover:bg-[#F2F0EA] transition-colors"
                         >
                           {industries.find(i => i.id === industry)?.name || industry}
                         </button>
@@ -9910,7 +9941,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         key={r.id}
                         onClick={() => toggleBrand(r)}
                         disabled={isDisabled}
-                        className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                        className={`w-full text-left p-3  border transition-colors ${
                           isSelected 
                             ? 'border-[#0B0B0B] bg-[#DEE42F]/5' 
                             : isDisabled 
@@ -9963,13 +9994,13 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         <div className="flex gap-1 text-xs">
                           <button
                             onClick={() => setChartType('radar')}
-                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'radar' ? 'bg-[#1A1A1A] text-white' : 'bg-[#E4E2DC] text-[#8A877D] hover:bg-[#F2F0EA]'}`}
+                            className={`px-3 py-1.5  transition-colors ${chartType === 'radar' ? 'bg-[#0B0B0B] text-white' : 'bg-[#E4E2DC] text-[#8A877D] hover:bg-[#F2F0EA]'}`}
                           >
                             Radar
                           </button>
                           <button
                             onClick={() => setChartType('bars')}
-                            className={`px-3 py-1.5 rounded-lg transition-colors ${chartType === 'bars' ? 'bg-[#1A1A1A] text-white' : 'bg-[#E4E2DC] text-[#8A877D] hover:bg-[#F2F0EA]'}`}
+                            className={`px-3 py-1.5  transition-colors ${chartType === 'bars' ? 'bg-[#0B0B0B] text-white' : 'bg-[#E4E2DC] text-[#8A877D] hover:bg-[#F2F0EA]'}`}
                           >
                             Bars
                           </button>
@@ -9994,7 +10025,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         );
                       })}
                       <div className="text-center border-l-2 border-[#DCDAD3] pl-4">
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl bg-[#1A1A1A]">
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl bg-[#0B0B0B]">
                           {Math.round(selectedBrands.reduce((sum, b) => sum + b.totalScore, 0) / selectedBrands.length)}
                         </div>
                         <div className="font-medium text-xs text-[#0B0B0B]">AVG</div>
@@ -10022,7 +10053,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                           {commonIndustry && (
                             <button
                               onClick={() => setShowIndustryAvg(!showIndustryAvg)}
-                              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${showIndustryAvg ? 'bg-[#E4E2DC] border-[#9CA3AF] text-[#8A877D]' : 'border-[#DCDAD3] text-[#B3B0A8] hover:border-[#999999]'}`}
+                              className={`text-xs px-3 py-1.5  border transition-colors ${showIndustryAvg ? 'bg-[#E4E2DC] border-[#9CA3AF] text-[#8A877D]' : 'border-[#DCDAD3] text-[#B3B0A8] hover:border-[#999999]'}`}
                             >
                               {showIndustryAvg ? '✓ ' : ''}Industry avg overlay
                             </button>
@@ -10063,16 +10094,16 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                                       const score = brand.scores?.[attr.id] || 0;
                                       return (
                                         <div key={brand.id} className="flex-1 relative">
-                                          <div className="h-5 bg-[#F2F0EA] rounded overflow-hidden">
-                                            <div className="h-full rounded transition-all duration-500" style={{ width: `${score}%`, backgroundColor: attr.color }} />
+                                          <div className="h-5 bg-[#F2F0EA] overflow-hidden">
+                                            <div className="h-full transition-all duration-500" style={{ width: `${score}%`, backgroundColor: attr.color }} />
                                           </div>
                                           <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{score}</div>
                                         </div>
                                       );
                                     })}
                                     <div className="flex-1 relative">
-                                      <div className="h-5 bg-[#F2F0EA] rounded overflow-hidden">
-                                        <div className="h-full rounded transition-all duration-500 bg-[#1A1A1A]" style={{ width: `${avgScore}%` }} />
+                                      <div className="h-5 bg-[#F2F0EA] overflow-hidden">
+                                        <div className="h-full transition-all duration-500 bg-[#0B0B0B]" style={{ width: `${avgScore}%` }} />
                                       </div>
                                       <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{avgScore}</div>
                                     </div>
@@ -10102,7 +10133,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                           return diff > best.diff ? { ...a, diff } : best;
                         }, { diff: -Infinity, name: '-', score: 0 });
                         return (
-                          <div key={brand.id} className="flex items-start gap-3 p-3 rounded-lg bg-[#F2F0EA]">
+                          <div key={brand.id} className="flex items-start gap-3 p-3 bg-[#F2F0EA]">
                             <div className="w-2 h-12 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: color }} />
                             <div className="flex-1 min-w-0">
                               <div className="font-semibold text-sm text-[#0B0B0B] mb-2">{brand.brandName}</div>
@@ -10137,15 +10168,15 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                       <div className="card p-4 md:p-6">
                         <h3 className="text-sm font-medium text-[#0B0B0B] mb-4">Head to Head</h3>
                         <div className="grid grid-cols-3 gap-3 text-center mb-4">
-                          <div className="bg-[#E4E2DC] rounded-lg p-3">
+                          <div className="bg-[#E4E2DC] p-3">
                             <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
                             <div className="text-xs text-[#8A877D] mt-1 truncate">{a.brandName} leads</div>
                           </div>
-                          <div className="bg-[#E4E2DC] rounded-lg p-3">
+                          <div className="bg-[#E4E2DC] p-3">
                             <div className="text-2xl font-bold text-[#B3B0A8]">{tied.length}</div>
                             <div className="text-xs text-[#8A877D] mt-1">Tied</div>
                           </div>
-                          <div className="bg-[#E4E2DC] rounded-lg p-3">
+                          <div className="bg-[#E4E2DC] p-3">
                             <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
                             <div className="text-xs text-[#8A877D] mt-1 truncate">{b.brandName} leads</div>
                           </div>
@@ -10182,14 +10213,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                   <div className="card p-4 md:p-6">
                     <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Quick Insights</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                      <div className="bg-[#E4E2DC] rounded-lg p-3">
+                      <div className="bg-[#E4E2DC] p-3">
                         <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Highest Overall Score</div>
                         <div className="text-[#B23A3A] font-bold text-sm">
                           {selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).brandName}
                           <span className="text-[#8A877D] font-normal ml-2 text-xs">({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})</span>
                         </div>
                       </div>
-                      <div className="bg-[#E4E2DC] rounded-lg p-3">
+                      <div className="bg-[#E4E2DC] p-3">
                         <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Largest Attribute Gap</div>
                         {(() => {
                           let maxGap = 0, gapAttr = ATTRIBUTES[0];
@@ -10201,7 +10232,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                           return <div className="text-[#B23A3A] font-bold text-sm">{gapAttr.name} <span className="text-[#8A877D] font-normal text-xs">({maxGap} pts spread)</span></div>;
                         })()}
                       </div>
-                      <div className="bg-[#E4E2DC] rounded-lg p-3">
+                      <div className="bg-[#E4E2DC] p-3">
                         <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Collective Strength</div>
                         {(() => {
                           let maxAvg = 0, strongAttr = ATTRIBUTES[0];
@@ -10212,7 +10243,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                           return <div className="text-[#059669] font-bold text-sm">{strongAttr.name} <span className="text-[#8A877D] font-normal text-xs">({Math.round(maxAvg)} avg)</span></div>;
                         })()}
                       </div>
-                      <div className="bg-[#E4E2DC] rounded-lg p-3">
+                      <div className="bg-[#E4E2DC] p-3">
                         <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Collective Weakness</div>
                         {(() => {
                           let minAvg = 100, weakAttr = ATTRIBUTES[0];
@@ -10432,7 +10463,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                 </div>
 
                 {resetting === link.token && (
-                  <div className="mt-3 bg-[#F2F0EA] rounded-lg p-3">
+                  <div className="mt-3 bg-[#F2F0EA] p-3">
                     <p className="text-[11px] text-[#8A877D] mb-2 leading-relaxed">
                       The old password cannot be recovered, so the report is rebuilt from the saved
                       assessment and re-encrypted. The URL stays the same, so any link already sent keeps working.
@@ -10442,7 +10473,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                       <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && doReset(link)}
                         placeholder="New password"
-                        className="flex-1 px-2 py-1.5 border border-[#DCDAD3] rounded bg-white text-xs" />
+                        className="flex-1 px-2 py-1.5 border border-[#DCDAD3] bg-white text-xs" />
                       <button onClick={() => doReset(link)} disabled={busy === link.token || !sourceFor(link)}
                         className="btn-primary text-xs px-3 py-1.5">
                         {busy === link.token ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Set'}
@@ -10530,7 +10561,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
   const [showClientLinks, setShowClientLinks] = useState(false);
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
+    <div className="dc-wrap dc-page pt-8 animate-fade-in">
       {showClientLinks && (
         <ClientLinksModal
           assessments={assessments}
@@ -10549,17 +10580,17 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             <>
               <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
               <button onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
                 <Upload className="w-4 h-4" /> Import
               </button>
               <button onClick={() => setShowClientLinks(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
                 <ExternalLink className="w-4 h-4" /> Client Links
               </button>
             </>
           )}
           <button onClick={onBack}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
         </div>
@@ -10567,7 +10598,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
       {/* Sharing tip */}
       {!isReadonly && (
-        <div className="bg-[#F0F7FF] border border-[#BFDBFE] rounded-lg px-4 py-3 mb-5">
+        <div className="bg-[#F0F7FF] border border-[#BFDBFE] px-4 py-3 mb-5">
           <p className="text-xs text-[#1E40AF]">
             <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup.
           </p>
@@ -10593,7 +10624,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                 placeholder="Search brands…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors"
               />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#B3B0A8] hover:text-[#0B0B0B]">
@@ -10604,7 +10635,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             {/* Stage filter */}
             {usedStages.length > 1 && (
               <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
-                className="px-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#4A4840]">
+                className="px-3 py-2 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840]">
                 <option value="">All stages</option>
                 {usedStages.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -10612,14 +10643,14 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             {/* Industry filter */}
             {usedIndustries.length > 1 && (
               <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
-                className="px-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#4A4840]">
+                className="px-3 py-2 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840]">
                 <option value="">All industries</option>
                 {usedIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
               </select>
             )}
             {/* Sort */}
             <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-              className="px-3 py-2 text-sm border border-[#DCDAD3] rounded bg-white focus:outline-none focus:border-[#1A1A1A] transition-colors text-[#4A4840]">
+              className="px-3 py-2 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840]">
               <option value="date-desc">Newest first</option>
               <option value="date-asc">Oldest first</option>
               <option value="score-desc">Highest score</option>
@@ -10644,11 +10675,11 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           ) : (
             <div className="space-y-2">
               {filtered.map(({ a, i, overallScore, maturity, industryName }) => (
-                <div key={i} className="card px-4 py-3 hover:shadow-md transition-shadow">
+                <div key={i} className="card px-4 py-3">
                   <div className="flex items-center gap-3">
                     {/* Score badge */}
                     {overallScore !== null && (
-                      <div className="w-11 h-11 rounded-lg flex-shrink-0 flex items-center justify-center"
+                      <div className="w-11 h-11 flex-shrink-0 flex items-center justify-center"
                         style={{ backgroundColor: (maturity?.color || '#E53935') + '18' }}>
                         <span className="text-base font-bold" style={{ color: maturity?.color || '#E53935' }}>{overallScore}</span>
                       </div>
@@ -10669,26 +10700,26 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       {!isReadonly && (
                         <>
                           <button onClick={() => onShare(a)} title="Share link"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] hover:bg-[#E5393508] rounded transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] hover:bg-[#E5393508] transition-colors">
                             <Share2 className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onExport(a)} title="Export JSON"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] hover:bg-[#E4E2DC] rounded transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
                             <Download className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onRescore(a)}
-                            className="px-3 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors whitespace-nowrap hidden sm:block">
+                            className="px-3 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors whitespace-nowrap hidden sm:block">
                             Rescore
                           </button>
                         </>
                       )}
                       <button onClick={() => onLoad(a)}
-                        className="px-4 py-1.5 text-xs font-semibold bg-[#1A1A1A] text-white hover:bg-[#333333] rounded transition-colors whitespace-nowrap">
+                        className="px-4 py-1.5 text-xs font-semibold bg-[#0B0B0B] text-white hover:bg-[#333333] transition-colors whitespace-nowrap">
                         Load
                       </button>
                       {!isReadonly && (
                         <button onClick={() => onDelete(i)} title="Delete"
-                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#DCDAD3] hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#DCDAD3] hover:text-red-500 hover:bg-red-50 transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -10699,19 +10730,19 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                   {!isReadonly && (
                     <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#E4E2DC] sm:hidden">
                       <button onClick={() => onShare(a)} title="Share"
-                        className="w-8 h-8 flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] rounded transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] transition-colors">
                         <Share2 className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onExport(a)} title="Export"
-                        className="w-8 h-8 flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] rounded transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] transition-colors">
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onRescore(a)}
-                        className="px-3 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:border-[#1A1A1A] hover:bg-[#E4E2DC] rounded transition-colors">
+                        className="px-3 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
                         Rescore
                       </button>
                       <button onClick={() => onDelete(i)} title="Delete"
-                        className="w-8 h-8 flex items-center justify-center text-[#DCDAD3] hover:text-red-500 rounded transition-colors ml-auto">
+                        className="w-8 h-8 flex items-center justify-center text-[#DCDAD3] hover:text-red-500 transition-colors ml-auto">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -10845,7 +10876,7 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
 
         {!url ? (
           <>
-            <div className="bg-[#F2F0EA] rounded-lg p-3 mb-4">
+            <div className="bg-[#F2F0EA] p-3 mb-4">
               <p className="text-xs text-[#4A4840] leading-relaxed">
                 The client sees scores, maturity, attribute analysis, campaign coherence,
                 the benchmark profile and the conclusion. They do not see recommendations,
@@ -10856,13 +10887,13 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
             <label className="text-xs font-medium text-[#8A877D] mb-1 block">Password</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder="Set a password for the client"
-              className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm mb-3" />
+              className="w-full px-3 py-2 border border-[#DCDAD3] bg-white text-sm mb-3" />
 
             <label className="text-xs font-medium text-[#8A877D] mb-1 block">Confirm password</label>
             <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && create()}
               placeholder="Repeat it"
-              className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm mb-3" />
+              className="w-full px-3 py-2 border border-[#DCDAD3] bg-white text-sm mb-3" />
 
             {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
 
@@ -10880,14 +10911,14 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
           </>
         ) : (
           <>
-            <div className="bg-[#F0F9F4] border border-[#BBE5CC] rounded-lg p-3 mb-4">
+            <div className="bg-[#F0F9F4] border border-[#BBE5CC] p-3 mb-4">
               <div className="flex items-center gap-1.5 mb-1">
                 <Check className="w-3.5 h-3.5 text-[#059669]" />
                 <span className="text-xs font-semibold text-[#059669]">Link created</span>
               </div>
               <p className="text-xs text-[#4A4840]">Send the password separately.</p>
             </div>
-            <div className="bg-[#F2F0EA] rounded-lg p-3 mb-3 break-all text-xs text-[#4A4840] font-mono">
+            <div className="bg-[#F2F0EA] p-3 mb-3 break-all text-xs text-[#4A4840] font-mono">
               {url}
             </div>
             <div className="flex gap-2">
@@ -10939,7 +10970,7 @@ function ClientReportView({ payload }) {
 
   return (
     <div className="min-h-screen bg-[#F2F0EA]">
-      <div className="max-w-5xl mx-auto p-6 sm:p-8">
+      <div className="dc-wrap dc-page pt-8">
         {/* Masthead. Client-facing view only; the internal report has no
             equivalent and should not gain one. */}
         <div className="mb-6">
@@ -10952,20 +10983,20 @@ function ClientReportView({ payload }) {
           <div className="text-xs font-bold text-[#B23A3A] uppercase tracking-[0.14em] mb-2">
             Brand Facing Report
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#0B0B0B] leading-tight">{project.brandName}</h1>
+          <h1 className="text-[clamp(34px,5vw,60px)] font-bold tracking-[-0.035em] leading-[0.94] text-[#0B0B0B]">{project.brandName}</h1>
           <p className="text-sm text-[#8A877D] mt-0.5">
             Conscious Compass Assessment{industryName ? ` | ${industryName}` : ''}
           </p>
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">RESULTS AT A GLANCE</h3>
+        <h3 className="dc-sec-head mb-4">RESULTS AT A GLANCE</h3>
         <div className="card p-6 mb-4">
           <div className="grid md:grid-cols-2 gap-6 items-start">
             <div>
               <div className="flex items-start gap-5">
                 <div className="text-center flex-shrink-0">
-                  <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-4xl font-bold"
+                  <div className="w-20 h-20 flex items-center justify-center text-white text-4xl font-bold"
                     style={{ backgroundColor: stage.color }}>
                     {overall}
                   </div>
@@ -10992,30 +11023,30 @@ function ClientReportView({ payload }) {
               </p>
             </div>
 
-            <div className="bg-[#E4E2DC] rounded-lg p-4 flex justify-center">
+            <div className="bg-[#E4E2DC] p-4 flex justify-center">
               <SpiderChart scores={scores} size={340} />
             </div>
           </div>
         </div>
 
         {/* ── Attribute scores ────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-6">
+        <div className="dc-tiles grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
           {ATTRIBUTES.map(a => (
-            <div key={a.id} className="card p-3 text-center">
-              <div className="text-2xl font-bold" style={{ color: a.color }}>{scores?.[a.id]?.score || 0}</div>
-              <div className="text-[10px] text-[#8A877D] uppercase tracking-wide mt-0.5">{a.name}</div>
+            <div key={a.id} className="dc-tile" style={{ gap: 6, padding: '14px 12px' }}>
+              <div className="dc-kicker-sm leading-tight break-words">{a.name}</div>
+              <div className="text-3xl font-bold tracking-tight" style={{ color: a.color }}>{scores?.[a.id]?.score || 0}</div>
             </div>
           ))}
         </div>
 
         {/* ── Maturity ────────────────────────────────────────── */}
-        <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">BRAND MATURITY</h3>
+        <h3 className="dc-sec-head mb-4">BRAND MATURITY</h3>
         <div className="mb-6">
           <MaturityContinuum score={overall} hideTitle />
         </div>
 
         {/* ── Attribute analysis, no recommendations ──────────── */}
-        <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">ATTRIBUTE ANALYSIS</h3>
+        <h3 className="dc-sec-head mb-4">ATTRIBUTE ANALYSIS</h3>
         <div className="grid md:grid-cols-2 gap-3 mb-6">
           {ATTRIBUTES.map(a => {
             const sc = scores?.[a.id] || {};
@@ -11046,7 +11077,7 @@ function ClientReportView({ payload }) {
         {/* ── Brand footprint ─────────────────────────────────── */}
         {payload.footprint && (
           <>
-            <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">BRAND FOOTPRINT</h3>
+            <h3 className="dc-sec-head mb-4">BRAND FOOTPRINT</h3>
             <div className="mb-6 overflow-hidden">
               <FootprintMosaic footprint={payload.footprint} brandName={project.brandName} compact />
             </div>
@@ -11056,11 +11087,11 @@ function ClientReportView({ payload }) {
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
           <>
-            <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">CAMPAIGN COHERENCE</h3>
+            <h3 className="dc-sec-head mb-4">CAMPAIGN COHERENCE</h3>
             <div className="card p-5 mb-6">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
+                  <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
                     {campaignStage.level === 0 ? '—' : campaignStage.level}
                   </div>
                   <div className="text-[10px] text-[#8A877D] mt-1">
@@ -11097,7 +11128,7 @@ function ClientReportView({ payload }) {
         {/* ── Profile against benchmark ───────────────────────── */}
         {benchmark && benchmarkAvg && (
           <>
-          <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">BENCHMARK COMPARISON</h3>
+          <h3 className="dc-sec-head mb-4">BENCHMARK COMPARISON</h3>
           <div className="card p-5 mb-3">
             <p className="text-xs text-[#8A877D] mb-3">
               {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
@@ -11130,7 +11161,7 @@ function ClientReportView({ payload }) {
         {/* ── Conclusion ──────────────────────────────────────── */}
         {payload.conclusion && (
           <>
-            <h3 className="kicker mb-3 pb-2 border-b border-[#DCDAD3]">CONCLUSIONS</h3>
+            <h3 className="dc-sec-head mb-4">CONCLUSIONS</h3>
             <div className="card p-6 mb-6">
               <p className="text-sm text-[#4A4840] leading-relaxed">{payload.conclusion}</p>
             </div>
@@ -11226,7 +11257,7 @@ function ClientReportGate({ token }) {
               onKeyDown={(e) => e.key === 'Enter' && unlock()}
               placeholder="Password"
               autoFocus
-              className="w-full px-3 py-2 border border-[#DCDAD3] rounded-lg bg-white text-sm mb-3"
+              className="w-full px-3 py-2 border border-[#DCDAD3] bg-white text-sm mb-3"
             />
             {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
             <button onClick={unlock} disabled={checking || !password}
@@ -11295,7 +11326,7 @@ function SharedReportView({ report, onClose }) {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
-            <div className="h-6 w-px bg-[#1A1A1A]" />
+            <div className="h-6 w-px bg-[#0B0B0B]" />
             <span className="text-lg font-semibold text-[#0B0B0B]">Conscious Compass</span>
           </div>
           <div className="flex items-center gap-3">
@@ -11348,7 +11379,7 @@ function SharedReportView({ report, onClose }) {
           <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">SCORE SUMMARY</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="text-center p-3 bg-[#E4E2DC] rounded-lg">
+              <div key={attr.id} className="text-center p-3 bg-[#E4E2DC] ">
                 <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
                 <div className="text-xs text-[#8A877D] mt-1">{attr.name}</div>
               </div>
@@ -11471,7 +11502,7 @@ function SharedReportView({ report, onClose }) {
               <p className="text-sm text-[#8A877D] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
               <div className="space-y-4">
                 {conflicts.map((c, i) => (
-                  <div key={i} className="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-4">
+                  <div key={i} className="bg-[#FFFBEB] border border-[#FDE68A] p-4">
                     <div className="flex items-start justify-between mb-2 gap-3">
                       <h4 className="font-semibold text-[#92400E] text-sm leading-snug">{c.title}</h4>
                       <div className="flex gap-1.5 flex-shrink-0">
@@ -11498,7 +11529,7 @@ function SharedReportView({ report, onClose }) {
             <div className="card p-5 mb-8">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-[#1A1A1A]">
+                  <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
                     {sharedCampaignStage.level === 0 ? '—' : sharedCampaignStage.level}
                   </div>
                   <div className="text-[10px] text-[#8A877D] mt-1">{sharedCampaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
@@ -11516,7 +11547,7 @@ function SharedReportView({ report, onClose }) {
               {Array.isArray(sharedCampaign.campaigns) && sharedCampaign.campaigns.length > 0 && (
                 <div className="grid md:grid-cols-2 gap-3 mt-4">
                   {sharedCampaign.campaigns.map((c, i) => (
-                    <div key={i} className="bg-[#F2F0EA] rounded-lg p-3">
+                    <div key={i} className="bg-[#F2F0EA] p-3">
                       <h4 className="font-semibold text-[#0B0B0B] text-sm mb-1">{c.name}</h4>
                       {c.idea && <p className="text-xs text-[#4A4840] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
                       {c.evidence && <p className="text-xs text-[#8A877D] leading-relaxed">{c.evidence}</p>}
@@ -11547,7 +11578,7 @@ function SharedReportView({ report, onClose }) {
             <div key={attr.id} className="card p-5">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: attr.color }}>
+                  <div className="w-12 h-12 flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: attr.color }}>
                     {scores[attr.id]?.score || 0}
                   </div>
                   <div>
@@ -11645,13 +11676,13 @@ function SharedReportView({ report, onClose }) {
           </p>
           {report.assessmentSummary && (
             <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div className="bg-[#E4E2DC] p-3 rounded-lg">
+              <div className="bg-[#E4E2DC] p-3 ">
                 <h4 className="font-semibold text-[#0B0B0B] mb-2">Website Analysis</h4>
                 <p className="text-[#8A877D]">
                   {report.assessmentSummary.pagesReviewed || 'Key pages reviewed'}
                 </p>
               </div>
-              <div className="bg-[#E4E2DC] p-3 rounded-lg">
+              <div className="bg-[#E4E2DC] p-3 ">
                 <h4 className="font-semibold text-[#0B0B0B] mb-2">Social Media</h4>
                 <p className="text-[#8A877D]">
                   {[
@@ -11664,7 +11695,7 @@ function SharedReportView({ report, onClose }) {
                   ].filter(Boolean).join(', ') || 'Social platforms reviewed'}
                 </p>
               </div>
-              <div className="bg-[#E4E2DC] p-3 rounded-lg">
+              <div className="bg-[#E4E2DC] p-3 ">
                 <h4 className="font-semibold text-[#0B0B0B] mb-2">AI Reputation</h4>
                 <p className="text-[#8A877D]">
                   {[
@@ -11674,7 +11705,7 @@ function SharedReportView({ report, onClose }) {
                   ].filter(Boolean).join(', ') || 'AI platforms queried'}
                 </p>
               </div>
-              <div className="bg-[#E4E2DC] p-3 rounded-lg">
+              <div className="bg-[#E4E2DC] p-3 ">
                 <h4 className="font-semibold text-[#0B0B0B] mb-2">Earned Media</h4>
                 <p className="text-[#8A877D]">
                   {report.assessmentSummary.hasEarnedMedia ? 'Coverage from past 3 months reviewed' : 'Media coverage analyzed'}
@@ -12091,7 +12122,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                 <Sparkles className="w-5 h-5 text-[#6366F1]" />
                 <h1 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Stay Conscious</h1>
                 {newsletter && (
-                  <span className="text-xs font-medium px-2 py-0.5 bg-[#1A1A1A] text-white rounded-full">
+                  <span className="text-xs font-medium px-2 py-0.5 bg-[#0B0B0B] text-white rounded-full">
                     Issue #{newsletter.issueNumber}
                   </span>
                 )}
@@ -12180,7 +12211,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
           <div className="space-y-6">
 
             {/* Lead Story */}
-            <div className="bg-[#1A1A1A] rounded-xl p-6 md:p-8">
+            <div className="bg-[#0B0B0B] p-6 md:p-8">
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full"
                   style={{ backgroundColor: catColor(newsletter.leadStory?.category) + '30', color: catColor(newsletter.leadStory?.category) }}>
@@ -12206,7 +12237,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                 <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Brand Intelligence</h2>
                 <div className="space-y-4">
                   {newsletter.intelligenceItems.map((item, i) => (
-                    <div key={i} className="card p-5 hover:shadow-md transition-shadow">
+                    <div key={i} className="card p-5">
                       <div className="flex items-start gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
@@ -12234,7 +12265,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             {newsletter.landscapeAnalysis?.summary && (
               <div>
                 <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Landscape Insights</h2>
-                <div className="bg-white border border-[#DCDAD3] rounded-xl p-6">
+                <div className="bg-white border border-[#DCDAD3] p-6">
                   {newsletter.landscapeAnalysis.brandCount && (
                     <p className="text-xs text-[#999] mb-3">
                       Based on {newsletter.landscapeAnalysis.brandCount} brands across {newsletter.landscapeAnalysis.sectorCount} sectors
@@ -12268,7 +12299,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                 <div className="space-y-3">
                   {newsletter.storyOpportunities.map((story, idx) => (
                     <div key={idx} className="card p-4 flex items-start gap-4">
-                      <div className="w-7 h-7 rounded-full bg-[#E8FF00] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-xs mt-0.5">
+                      <div className="w-7 h-7 rounded-full bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-xs mt-0.5">
                         {idx + 1}
                       </div>
                       <div>
@@ -12989,7 +13020,7 @@ function AppContent() {
           {/* Draft restore banner */}
           {currentStep === 0 && draftRestoreOffer && (
             <div className="max-w-2xl mx-auto px-4 pt-6">
-              <div className="flex items-start gap-4 bg-[#FFFBEB] border border-[#FCD34D] rounded-xl px-5 py-4 shadow-sm">
+              <div className="flex items-start gap-4 bg-[#FFFBEB] border border-[#FCD34D] px-5 py-4 ">
                 <span className="text-2xl leading-none mt-0.5">🔄</span>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-[#92400E] text-sm">Unsaved assessment found</p>
@@ -12999,13 +13030,13 @@ function AppContent() {
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={() => restoreDraft(draftRestoreOffer)}
-                      className="px-4 py-1.5 text-xs font-semibold bg-[#1A1A1A] text-white rounded hover:bg-[#333333] transition-colors"
+                      className="px-4 py-1.5 text-xs font-semibold bg-[#0B0B0B] text-white hover:bg-[#333333] transition-colors"
                     >
                       Resume assessment
                     </button>
                     <button
                       onClick={clearDraft}
-                      className="px-4 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#8A877D] rounded hover:bg-[#E4E2DC] transition-colors"
+                      className="px-4 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#8A877D] hover:bg-[#E4E2DC] transition-colors"
                     >
                       Discard
                     </button>

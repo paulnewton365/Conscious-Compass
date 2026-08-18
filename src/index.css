@@ -250,3 +250,61 @@ input:focus, select:focus, textarea:focus {
   .animate-spin { animation: none; }
   * { transition-duration: 0.01ms !important; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   ANTENNA REDESIGN — structural primitives (v3.0.0)
+   Taken from the Claude Design output. The look comes from layout
+   and type, not colour: display headings, hairline rules, and tile
+   grids separated by 2px of paper rather than boxed cards.
+   ───────────────────────────────────────────────────────────── */
+
+.dc-page      { background: var(--antenna-paper); padding: 0 24px 96px; }
+.dc-wrap      { max-width: 1180px; margin: 0 auto; }
+
+/* Display type */
+.dc-display   { font-size: clamp(38px, 6vw, 78px); font-weight: 700;
+                letter-spacing: -0.035em; line-height: 0.92; max-width: 16ch; }
+.dc-h2        { font-size: clamp(28px, 4vw, 48px); font-weight: 700;
+                letter-spacing: -0.032em; line-height: 0.96; max-width: 18ch; }
+.dc-kicker    { font-size: 11px; font-weight: 700; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--antenna-muted); }
+.dc-kicker-sm { font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+                text-transform: uppercase; color: var(--antenna-muted); }
+
+/* Section rhythm: a tracked label over a hard rule */
+.dc-sec       { margin-top: 56px; }
+.dc-sec-head  { display: flex; align-items: center; justify-content: space-between;
+                gap: 16px; width: 100%; padding-bottom: 10px;
+                border-bottom: 2px solid var(--antenna-ink);
+                font-size: 13px; font-weight: 700; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--antenna-ink);
+                background: none; border-left: 0; border-right: 0; border-top: 0;
+                cursor: pointer; text-align: left; }
+
+/* Tiles: separated by paper, never by borders or radius */
+.dc-tiles     { display: grid; gap: 2px; border-top: 2px solid var(--antenna-ink);
+                padding-top: 2px; }
+.dc-tile      { background: var(--antenna-white); padding: 18px 16px;
+                display: flex; flex-direction: column; gap: 10px; }
+.dc-tile-dark { background: var(--antenna-ink); color: #FFFFFF; }
+
+/* Hairline ledger rows */
+.dc-row       { padding: 16px 0; border-top: 1px solid var(--antenna-rule); }
+.dc-row-b     { padding: 18px 0; border-bottom: 1px solid var(--antenna-rule); }
+
+/* Pull quote */
+.dc-quote     { border-left: 6px solid var(--antenna-lime); padding: 6px 0 6px 20px;
+                font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+
+/* Pills */
+.dc-pill      { font-size: 11px; font-weight: 700; background: var(--antenna-lime);
+                color: var(--antenna-ink); padding: 4px 8px; white-space: nowrap; }
+.dc-pill-o    { font-size: 11px; font-weight: 700; border: 1px solid var(--antenna-rule);
+                color: var(--antenna-muted); padding: 4px 8px; white-space: nowrap; }
+
+/* Big muted ordinals used down the recommendation list */
+.dc-ord       { font-size: 22px; font-weight: 700; color: var(--antenna-faint);
+                letter-spacing: -0.02em; }
+
+.dc-panel     { background: var(--antenna-white); padding: 24px; }
+.dc-panel-dark{ background: var(--antenna-ink); color: #FFFFFF; padding: 40px; }

@@ -1,7 +1,7 @@
 {
   "name": "conscious-compass",
   "private": true,
-  "version": "2.28.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
