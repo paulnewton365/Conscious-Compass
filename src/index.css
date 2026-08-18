@@ -43,12 +43,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-:where(h1, h2, h3, h4) {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  color: var(--antenna-ink);
+@layer base {
+  :where(h1, h2, h3, h4) {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--antenna-ink);
+  }
 }
 
 /* Section kicker: small, heavily tracked, muted. Used above every
@@ -69,12 +71,12 @@ body {
   background: var(--antenna-lime);
   color: var(--antenna-ink);
   font-weight: 700;
-  padding: 15px 28px;
+  padding: 12px 16px;
   border-radius: 0;
   border: none;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   position: relative;
@@ -106,12 +108,12 @@ body {
   background: white;
   color: var(--antenna-text);
   font-weight: 700;
-  padding: 15px 28px;
+  padding: 11px 16px;
   border-radius: 0;
   border: 1px solid var(--antenna-ink);
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   position: relative;
@@ -165,22 +167,24 @@ body {
 }
 
 /* Inputs */
-:where(input, select, textarea) {
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  border-radius: 0 !important;
-  background: var(--antenna-paper);
-  border: 1px solid var(--antenna-rule);
-  color: var(--antenna-ink);
+@layer base {
+  :where(input, select, textarea) {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    border-radius: 0 !important;
+    background: var(--antenna-paper);
+    border: 1px solid var(--antenna-rule);
+    color: var(--antenna-ink);
+  }
 }
 
 /* App-wide heading scale from the redesign */
-:where(h1) { font-size: clamp(30px, 3.6vw, 52px); letter-spacing: -0.032em; line-height: 1; }
-:where(h2) { font-size: clamp(26px, 2.8vw, 38px); letter-spacing: -0.028em; line-height: 1.02; }
-:where(h3) { font-size: 26px; letter-spacing: -0.02em; }
+@layer base { :where(h1) { font-size: clamp(30px, 3.6vw, 52px); letter-spacing: -0.032em; line-height: 1; } }
+@layer base { :where(h2) { font-size: clamp(26px, 2.8vw, 38px); letter-spacing: -0.028em; line-height: 1.02; } }
+@layer base { :where(h3) { font-size: 26px; letter-spacing: -0.02em; } }
 
 /* Navigation */
-:where(nav) { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--antenna-muted); }
+@layer base { :where(nav) { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--antenna-muted); } }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
@@ -426,3 +430,13 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
 
 /* Accordion blocks in the assessment flow */
 .acc-white { background: var(--antenna-white); margin-bottom: 2px; }
+
+/* ── Section reveal ─────────────────────────────────────────
+   Each report section lifts and fades once it enters the viewport.
+   Honours reduced-motion, since this runs the length of a long report. */
+.dc-reveal { opacity: 0; transform: translateY(18px);
+             transition: opacity 700ms ease, transform 700ms cubic-bezier(0.22, 1, 0.36, 1); }
+.dc-reveal.is-in { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .dc-reveal { opacity: 1; transform: none; transition: none; }
+}

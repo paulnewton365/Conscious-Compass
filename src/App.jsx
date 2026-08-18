@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.8.2';
+const APP_VERSION = '3.10.1';
 import { 
   supabase, 
   signUp, 
@@ -588,6 +588,20 @@ function buildBenchmarkSnapshot(results, { industry, industryName, brandName, to
   };
 }
 
+// Score bands. Attribute figures are now coloured by performance rather than
+// by attribute identity, so a reader can scan for weakness without a legend.
+// Chart colours are unaffected: the octagon still uses attribute identity.
+const SCORE_GREEN = '#0F7A4F';   // 70-100
+const SCORE_AMBER = '#B45309';   // 45-69
+const SCORE_RED   = '#B23A3A';   // 0-44
+
+function scoreColor(n) {
+  const v = Number(n) || 0;
+  if (v >= 70) return SCORE_GREEN;
+  if (v >= 45) return SCORE_AMBER;
+  return SCORE_RED;
+}
+
 // Ordinal suffix used by the masthead and the benchmark panel.
 function ordinalSuffix(n) {
   if (n == null || !Number.isFinite(Number(n))) return '';
@@ -1119,6 +1133,48 @@ function useReveal(threshold = 0.25, duration = 900) {
   }, [inView, duration]);
 
   return [ref, progress, inView];
+}
+
+// Maturity band strip, shared by Brand maturity and Overall position.
+// Segments grow from the left on scroll, staggered across the bands.
+function PositionBands({ stageName }) {
+  const [ref, inView] = useInView(0.3);
+  return (
+    <div ref={ref} className="grid gap-[2px]"
+      style={{ gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), height: 14 }}>
+      {MATURITY_STAGES.map((st, i) => (
+        <div key={st.id} style={{ background: '#E4E2DC', overflow: 'hidden' }}>
+          <div style={{
+            height: '100%',
+            background: st.name === stageName ? '#DEE42F' : '#DCDAD3',
+            transform: `scaleX(${inView ? 1 : 0})`,
+            transformOrigin: 'left',
+            transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)',
+            transitionDelay: `${i * 80}ms`,
+          }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Fades and lifts a block once it scrolls into view. Used to restore the
+// section-level reveal that was lost when the benchmark charts were rebuilt
+// as inline markup rather than components.
+function Reveal({ children, delay = 0, y = 16, threshold = 0.15, className = '', style = {} }) {
+  const [ref, inView] = useInView(threshold);
+  return (
+    <div ref={ref} className={className}
+      style={{
+        ...style,
+        opacity: inView ? 1 : 0,
+        transform: inView ? 'translateY(0)' : `translateY(${y}px)`,
+        transition: 'opacity 700ms ease, transform 700ms cubic-bezier(0.22, 1, 0.36, 1)',
+        transitionDelay: `${delay}ms`,
+      }}>
+      {children}
+    </div>
+  );
 }
 
 // Campaign coherence ladder. Five rungs; level 0 is the absence of a campaign,
@@ -3181,7 +3237,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         {assessmentData.autoAssessContent && (
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#10B981]" />
+              <Check className="w-4 h-4 text-[#0F7A4F]" />
               <span className="text-sm font-medium text-[#0B0B0B]">Website Assessment Complete</span>
             </div>
             <div className="bg-[#E4E2DC] p-4 max-h-80 overflow-y-auto">
@@ -3211,7 +3267,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           <button 
             onClick={runCredentialsAssess} 
             disabled={isAssessingCredentials || !project.brandName}
-            className="px-3 py-1.5 bg-[#8B5CF6] text-white text-xs font-medium hover:bg-[#7C3AED] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-1.5 bg-[#0B0B0B] text-white text-xs font-medium hover:bg-[#0B0B0B] transition-colors flex items-center gap-1.5 disabled:opacity-50"
           >
             {isAssessingCredentials ? (
               <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</>
@@ -4036,7 +4092,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
   // Read-only panel for auto-checked content. Sits above the notes field so it
   // is obvious which content the assessor owns and which was fetched.
   const AutoPanel = ({ content }) => content ? (
-    <div className="bg-[#F0F9F4] border border-[#BBE5CC] p-3">
+    <div className="bg-[#FFFFFF] border border-[#DCDAD3] p-3">
       <div className="flex items-center gap-1.5 mb-1.5">
         <Check className="w-3.5 h-3.5 text-[#059669]" />
         <span className="text-[10px] font-semibold text-[#059669] uppercase tracking-wider">Auto-checked</span>
@@ -4105,7 +4161,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
+              <Sparkles className="w-4 h-4 text-[#0B0B0B]" />
               Social Media Health Check
             </h3>
             <p className="text-[13px] text-[#B3B0A8] mt-1">Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes.</p>
@@ -4342,7 +4398,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
                   <button
                     onClick={runWipoSearch}
                     disabled={isSearchingWipo || !project.brandName}
-                    className="px-3 py-1 bg-[#8B5CF6] text-white text-xs font-medium hover:bg-[#7C3AED] transition-colors flex items-center gap-1 disabled:opacity-50"
+                    className="px-3 py-1 bg-[#0B0B0B] text-white text-xs font-medium hover:bg-[#0B0B0B] transition-colors flex items-center gap-1 disabled:opacity-50"
                   >
                     {isSearchingWipo ? <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</> : <><Sparkles className="w-3 h-3" /> Auto-Search</>}
                   </button>
@@ -4465,7 +4521,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         <div className="card mb-[2px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
+              <Check className="w-5 h-5 text-[#0B0B0B]" /> Analysis Complete
             </h3>
             <button 
               onClick={() => { runAnalysis(); if (onClearScores) onClearScores(); }} 
@@ -4578,7 +4634,7 @@ ${reputationFlags}` : ''}`;
 
   // AI engines config
   const engines = [
-    { key: 'claude',      name: 'Claude',             brand: 'Anthropic',       url: 'https://claude.ai/new',          color: '#8B5CF6', hover: '#7C3AED' },
+    { key: 'claude',      name: 'Claude',             brand: 'Anthropic',       url: 'https://claude.ai/new',          color: '#0B0B0B', hover: '#0B0B0B' },
     { key: 'chatgpt',     name: 'ChatGPT',            brand: 'OpenAI',          url: 'https://chatgpt.com/',           color: '#10A37F', hover: '#0D8A6A' },
     { key: 'gemini',      name: 'Gemini',             brand: 'Google',          url: 'https://gemini.google.com/app',  color: '#4285F4', hover: '#3367D6' },
     { key: 'perplexity',  name: 'Perplexity',         brand: 'Perplexity AI',   url: 'https://www.perplexity.ai/',     color: '#20B2AA', hover: '#178C84' },
@@ -4844,7 +4900,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 <button
                   onClick={row.run}
                   disabled={!!fetching[row.label]}
-                  className="px-2 py-0.5 bg-[#DEE42F] text-white text-[10px] font-medium hover:bg-[#C62828] transition-colors flex items-center gap-1 disabled:opacity-50"
+                  className="px-2 py-0.5 bg-[#DEE42F] text-white text-[10px] font-medium hover:bg-[#B23A3A] transition-colors flex items-center gap-1 disabled:opacity-50"
                 >
                   {fetching[row.label] ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Fetching</> : <><Search className="w-2.5 h-2.5" /> Auto-fetch</>}
                 </button>
@@ -4878,7 +4934,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
         <div className="card mb-[2px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#3B82F6]" /> Synthesis Complete
+              <Check className="w-5 h-5 text-[#0B0B0B]" /> Synthesis Complete
             </h3>
             <button
               onClick={() => { generateSynthesis(); if (onClearScores) onClearScores(); }}
@@ -5095,7 +5151,7 @@ Example:
         <div className="flex items-start justify-between mb-3">
           <div>
             <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#10B981]" />
+              <Sparkles className="w-4 h-4 text-[#0F7A4F]" />
               Auto-Assess Earned Media Performance
             </h3>
             <p className="text-xs text-[#8A877D]">
@@ -5114,7 +5170,7 @@ Example:
         {assessmentData.autoAssessContent && (
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#10B981]" />
+              <Check className="w-4 h-4 text-[#0F7A4F]" />
               <span className="text-sm font-medium text-[#0B0B0B]">Performance Assessment Complete</span>
             </div>
             <div className="bg-[#E4E2DC] p-4 max-h-80 overflow-y-auto">
@@ -5144,7 +5200,7 @@ Example:
         <div className="card mb-[2px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#10B981]" /> Analysis Complete
+              <Check className="w-5 h-5 text-[#0F7A4F]" /> Analysis Complete
             </h3>
             <button 
               onClick={() => {
@@ -5178,6 +5234,22 @@ Example:
   );
 }
 // Report Page
+// Applies the section reveal to every report section once, on scroll.
+// A single observer over the whole page is cheaper than one per section and
+// keeps the sections in document order.
+function useSectionReveal(deps) {
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const nodes = document.querySelectorAll('.dc-reveal:not(.is-in)');
+    if (!nodes.length) return;
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('is-in'); obs.unobserve(e.target); } });
+    }, { threshold: 0.08 });
+    nodes.forEach(n => obs.observe(n));
+    return () => obs.disconnect();
+  }, deps);
+}
+
 function ReportPage({ project, setProject, scores, setScores, assessments, apiKey, onSave, onPrev, profile, compassResults = [], savedBenchmark = null }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -5691,6 +5763,8 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
   const nextStage = MATURITY_STAGES.find(st => st.min > overall);
+  const [spreadRef, spreadIn] = useInView(0.15);
+  useSectionReveal([scores, expandedSections]);
 
   // Footprint summary feeds the masthead signal count as well as its own section.
   const footprintSummary = scores?.footprint ? summariseFootprint(scores.footprint) : null;
@@ -7303,7 +7377,7 @@ ${content.slice(0, 8000)}`;
       </header>
 
       {/* ── 01 Results at a glance ───────────────────────────── */}
-      <section style={{ marginTop: 80 }}>
+      <section className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="Results at a glance" />
         <div className="grid gap-14 items-start pt-10" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
           <div>
@@ -7359,7 +7433,7 @@ ${content.slice(0, 8000)}`;
       </div>
 
       {/* ── 02 Brand maturity ────────────────────────────────── */}
-      <section style={{ marginTop: 80 }}>
+      <section className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="Brand maturity" />
         {/* Segmented bar proportional to each band's width, with the score
             marked above it. Replaces the gradient rail and dot markers. */}
@@ -7371,12 +7445,7 @@ ${content.slice(0, 8000)}`;
               <div style={{ width: 2, height: 12, background: '#0B0B0B' }} />
             </div>
 
-            <div className="grid gap-[2px]" style={{
-              gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), height: 16 }}>
-              {MATURITY_STAGES.map(st => (
-                <div key={st.id} style={{ background: st.name === stage.name ? '#DEE42F' : '#DCDAD3' }} />
-              ))}
-            </div>
+            <PositionBands stageName={stage.name} />
 
             <div className="grid gap-[2px]" style={{
               gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), marginTop: 10 }}>
@@ -7399,7 +7468,7 @@ ${content.slice(0, 8000)}`;
       </section>
 
       {/* Attribute Analysis - Collapsible */}
-      <div style={{ marginTop: 80 }}>
+      <div className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="Attribute analysis" open={expandedSections.attributes}
           onToggle={() => toggleSection('attributes')} />
         {expandedSections.attributes && (
@@ -7415,7 +7484,8 @@ ${content.slice(0, 8000)}`;
                   {/* Header: figure, name, delta chip */}
                   <div className="flex items-start gap-4"
                     style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14 }}>
-                    <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9 }}>
+                    <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9,
+                      color: scoreColor(sc.score) }}>
                       {sc.score || 0}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -7483,7 +7553,7 @@ ${content.slice(0, 8000)}`;
 
       {/* Brand Footprint - Collapsible */}
       {scores?.footprint && (
-        <div style={{ marginTop: 80 }}>
+        <div className="dc-reveal" style={{ marginTop: 80 }}>
           <SectionHead label="Brand footprint" open={expandedSections.footprint}
           onToggle={() => toggleSection('footprint')} />
           {expandedSections.footprint && (
@@ -7496,7 +7566,7 @@ ${content.slice(0, 8000)}`;
 
       {/* Campaign Coherence - Collapsible */}
       {!campaignStage && (
-        <div style={{ marginTop: 80 }}>
+        <div className="dc-reveal" style={{ marginTop: 80 }}>
           <SectionHead label="Campaign coherence" />
           <div className="card border-l-4 border-[#DEE42F]">
             <p className="text-sm text-[#4A4840] leading-relaxed">
@@ -7513,7 +7583,7 @@ ${content.slice(0, 8000)}`;
         </div>
       )}
       {campaignStage && (
-        <div style={{ marginTop: 80 }}>
+        <div className="dc-reveal" style={{ marginTop: 80 }}>
           <SectionHead label="Campaign coherence" open={expandedSections.campaign}
           onToggle={() => toggleSection('campaign')} />
           {expandedSections.campaign && (
@@ -7606,7 +7676,7 @@ ${content.slice(0, 8000)}`;
 
       {/* Industry Benchmark - Collapsible */}
       {benchmarkUnavailableReason && (
-        <div style={{ marginTop: 80 }}>
+        <div className="dc-reveal" style={{ marginTop: 80 }}>
           <SectionHead label="Benchmark comparison" />
           <div className="card border-l-4 border-[#DEE42F]">
             <p className="text-sm text-[#4A4840] leading-relaxed">{benchmarkUnavailableReason}</p>
@@ -7614,7 +7684,7 @@ ${content.slice(0, 8000)}`;
         </div>
       )}
       {benchmark && (
-        <div style={{ marginTop: 80 }}>
+        <div className="dc-reveal" style={{ marginTop: 80 }}>
           <SectionHead label="Benchmark comparison" open={expandedSections.benchmark}
           onToggle={() => toggleSection('benchmark')} />
           {expandedSections.benchmark && (
@@ -7644,11 +7714,7 @@ ${content.slice(0, 8000)}`;
                     <div style={{ width: 2, height: 14, background: '#0B0B0B' }} />
                   </div>
 
-                  <div className="grid gap-[2px]" style={{ gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), height: 14 }}>
-                    {MATURITY_STAGES.map(st => (
-                      <div key={st.id} style={{ background: st.name === stage.name ? '#DEE42F' : '#DCDAD3' }} />
-                    ))}
-                  </div>
+                  <PositionBands stageName={stage.name} />
 
                   <div className="absolute flex flex-col items-center gap-1"
                     style={{ left: `${benchmark.avgScore}%`, top: 70, transform: 'translateX(-50%)' }}>
@@ -7684,8 +7750,8 @@ ${content.slice(0, 8000)}`;
                   <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
                     The band is the range across those brands, the line is their average, the dot is {project.brandName}.
                   </p>
-                  <div style={{ marginTop: 24, borderTop: '1px solid #DCDAD3' }}>
-                    {ATTRIBUTES.map(attr => {
+                  <div style={{ marginTop: 24, borderTop: '1px solid #DCDAD3' }} ref={spreadRef}>
+                    {ATTRIBUTES.map((attr, ri) => {
                       const v = scores[attr.id]?.score || 0;
                       const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
                       const rng = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
@@ -7696,12 +7762,17 @@ ${content.slice(0, 8000)}`;
                           <div className="text-[13px] font-bold">{attr.name}</div>
                           <div className="relative" style={{ height: 22 }}>
                             <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
-                            <div className="absolute" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3' }} />
-                            <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#8A877D' }} />
-                            <div className="absolute" style={{ left: `${v}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF' }} />
+                            <div className="absolute origin-left" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3',
+                              transform: `scaleX(${spreadIn ? 1 : 0})`,
+                              transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: `${ri * 70}ms` }} />
+                            <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#8A877D',
+                              opacity: spreadIn ? 1 : 0, transition: 'opacity 400ms ease', transitionDelay: `${ri * 70 + 260}ms` }} />
+                            <div className="absolute" style={{ left: `${spreadIn ? v : rng.min}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF',
+                              opacity: spreadIn ? 1 : 0,
+                              transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease', transitionDelay: `${ri * 70 + 120}ms` }} />
                           </div>
                           <div className="text-right">
-                            <span className="text-[15px] font-bold">{v}</span>
+                            <span className="text-[15px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
                             <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B', background: d > 0 ? '#DEE42F' : 'transparent', border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
                               {d > 0 ? '+' : ''}{d}
                             </span>
@@ -7717,11 +7788,11 @@ ${content.slice(0, 8000)}`;
                   <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
                     {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
                   </p>
-                  <div className="bg-white" style={{ padding: 14, marginTop: 24 }}>
+                  <div className="bg-white" style={{ padding: 8, marginTop: 24 }}>
                     <ComparisonSpiderChart
                       brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall,
                         scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores[a.id]?.score || 0; return acc; }, {}) }]}
-                      size={320}
+                      size={380}
                       industryAvg={benchmarkAvgScores}
                       avgLabel={`${benchmark.cohortLabel} avg`}
                       animateOnScroll
@@ -7735,7 +7806,7 @@ ${content.slice(0, 8000)}`;
       )}
 
       {/* Recommendations - Collapsible */}
-      <div style={{ marginTop: 80 }}>
+      <div className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="Recommendations" open={expandedSections.recommendations}
           onToggle={() => toggleSection('recommendations')} />
         {expandedSections.recommendations && (
@@ -7780,7 +7851,7 @@ ${content.slice(0, 8000)}`;
         if (topServices.length === 0) return null;
         
         return (
-          <div className="mb-6">
+          <div className="dc-reveal" style={{ marginTop: 104 }}>
             <SectionHead label="Recommended services" open={expandedSections.services}
               onToggle={() => toggleSection('services')} />
             {expandedSections.services && (
@@ -7929,8 +8000,8 @@ ${content.slice(0, 8000)}`;
                 className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#8B5CF6]/10 flex items-center justify-center">
-                    <Users className="w-5 h-5 text-[#8B5CF6]" />
+                  <div className="w-10 h-10 bg-[#0B0B0B]/10 flex items-center justify-center">
+                    <Users className="w-5 h-5 text-[#0B0B0B]" />
                   </div>
                   <div className="text-left">
                     <h4 className="font-medium text-[#0B0B0B]">Social Media Assessment</h4>
@@ -7943,7 +8014,7 @@ ${content.slice(0, 8000)}`;
                 <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
                   {assessments.social?.redditAnswersContent && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Reddit Answers (AI Search Visibility)</h5>
+                      <h5 className="text-sm font-medium text-[#0B0B0B] mb-2">Reddit Answers (AI Search Visibility)</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.social.redditAnswersContent}</pre>
                       </div>
@@ -7951,7 +8022,7 @@ ${content.slice(0, 8000)}`;
                   )}
                   {assessments.social?.content && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#8B5CF6] mb-2">Full Social Media Analysis</h5>
+                      <h5 className="text-sm font-medium text-[#0B0B0B] mb-2">Full Social Media Analysis</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.social.content}</pre>
                       </div>
@@ -7968,8 +8039,8 @@ ${content.slice(0, 8000)}`;
                 className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#3B82F6]/10 flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-[#3B82F6]" />
+                  <div className="w-10 h-10 bg-[#0B0B0B]/10 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-[#0B0B0B]" />
                   </div>
                   <div className="text-left">
                     <h4 className="font-medium text-[#0B0B0B]">AI Reputation Assessment</h4>
@@ -7998,8 +8069,8 @@ ${content.slice(0, 8000)}`;
                 className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#10B981]/10 flex items-center justify-center">
-                    <Newspaper className="w-5 h-5 text-[#10B981]" />
+                  <div className="w-10 h-10 bg-[#0F7A4F]/10 flex items-center justify-center">
+                    <Newspaper className="w-5 h-5 text-[#0F7A4F]" />
                   </div>
                   <div className="text-left">
                     <h4 className="font-medium text-[#0B0B0B]">Earned Media Assessment</h4>
@@ -8012,7 +8083,7 @@ ${content.slice(0, 8000)}`;
                 <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
                   {assessments.earnedMedia?.autoAssessContent && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#10B981] mb-2">Auto-Assess Earned Media Performance</h5>
+                      <h5 className="text-sm font-medium text-[#0F7A4F] mb-2">Auto-Assess Earned Media Performance</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.earnedMedia.autoAssessContent}</pre>
                       </div>
@@ -8020,7 +8091,7 @@ ${content.slice(0, 8000)}`;
                   )}
                   {assessments.earnedMedia?.content && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#10B981] mb-2">Full Earned Media Analysis</h5>
+                      <h5 className="text-sm font-medium text-[#0F7A4F] mb-2">Full Earned Media Analysis</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
                         <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.earnedMedia.content}</pre>
                       </div>
@@ -8335,7 +8406,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       </div>
                     </div>
                     <div className="text-[13px] text-[#4A4840] truncate">{r.industry}</div>
-                    <div className="text-[20px] font-bold text-right" style={{ color: stage.color }}>{r.totalScore}</div>
+                    <div className="text-[20px] font-bold text-right" style={{ color: scoreColor(r.totalScore) }}>{r.totalScore}</div>
                     <div className="text-[13px] font-semibold">{r.maturityLevel}</div>
                     <div className="text-[13px] text-[#8A877D] text-right">
                       {assessmentDate ? assessmentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
@@ -10755,7 +10826,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                     {overallScore !== null && (
                       <div className="flex-shrink-0 text-right">
                         <div className="text-[32px] font-bold leading-none tracking-tight"
-                          style={{ color: maturity?.color || '#0B0B0B' }}>{overallScore}</div>
+                          style={{ color: scoreColor(overallScore) }}>{overallScore}</div>
                       </div>
                     )}
                   </div>
@@ -10975,7 +11046,7 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
           </>
         ) : (
           <>
-            <div className="bg-[#F0F9F4] border border-[#BBE5CC] p-3 mb-4">
+            <div className="bg-[#FFFFFF] border border-[#DCDAD3] p-3 mb-4">
               <div className="flex items-center gap-1.5 mb-1">
                 <Check className="w-3.5 h-3.5 text-[#059669]" />
                 <span className="text-xs font-semibold text-[#059669]">Link created</span>
@@ -11028,6 +11099,8 @@ function ClientReportView({ payload }) {
   const campaignStage = campaign && Number.isFinite(Number(campaign.level))
     ? getCampaignLevel(Number(campaign.level)) : null;
 
+  useSectionReveal([payload]);
+
   const benchmarkAvg = benchmark
     ? ATTRIBUTES.reduce((acc, a) => { acc[a.id] = benchmark.attrAvgs?.[a.id] || 0; return acc; }, {})
     : null;
@@ -11052,7 +11125,7 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Results At A Glance</h3>
+        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Results At A Glance</h3>
         <div className="card mb-[2px]">
           <div className="grid md:grid-cols-2 gap-6 items-start">
             <div>
@@ -11099,7 +11172,7 @@ function ClientReportView({ payload }) {
           {ATTRIBUTES.map(a => (
             <div key={a.id} className="dc-tile" style={{ gap: 6, padding: '16px 14px' }}>
               <div className="dc-kicker-sm leading-tight break-words">{a.name}</div>
-              <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: a.color }}>
+              <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: scoreColor(scores?.[a.id]?.score) }}>
                 {scores?.[a.id]?.score || 0}
               </div>
             </div>
@@ -11107,20 +11180,20 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Maturity ────────────────────────────────────────── */}
-        <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Brand Maturity</h3>
+        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Brand Maturity</h3>
         <div className="mb-6">
           <MaturityContinuum score={overall} hideTitle />
         </div>
 
         {/* ── Attribute analysis, no recommendations ──────────── */}
-        <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Attribute Analysis</h3>
+        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Attribute Analysis</h3>
         <div className="grid md:grid-cols-2 gap-3 mb-6">
           {ATTRIBUTES.map(a => {
             const sc = scores?.[a.id] || {};
             return (
               <div key={a.id} className="card">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl font-bold" style={{ color: a.color }}>{sc.score || 0}</span>
+                  <span className="text-2xl font-bold" style={{ color: scoreColor(sc.score) }}>{sc.score || 0}</span>
                   <div className="min-w-0">
                     <h4 className="font-semibold text-[#0B0B0B] text-sm">{a.name}</h4>
                     <p className="text-xs text-[#8A877D]">{a.fullName}</p>
@@ -11144,7 +11217,7 @@ function ClientReportView({ payload }) {
         {/* ── Brand footprint ─────────────────────────────────── */}
         {payload.footprint && (
           <>
-            <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Brand Footprint</h3>
+            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Brand Footprint</h3>
             <div className="mb-6 overflow-hidden">
               <FootprintMosaic footprint={payload.footprint} brandName={project.brandName} compact />
             </div>
@@ -11154,7 +11227,7 @@ function ClientReportView({ payload }) {
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
           <>
-            <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Campaign Coherence</h3>
+            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Campaign Coherence</h3>
             <div className="card mb-[2px]">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
@@ -11195,7 +11268,7 @@ function ClientReportView({ payload }) {
         {/* ── Profile against benchmark ───────────────────────── */}
         {benchmark && benchmarkAvg && (
           <>
-          <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Benchmark Comparison</h3>
+          <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Benchmark Comparison</h3>
           <div className="card mb-[2px]">
             <p className="text-xs text-[#8A877D] mb-3">
               {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
@@ -11228,7 +11301,7 @@ function ClientReportView({ payload }) {
         {/* ── Conclusion ──────────────────────────────────────── */}
         {payload.conclusion && (
           <>
-            <h3 className="dc-sec-head" style={{ marginTop: 64, marginBottom: 28 }}>Conclusions</h3>
+            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Conclusions</h3>
             <div className="card mb-[2px]">
               <p className="text-sm text-[#4A4840] leading-relaxed">{payload.conclusion}</p>
             </div>
@@ -11814,8 +11887,8 @@ const CATEGORY_META = {
   'Digital Experience': { color: '#0EA5E9', bg: '#0EA5E915' },
   'Brand Strategy':     { color: '#E53935', bg: '#E5393515' },
   'Earned Media':       { color: '#F59E0B', bg: '#F59E0B15' },
-  'Social Signals':     { color: '#10B981', bg: '#10B98115' },
-  'Assessment Practice':{ color: '#8B5CF6', bg: '#8B5CF615' },
+  'Social Signals':     { color: '#0F7A4F', bg: '#10B98115' },
+  'Assessment Practice':{ color: '#0B0B0B', bg: '#8B5CF615' },
 };
 
 const STAY_CONSCIOUS_PROMPT = `You are a brand intelligence analyst advising consultants who use the Conscious Compass framework to evaluate brands based purely on publicly available signals — what audiences, prospects, and partners actually encounter. The framework measures eight attributes: Awake (narrative leadership), Aware (audience understanding), Reflective (authenticity), Attentive (experience quality), Cogent (strategic intelligence), Sentient (emotional resonance), Visionary (purpose), and Intentional (credibility).
@@ -11889,8 +11962,8 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
     'Digital Experience':  '#0EA5E9',
     'Brand Strategy':      '#E53935',
     'Earned Media':        '#F59E0B',
-    'Social Signals':      '#10B981',
-    'Assessment Practice': '#8B5CF6',
+    'Social Signals':      '#0F7A4F',
+    'Assessment Practice': '#0B0B0B',
   };
   const catColor  = (cat) => CATEGORY_COLORS[cat] || '#8A877D';
   const catBg     = (cat) => (catColor(cat)) + '18';
