@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.26.3';
+const APP_VERSION = '2.26.4';
 import { 
   supabase, 
   signUp, 
@@ -10971,14 +10971,14 @@ function ClientReportGate({ token }) {
 
   return (
     <div className="min-h-screen bg-[#E8E6E1] flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md mb-6 text-center">
+      <div className="w-full max-w-md mb-7 text-center">
         <img
           src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
           alt="Antenna Group"
           className="h-9 mx-auto mb-4"
           style={{ filter: 'brightness(0)' }}
         />
-        <p className="text-base sm:text-lg font-semibold text-[#1A1A1A]">
+        <p className="text-2xl sm:text-3xl font-bold text-[#1A1A1A] leading-tight tracking-tight">
           Consequential brands are conscious brands
         </p>
       </div>
