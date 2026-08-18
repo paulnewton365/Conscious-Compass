@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.26.1';
+const APP_VERSION = '2.26.3';
 import { 
   supabase, 
   signUp, 
@@ -965,8 +965,10 @@ const LANDSCAPE_SECTOR_COLORS = [
 function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabel = 'Industry avg', animateOnScroll = false }) {
   // Polygons grow out from the centre when the chart scrolls into view. With
   // animation off, progress is pinned at 1, so the comparison page is unchanged.
-  const [wrapRef, inView] = useInView(0.3);
-  const progress = animateOnScroll ? (inView ? 1 : 0) : 1;
+  const [revealRef, revealed] = useReveal(0.3, 900);
+  const wrapRef = revealRef;
+  const progress = animateOnScroll ? revealed : 1;
+  const inView = progress > 0;
   const padding = 55;
   const viewBoxSize = size + padding * 2;
   const center = viewBoxSize / 2;
@@ -1008,16 +1010,14 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
         {industryAvg && (() => {
           const pts = attrs.map((attr, i) => getPoint(i, industryAvg[attr.id] || 0));
           const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-          return <path d={d} fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeDasharray="4 3"
-            style={{ transition: 'd 900ms cubic-bezier(0.22, 1, 0.36, 1)' }} />;
+          return <path d={d} fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeDasharray="4 3" />;
         })()}
         {/* Brand polygons */}
         {brands.map((brand, bi) => {
           const color = COMPARISON_COLORS[bi % COMPARISON_COLORS.length];
           const pts = attrs.map((attr, i) => getPoint(i, brand.scores?.[attr.id] || 0));
           const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-          return <path key={brand.id || bi} d={d} fill={color + '25'} stroke={color} strokeWidth="2"
-            style={{ transition: 'd 900ms cubic-bezier(0.22, 1, 0.36, 1)' }} />;
+          return <path key={brand.id || bi} d={d} fill={color + '25'} stroke={color} strokeWidth="2" />;
         })}
         {/* Attribute labels */}
         {attrs.map((attr, i) => {
@@ -1079,6 +1079,35 @@ function useInView(threshold = 0.25) {
   return [ref, inView];
 }
 
+// Ramps 0 to 1 once the element is in view.
+//
+// CSS cannot transition an SVG `d` attribute set as a React prop, so the
+// radar was snapping straight to full rather than growing. Driving the value
+// on requestAnimationFrame and re-rendering the geometry each frame is what
+// actually produces movement.
+function useReveal(threshold = 0.25, duration = 900) {
+  const [ref, inView] = useInView(threshold);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    if (!inView) return;
+    if (typeof window === 'undefined' || !window.requestAnimationFrame) { setProgress(1); return; }
+    let raf;
+    const start = performance.now();
+    // easeOutCubic
+    const ease = (t) => 1 - Math.pow(1 - t, 3);
+    const tick = (now) => {
+      const t = Math.min((now - start) / duration, 1);
+      setProgress(ease(t));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [inView, duration]);
+
+  return [ref, progress, inView];
+}
+
 // Campaign coherence ladder. Five rungs; level 0 is the absence of a campaign,
 // not a rung. Rungs fill left to right on scroll, staggered. Shared by the
 // report, the shared report and the client report so all three behave alike.
@@ -1129,10 +1158,14 @@ function CampaignLadder({ level }) {
 // the cohort average as a line, and this brand's score as a filled dot.
 function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
   const [hovered, setHovered] = useState(null);
+  // Rows reveal on scroll: the range band grows from its left edge and the
+  // brand dot travels from the bottom of the range to its real position.
+  const [revealRef, inView] = useInView(0.2);
+
   if (!benchmark) return null;
 
   return (
-    <div className="bg-white border border-[#E8E6E1] rounded p-5">
+    <div className="bg-white border border-[#E8E6E1] rounded p-5" ref={revealRef}>
       <div className="mb-4">
         {!hideTitle && <h3 className="font-semibold text-[#1A1A1A] text-sm">Attribute Benchmark Spread</h3>}
         <p className="text-xs text-[#666666] mt-1">
@@ -1141,7 +1174,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
       </div>
 
       <div className="space-y-3">
-        {ATTRIBUTES.map(attr => {
+        {ATTRIBUTES.map((attr, i) => {
           const brandScore = benchmark.brandScores?.[attr.id] ?? 0;
           const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
           const range = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
@@ -1167,14 +1200,35 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
                     style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
                 ))}
                 {/* Cohort range */}
-                <div className="absolute h-1.5 rounded-full"
-                  style={{ left: `${range.min}%`, width: `${Math.max(range.max - range.min, 0.5)}%`, backgroundColor: attr.color + '2E' }} />
+                <div className="absolute h-1.5 rounded-full origin-left"
+                  style={{
+                    left: `${range.min}%`,
+                    width: `${Math.max(range.max - range.min, 0.5)}%`,
+                    backgroundColor: attr.color + '2E',
+                    transform: `scaleX(${inView ? 1 : 0})`,
+                    transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)',
+                    transitionDelay: `${i * 70}ms`,
+                  }} />
                 {/* Cohort average */}
                 <div className="absolute w-0.5 h-5 rounded-full z-10"
-                  style={{ left: `${avg}%`, transform: 'translateX(-50%)', backgroundColor: '#CFD32F' }} />
+                  style={{
+                    left: `${avg}%`,
+                    transform: 'translateX(-50%)',
+                    backgroundColor: '#CFD32F',
+                    opacity: inView ? 1 : 0,
+                    transition: 'opacity 400ms ease',
+                    transitionDelay: `${i * 70 + 260}ms`,
+                  }} />
                 {/* Brand score */}
                 <div className="absolute z-20"
-                  style={{ left: `${brandScore}%`, top: '50%', transform: 'translate(-50%, -50%)' }}>
+                  style={{
+                    left: `${inView ? brandScore : range.min}%`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    opacity: inView ? 1 : 0,
+                    transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease',
+                    transitionDelay: `${i * 70 + 120}ms`,
+                  }}>
                   <div className="w-3 h-3 rounded-full ring-2 ring-white transition-transform"
                     style={{ backgroundColor: attr.color, transform: isHovered ? 'scale(1.4)' : 'scale(1)' }} />
                 </div>
@@ -10683,9 +10737,15 @@ function ClientReportView({ payload }) {
   return (
     <div className="min-h-screen bg-[#E8E6E1]">
       <div className="max-w-5xl mx-auto p-6 sm:p-8">
-        {/* Master title. Client-facing view only; the internal report has no
+        {/* Masthead. Client-facing view only; the internal report has no
             equivalent and should not gain one. */}
         <div className="mb-6">
+          <img
+            src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
+            alt="Antenna Group"
+            className="h-7 sm:h-8 mb-5"
+            style={{ filter: 'brightness(0)' }}
+          />
           <div className="text-xs font-bold text-[#E53935] uppercase tracking-[0.14em] mb-2">
             Brand Facing Report
           </div>
@@ -10910,7 +10970,19 @@ function ClientReportGate({ token }) {
   if (status === 'open' && payload) return <ClientReportView payload={payload} />;
 
   return (
-    <div className="min-h-screen bg-[#E8E6E1] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#E8E6E1] flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-md mb-6 text-center">
+        <img
+          src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
+          alt="Antenna Group"
+          className="h-9 mx-auto mb-4"
+          style={{ filter: 'brightness(0)' }}
+        />
+        <p className="text-base sm:text-lg font-semibold text-[#1A1A1A]">
+          Consequential brands are conscious brands
+        </p>
+      </div>
+
       <div className="card p-8 max-w-md w-full">
         {status === 'loading' && (
           <div className="text-center">
