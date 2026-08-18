@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.2.0';
+const APP_VERSION = '3.3.0';
 import { 
   supabase, 
   signUp, 
@@ -55,10 +55,10 @@ class ErrorBoundary extends React.Component {
       return (
         <div className="min-h-screen bg-[#FAF9F7] flex items-center justify-center p-8">
           <div className="max-w-md text-center">
-            <div className="w-16 h-16 bg-red-100 flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-8 h-8 text-red-600" />
+            <div className="w-16 h-16 bg-[#F2F0EA] flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-[#B23A3A]" />
             </div>
-            <h1 className="dc-h2 text-[#0B0B0B] mb-2">Something went wrong</h1>
+            <h1 className="text-[22px] font-bold tracking-tight text-[#0B0B0B] mb-2">Something went wrong</h1>
             <p className="text-[#8A877D] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
             <button 
               onClick={() => window.location.reload()} 
@@ -116,15 +116,18 @@ function AuthPage({ onAuthSuccess }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F2F0EA] flex items-center justify-center p-4 md:p-8">
+    <div className="min-h-screen bg-[#E4E2DC] flex items-center justify-center p-6">
       <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
-            <div className="h-6 w-px bg-[#0B0B0B]" />
-            <span className="dc-kicker text-[#0B0B0B]">Conscious Compass</span>
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-7">
+            <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6" style={{ filter: 'brightness(0)' }} />
+            <span className="w-px h-4 bg-[#DCDAD3]" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B0B0B]">The Conscious Compass</span>
           </div>
-          <p className="text-[#8A877D]">{isLogin ? 'Sign in to access the assessment tool' : 'Create an account to get started'}</p>
+          <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
+            {isLogin ? 'Sign in' : 'Create account'}
+          </h1>
+          <p className="dc-standfirst">{isLogin ? 'Access the assessment tool' : 'Get started'}</p>
         </div>
         
         <form onSubmit={handleSubmit} className="card">
@@ -136,7 +139,7 @@ function AuthPage({ onAuthSuccess }) {
                 value={fullName} 
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Your name"
-                className="w-full px-4 py-3 border border-[#DCDAD3] bg-white"
+                className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]"
                 required={!isLogin}
               />
             </div>
@@ -149,7 +152,7 @@ function AuthPage({ onAuthSuccess }) {
               value={email} 
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
-              className="w-full px-4 py-3 border border-[#DCDAD3] bg-white"
+              className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]"
               required
             />
           </div>
@@ -161,20 +164,20 @@ function AuthPage({ onAuthSuccess }) {
               value={password} 
               onChange={(e) => setPassword(e.target.value)}
               placeholder={isLogin ? "Enter password" : "Create password (min 6 chars)"}
-              className="w-full px-4 py-3 border border-[#DCDAD3] bg-white"
+              className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]"
               required
               minLength={6}
             />
           </div>
           
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm">
+            <div className="mb-4 p-3 bg-[#F2F0EA] border border-[#DCDAD3] text-[#B23A3A] text-sm">
               {error}
             </div>
           )}
           
           {message && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 text-sm">
+            <div className="mb-4 p-3 bg-[#F2F0EA] border border-[#DCDAD3] text-[#059669] text-sm">
               {message}
             </div>
           )}
@@ -298,7 +301,7 @@ function AdminPage({ currentUser, onBack }) {
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div>
-            <h1 className="dc-h2 text-[#0B0B0B]">User Management</h1>
+            <h1 className="dc-h2 text-[#0B0B0B]">User management</h1>
             <p className="text-sm text-[#8A877D]">Approve users and manage access</p>
           </div>
         </div>
@@ -315,14 +318,14 @@ function AdminPage({ currentUser, onBack }) {
             {users.filter(u => !u.is_approved).length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-[#8A877D] uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-yellow-600" />
+                  <UserCheck className="w-4 h-4 text-[#8A877D]" />
                   Pending Approval ({users.filter(u => !u.is_approved).length})
                 </h2>
                 <div className="space-y-3">
                   {users.filter(u => !u.is_approved).map(user => (
-                    <div key={user.id} className="bg-yellow-50 border border-yellow-200 p-5">
+                    <div key={user.id} className="bg-[#F2F0EA] border border-[#DCDAD3] p-5">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-yellow-400 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                        <div className="w-10 h-10 bg-[#DEE42F] flex items-center justify-center text-white font-semibold flex-shrink-0">
                           {(user.full_name || user.email || '?')[0].toUpperCase()}
                         </div>
                         <div>
@@ -340,7 +343,7 @@ function AdminPage({ currentUser, onBack }) {
                           Approve (Full Access)
                         </button>
                         <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                          className="text-sm px-3 py-2 border border-red-300 text-red-600 hover:bg-red-50 transition-colors ml-auto">
+                          className="text-sm px-3 py-2 border border-[#DCDAD3] text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors ml-auto">
                           <Trash2 className="w-4 h-4 inline mr-1" />Delete
                         </button>
                       </div>
@@ -414,11 +417,11 @@ function AdminPage({ currentUser, onBack }) {
                           </button>
                           <div className="flex gap-2 ml-auto">
                             <button onClick={() => handleRevoke(user.id)}
-                              className="text-sm px-3 py-1.5 border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+                              className="text-sm px-3 py-1.5 border border-[#DCDAD3] text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
                               <UserX className="w-3.5 h-3.5 inline mr-1" />Revoke
                             </button>
                             <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                              className="text-sm px-3 py-1.5 border border-red-300 text-red-700 hover:bg-red-50 transition-colors">
+                              className="text-sm px-3 py-1.5 border border-[#DCDAD3] text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
                               <Trash2 className="w-3.5 h-3.5 inline mr-1" />Delete
                             </button>
                           </div>
@@ -2204,20 +2207,20 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
   return (
     <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
-      <h2 className="dc-h2 text-[#0B0B0B] mb-2">Brand Details</h2>
+      <h2 className="text-[20px] font-bold tracking-tight text-[#0B0B0B] mb-2">Brand Details</h2>
       <p className="text-[#4A4840] mb-8">Tell us about the brand you're assessing.</p>
 
       <div className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Brand Name *</label>
           <input type="text" value={project.brandName} onChange={(e) => setProject({ ...project, brandName: e.target.value })}
-            placeholder="e.g., Antenna Group" className="w-full px-4 py-3 border border-[#DCDAD3] bg-white" />
+            placeholder="e.g., Antenna Group" className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]" />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Website URL *</label>
           <input type="url" value={project.websiteUrl} onChange={(e) => setProject({ ...project, websiteUrl: e.target.value })}
-            placeholder="https://www.example.com" className="w-full px-4 py-3 border border-[#DCDAD3] bg-white" />
+            placeholder="https://www.example.com" className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]" />
         </div>
 
         <AdditionalPropertiesInput project={project} setProject={setProject} />
@@ -2225,7 +2228,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
         <div>
           <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Business Model</label>
           <select value={project.businessModel} onChange={(e) => setProject({ ...project, businessModel: e.target.value })}
-            className="w-full px-4 py-3 border border-[#DCDAD3] bg-white">
+            className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]">
             {BUSINESS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
@@ -2233,7 +2236,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
         <div>
           <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Industry</label>
           <select value={project.industry || 'other'} onChange={(e) => setProject({ ...project, industry: e.target.value })}
-            className="w-full px-4 py-3 border border-[#DCDAD3] bg-white">
+            className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]">
             {INDUSTRIES.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
           <p className="text-xs text-[#8A877D] mt-1">Used for industry context in the assessment</p>
@@ -2652,7 +2655,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       </div>
 
       {fetchError && (
-        <div className="bg-red-50 border border-red-200 p-3 mb-4 text-xs text-red-700">
+        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3 mb-4 text-xs text-[#B23A3A]">
           {fetchError} — Try the Manual button instead.
         </div>
       )}
@@ -3201,7 +3204,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           value={pagesReviewed} 
           onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ ...assessmentData, pagesReviewed: e.target.value }); }}
           placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact"
-          className="w-full px-4 py-3 border border-[#DCDAD3] bg-white"
+          className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]"
         />
       </div>
 
@@ -3247,7 +3250,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
             <div key={index} className="relative">
               <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DCDAD3]" />
               <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white p-1 hover:bg-gray-100">
+                className="absolute top-2 right-2 bg-white p-1 hover:bg-[#E4E2DC]">
                 <X className="w-4 h-4" />
               </button>
               <div className="absolute bottom-2 left-2 bg-[#0B0B0B] text-white text-xs px-2 py-1 ">
@@ -3269,7 +3272,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         </div>
         
         {images.length > 0 && (
-          <div className="text-sm text-green-600">
+          <div className="text-sm text-[#059669]">
             {images.length} screenshot(s) ready for analysis
           </div>
         )}
@@ -3309,8 +3312,8 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
               Claude will analyze {project.brandName}'s likely SEO visibility based on brand name uniqueness, 
               industry competitiveness, content signals, and identify target keywords they should rank for.
             </p>
-            <div className="bg-yellow-50 border border-yellow-200 p-3 mb-4">
-              <p className="text-sm text-yellow-800">
+            <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3 mb-4">
+              <p className="text-sm text-[#0B0B0B]">
                 <strong>💡 Tip:</strong> Run this before the main Website Analysis for best results. 
                 SEO insights will be automatically integrated into the full assessment.
               </p>
@@ -3331,7 +3334,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
-                <Check className="w-4 h-4 text-green-600" /> SEO Assessment Complete
+                <Check className="w-4 h-4 text-[#059669]" /> SEO Assessment Complete
                 <span className="text-xs text-[#8A877D] font-normal">(will be included in Website Analysis)</span>
               </span>
               <button 
@@ -3387,7 +3390,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         </button>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 p-4 mb-6 text-red-700">{error}</div>}
+      {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-6 text-[#B23A3A]">{error}</div>}
 
       {isComplete && (
         <div className="card mb-[2px]">
@@ -3413,7 +3416,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       )}
 
       {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-4 text-[#0B0B0B] text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
@@ -4136,7 +4139,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {/* Screenshots - Matching Website Style */}
       <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2 flex items-center gap-2">
-          <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) <span className="text-red-500">*</span>
+          <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) <span className="text-[#B23A3A]">*</span>
         </h3>
         <p className="text-sm text-[#8A877D] mb-4">Upload screenshots of key social profiles for visual analysis. Required to proceed.</p>
         
@@ -4147,7 +4150,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             <div key={index} className="relative">
               <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DCDAD3]" />
               <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white p-1 hover:bg-gray-100">
+                className="absolute top-2 right-2 bg-white p-1 hover:bg-[#E4E2DC]">
                 <X className="w-4 h-4" />
               </button>
               <div className="absolute bottom-2 left-2 bg-[#0B0B0B] text-white text-xs px-2 py-1 ">
@@ -4169,7 +4172,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </div>
         
         {images.length > 0 && (
-          <div className="text-sm text-green-600">
+          <div className="text-sm text-[#059669]">
             {images.length} screenshot(s) ready for analysis
           </div>
         )}
@@ -4281,7 +4284,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             <div>
               <div className="flex items-center justify-end mb-1">
                 <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-medium hover:bg-red-200 transition-colors flex items-center gap-1">
+                   className="px-2 py-0.5 bg-[#F2F0EA] text-[#B23A3A] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1">
                   Verify <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               </div>
@@ -4326,9 +4329,9 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#8A877D]">Glassdoor <span className="text-purple-600">(→ Reflective)</span></label>
+                <label className="text-xs font-medium text-[#8A877D]">Glassdoor <span className="text-[#4A4840]">(→ Reflective)</span></label>
                 <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium hover:bg-purple-200 transition-colors flex items-center gap-1">
+                   className="px-2 py-0.5 bg-[#E4E2DC] text-[#4A4840] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1">
                   Verify <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               </div>
@@ -4336,9 +4339,9 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
                 placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
             </div>
-            <div className="bg-blue-50 border border-blue-200 p-3">
+            <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-blue-800">WIPO Trademark <span className="font-normal">(→ Intentional)</span></label>
+                <label className="text-xs font-medium text-[#0B0B0B]">WIPO Trademark <span className="font-normal">(→ Intentional)</span></label>
                 <div className="flex gap-2">
                   <button
                     onClick={runWipoSearch}
@@ -4354,11 +4357,11 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
                 </div>
               </div>
               {inputs.wipoContent?.includes('[Auto-searched]') && (
-                <p className="text-xs text-green-600 mb-2">✓ Trademark data auto-searched</p>
+                <p className="text-xs text-[#059669] mb-2">✓ Trademark data auto-searched</p>
               )}
               <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
                 placeholder={`Trademark status for ${project.brandName}: registrations found, jurisdictions covered, any similar/conflicting marks, protection status...`}
-                className={`w-full h-20 px-3 py-2 border border-blue-300  bg-white resize-none text-sm ${inputs.wipoContent ? 'bg-blue-50' : ''}`} />
+                className={`w-full h-20 px-3 py-2 border border-[#DCDAD3]  bg-white resize-none text-sm ${inputs.wipoContent ? 'bg-[#F2F0EA]' : ''}`} />
             </div>
           </div>
         )}
@@ -4403,7 +4406,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
                   <span>LinkedIn{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-gray-400 hover:bg-gray-500' : project.businessModel === 'b2c' ? 'bg-black hover:bg-gray-800 ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-gray-800'}`}>
+                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#B3B0A8] hover:bg-[#8A877D]' : project.businessModel === 'b2c' ? 'bg-black hover:bg-[#0B0B0B] ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-[#0B0B0B]'}`}>
                   <span>TikTok{project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -4413,7 +4416,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Hashtag search</div>
               <div className="grid grid-cols-2 gap-2">
                 <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
+                   className="px-2 py-1.5 bg-gradient-to-r from-[#8A877D] to-pink-500 text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
                   <span>Instagram #</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://www.linkedin.com/search/results/content/?keywords=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
@@ -4460,7 +4463,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </button>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 p-3 mb-4 text-red-700 text-sm">{error}</div>}
+      {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3 mb-4 text-[#B23A3A] text-sm">{error}</div>}
 
       {isComplete && (
         <div className="card mb-[2px]">
@@ -4483,7 +4486,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       )}
 
       {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-4 text-[#0B0B0B] text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
@@ -4738,7 +4741,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
         <p className="text-xs text-[#B3B0A8]">Customised for <strong>{project.brandName}</strong> · {industryName}</p>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 p-3 mb-4 text-red-700 text-sm">{error}</div>}
+      {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3 mb-4 text-[#B23A3A] text-sm">{error}</div>}
 
       {/* AI Engine Cards — uniform pattern */}
       <div className="space-y-3 mb-4">
@@ -4747,7 +4750,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#DEE42F] text-white' : 'bg-[#E4E2DC]'}`}>
-                  {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
+                  {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-[#B3B0A8]" />}
                 </div>
                 <div>
                   <h4 className="font-medium">{engine.name}</h4>
@@ -4791,7 +4794,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-medium text-[#8A877D]">Wikipedia</label>
               <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer"
-                 className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium hover:bg-gray-200 transition-colors flex items-center gap-1">
+                 className="px-2 py-0.5 bg-[#E4E2DC] text-[#4A4840] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1">
                 Search Wikipedia <ExternalLink className="w-2.5 h-2.5" />
               </a>
             </div>
@@ -4805,11 +4808,11 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
           {/* Reddit Answers */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-orange-800">Reddit Answers <span className="text-[#8A877D] font-normal">(AI search visibility)</span></label>
+              <label className="text-xs font-medium text-[#0B0B0B]">Reddit Answers <span className="text-[#8A877D] font-normal">(AI search visibility)</span></label>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => copyToClipboard(redditPrompt)}
-                  className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium hover:bg-orange-200 transition-colors flex items-center gap-1"
+                  className="px-2 py-0.5 bg-[#E4E2DC] text-[#0B0B0B] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1"
                 >
                   <Copy className="w-2.5 h-2.5" /> Copy prompt
                 </button>
@@ -4823,7 +4826,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               value={redditContent}
               onChange={(e) => { setRedditContent(e.target.value); setAssessmentData({ ...assessmentData, redditAnswersContent: e.target.value }); }}
               placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation and community perception...`}
-              className="w-full h-24 px-3 py-2 border border-orange-200 bg-orange-50 resize-none text-sm"
+              className="w-full h-24 px-3 py-2 border border-[#DCDAD3] bg-[#F2F0EA] resize-none text-sm"
             />
           </div>
         </div>
@@ -4894,7 +4897,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       )}
 
       {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-4 text-[#0B0B0B] text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
@@ -5139,7 +5142,7 @@ Example:
         </button>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 p-4 mb-6 text-red-700">{error}</div>}
+      {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-6 text-[#B23A3A]">{error}</div>}
 
       {isComplete && (
         <div className="card mb-[2px]">
@@ -5165,7 +5168,7 @@ Example:
       )}
 
       {proceedError && (
-        <div className="bg-amber-50 border border-amber-200 p-4 mb-4 text-amber-800 text-sm flex items-center gap-2">
+        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-4 text-[#0B0B0B] text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
@@ -5556,7 +5559,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
             <BarChart3 className="w-7 h-7 text-[#B23A3A]" />
           </div>
           <div>
-            <h2 className="dc-h2 text-[#0B0B0B]">Generate Brand Report</h2>
+            <h2 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">Generate Brand Report</h2>
             <p className="text-[#4A4840] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
           </div>
         </div>
@@ -5647,7 +5650,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
           )}
           
           {scoringError && (
-            <div className="mt-4 bg-red-50 border border-red-200 p-4 text-red-700 text-sm">
+            <div className="mt-4 bg-[#F2F0EA] border border-[#DCDAD3] p-4 text-[#B23A3A] text-sm">
               {scoringError}
             </div>
           )}
@@ -5671,7 +5674,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
     return (
       <div className="dc-wrap dc-page">
         <div className="card text-center">
-          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <AlertCircle className="w-12 h-12 text-[#8A877D] mx-auto mb-4" />
           <h3 className="dc-kicker text-[#0B0B0B] mb-2">Report Generation Issue</h3>
           <p className="text-[#8A877D] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
           <button onClick={() => setScores(null)} className="btn-primary">
@@ -7241,7 +7244,7 @@ ${content.slice(0, 8000)}`;
               <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B0B0B]">The Conscious Compass</span>
             </div>
             <h2 className="font-bold text-[#0B0B0B]"
-              style={{ fontSize: 'clamp(34px,5.5vw,72px)', letterSpacing: '-0.035em', lineHeight: 0.92, maxWidth: '14ch' }}>
+              style={{ fontSize: 'clamp(30px,4.4vw,60px)', letterSpacing: '-0.035em', lineHeight: 0.98, maxWidth: '22ch' }}>
               {project.brandName}
             </h2>
             <p className="text-sm font-semibold text-[#8A877D] mt-5" style={{ letterSpacing: '0.04em' }}>
@@ -7250,13 +7253,13 @@ ${content.slice(0, 8000)}`;
           </div>
         </div>
         {!isReadonly ? (
-          <div className="flex flex-wrap gap-2 flex-shrink-0">
-            <button onClick={copyReportText} className="btn-secondary flex items-center gap-1.5 text-xs px-3 py-1.5"><Copy className="w-3.5 h-3.5" /> Copy Full Report</button>
-            <button onClick={onSave} className="btn-secondary flex items-center gap-1.5 text-xs px-3 py-1.5"><Save className="w-3.5 h-3.5" /> Save</button>
-            <button onClick={() => setShowClientLink(true)} className="btn-secondary flex items-center gap-1.5 text-xs px-3 py-1.5" title="Create a password-protected link for the client">
+          <div className="dc-btns flex-shrink-0">
+            <button onClick={copyReportText} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3"><Copy className="w-3.5 h-3.5" /> Copy Full Report</button>
+            <button onClick={onSave} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3"><Save className="w-3.5 h-3.5" /> Save</button>
+            <button onClick={() => setShowClientLink(true)} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3" title="Create a password-protected link for the client">
               <ExternalLink className="w-3.5 h-3.5" /> Client Link
             </button>
-            <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-1.5 text-xs px-3 py-1.5">
+            <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-1.5 !text-[11px] !px-4 !py-3">
               {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} DOCX
             </button>
           </div>
@@ -7355,7 +7358,7 @@ ${content.slice(0, 8000)}`;
                   <p className="text-xs text-[#4A4840] mt-2 leading-relaxed"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
                 )}
                 {scores[attr.id]?.opportunity && (
-                  <p className="text-xs text-[#B23A3A] mt-2 italic">→ {scores[attr.id].opportunity}</p>
+                  <p className="text-xs mt-2 svc-link">→ {scores[attr.id].opportunity}</p>
                 )}
               </div>
             ))}
@@ -7410,7 +7413,7 @@ ${content.slice(0, 8000)}`;
       {!campaignStage && (
         <div className="mb-6">
           <div className="dc-sec-head mb-4">CAMPAIGN COHERENCE</div>
-          <div className="card border-l-4 border-amber-400">
+          <div className="card border-l-4 border-[#DEE42F]">
             <p className="text-sm text-[#4A4840] leading-relaxed">
               These scores were produced before campaign coherence existed, or the scoring pass did not return it.
               Regenerate the report to score campaign coherence and apply the framework {FRAMEWORK_VERSION} adjustment.
@@ -7525,7 +7528,7 @@ ${content.slice(0, 8000)}`;
       {benchmarkUnavailableReason && (
         <div className="mb-6">
           <div className="dc-sec-head mb-4">BENCHMARK COMPARISON</div>
-          <div className="card border-l-4 border-amber-400">
+          <div className="card border-l-4 border-[#DEE42F]">
             <p className="text-sm text-[#4A4840] leading-relaxed">{benchmarkUnavailableReason}</p>
           </div>
         </div>
@@ -7665,9 +7668,9 @@ ${content.slice(0, 8000)}`;
                             <p className="text-xs text-[#8A877D]">{rec.service.category}</p>
                           </div>
                           <span className={`text-xs px-2 py-1 font-medium ${
-                            rec.priorityLevel === 'critical' ? 'bg-red-100 text-red-700' :
-                            rec.priorityLevel === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-green-100 text-green-700'
+                            rec.priorityLevel === 'critical' ? 'bg-[#F2F0EA] text-[#B23A3A]' :
+                            rec.priorityLevel === 'moderate' ? 'bg-[#DEE42F] text-[#0B0B0B]' :
+                            'bg-[#E4E2DC] text-[#059669]'
                           }`}>
                             {rec.priorityLevel === 'critical' ? 'High Priority' : 
                              rec.priorityLevel === 'moderate' ? 'Recommended' : 'Opportunity'}
@@ -8257,7 +8260,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                         {profile?.is_admin && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} 
-                            className="text-red-500 hover:text-red-700 flex items-center gap-1 ml-auto"
+                            className="text-[#B23A3A] hover:text-[#B23A3A] flex items-center gap-1 ml-auto"
                           >
                             <Trash2 className="w-3.5 h-3.5" /> Delete
                           </button>
@@ -8274,7 +8277,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
       {/* Add Manual Entry Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-[#DCDAD3]">
               <h3 className="text-[17px] font-bold tracking-tight">Add Manual Entry</h3>
@@ -8361,8 +8364,8 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                 </div>
               </div>
               
-              <div className="bg-yellow-50 border border-yellow-200 p-3">
-                <p className="text-sm text-yellow-800">
+              <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3">
+                <p className="text-sm text-[#0B0B0B]">
                   <strong>Note:</strong> Manual entries will be flagged as such in the results grid.
                 </p>
               </div>
@@ -8418,7 +8421,7 @@ function OnboardingTour({ onComplete }) {
       <div className="bg-[#0B0B0B] max-w-lg w-full overflow-hidden animate-fade-in">
         <div className="bg-[#DEE42F] p-8 text-center">
           <Icon className="w-16 h-16 text-[#0B0B0B] mx-auto mb-4" />
-          <h2 className="dc-h2 text-[#0B0B0B]">{currentStep.title}</h2>
+          <h2 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">{currentStep.title}</h2>
         </div>
         
         <div className="p-6">
@@ -8699,7 +8702,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         </div>
 
         {error && (
-          <div className="p-4 bg-red-50 text-red-700 mb-4 text-sm">
+          <div className="p-4 bg-[#F2F0EA] text-[#B23A3A] mb-4 text-sm">
             {error}
           </div>
         )}
@@ -9759,17 +9762,15 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
   return (
     <div className="min-h-screen bg-[#F2F0EA]">
       <div className="dc-wrap dc-page pt-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="btn-secondary flex items-center gap-2">
+        <div className="dc-pagehead">
+          <div className="min-w-0">
+            <h1 className="dc-h2 text-[#0B0B0B]">Compare</h1>
+            <p className="dc-standfirst">Compare brands or explore the consciousness landscape</p>
+          </div>
+          <div className="dc-btns items-center">
+            <button onClick={onBack} className="btn-secondary flex items-center gap-2 !text-[11px] !px-4 !py-3">
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
-            <div>
-              <h1 className="dc-h2 text-[#0B0B0B]">Compare</h1>
-              <p className="text-sm text-[#8A877D]">Compare brands or explore the consciousness landscape</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
             {copyDeepLink && (
               <button
                 onClick={() => copyDeepLink(
@@ -9793,36 +9794,24 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
         </div>
 
         {/* View Mode Toggle */}
-        <div className="flex gap-2 mb-6">
+        <div className="dc-tabs mb-8">
           <button
             onClick={() => setViewMode('brands')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              viewMode === 'brands' 
-                ? 'bg-[#0B0B0B] text-white' 
-                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
-            }`}
+            className={`dc-tab ${viewMode === 'brands' ? 'dc-tab-on' : ''}`}
           >
             Compare Brands
           </button>
           <button
             onClick={() => setViewMode('landscape')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              viewMode === 'landscape' 
-                ? 'bg-[#0B0B0B] text-white' 
-                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
-            }`}
+            className={`dc-tab ${viewMode === 'landscape' ? 'dc-tab-on' : ''}`}
           >
-            🌐 Landscape
+            Landscape
           </button>
           <button
             onClick={() => setViewMode('insights')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              viewMode === 'insights' 
-                ? 'bg-[#0B0B0B] text-white' 
-                : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
-            }`}
+            className={`dc-tab ${viewMode === 'insights' ? 'dc-tab-on' : ''}`}
           >
-            ✨ Insights
+            Insights
           </button>
         </div>
 
@@ -10281,8 +10270,8 @@ function AssessmentStatusIndicator({ assessments }) {
         <div 
           key={key}
           className={`w-2 h-2 ${
-            status === 'complete' ? 'bg-green-500' : 
-            status === 'partial' ? 'bg-yellow-500' : 
+            status === 'complete' ? 'bg-[#059669]' : 
+            status === 'partial' ? 'bg-[#DEE42F]' : 
             'bg-[#DCDAD3]'
           }`}
           title={`${key}: ${status}`}
@@ -10373,7 +10362,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
       <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-bold text-[#0B0B0B]">
+            <h3 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">
               Client links{links ? ` (${links.length})` : ''}
             </h3>
             <p className="text-xs text-[#8A877D] mt-0.5">
@@ -10414,17 +10403,17 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <button onClick={() => copy(link.token)}
-                      className="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1">
+                      className="btn-secondary !text-[10px] !px-3 !py-2 flex items-center gap-1">
                       {copied === link.token ? <><Check className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
                     </button>
                     {canManage && (
                       <>
                         <button onClick={() => { setResetting(resetting === link.token ? null : link.token); setNewPassword(''); setError(null); }}
-                          className="btn-secondary text-[11px] px-2 py-1">
+                          className="btn-secondary !text-[10px] !px-3 !py-2">
                           Reset password
                         </button>
                         <button onClick={() => revoke(link)} disabled={busy === link.token}
-                          className="btn-secondary text-[11px] px-2 py-1 text-[#B23A3A]">
+                          className="btn-secondary !text-[10px] !px-3 !py-2 text-[#B23A3A]">
                           {busy === link.token ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Revoke'}
                         </button>
                       </>
@@ -10689,7 +10678,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       </button>
                       {!isReadonly && (
                         <button onClick={() => onDelete(i)} title="Delete"
-                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#DCDAD3] hover:text-red-500 hover:bg-red-50 transition-colors">
+                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#DCDAD3] hover:text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -10711,7 +10700,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                         Rescore
                       </button>
                       <button onClick={() => onDelete(i)} title="Delete"
-                        className="w-8 h-8 flex items-center justify-center text-[#DCDAD3] hover:text-red-500 transition-colors ml-auto">
+                        className="w-8 h-8 flex items-center justify-center text-[#DCDAD3] hover:text-[#B23A3A] transition-colors ml-auto">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -10833,7 +10822,7 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
       <div className="card max-w-lg w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-bold text-[#0B0B0B]">Client link</h3>
+            <h3 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">Client link</h3>
             <p className="text-xs text-[#8A877D] mt-0.5">
               A cleansed, password-protected report for {brandName}.
             </p>
@@ -11191,7 +11180,7 @@ function ClientReportGate({ token }) {
           className="h-9 mx-auto mb-4"
           style={{ filter: 'brightness(0)' }}
         />
-        <p className="text-2xl sm:dc-h2 text-[#0B0B0B] leading-tight tracking-tight">
+        <p className="text-2xl sm:text-3xl font-bold text-[#0B0B0B] leading-tight tracking-tight">
           Consequential brands are conscious brands
         </p>
       </div>
@@ -11320,7 +11309,7 @@ function SharedReportView({ report, onClose }) {
           <div className="inline-flex items-center justify-center w-32 h-32 bg-[#DEE42F] text-white mb-4">
             <span className="text-5xl font-bold">{overall}</span>
           </div>
-          <h2 className="dc-h2 text-[#0B0B0B] mb-2">{stage.name}</h2>
+          <h2 className="text-[20px] font-bold tracking-tight text-[#0B0B0B] mb-2">{stage.name}</h2>
           <p className="text-[#4A4840] mb-4">{stage.description}</p>
           {scores.headline && (
             <p className="text-lg italic text-[#0B0B0B] border-t border-[#DCDAD3] pt-4 mt-4">
@@ -11564,7 +11553,7 @@ function SharedReportView({ report, onClose }) {
                 <p className="text-sm text-[#4A4840] mb-2"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
               )}
               {scores[attr.id]?.opportunity && (
-                <p className="text-sm text-[#B23A3A] italic">{scores[attr.id].opportunity}</p>
+                <p className="text-sm svc-link">{scores[attr.id].opportunity}</p>
               )}
             </div>
           ))}
@@ -12081,31 +12070,26 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
       <div className="dc-wrap dc-page pt-8">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8 gap-4">
-          <div className="flex items-start gap-4">
-            <button onClick={onBack} className="btn-secondary flex items-center gap-2 flex-shrink-0">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="w-5 h-5 text-[#6366F1]" />
-                <h1 className="dc-h2 text-[#0B0B0B]">Stay Conscious</h1>
-                {newsletter && (
-                  <span className="text-xs font-medium px-2 py-0.5 bg-[#0B0B0B] text-white">
-                    Issue #{newsletter.issueNumber}
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-[#8A877D]">Brand intelligence for assessors. What's shifting, why it matters.</p>
-              <div className="text-xs text-[#B3B0A8] mt-0.5 space-y-0.5">
-                {refreshedAt && <p>Updated {fmtDate(refreshedAt)}</p>}
-                <p>Next update {fmtDate(nextSunday())}</p>
-              </div>
+        <div className="dc-pagehead">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="dc-h2 text-[#0B0B0B]">Stay Conscious</h1>
+              {newsletter && (
+                <span className="dc-pill">Issue {newsletter.issueNumber}</span>
+              )}
+            </div>
+            <p className="dc-standfirst">Brand intelligence for assessors. What's shifting, why it matters.</p>
+            <div className="text-[11px] text-[#B3B0A8] mt-2 space-y-0.5">
+              {refreshedAt && <p>Updated {fmtDate(refreshedAt)}</p>}
+              <p>Next update {fmtDate(nextSunday())}</p>
             </div>
           </div>
 
           {/* Action buttons */}
-          <div className="flex flex-wrap gap-2 self-start">
+          <div className="dc-btns self-start items-center">
+            <button onClick={onBack} className="btn-secondary flex items-center gap-2 !text-[11px] !px-4 !py-3">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
             {newsletter && (
               <>
                 <button

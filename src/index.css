@@ -174,8 +174,8 @@ input, select, textarea {
 }
 
 /* App-wide heading scale from the redesign */
-h1 { font-size: clamp(34px, 4.4vw, 58px); letter-spacing: -0.035em; line-height: 0.95; }
-h2 { font-size: clamp(30px, 3.4vw, 44px); letter-spacing: -0.03em; line-height: 1; }
+h1 { font-size: clamp(30px, 3.6vw, 52px); letter-spacing: -0.032em; line-height: 1; }
+h2 { font-size: clamp(26px, 2.8vw, 38px); letter-spacing: -0.028em; line-height: 1.02; }
 h3 { font-size: 26px; letter-spacing: -0.02em; }
 
 /* Navigation */
@@ -312,9 +312,9 @@ input:focus, select:focus, textarea:focus {
 
 /* Display type */
 .dc-display   { font-size: clamp(38px, 6vw, 78px); font-weight: 700;
-                letter-spacing: -0.035em; line-height: 0.92; max-width: 16ch; }
+                letter-spacing: -0.035em; line-height: 0.94; }
 .dc-h2        { font-size: clamp(28px, 4vw, 48px); font-weight: 700;
-                letter-spacing: -0.032em; line-height: 0.96; max-width: 18ch; }
+                letter-spacing: -0.032em; line-height: 1; }
 .dc-kicker    { font-size: 11px; font-weight: 700; letter-spacing: 0.16em;
                 text-transform: uppercase; color: var(--antenna-muted); }
 .dc-kicker-sm { font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
@@ -387,3 +387,21 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
 /* Filter bar inputs butt together on the ground */
 .dc-filters   { display: flex; gap: 2px; margin-top: 24px; flex-wrap: wrap; }
 .dc-filters input, .dc-filters select { background: var(--antenna-white); margin: 0; }
+
+/* Service links: ink with a lime underline, never red italics */
+.svc-link { color: var(--antenna-ink) !important; font-style: normal !important;
+            text-decoration: underline; text-decoration-color: var(--antenna-lime);
+            text-decoration-thickness: 2px; text-underline-offset: 2px; }
+
+/* ── Tabs ───────────────────────────────────────────────────
+   Tracked labels sharing one hard rule; the active tab carries the
+   lime marker rather than a filled pill. */
+.dc-tabs   { display: flex; gap: 28px; border-bottom: 2px solid var(--antenna-ink); }
+.dc-tab    { padding: 0 0 10px; font-size: 12px; font-weight: 700;
+             letter-spacing: 0.14em; text-transform: uppercase;
+             color: var(--antenna-muted); background: none; border: none;
+             cursor: pointer; position: relative; }
+.dc-tab:hover { color: var(--antenna-ink); }
+.dc-tab-on { color: var(--antenna-ink); }
+.dc-tab-on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -2px;
+             height: 6px; background: var(--antenna-lime); }
