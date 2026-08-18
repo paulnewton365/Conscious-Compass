@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.10.1';
+const APP_VERSION = '3.12.0';
 import { 
   supabase, 
   signUp, 
@@ -591,14 +591,27 @@ function buildBenchmarkSnapshot(results, { industry, industryName, brandName, to
 // Score bands. Attribute figures are now coloured by performance rather than
 // by attribute identity, so a reader can scan for weakness without a legend.
 // Chart colours are unaffected: the octagon still uses attribute identity.
-const SCORE_GREEN = '#0F7A4F';   // 70-100
-const SCORE_AMBER = '#B45309';   // 45-69
-const SCORE_RED   = '#B23A3A';   // 0-44
+// A genuine orange cannot reach 4.5:1 on the warm paper ground, so the mid
+// band is set at the AA-large threshold and every score figure is rendered at
+// 19px bold or larger, which is where that threshold applies. Contrast on
+// paper: green 4.70, orange 3.49, red 4.50.
+const SCORE_GREEN  = '#0F7A4F';   // 70-100, hue 156
+const SCORE_ORANGE = '#C2680C';   // 45-69,  hue 30
+const SCORE_RED    = '#D42528';   // 0-44,   hue 359
+// Hue separation between orange and red is now 31 degrees, up from 26, and the
+// red is a true red rather than the previous brick.
+
+// Text colour for a chip filled with a band colour. White reads on green and
+// red; on orange it drops to 3.98, so that one takes ink instead (4.95).
+function onScoreColor(n) {
+  const v = Number(n) || 0;
+  return (v >= 45 && v < 70) ? '#0B0B0B' : '#FFFFFF';
+}
 
 function scoreColor(n) {
   const v = Number(n) || 0;
   if (v >= 70) return SCORE_GREEN;
-  if (v >= 45) return SCORE_AMBER;
+  if (v >= 45) return SCORE_ORANGE;
   return SCORE_RED;
 }
 
@@ -2536,8 +2549,8 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
                     return (
                       <td key={metric} className="py-2 px-1 text-center">
                         {val != null ? (
-                          <span className="inline-block w-10 text-center py-0.5 font-bold tabular-nums text-white text-[11px]"
-                            style={{ backgroundColor: scoreColor(val) }}>
+                          <span className="inline-block w-10 text-center py-0.5 font-bold tabular-nums text-[11px]"
+                            style={{ backgroundColor: scoreColor(val), color: onScoreColor(val) }}>
                             {val}
                           </span>
                         ) : hasError && i > 0 ? (
@@ -7538,6 +7551,38 @@ ${content.slice(0, 8000)}`;
                 </div>
               );
             })}
+
+            {/* Occupies the empty cell left by eight attributes in a
+                three-column grid. Flows to its own row at narrower widths. */}
+            {campaignAffected.length > 0 && campaignStage && (
+              <div className="bg-white" style={{ padding: 24 }}>
+                <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>Score adjustment</h4>
+                <p className="text-[12px] text-[#8A877D]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DCDAD3' }}>
+                  Attribute scores judge the quality of the work. Campaign coherence is scored
+                  separately and applied here, so the two are never counted twice.
+                </p>
+                <div style={{ marginTop: 4 }}>
+                  {campaignAffected.map(attr => {
+                    const adj = campaignAdjustment(attr.id);
+                    return (
+                      <div key={attr.id} className="flex items-center justify-between"
+                        style={{ padding: '9px 0', borderBottom: '1px solid #E4E2DC' }}>
+                        <span className="text-[13px] font-bold truncate">{attr.name}</span>
+                        <span className="text-[12px] tabular-nums text-[#8A877D] flex-shrink-0 ml-3">
+                          {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
+                          <span className="font-bold" style={{ color: adj > 0 ? SCORE_GREEN : SCORE_RED }}> {adj > 0 ? '+' : ''}{adj} </span>
+                          <span className="font-bold text-[15px]" style={{ color: scoreColor(scores[attr.id]?.score) }}>{scores[attr.id]?.score}</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="dc-kicker-sm" style={{ marginTop: 14 }}>
+                  Level {campaignStage.level}: {CAMPAIGN_MODIFIERS[campaignStage.level].primary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].primary} primary,{' '}
+                  {CAMPAIGN_MODIFIERS[campaignStage.level].secondary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].secondary} secondary
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -7644,31 +7689,6 @@ ${content.slice(0, 8000)}`;
                 </div>
               )}
 
-              {/* Score adjustment, shown openly */}
-              {campaignAffected.length > 0 && (
-                <div className="card">
-                  <h4 className="text-sm font-semibold text-[#0B0B0B] mb-1">Score Adjustment</h4>
-                  <p className="text-xs text-[#8A877D] mb-3 leading-relaxed">
-                    Attribute scores judge the quality of the work. Campaign coherence is scored separately and applied here, so the two are never counted twice.
-                    Level {campaignStage.level} adjusts {CAMPAIGN_MODIFIER_ATTRIBUTES.primary.map(id => ATTRIBUTES.find(a => a.id === id)?.name).join(' and ')} by {CAMPAIGN_MODIFIERS[campaignStage.level].primary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].primary}, and {CAMPAIGN_MODIFIER_ATTRIBUTES.secondary.map(id => ATTRIBUTES.find(a => a.id === id)?.name).join(', ')} by {CAMPAIGN_MODIFIERS[campaignStage.level].secondary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].secondary}.
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {campaignAffected.map(attr => {
-                      const adj = campaignAdjustment(attr.id);
-                      return (
-                        <div key={attr.id} className="flex items-center justify-between bg-[#F2F0EA] px-2.5 py-1.5">
-                          <span className="text-xs font-medium text-[#0B0B0B] truncate">{attr.name}</span>
-                          <span className="text-xs tabular-nums text-[#8A877D] flex-shrink-0 ml-2">
-                            {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
-                            <span className={adj > 0 ? 'text-[#059669] font-semibold' : 'text-[#B23A3A] font-semibold'}> {adj > 0 ? '+' : ''}{adj} </span>
-                            <span className="font-bold text-[#0B0B0B]">{scores[attr.id]?.score}</span>
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -7772,7 +7792,7 @@ ${content.slice(0, 8000)}`;
                               transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease', transitionDelay: `${ri * 70 + 120}ms` }} />
                           </div>
                           <div className="text-right">
-                            <span className="text-[15px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
+                            <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
                             <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B', background: d > 0 ? '#DEE42F' : 'transparent', border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
                               {d > 0 ? '+' : ''}{d}
                             </span>
@@ -7904,8 +7924,7 @@ ${content.slice(0, 8000)}`;
           onToggle={() => toggleSection('conclusions')} />
         {expandedSections.conclusions && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
-            <p style={{ fontSize: 17, fontWeight: 500, lineHeight: 1.55,
-              letterSpacing: '-.005em', maxWidth: '72ch' }}>
+            <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
               {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
             </p>
           </div>
@@ -7918,8 +7937,8 @@ ${content.slice(0, 8000)}`;
           <SectionHead label="Score justification" open={expandedSections.justification}
           onToggle={() => toggleSection('justification')} />
           {expandedSections.justification && (
-            <div className="card animate-fade-in bg-[#F2F0EA]">
-              <p className="text-sm text-[#4A4840] leading-relaxed">
+            <div className="animate-fade-in" style={{ marginTop: 32 }}>
+              <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
                 {scores.justification}
               </p>
             </div>
@@ -10074,7 +10093,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     </span>
                   )}
                 </h3>
-                <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                <div className="max-h-[50vh] overflow-y-auto" style={{ borderTop: '1px solid #DCDAD3', marginTop: 12 }}>
                   {filteredResults.map((r) => {
                     const isSelected = selectedBrands.find(b => b.id === r.id);
                     const isDisabled = !isSelected && selectedBrands.length >= maxComparison;
@@ -10083,27 +10102,30 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         key={r.id}
                         onClick={() => toggleBrand(r)}
                         disabled={isDisabled}
-                        className={`w-full text-left p-3  border transition-colors ${
-                          isSelected 
-                            ? 'border-[#0B0B0B] bg-[#DEE42F]/5' 
-                            : isDisabled 
-                              ? 'border-[#DCDAD3] bg-[#F2F0EA] opacity-50 cursor-not-allowed'
-                              : 'border-[#DCDAD3] hover:border-[#0B0B0B]/50'
+                        className={`w-full text-left transition-colors flex items-center gap-3 ${
+                          isDisabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#F2F0EA]'
                         }`}
+                        style={{ padding: '12px 16px', borderBottom: '1px solid #DCDAD3',
+                          background: isSelected ? '#F2F0EA' : 'transparent' }}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="font-medium text-[#0B0B0B]">{r.brandName}</span>
-                            <div className="text-xs text-[#8A877D]">
+                        {/* Checkbox, matching the design's selection affordance */}
+                        <span style={{ flex: 'none', width: 14, height: 14,
+                          border: `1.5px solid ${isSelected ? '#0B0B0B' : '#B3B0A8'}`,
+                          background: isSelected ? '#DEE42F' : 'transparent' }} />
+                        <div className="flex items-center justify-between flex-1 min-w-0 gap-3">
+                          <div className="min-w-0">
+                            <span className="block text-[13px] font-bold truncate" style={{ letterSpacing: '-.01em' }}>{r.brandName}</span>
+                            <div className="text-[10px] font-semibold uppercase text-[#8A877D] mt-0.5" style={{ letterSpacing: '.06em' }}>
                               {r.industry && <span>{industries.find(i => i.id === r.industry)?.name || r.industry}</span>}
                               {r.industry && r.businessModel && <span> · </span>}
                               {r.businessModel && <span>{r.businessModel.toUpperCase()}</span>}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <span className="font-bold text-lg">{r.totalScore}</span>
-                            <div className="text-xs text-[#8A877D]">{r.maturityLevel}</div>
-                          </div>
+                          <span className="flex-none text-right" style={{ fontSize: 18, fontWeight: 700,
+                            letterSpacing: '-.03em', fontVariantNumeric: 'tabular-nums',
+                            color: scoreColor(r.totalScore) }}>
+                            {r.totalScore}
+                          </span>
                         </div>
                       </button>
                     );
@@ -10130,7 +10152,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                   {/* Overall Score Comparison */}
                   <div className="card">
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <h3 className="text-[20px] font-bold tracking-tight text-[#0B0B0B]">Overall scores</h3>
+                      <h3 style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em' }}>Overall consciousness score</h3>
                       {/* Chart type toggle — only show if ≤ maxRadar brands */}
                       {selectedBrands.length <= maxRadar && (
                         <div className="dc-tabs">
@@ -10141,32 +10163,36 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-wrap justify-center gap-4 mb-4">
+                    {/* Score tiles: figure, delta against the selection average,
+                        brand and stage, with a colour spine keying to the chart. */}
+                    <div className="flex flex-wrap items-stretch gap-[2px] mb-5">
                       {selectedBrands.map((brand, bi) => {
                         const stage = MATURITY_STAGES.find(s => s.name === brand.maturityLevel) || MATURITY_STAGES[0];
                         const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : stage.color;
+                        const avg = Math.round(selectedBrands.reduce((t, b) => t + b.totalScore, 0) / selectedBrands.length);
+                        const d = brand.totalScore - avg;
                         return (
-                          <div key={brand.id} className="text-center">
-                            <div
-                              className="flex items-center justify-center mx-auto mb-2 font-bold"
-                              style={{ backgroundColor: color, width: 72, height: 72, fontSize: 28,
-                                letterSpacing: '-.03em', color: color === '#DEE42F' ? '#0B0B0B' : '#FFFFFF' }}
-                            >
-                              {brand.totalScore}
+                          <div key={brand.id} className="bg-white"
+                            style={{ flex: '1 1 150px', minWidth: 0, padding: '16px 16px 14px',
+                              border: '1px solid #DCDAD3', borderLeft: `4px solid ${color}` }}>
+                            <div className="flex items-end gap-2">
+                              <span style={{ fontSize: 44, fontWeight: 700, letterSpacing: '-.04em', lineHeight: .9,
+                                fontVariantNumeric: 'tabular-nums', color: scoreColor(brand.totalScore) }}>
+                                {brand.totalScore}
+                              </span>
+                              <span className="text-[11px] font-bold text-[#8A877D]"
+                                style={{ letterSpacing: '.04em', paddingBottom: 5 }}>
+                                {selectedBrands.length > 1 ? `${d > 0 ? '+' : ''}${d}` : ''}
+                              </span>
                             </div>
-                            <div className="text-[11px] font-bold text-[#0B0B0B] truncate max-w-[90px]">{brand.brandName}</div>
-                            <div className="dc-kicker-sm mt-0.5">{brand.maturityLevel}</div>
+                            <div className="text-[13px] font-bold truncate" style={{ letterSpacing: '-.01em', marginTop: 12 }}>
+                              {brand.brandName}
+                            </div>
+                            <div className="dc-kicker-sm" style={{ marginTop: 3 }}>{brand.maturityLevel}</div>
                           </div>
                         );
                       })}
-                      <div className="text-center pl-6" style={{ borderLeft: '1px solid #DCDAD3' }}>
-                        <div className="flex items-center justify-center mx-auto mb-2 font-bold bg-[#0B0B0B] text-[#DEE42F]"
-                          style={{ width: 72, height: 72, fontSize: 28, letterSpacing: '-.03em' }}>
-                          {Math.round(selectedBrands.reduce((sum, b) => sum + b.totalScore, 0) / selectedBrands.length)}
-                        </div>
-                        <div className="text-[11px] font-bold text-[#0B0B0B]">Average</div>
-                        <div className="dc-kicker-sm mt-0.5">{selectedBrands.length} brands</div>
-                      </div>
+
                     </div>
                   </div>
 
@@ -10185,7 +10211,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     return (
                       <div className="card">
                         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                          <h3 className="text-[20px] font-bold tracking-tight text-[#0B0B0B]">Radar Comparison</h3>
+                          <h3 style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em' }}>Attribute comparison</h3>
                           {commonIndustry && (
                             <button
                               onClick={() => setShowIndustryAvg(!showIndustryAvg)}
@@ -11125,9 +11151,9 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Results At A Glance</h3>
-        <div className="card mb-[2px]">
-          <div className="grid md:grid-cols-2 gap-6 items-start">
+        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Results at a glance</h3>
+        <div>
+          <div className="grid gap-14 items-start" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
             <div>
               <div className="flex items-start gap-5">
                 <div className="text-center flex-shrink-0">
@@ -11180,31 +11206,32 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Maturity ────────────────────────────────────────── */}
-        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Brand Maturity</h3>
+        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Brand maturity</h3>
         <div className="mb-6">
           <MaturityContinuum score={overall} hideTitle />
         </div>
 
         {/* ── Attribute analysis, no recommendations ──────────── */}
-        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Attribute Analysis</h3>
-        <div className="grid md:grid-cols-2 gap-3 mb-6">
+        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Attribute analysis</h3>
+        <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
           {ATTRIBUTES.map(a => {
             const sc = scores?.[a.id] || {};
             return (
               <div key={a.id} className="card">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl font-bold" style={{ color: scoreColor(sc.score) }}>{sc.score || 0}</span>
-                  <div className="min-w-0">
-                    <h4 className="font-semibold text-[#0B0B0B] text-sm">{a.name}</h4>
-                    <p className="text-xs text-[#8A877D]">{a.fullName}</p>
+                <div className="flex items-start gap-4" style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14 }}>
+                  <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9,
+                    color: scoreColor(sc.score) }}>{sc.score || 0}</div>
+                  <div className="flex-1 min-w-0">
+                    <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{a.name}</h4>
+                    <p className="text-[11px] font-semibold text-[#8A877D] mt-0.5" style={{ letterSpacing: '.04em' }}>{a.fullName}</p>
                   </div>
                 </div>
                 {sc.findings && (
-                  <p className="text-xs text-[#4A4840] leading-relaxed mb-2">{sc.findings}</p>
+                  <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.55, marginTop: 14 }}>{sc.findings}</p>
                 )}
                 {sc.impact && (
-                  <p className="text-xs text-[#4A4840] leading-relaxed">
-                    <span className="font-semibold">What's driving it: </span>
+                  <p className="text-[13px]" style={{ lineHeight: 1.55, marginTop: 10 }}>
+                    <span className="font-bold">What&rsquo;s driving it: </span>
                     {String(sc.impact).replace(/^What'?s driving it:?\s*/i, '')}
                   </p>
                 )}
@@ -11217,7 +11244,7 @@ function ClientReportView({ payload }) {
         {/* ── Brand footprint ─────────────────────────────────── */}
         {payload.footprint && (
           <>
-            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Brand Footprint</h3>
+            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Brand footprint</h3>
             <div className="mb-6 overflow-hidden">
               <FootprintMosaic footprint={payload.footprint} brandName={project.brandName} compact />
             </div>
@@ -11227,7 +11254,7 @@ function ClientReportView({ payload }) {
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
           <>
-            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Campaign Coherence</h3>
+            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Campaign coherence</h3>
             <div className="card mb-[2px]">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
@@ -11268,7 +11295,7 @@ function ClientReportView({ payload }) {
         {/* ── Profile against benchmark ───────────────────────── */}
         {benchmark && benchmarkAvg && (
           <>
-          <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Benchmark Comparison</h3>
+          <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Benchmark comparison</h3>
           <div className="card mb-[2px]">
             <p className="text-xs text-[#8A877D] mb-3">
               {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
