@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.14.2';
+const APP_VERSION = '3.14.3';
 import { 
   supabase, 
   signUp, 
@@ -5357,6 +5357,11 @@ function ReportPage({ project, setProject, scores, setScores, assessments, apiKe
   });
   const [animatedScore, setAnimatedScore] = useState(0);
   const [showClientLink, setShowClientLink] = useState(false);
+
+  // Declared here, above every early return, so the hook count never changes
+  // between the pre-scoring and scored renders.
+  const [spreadRef, spreadIn] = useInView(0.15);
+  useSectionReveal([scores]);
   const chartRef = useRef(null);
   const benchmarkSpreadRef = useRef(null);
   const benchmarkPositionRef = useRef(null);
@@ -5822,8 +5827,6 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
   const nextStage = MATURITY_STAGES.find(st => st.min > overall);
-  const [spreadRef, spreadIn] = useInView(0.15);
-  useSectionReveal([scores, expandedSections]);
 
   // Footprint summary feeds the masthead signal count as well as its own section.
   const footprintSummary = scores?.footprint ? summariseFootprint(scores.footprint) : null;

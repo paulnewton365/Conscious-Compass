@@ -369,6 +369,21 @@ input:focus, select:focus, textarea:focus {
 .dc-panel-dark .text-\[\#0B0B0B\] { color: #FFFFFF; }
 .dc-panel-dark .text-\[\#4A4840\] { color: var(--antenna-faint); }
 
+/* Form fields keep their own colours inside a dark panel. The panel's white
+   text was cascading into inputs and textareas, which stay white-backed, so
+   typed content and placeholders rendered white on white. */
+.dc-panel-dark input,
+.dc-panel-dark textarea,
+.dc-panel-dark select {
+  color: var(--antenna-ink);
+  background: var(--antenna-white);
+  border-color: var(--antenna-rule);
+}
+.dc-panel-dark input::placeholder,
+.dc-panel-dark textarea::placeholder { color: #A9A69E; }
+/* Labels above those fields need to read on ink, not on the field. */
+.dc-panel-dark label { color: var(--antenna-faint); }
+
 input::placeholder, textarea::placeholder { color: #A9A69E; }
 a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; text-underline-offset: 2px; }
 
