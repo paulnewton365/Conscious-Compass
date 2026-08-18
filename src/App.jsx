@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.4.0';
+const APP_VERSION = '3.5.1';
 import { 
   supabase, 
   signUp, 
@@ -1368,7 +1368,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
               </div>
 
               <div className="relative h-7 flex items-center" style={{ overflow: 'visible' }}>
-                <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6]" />
+                <div className="absolute left-0 right-0 h-0.5 bg-[#E4E2DC]" />
                 {[25, 40, 56, 70, 85].map(mark => (
                   <div key={mark} className="absolute w-px h-2.5 bg-[#DCDAD3]"
                     style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
@@ -1420,7 +1420,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
         <div className="grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '104px 1fr 56px' }}>
           <div />
-          <div className="flex justify-between text-[10px] text-[#BBB] select-none">
+          <div className="flex justify-between text-[10px] text-[#B3B0A8] select-none">
             {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
           </div>
           <div />
@@ -7236,18 +7236,21 @@ ${content.slice(0, 8000)}`;
   // a counter incremented during render. React does not guarantee that child
   // components execute in document order, and a counter would renumber itself
   // the moment a section was toggled.
+  // The design fixes the report at twelve numbered sections, in this order.
+  // Brand maturity is 02 and carries a number of its own.
   const sectionOrder = [
     'Results at a glance',
+    'Brand maturity',
     'Attribute analysis',
-    ...(scores?.footprint ? ['Brand footprint'] : []),
+    'Brand footprint',
     'Campaign coherence',
     'Benchmark comparison',
     'Recommendations',
-    'Recommended Antenna Group services',
+    'Recommended services',
     'Conclusions',
     'Score justification',
-    'Assessment readouts',
     'What we evaluated',
+    'Assessment readouts',
   ];
 
   const SectionHead = ({ label, open, onToggle }) => {
@@ -7383,8 +7386,13 @@ ${content.slice(0, 8000)}`;
         ))}
       </div>
 
-      {/* Maturity Continuum */}
-      <MaturityContinuum score={overall} />
+      {/* ── 02 Brand maturity ────────────────────────────────── */}
+      <section style={{ marginTop: 80 }}>
+        <SectionHead label="Brand maturity" />
+        <div className="pt-10">
+          <MaturityContinuum score={overall} hideTitle />
+        </div>
+      </section>
 
       {/* Attribute Analysis - Collapsible */}
       <div style={{ marginTop: 80 }}>
@@ -7695,13 +7703,8 @@ ${content.slice(0, 8000)}`;
         
         return (
           <div className="mb-6">
-            <button 
-              onClick={() => toggleSection('services')} 
-              className="w-full flex items-center justify-between text-xl font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
-            >
-              <span>RECOMMENDED ANTENNA GROUP SERVICES</span>
-              <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.services ? 'rotate-180' : ''}`} />
-            </button>
+            <SectionHead label="Recommended services" open={expandedSections.services}
+              onToggle={() => toggleSection('services')} />
             {expandedSections.services && (
               <div className="animate-fade-in">
                 <p className="text-[#8A877D] mb-4 text-sm md:text-base">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
@@ -7747,13 +7750,8 @@ ${content.slice(0, 8000)}`;
 
       {/* Conclusions - Collapsible */}
       <div className="mb-6">
-        <button 
-          onClick={() => toggleSection('conclusions')} 
-          className="w-full flex items-center justify-between dc-kicker text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
-        >
-          <span>CONCLUSIONS</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.conclusions ? 'rotate-180' : ''}`} />
-        </button>
+        <SectionHead label="Conclusions" open={expandedSections.conclusions}
+          onToggle={() => toggleSection('conclusions')} />
         {expandedSections.conclusions && (
           <div className="card animate-fade-in">
             <p className="text-sm md:text-base text-[#4A4840] leading-relaxed">
@@ -7766,13 +7764,8 @@ ${content.slice(0, 8000)}`;
       {/* Justification - Collapsible */}
       {scores.justification && (
         <div className="mb-6">
-          <button 
-            onClick={() => toggleSection('justification')} 
-            className="w-full flex items-center justify-between dc-kicker text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
-          >
-            <span>SCORE JUSTIFICATION</span>
-            <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.justification ? 'rotate-180' : ''}`} />
-          </button>
+          <SectionHead label="Score justification" open={expandedSections.justification}
+          onToggle={() => toggleSection('justification')} />
           {expandedSections.justification && (
             <div className="card animate-fade-in bg-[#F2F0EA]">
               <p className="text-sm text-[#4A4840] leading-relaxed">
@@ -7785,13 +7778,8 @@ ${content.slice(0, 8000)}`;
 
       {/* What We Evaluated - Collapsible */}
       <div className="mb-8">
-        <button 
-          onClick={() => toggleSection('evaluated')} 
-          className="w-full flex items-center justify-between dc-kicker text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
-        >
-          <span>WHAT WE EVALUATED</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.evaluated ? 'rotate-180' : ''}`} />
-        </button>
+        <SectionHead label="What we evaluated" open={expandedSections.evaluated}
+          onToggle={() => toggleSection('evaluated')} />
         {expandedSections.evaluated && (
           <div className="card animate-fade-in">
             <p className="text-sm md:text-base text-[#4A4840] leading-relaxed">
@@ -7803,13 +7791,8 @@ ${content.slice(0, 8000)}`;
 
       {/* Assessment Readouts - Collapsible */}
       <div className="mb-8">
-        <button 
-          onClick={() => toggleSection('readouts')} 
-          className="w-full flex items-center justify-between dc-kicker text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
-        >
-          <span>ASSESSMENT READOUTS</span>
-          <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.readouts ? 'rotate-180' : ''}`} />
-        </button>
+        <SectionHead label="Assessment readouts" open={expandedSections.readouts}
+          onToggle={() => toggleSection('readouts')} />
         {expandedSections.readouts && (
           <div className="space-y-3 animate-fade-in">
             {/* Website Assessment Readout */}
@@ -9356,7 +9339,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
           {/* Legend */}
           <div className="mt-5 pt-4 border-t border-[#DCDAD3]">
-            <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-3">How to read this chart</div>
+            <div className="dc-kicker-sm mb-3">How to read this chart</div>
             <div className="flex flex-col sm:flex-row gap-4">
               {/* Visual example */}
               <div className="flex-shrink-0 flex items-center" style={{ width: 220 }}>
@@ -9403,15 +9386,15 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       </div>
 
       {/* Sector Attribute Spread — rows = sectors, tracks = attributes */}
-      <div className="bg-white border border-[#DCDAD3] p-6">
+      <div className="bg-white p-7">
         <div className="mb-5">
-          <h3 className="font-semibold text-[#0B0B0B]">Sector Attribute Spread</h3>
-          <p className="text-xs text-[#8A877D] mt-1">
-            Each sector's score across all eight attributes. Each dot is one attribute score — yellow line = that sector's overall average.
+          <h3 className="text-[20px] font-bold tracking-tight text-[#0B0B0B]">Sector attribute spread</h3>
+          <p className="text-[13px] text-[#8A877D] mt-1.5" style={{ maxWidth: '60ch' }}>
+            Each sector's score across all eight attributes. Each dot is one attribute score; the line is that sector's overall average.
           </p>
         </div>
 
-        <div className="space-y-3.5">
+        <div style={{ borderTop: '1px solid #DCDAD3' }}>
           {sectors.map((sector) => {
             const attrScores = ATTRIBUTES.map(attr => ({
               key: attr.id,
@@ -9427,20 +9410,21 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
             return (
               <div key={sector.key}
-                className={`grid items-center gap-3  px-2 py-1 -mx-2 cursor-pointer transition-colors ${
-                  isActive ? 'bg-[#F2F0EA]' : 'hover:bg-[#FFFFFF]'
+                className={`grid items-center gap-5 cursor-pointer transition-colors ${
+                  isActive ? 'bg-[#F2F0EA]' : 'hover:bg-[#F7F6F2]'
                 }`}
-                style={{ gridTemplateColumns: '140px 1fr 36px' }}
+                style={{ gridTemplateColumns: '200px minmax(0,1fr) 60px', padding: '13px 0',
+                  borderBottom: '1px solid #DCDAD3' }}
                 onClick={() => handleSectorClick(sector.key)}
                 onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
                 onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
               >
                 {/* Sector label */}
-                <div className="flex items-center gap-2 pr-1">
+                <div className="flex items-center gap-2.5 pr-1 min-w-0">
                   <div className="w-2 h-2 flex-shrink-0" style={{ backgroundColor: sector.color }} />
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[#0B0B0B] truncate leading-tight">{sector.name}</div>
-                    <div className="text-[10px] text-[#666]">{sector.count}b</div>
+                    <div className="text-[14px] font-bold text-[#0B0B0B] truncate leading-tight">{sector.name}</div>
+                    <div className="dc-kicker-sm mt-0.5">{sector.count} brands</div>
                   </div>
                 </div>
 
@@ -9498,7 +9482,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 </div>
 
                 {/* Avg score */}
-                <div className="text-xs font-bold tabular-nums" style={{ color: sector.color }}>{sAvg}</div>
+                <div className="text-[16px] font-bold tabular-nums text-right" style={{ color: sector.color }}>{sAvg}</div>
               </div>
             );
           })}
@@ -9882,10 +9866,10 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             <div className="lg:col-span-1 space-y-4">
               {/* Filters */}
               <div className="card">
-                <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Filters</h3>
+                <h3 className="text-[20px] font-bold tracking-tight text-[#0B0B0B] mb-4">Filters</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs text-[#8A877D] mb-1 block">Industry</label>
+                    <label className="dc-kicker-sm mb-2 block">Industry</label>
                     <select
                       value={filterIndustry}
                       onChange={(e) => setFilterIndustry(e.target.value)}
@@ -9897,7 +9881,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-[#8A877D] mb-1 block">Business Model</label>
+                    <label className="dc-kicker-sm mb-2 block">Business Model</label>
                     <select
                       value={filterBusinessModel}
                       onChange={(e) => setFilterBusinessModel(e.target.value)}
@@ -9913,7 +9897,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                 {/* Quick select by industry */}
                 {industriesWithData.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-[#DCDAD3]">
-                    <label className="text-xs text-[#8A877D] mb-2 block">Quick Select Industry</label>
+                    <label className="dc-kicker-sm mb-2 block">Quick select industry</label>
                     <div className="flex flex-wrap gap-1">
                       {industriesWithData.slice(0, 5).map(industry => (
                         <button
@@ -9995,22 +9979,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                   {/* Overall Score Comparison */}
                   <div className="card">
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <h3 className="text-sm font-medium text-[#0B0B0B]">Overall Scores</h3>
+                      <h3 className="text-[20px] font-bold tracking-tight text-[#0B0B0B]">Overall scores</h3>
                       {/* Chart type toggle — only show if ≤ maxRadar brands */}
                       {selectedBrands.length <= maxRadar && (
-                        <div className="flex gap-1 text-xs">
-                          <button
-                            onClick={() => setChartType('radar')}
-                            className={`px-3 py-1.5  transition-colors ${chartType === 'radar' ? 'bg-[#0B0B0B] text-white' : 'bg-[#E4E2DC] text-[#8A877D] hover:bg-[#F2F0EA]'}`}
-                          >
-                            Radar
-                          </button>
-                          <button
-                            onClick={() => setChartType('bars')}
-                            className={`px-3 py-1.5  transition-colors ${chartType === 'bars' ? 'bg-[#0B0B0B] text-white' : 'bg-[#E4E2DC] text-[#8A877D] hover:bg-[#F2F0EA]'}`}
-                          >
-                            Bars
-                          </button>
+                        <div className="dc-tabs">
+                          <button onClick={() => setChartType('radar')}
+                            className={`dc-tab ${chartType === 'radar' ? 'dc-tab-on' : ''}`}>Radar</button>
+                          <button onClick={() => setChartType('bars')}
+                            className={`dc-tab ${chartType === 'bars' ? 'dc-tab-on' : ''}`}>Bars</button>
                         </div>
                       )}
                     </div>
@@ -10020,23 +9996,25 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : stage.color;
                         return (
                           <div key={brand.id} className="text-center">
-                            <div 
-                              className="w-14 h-14 md:w-18 md:h-18 flex items-center justify-center mx-auto mb-2 text-white font-bold text-lg md:text-xl border-4"
-                              style={{ backgroundColor: color, borderColor: color + '60', width: '64px', height: '64px' }}
+                            <div
+                              className="flex items-center justify-center mx-auto mb-2 font-bold"
+                              style={{ backgroundColor: color, width: 72, height: 72, fontSize: 28,
+                                letterSpacing: '-.03em', color: color === '#DEE42F' ? '#0B0B0B' : '#FFFFFF' }}
                             >
                               {brand.totalScore}
                             </div>
-                            <div className="font-medium text-xs text-[#0B0B0B] truncate max-w-[80px]">{brand.brandName}</div>
-                            <div className="text-[10px] text-[#8A877D]">{brand.maturityLevel}</div>
+                            <div className="text-[11px] font-bold text-[#0B0B0B] truncate max-w-[90px]">{brand.brandName}</div>
+                            <div className="dc-kicker-sm mt-0.5">{brand.maturityLevel}</div>
                           </div>
                         );
                       })}
-                      <div className="text-center border-l-2 border-[#DCDAD3] pl-4">
-                        <div className="w-16 h-16 flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl bg-[#0B0B0B]">
+                      <div className="text-center pl-6" style={{ borderLeft: '1px solid #DCDAD3' }}>
+                        <div className="flex items-center justify-center mx-auto mb-2 font-bold bg-[#0B0B0B] text-[#DEE42F]"
+                          style={{ width: 72, height: 72, fontSize: 28, letterSpacing: '-.03em' }}>
                           {Math.round(selectedBrands.reduce((sum, b) => sum + b.totalScore, 0) / selectedBrands.length)}
                         </div>
-                        <div className="font-medium text-xs text-[#0B0B0B]">AVG</div>
-                        <div className="text-[10px] text-[#8A877D]">{selectedBrands.length} brands</div>
+                        <div className="text-[11px] font-bold text-[#0B0B0B]">Average</div>
+                        <div className="dc-kicker-sm mt-0.5">{selectedBrands.length} brands</div>
                       </div>
                     </div>
                   </div>
@@ -10056,7 +10034,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     return (
                       <div className="card">
                         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                          <h3 className="text-sm font-medium text-[#0B0B0B]">Radar Comparison</h3>
+                          <h3 className="text-[20px] font-bold tracking-tight text-[#0B0B0B]">Radar Comparison</h3>
                           {commonIndustry && (
                             <button
                               onClick={() => setShowIndustryAvg(!showIndustryAvg)}

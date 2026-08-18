@@ -394,14 +394,24 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
             text-decoration-thickness: 2px; text-underline-offset: 2px; }
 
 /* ── Tabs ───────────────────────────────────────────────────
-   Tracked labels sharing one hard rule; the active tab carries the
-   lime marker rather than a filled pill. */
-.dc-tabs   { display: flex; gap: 28px; border-bottom: 2px solid var(--antenna-ink); }
-.dc-tab    { padding: 0 0 10px; font-size: 12px; font-weight: 700;
-             letter-spacing: 0.14em; text-transform: uppercase;
-             color: var(--antenna-muted); background: none; border: none;
-             cursor: pointer; position: relative; }
+   The design uses filled chips butted together on the ground:
+   lime for the active tab, white for the rest. */
+.dc-tabs   { display: flex; gap: 2px; flex-wrap: wrap; }
+.dc-tab    { font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+             text-transform: uppercase; background: var(--antenna-white);
+             color: var(--antenna-muted); padding: 9px 16px; border: none;
+             cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
 .dc-tab:hover { color: var(--antenna-ink); }
-.dc-tab-on { color: var(--antenna-ink); }
-.dc-tab-on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -2px;
-             height: 6px; background: var(--antenna-lime); }
+.dc-tab-on { background: var(--antenna-lime); color: var(--antenna-ink); }
+
+/* ── Sector / brand spread rows ─────────────────────────────*/
+.dc-spread-r { display: grid; grid-template-columns: 200px minmax(0,1fr) 60px;
+               gap: 20px; align-items: center; padding: 13px 0;
+               border-bottom: 1px solid var(--antenna-rule); }
+.dc-spread-n { font-size: 14px; font-weight: 700; }
+.dc-spread-t { position: relative; height: 22px; }
+.dc-spread-t::before { content: ''; position: absolute; left: 0; right: 0; top: 10px;
+               height: 2px; background: var(--antenna-rule-light); }
+.dc-spread-band { position: absolute; top: 7px; height: 8px; background: var(--antenna-rule); }
+.dc-spread-mark { position: absolute; top: 2px; width: 2px; height: 18px; background: var(--antenna-ink); }
+.dc-spread-v { text-align: right; font-size: 16px; font-weight: 700; }
