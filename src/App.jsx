@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.2.0';
 import { 
   supabase, 
   signUp, 
@@ -8191,59 +8191,42 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div>
+            <div className="dc-ledger-top" />
+            <div className="dc-ledger-h" style={{ gridTemplateColumns: '2fr 1.2fr .8fr 1fr .8fr 24px' }}>
+              <div>Brand</div>
+              <div>Sector</div>
+              <div style={{ textAlign: 'right' }}>Score</div>
+              <div>Stage</div>
+              <div style={{ textAlign: 'right' }}>Assessed</div>
+              <div />
+            </div>
             {filteredResults.map((r, i) => {
               const stage = MATURITY_STAGES.find(s => s.name === r.maturityLevel) || MATURITY_STAGES[0];
               const isExpanded = expandedRows.includes(r.id || i);
               const assessmentDate = r.savedAt ? new Date(r.savedAt) : null;
               return (
-                <div key={r.id || i} className="card overflow-hidden">
+                <div key={r.id || i}>
                   {/* Main Row */}
-                  <div 
-                    className="flex items-center gap-4 p-4 cursor-pointer hover:bg-[#F2F0EA] transition-colors"
+                  <div
+                    className="dc-ledger-r cursor-pointer hover:bg-white transition-colors"
+                    style={{ gridTemplateColumns: '2fr 1.2fr .8fr 1fr .8fr 24px' }}
                     onClick={() => toggleRow(r.id || i)}
                   >
-                    {/* Brand & Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-[#0B0B0B] truncate">{r.brandName}</span>
-                        {r.isManual && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 ">Manual</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-[#8A877D] mt-0.5">
-                        <span>{r.businessModel?.toUpperCase()}</span>
-                        <span>•</span>
-                        <span className="truncate">{r.industry}</span>
-                        <span>•</span>
-                        <span>v{r.rubricVersion || '2.3'}</span>
+                    <div className="min-w-0">
+                      <div className="text-[16px] font-bold truncate">{r.brandName}</div>
+                      <div className="text-[11px] text-[#B3B0A8] mt-0.5">
+                        {r.businessModel?.toUpperCase()} · v{r.rubricVersion || '2.3'}
+                        {r.isManual ? ' · Manual' : ''}
                       </div>
                     </div>
-                    
-                    {/* Date Badge */}
-                    {assessmentDate && (
-                      <div className="text-center px-2">
-                        <div className="text-xs font-medium text-[#8A877D]">
-                          {assessmentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </div>
-                        <div className="text-[10px] text-[#B3B0A8]">
-                          {assessmentDate.getFullYear()}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Score Badge */}
-                    <div className="flex items-center gap-3">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold" style={{ color: stage.color }}>{r.totalScore}</div>
-                        <div className="text-[10px] px-2 py-0.5" style={{ backgroundColor: `${stage.color}15`, color: stage.color }}>
-                          {r.maturityLevel}
-                        </div>
-                      </div>
+                    <div className="text-[13px] text-[#4A4840] truncate">{r.industry}</div>
+                    <div className="text-[20px] font-bold text-right" style={{ color: stage.color }}>{r.totalScore}</div>
+                    <div className="text-[13px] font-semibold">{r.maturityLevel}</div>
+                    <div className="text-[13px] text-[#8A877D] text-right">
+                      {assessmentDate ? assessmentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
                     </div>
-                    
-                    {/* Expand Icon */}
-                    <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform justify-self-end ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
                   
                   {/* Expanded Details */}
@@ -10622,7 +10605,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             {/* Stage filter */}
             {usedStages.length > 1 && (
               <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
-                className="px-3 py-2 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840]">
+                className="px-3.5 py-3 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840] min-w-[170px]">
                 <option value="">All stages</option>
                 {usedStages.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -10630,14 +10613,14 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             {/* Industry filter */}
             {usedIndustries.length > 1 && (
               <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
-                className="px-3 py-2 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840]">
+                className="px-3.5 py-3 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840] min-w-[170px]">
                 <option value="">All industries</option>
                 {usedIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
               </select>
             )}
             {/* Sort */}
             <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-              className="px-3 py-2 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840]">
+              className="px-3.5 py-3 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840] min-w-[170px]">
               <option value="date-desc">Newest first</option>
               <option value="date-asc">Oldest first</option>
               <option value="score-desc">Highest score</option>
@@ -10662,25 +10645,25 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           ) : (
             <div className="space-y-2">
               {filtered.map(({ a, i, overallScore, maturity, industryName }) => (
-                <div key={i} className="card px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    {/* Score badge */}
-                    {overallScore !== null && (
-                      <div className="w-11 h-11 flex-shrink-0 flex items-center justify-center"
-                        style={{ backgroundColor: (maturity?.color || '#E53935') + '18' }}>
-                        <span className="text-base font-bold" style={{ color: maturity?.color || '#E53935' }}>{overallScore}</span>
-                      </div>
-                    )}
-
+                <div key={i} className="dc-listrow">
+                  <div className="flex items-center gap-6 flex-1 min-w-0">
                     {/* Brand info */}
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-[#0B0B0B] text-sm leading-tight">{a.project.brandName}</h4>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                        <span className="text-xs text-[#B3B0A8] whitespace-nowrap">{a.project.date || '—'}</span>
-                        {industryName && <><span className="text-xs text-[#B3B0A8]">·</span><span className="text-xs text-[#8A877D]">{industryName}</span></>}
-                        {maturity && <><span className="text-xs text-[#B3B0A8]">·</span><span className="text-xs font-medium" style={{ color: maturity.color }}>{maturity.name}</span></>}
+                      <div className="dc-listrow-t truncate">{a.project.brandName}</div>
+                      <div className="dc-listrow-m">
+                        {[industryName, maturity?.name, a.project.date ? `saved ${a.project.date}` : null]
+                          .filter(Boolean).join(' · ') || '—'}
                       </div>
                     </div>
+
+                    {/* Score, set as a figure rather than a badge */}
+                    {overallScore !== null && (
+                      <div className="flex-shrink-0 text-right">
+                        <div className="text-[32px] font-bold leading-none tracking-tight"
+                          style={{ color: maturity?.color || '#0B0B0B' }}>{overallScore}</div>
+                      </div>
+                    )}
+                  </div>
 
                     {/* Actions — right-aligned on desktop, visible always */}
                     <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -10711,7 +10694,6 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                         </button>
                       )}
                     </div>
-                  </div>
 
                   {/* Mobile-only secondary actions */}
                   {!isReadonly && (

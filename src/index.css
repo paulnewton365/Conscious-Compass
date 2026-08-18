@@ -366,3 +366,24 @@ input:focus, select:focus, textarea:focus {
 
 input::placeholder, textarea::placeholder { color: #A9A69E; }
 a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; text-underline-offset: 2px; }
+
+/* ── Ledger tables (Results) ────────────────────────────────
+   Hairline rows on the paper ground rather than a bordered table. */
+.dc-ledger-h  { display: grid; gap: 20px; padding: 10px 0;
+                font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+                text-transform: uppercase; color: var(--antenna-muted); }
+.dc-ledger-r  { display: grid; gap: 20px; padding: 16px 0; align-items: center;
+                border-top: 1px solid var(--antenna-rule); }
+.dc-ledger-top{ height: 2px; background: var(--antenna-ink); margin-top: 28px; }
+
+/* ── Saved list rows ────────────────────────────────────────*/
+.dc-listrow   { background: var(--antenna-white); padding: 24px 28px; margin-top: 2px;
+                display: flex; justify-content: space-between; align-items: center;
+                gap: 24px; flex-wrap: wrap; }
+.dc-listrow-t { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.dc-listrow-m { font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+                text-transform: uppercase; color: var(--antenna-muted); margin-top: 5px; }
+
+/* Filter bar inputs butt together on the ground */
+.dc-filters   { display: flex; gap: 2px; margin-top: 24px; flex-wrap: wrap; }
+.dc-filters input, .dc-filters select { background: var(--antenna-white); margin: 0; }
