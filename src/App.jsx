@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.3.0';
+const APP_VERSION = '3.3.1';
 import { 
   supabase, 
   signUp, 
@@ -965,7 +965,9 @@ function MiniSpiderChart({ scores, size = 120 }) {
 }
 
 // Comparison Spider Chart — multi-brand overlapping radar, max 4 brands
-const COMPARISON_COLORS = ['#E53935', '#1976D2', '#F57C00', '#388E3C'];
+// Ink first, lime second, then two neutral steps. Distinguishable without
+// reintroducing the primary palette the redesign removed.
+const COMPARISON_COLORS = ['#0B0B0B', '#DEE42F', '#8A877D', '#B3B0A8'];
 
 const LANDSCAPE_SECTOR_COLORS = [
   '#E53935', '#1976D2', '#F57C00', '#388E3C',
@@ -1757,7 +1759,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             <FileText className="w-4 h-4" /> Saved
           </button>
           {!isReadonly && (
-            <button onClick={onNewAssessment} className="flex items-center gap-2 text-sm bg-[#DEE42F] text-white hover:bg-[#C62828] px-4 py-1.5 transition-colors ml-1">
+            <button onClick={onNewAssessment} className="flex items-center gap-2 bg-[#DEE42F] text-[#0B0B0B] hover:bg-[#CBD11F] px-4 py-2.5 ml-2 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors">
               <Plus className="w-4 h-4" /> New
             </button>
           )}
@@ -9767,7 +9769,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             <h1 className="dc-h2 text-[#0B0B0B]">Compare</h1>
             <p className="dc-standfirst">Compare brands or explore the consciousness landscape</p>
           </div>
-          <div className="dc-btns items-center">
+          <div className="dc-btns items-center flex-nowrap">
             <button onClick={onBack} className="btn-secondary flex items-center gap-2 !text-[11px] !px-4 !py-3">
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
@@ -12086,7 +12088,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
           </div>
 
           {/* Action buttons */}
-          <div className="dc-btns self-start items-center">
+          <div className="dc-btns self-start items-center flex-nowrap">
             <button onClick={onBack} className="btn-secondary flex items-center gap-2 !text-[11px] !px-4 !py-3">
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
@@ -12973,11 +12975,10 @@ function AppContent() {
           {/* Draft restore banner */}
           {currentStep === 0 && draftRestoreOffer && (
             <div className="dc-wrap dc-page">
-              <div className="flex items-start gap-4 bg-[#FFFBEB] border border-[#FCD34D] px-5 py-4 ">
-                <span className="text-2xl leading-none mt-0.5">🔄</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-[#92400E] text-sm">Unsaved assessment found</p>
-                  <p className="text-xs text-[#B45309] mt-0.5">
+              <div className="flex items-start gap-4 bg-white px-5 py-4" style={{ borderLeft: '6px solid #DEE42F' }}>
+                                <div className="flex-1 min-w-0">
+                  <p className="text-[17px] font-bold tracking-tight text-[#0B0B0B]">Unsaved assessment found</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8A877D] mt-1.5">
                     <strong>{draftRestoreOffer.project.brandName}</strong> — Step {draftRestoreOffer.currentStep} of 5 · Last saved {new Date(draftRestoreOffer.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                   </p>
                   <div className="flex gap-2 mt-3">
