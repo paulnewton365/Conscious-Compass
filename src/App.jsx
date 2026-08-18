@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.12.0';
+const APP_VERSION = '3.13.1';
 import { 
   supabase, 
   signUp, 
@@ -325,7 +325,7 @@ function AdminPage({ currentUser, onBack }) {
                   {users.filter(u => !u.is_approved).map(user => (
                     <div key={user.id} className="bg-[#F2F0EA] border border-[#DCDAD3] p-5">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-[#DEE42F] flex items-center justify-center text-white font-semibold flex-shrink-0">
+                        <div className="w-10 h-10 bg-[#DEE42F] flex items-center justify-center text-[#0B0B0B] font-bold flex-shrink-0">
                           {(user.full_name || user.email || '?')[0].toUpperCase()}
                         </div>
                         <div>
@@ -1882,7 +1882,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             <FileText className="w-5 h-5" /> Saved Assessments
           </button>
           {!isReadonly && (
-            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#DEE42F] text-white transition-colors">
+            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#DEE42F] text-[#0B0B0B] transition-colors">
               <Plus className="w-5 h-5" /> New Assessment
             </button>
           )}
@@ -1897,7 +1897,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
                 <Shield className="w-5 h-5" /> User Management
               </button>
             )}
-            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#8A877D] hover:bg-[#E4E2DC] transition-colors">
+            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#4A4840] hover:bg-[#E4E2DC] transition-colors">
               <LogOut className="w-5 h-5" /> Sign Out
             </button>
           </div>
@@ -1932,7 +1932,7 @@ function CompletionIndicator({ items }) {
             className={`text-xs px-2 py-1 flex items-center gap-1 ${
               item.done 
                 ? 'bg-[#DEE42F]/10 text-[#B23A3A]' 
-                : 'bg-[#E4E2DC] text-[#B3B0A8]'
+                : 'bg-[#E4E2DC] text-[#4A4840]'
             }`}
           >
             {item.done ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 border border-current" />}
@@ -4814,7 +4814,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
           <div key={engine.key} className={`card p-4 ${manualInput[engine.key] ? 'bg-[#E4E2DC]' : ''}`}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#DEE42F] text-white' : 'bg-[#E4E2DC]'}`}>
+                <div className={`w-10 h-10 flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#DEE42F] text-[#0B0B0B]' : 'bg-[#E4E2DC]'}`}>
                   {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-[#B3B0A8]" />}
                 </div>
                 <div>
@@ -4913,7 +4913,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 <button
                   onClick={row.run}
                   disabled={!!fetching[row.label]}
-                  className="px-2 py-0.5 bg-[#DEE42F] text-white text-[10px] font-medium hover:bg-[#B23A3A] transition-colors flex items-center gap-1 disabled:opacity-50"
+                  className="px-2 py-0.5 bg-[#DEE42F] text-[#0B0B0B] text-[10px] font-bold hover:bg-[#CBD11F] transition-colors flex items-center gap-1 disabled:opacity-50"
                 >
                   {fetching[row.label] ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Fetching</> : <><Search className="w-2.5 h-2.5" /> Auto-fetch</>}
                 </button>
@@ -7678,7 +7678,7 @@ ${content.slice(0, 8000)}`;
                       {Array.isArray(c.channels) && c.channels.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-2">
                           {c.channels.map((ch, j) => (
-                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E4E2DC] text-[#8A877D]">{ch}</span>
+                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E4E2DC] text-[#4A4840]">{ch}</span>
                           ))}
                         </div>
                       )}
@@ -8642,7 +8642,7 @@ function OnboardingTour({ onComplete }) {
             {step > 0 && (
               <button 
                 onClick={() => setStep(step - 1)} 
-                className="flex-1 bg-transparent border border-[#E8FF00] text-[#E8FF00] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#DEE42F] hover:text-[#0B0B0B] transition-colors"
+                className="flex-1 bg-transparent border border-[#0B0B0B] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#DEE42F] hover:text-[#0B0B0B] transition-colors"
               >
                 Back
               </button>
@@ -10215,7 +10215,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                           {commonIndustry && (
                             <button
                               onClick={() => setShowIndustryAvg(!showIndustryAvg)}
-                              className={`text-xs px-3 py-1.5  border transition-colors ${showIndustryAvg ? 'bg-[#E4E2DC] border-[#9CA3AF] text-[#8A877D]' : 'border-[#DCDAD3] text-[#B3B0A8] hover:border-[#999999]'}`}
+                              className={`text-xs px-3 py-1.5  border transition-colors ${showIndustryAvg ? 'bg-[#DEE42F] border-[#0B0B0B] text-[#0B0B0B]' : 'border-[#DCDAD3] text-[#B3B0A8] hover:border-[#999999]'}`}
                             >
                               {showIndustryAvg ? '✓ ' : ''}Industry avg overlay
                             </button>
@@ -10862,11 +10862,11 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       {!isReadonly && (
                         <>
                           <button onClick={() => onShare(a)} title="Share link"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] hover:bg-[#E5393508] transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#8A877D] hover:text-[#0B0B0B] hover:bg-[#E5393508] transition-colors">
                             <Share2 className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onExport(a)} title="Export JSON"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#4A4840] hover:text-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
                             <Download className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onRescore(a)}
@@ -10881,7 +10881,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       </button>
                       {!isReadonly && (
                         <button onClick={() => onDelete(i)} title="Delete"
-                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#DCDAD3] hover:text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
+                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#8A877D] hover:text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -10891,11 +10891,11 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                   {!isReadonly && (
                     <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#E4E2DC] sm:hidden">
                       <button onClick={() => onShare(a)} title="Share"
-                        className="w-8 h-8 flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#8A877D] hover:text-[#0B0B0B] transition-colors">
                         <Share2 className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onExport(a)} title="Export"
-                        className="w-8 h-8 flex items-center justify-center text-[#B3B0A8] hover:text-[#0B0B0B] transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#8A877D] hover:text-[#0B0B0B] transition-colors">
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onRescore(a)}
@@ -10903,7 +10903,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                         Rescore
                       </button>
                       <button onClick={() => onDelete(i)} title="Delete"
-                        className="w-8 h-8 flex items-center justify-center text-[#DCDAD3] hover:text-[#B23A3A] transition-colors ml-auto">
+                        className="w-8 h-8 flex items-center justify-center text-[#8A877D] hover:text-[#B23A3A] transition-colors ml-auto">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -11127,6 +11127,30 @@ function ClientReportView({ payload }) {
 
   useSectionReveal([payload]);
 
+  // Client-facing sections only. Recommendations, services, justification,
+  // readouts and the score adjustment panel are intentionally absent.
+  const clientSections = [
+    'Results at a glance',
+    'Brand maturity',
+    'Attribute analysis',
+    ...(payload.footprint ? ['Brand footprint'] : []),
+    ...(campaignStage ? ['Campaign coherence'] : []),
+    ...(benchmark ? ['Benchmark comparison'] : []),
+    ...(payload.conclusion ? ['Conclusions'] : []),
+  ];
+
+  const SectionHead = ({ label }) => {
+    const idx = clientSections.indexOf(label);
+    const n = String(idx >= 0 ? idx + 1 : clientSections.length + 1).padStart(2, '0');
+    return (
+      <div className="dc-reveal flex items-baseline gap-4 pb-3"
+        style={{ borderBottom: '2px solid #0B0B0B', marginTop: 80, marginBottom: 40 }}>
+        <span className="text-[11px] font-bold tracking-[0.16em] text-[#8A877D]">{n}</span>
+        <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#0B0B0B]">{label}</span>
+      </div>
+    );
+  };
+
   const benchmarkAvg = benchmark
     ? ATTRIBUTES.reduce((acc, a) => { acc[a.id] = benchmark.attrAvgs?.[a.id] || 0; return acc; }, {})
     : null;
@@ -11151,7 +11175,7 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Results at a glance</h3>
+        <SectionHead label="Results at a glance" />
         <div>
           <div className="grid gap-14 items-start" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
             <div>
@@ -11206,13 +11230,28 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Maturity ────────────────────────────────────────── */}
-        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Brand maturity</h3>
+        <SectionHead label="Brand maturity" />
         <div className="mb-6">
-          <MaturityContinuum score={overall} hideTitle />
+          <div className="relative">
+            <div className="absolute flex flex-col items-center gap-1"
+              style={{ left: `${overall}%`, top: -30, transform: 'translateX(-50%)' }}>
+              <div className="text-[11px] font-bold" style={{ letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{overall}</div>
+              <div style={{ width: 2, height: 12, background: '#0B0B0B' }} />
+            </div>
+            <PositionBands stageName={stage.name} />
+            <div className="grid gap-[2px]" style={{
+              gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), marginTop: 10 }}>
+              {MATURITY_STAGES.map(st => (
+                <div key={st.id} className="text-[11px]"
+                  style={{ fontWeight: st.name === stage.name ? 700 : 600,
+                    color: st.name === stage.name ? '#0B0B0B' : '#8A877D' }}>{st.name}</div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* ── Attribute analysis, no recommendations ──────────── */}
-        <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Attribute analysis</h3>
+        <SectionHead label="Attribute analysis" />
         <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
           {ATTRIBUTES.map(a => {
             const sc = scores?.[a.id] || {};
@@ -11244,7 +11283,7 @@ function ClientReportView({ payload }) {
         {/* ── Brand footprint ─────────────────────────────────── */}
         {payload.footprint && (
           <>
-            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Brand footprint</h3>
+            <SectionHead label="Brand footprint" />
             <div className="mb-6 overflow-hidden">
               <FootprintMosaic footprint={payload.footprint} brandName={project.brandName} compact />
             </div>
@@ -11254,8 +11293,8 @@ function ClientReportView({ payload }) {
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
           <>
-            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Campaign coherence</h3>
-            <div className="card mb-[2px]">
+            <SectionHead label="Campaign coherence" />
+            <div className="bg-white" style={{ padding: 24 }}>
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
                   <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
@@ -11292,45 +11331,83 @@ function ClientReportView({ payload }) {
           </>
         )}
 
-        {/* ── Profile against benchmark ───────────────────────── */}
+        {/* ── Benchmark comparison ────────────────────────────── */}
         {benchmark && benchmarkAvg && (
           <>
-          <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Benchmark comparison</h3>
-          <div className="card mb-[2px]">
-            <p className="text-xs text-[#8A877D] mb-3">
-              {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
-            </p>
-            <div className="flex justify-center">
-              <ComparisonSpiderChart
-                brands={[{
-                  id: 'subject',
-                  brandName: project.brandName,
-                  totalScore: overall,
-                  scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores?.[a.id]?.score || 0; return acc; }, {}),
-                }]}
-                size={340}
-                industryAvg={benchmarkAvg}
-                avgLabel={`${benchmark.cohortLabel} avg`}
-                animateOnScroll
-              />
+          <SectionHead label="Benchmark comparison" />
+          <div className="grid gap-14 items-start"
+            style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)' }}>
+            {/* Spread, matching the internal report's ledger. Guarded on
+                attrRanges because links issued before this shipped lack it. */}
+            <div>
+              <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
+              <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
+                The band is the range across those brands, the line is their average, the dot is {project.brandName}.
+              </p>
+              {benchmark.attrRanges ? (
+                <div style={{ marginTop: 24, borderTop: '1px solid #DCDAD3' }}>
+                  {ATTRIBUTES.map(attr => {
+                    const v = scores?.[attr.id]?.score || 0;
+                    const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
+                    const rng = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
+                    const d = v - avg;
+                    return (
+                      <div key={attr.id} className="grid gap-4 items-center"
+                        style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0',
+                          borderBottom: '1px solid #DCDAD3' }}>
+                        <div className="text-[13px] font-bold">{attr.name}</div>
+                        <div className="relative" style={{ height: 22 }}>
+                          <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
+                          <div className="absolute" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3' }} />
+                          <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#8A877D' }} />
+                          <div className="absolute" style={{ left: `${v}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF' }} />
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
+                          <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B',
+                            background: d > 0 ? '#DEE42F' : 'transparent',
+                            border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px',
+                            marginLeft: 'auto', width: 'fit-content' }}>
+                            {d > 0 ? '+' : ''}{d}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[13px] text-[#8A877D]" style={{ marginTop: 20 }}>
+                  Range data is not available for this link. Reissue it to include the spread.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
+              <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
+                {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
+              </p>
+              <div className="bg-white" style={{ padding: 8, marginTop: 24 }}>
+                <ComparisonSpiderChart
+                  brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall,
+                    scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores?.[a.id]?.score || 0; return acc; }, {}) }]}
+                  size={380}
+                  industryAvg={benchmarkAvg}
+                  avgLabel={`${benchmark.cohortLabel} avg`}
+                  animateOnScroll
+                />
+              </div>
             </div>
           </div>
-          {/* Guarded on attrRanges because links issued before this shipped
-              do not carry it. */}
-          {benchmark.attrRanges && (
-            <div className="mb-6">
-              <BenchmarkSpread benchmark={benchmark} brandName={project.brandName} hideTitle />
-            </div>
-          )}
           </>
         )}
 
         {/* ── Conclusion ──────────────────────────────────────── */}
         {payload.conclusion && (
           <>
-            <h3 className="dc-sec-head dc-reveal" style={{ marginTop: 64, marginBottom: 28 }}>Conclusions</h3>
-            <div className="card mb-[2px]">
-              <p className="text-sm text-[#4A4840] leading-relaxed">{payload.conclusion}</p>
+            <SectionHead label="Conclusions" />
+            <div className="bg-white" style={{ padding: 24 }}>
+              <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>{payload.conclusion}</p>
             </div>
           </>
         )}
@@ -11497,7 +11574,7 @@ function SharedReportView({ report, onClose }) {
             <span className="dc-kicker text-[#0B0B0B]">Conscious Compass</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-[#8A877D] bg-[#E4E2DC] px-3 py-1">Shared Report (Read-only)</span>
+            <span className="text-sm text-[#4A4840] bg-[#E4E2DC] px-3 py-1">Shared Report (Read-only)</span>
             <button onClick={onClose} className="btn-secondary text-sm">
               Start New Assessment
             </button>
@@ -11515,7 +11592,7 @@ function SharedReportView({ report, onClose }) {
 
         {/* Overall Score */}
         <div className="card mb-8 text-center bg-gradient-to-br from-[#E53935]/5 to-[#E53935]/10">
-          <div className="inline-flex items-center justify-center w-32 h-32 bg-[#DEE42F] text-white mb-4">
+          <div className="inline-flex items-center justify-center w-32 h-32 bg-[#DEE42F] text-[#0B0B0B] mb-4">
             <span className="text-5xl font-bold">{overall}</span>
           </div>
           <h2 className="text-[20px] font-bold tracking-tight text-[#0B0B0B] mb-2">{stage.name}</h2>
@@ -11775,7 +11852,7 @@ function SharedReportView({ report, onClose }) {
           {recommendations.map((r, i) => (
             <div key={i} className="card">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 bg-[#DEE42F] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
+                <div className="w-8 h-8 bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
                 <div className="flex-1">
                   <h4 className="font-semibold text-[#0B0B0B] mb-2">{r.title}</h4>
                   <p className="text-sm text-[#4A4840] leading-relaxed mb-2">
@@ -13197,7 +13274,7 @@ function AppContent() {
                     </button>
                     <button
                       onClick={clearDraft}
-                      className="px-4 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#8A877D] hover:bg-[#E4E2DC] transition-colors"
+                      className="px-4 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:bg-[#E4E2DC] transition-colors"
                     >
                       Discard
                     </button>
