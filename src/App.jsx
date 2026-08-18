@@ -55,10 +55,10 @@ class ErrorBoundary extends React.Component {
       return (
         <div className="min-h-screen bg-[#FAF9F7] flex items-center justify-center p-8">
           <div className="max-w-md text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-red-100 flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8 text-red-600" />
             </div>
-            <h1 className="text-2xl font-bold text-[#0B0B0B] mb-2">Something went wrong</h1>
+            <h1 className="dc-h2 text-[#0B0B0B] mb-2">Something went wrong</h1>
             <p className="text-[#8A877D] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
             <button 
               onClick={() => window.location.reload()} 
@@ -122,7 +122,7 @@ function AuthPage({ onAuthSuccess }) {
           <div className="flex items-center justify-center gap-3 mb-4">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
             <div className="h-6 w-px bg-[#0B0B0B]" />
-            <span className="text-lg font-semibold text-[#0B0B0B]">Conscious Compass</span>
+            <span className="dc-kicker text-[#0B0B0B]">Conscious Compass</span>
           </div>
           <p className="text-[#8A877D]">{isLogin ? 'Sign in to access the assessment tool' : 'Create an account to get started'}</p>
         </div>
@@ -292,13 +292,13 @@ function AdminPage({ currentUser, onBack }) {
 
   return (
     <div className="min-h-screen bg-[#F2F0EA]">
-      <div className="max-w-3xl mx-auto p-4 md:p-8">
+      <div className="dc-wrap dc-page pt-8">
         <div className="flex items-center gap-4 mb-8">
           <button onClick={onBack} className="btn-secondary flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-[#0B0B0B]">User Management</h1>
+            <h1 className="dc-h2 text-[#0B0B0B]">User Management</h1>
             <p className="text-sm text-[#8A877D]">Approve users and manage access</p>
           </div>
         </div>
@@ -322,7 +322,7 @@ function AdminPage({ currentUser, onBack }) {
                   {users.filter(u => !u.is_approved).map(user => (
                     <div key={user.id} className="bg-yellow-50 border border-yellow-200 p-5">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                        <div className="w-10 h-10 bg-yellow-400 flex items-center justify-center text-white font-semibold flex-shrink-0">
                           {(user.full_name || user.email || '?')[0].toUpperCase()}
                         </div>
                         <div>
@@ -365,13 +365,13 @@ function AdminPage({ currentUser, onBack }) {
                     <div key={user.id} className="bg-white border border-[#DCDAD3] p-5">
                       {/* User info row */}
                       <div className="flex items-start gap-3 mb-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 ${roleColor}`}>
+                        <div className={`w-10 h-10 flex items-center justify-center text-white font-semibold flex-shrink-0 ${roleColor}`}>
                           {(user.full_name || user.email || '?')[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-[#0B0B0B]">{user.full_name || 'No name'}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full text-white ${roleColor}`}>{roleLabel}</span>
+                            <span className={`text-xs px-2 py-0.5 text-white ${roleColor}`}>{roleLabel}</span>
                             {isSelf && <span className="text-xs text-[#B3B0A8]">(you)</span>}
                           </div>
                           <div className="text-sm text-[#8A877D] mt-0.5 truncate">{user.email}</div>
@@ -1044,7 +1044,7 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
       <div className="flex flex-wrap justify-center gap-3 mt-3">
         {brands.map((brand, bi) => (
           <div key={brand.id || bi} className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COMPARISON_COLORS[bi % COMPARISON_COLORS.length] }} />
+            <div className="w-3 h-3 flex-shrink-0" style={{ backgroundColor: COMPARISON_COLORS[bi % COMPARISON_COLORS.length] }} />
             <span className="text-xs font-medium text-[#0B0B0B]">{brand.brandName}</span>
             <span className="text-xs text-[#8A877D]">({brand.totalScore})</span>
           </div>
@@ -1128,9 +1128,9 @@ function CampaignLadder({ level }) {
       <div className="flex gap-1 mb-1">
         {CAMPAIGN_LADDER.filter(l => l.level > 0).map((l, i) => (
           <div key={l.level} className="flex-1 text-center">
-            <div className="h-1.5 rounded-full mb-1 bg-[#F2F0EA] overflow-hidden">
+            <div className="h-1.5 mb-1 bg-[#F2F0EA] overflow-hidden">
               <div
-                className="h-full rounded-full bg-[#DEE42F] origin-left"
+                className="h-full bg-[#DEE42F] origin-left"
                 style={{
                   transform: `scaleX(${inView && lvl >= l.level ? 1 : 0})`,
                   transition: 'transform 520ms cubic-bezier(0.22, 1, 0.36, 1)',
@@ -1358,18 +1358,18 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
               onMouseLeave={() => setHovered(null)}
             >
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
+                <div className="w-2 h-2 flex-shrink-0" style={{ backgroundColor: attr.color }} />
                 <span className="text-xs font-semibold text-[#0B0B0B] truncate">{attr.name}</span>
               </div>
 
               <div className="relative h-7 flex items-center" style={{ overflow: 'visible' }}>
-                <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
+                <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6]" />
                 {[25, 40, 56, 70, 85].map(mark => (
                   <div key={mark} className="absolute w-px h-2.5 bg-[#DCDAD3]"
                     style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
                 ))}
                 {/* Cohort range */}
-                <div className="absolute h-1.5 rounded-full origin-left"
+                <div className="absolute h-1.5 origin-left"
                   style={{
                     left: `${range.min}%`,
                     width: `${Math.max(range.max - range.min, 0.5)}%`,
@@ -1379,7 +1379,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
                     transitionDelay: `${i * 70}ms`,
                   }} />
                 {/* Cohort average */}
-                <div className="absolute w-0.5 h-5 rounded-full z-10"
+                <div className="absolute w-0.5 h-5 z-10"
                   style={{
                     left: `${avg}%`,
                     transform: 'translateX(-50%)',
@@ -1398,7 +1398,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
                     transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease',
                     transitionDelay: `${i * 70 + 120}ms`,
                   }}>
-                  <div className="w-3 h-3 rounded-full ring-2 ring-white transition-transform"
+                  <div className="w-3 h-3 ring-2 ring-white transition-transform"
                     style={{ backgroundColor: attr.color, transform: isHovered ? 'scale(1.4)' : 'scale(1)' }} />
                 </div>
               </div>
@@ -1424,7 +1424,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
       <div className="mt-4 pt-3 border-t border-[#DCDAD3] flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-[#8A877D]">
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#0B0B0B] ring-2 ring-white" />
+          <div className="w-2.5 h-2.5 bg-[#0B0B0B] ring-2 ring-white" />
           <span>{brandName}</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -1432,7 +1432,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
           <span>{benchmark.scope === 'industry' ? 'Sector' : 'All brands'} average</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-6 h-1.5 rounded-full bg-[#0B0B0B]/20" />
+          <div className="w-6 h-1.5 bg-[#0B0B0B]/20" />
           <span>{benchmark.scope === 'industry' ? 'Sector' : 'All brands'} range</span>
         </div>
       </div>
@@ -1480,7 +1480,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
         </div>
 
         {/* Track */}
-        <div className="absolute left-0 right-0 h-2 rounded-full bg-gradient-to-r from-[#94A3B8] via-[#D97706] to-[#6366F1] opacity-25" style={{ top: 38 }} />
+        <div className="absolute left-0 right-0 h-2 bg-gradient-to-r from-[#94A3B8] via-[#D97706] to-[#6366F1] opacity-25" style={{ top: 38 }} />
         {MATURITY_STAGES.slice(1).map(st => (
           <div key={st.id} className="absolute w-px h-2 bg-[#C0BDB8]" style={{ left: `${st.min}%`, top: 38 }} />
         ))}
@@ -1604,12 +1604,12 @@ function MaturityContinuum({ score, hideTitle = false }) {
   
   return (
     <div ref={containerRef} className="card p-6 overflow-hidden">
-      {!hideTitle && <h3 className="text-lg font-semibold text-[#0B0B0B] mb-6">Brand Consciousness Maturity</h3>}
+      {!hideTitle && <h3 className="dc-kicker text-[#0B0B0B] mb-6">Brand Consciousness Maturity</h3>}
       
       {/* Progress Track */}
       <div className="relative mb-4">
         {/* Background track with stage colors */}
-        <div className="h-3 rounded-full overflow-hidden flex">
+        <div className="h-3 overflow-hidden flex">
           {MATURITY_STAGES.map(s => (
             <div 
               key={s.id} 
@@ -1625,7 +1625,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
         
         {/* Animated progress fill */}
         <div 
-          className="absolute top-0 left-0 h-3 rounded-full transition-all ease-out"
+          className="absolute top-0 left-0 h-3 transition-all ease-out"
           style={{ 
             width: `${progressWidth}%`,
             background: `linear-gradient(90deg, ${MATURITY_STAGES.map(s => s.color).join(', ')})`,
@@ -1643,7 +1643,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
           }}
         >
           <div 
-            className="absolute -top-1 -right-1 w-5 h-5 rounded-full border-3 border-white "
+            className="absolute -top-1 -right-1 w-5 h-5 border-3 border-white "
             style={{ backgroundColor: stage.color }}
           />
         </div>
@@ -1671,7 +1671,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
                 style={{ transitionDelay: `${i * 100 + 500}ms`, width: `${100/6}%` }}
               >
                 <div 
-                  className={`w-4 h-4 rounded-full border-2 mb-2 transition-all duration-300 ${isReached ? 'scale-110' : 'scale-100'}`}
+                  className={`w-4 h-4 border-2 mb-2 transition-all duration-300 ${isReached ? 'scale-110' : 'scale-100'}`}
                   style={{ 
                     backgroundColor: isReached ? s.color : 'transparent',
                     borderColor: s.color
@@ -1734,7 +1734,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
         <button onClick={onGoHome || onNewAssessment} className="flex items-center gap-2 md:gap-4 hover:opacity-75 transition-opacity">
           <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
           <div className="hidden lg:block h-6 w-px bg-[#0B0B0B]" />
-          <span className="hidden lg:block text-lg font-semibold text-[#0B0B0B]">Conscious Compass</span>
+          <span className="hidden lg:block dc-kicker text-[#0B0B0B]">Conscious Compass</span>
         </button>
         
         {/* Desktop Navigation */}
@@ -1765,7 +1765,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
               </button>
             )}
             {isReadonly && (
-              <span className="text-xs px-2 py-0.5 bg-[#B3B0A8] text-white rounded-full">Read-only</span>
+              <span className="text-xs px-2 py-0.5 bg-[#B3B0A8] text-white">Read-only</span>
             )}
             <span className="text-xs text-[#8A877D] max-w-[120px] truncate" title={user?.email}>
               {profile?.full_name || user?.email?.split('@')[0]}
@@ -1790,7 +1790,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
         <div className="md:hidden mt-4 pt-4 border-t border-[#DCDAD3] space-y-1">
           {isReadonly && (
             <div className="px-4 py-2">
-              <span className="text-xs px-2 py-0.5 bg-[#B3B0A8] text-white rounded-full">Read-only Access</span>
+              <span className="text-xs px-2 py-0.5 bg-[#B3B0A8] text-white">Read-only Access</span>
             </div>
           )}
           <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
@@ -1843,9 +1843,9 @@ function CompletionIndicator({ items }) {
         <span className="text-xs font-medium text-[#8A877D] uppercase tracking-wide">Progress</span>
         <span className="text-xs font-medium text-[#0B0B0B]">{completed}/{total} complete</span>
       </div>
-      <div className="h-1.5 bg-[#F2F0EA] rounded-full overflow-hidden mb-3">
+      <div className="h-1.5 bg-[#F2F0EA] overflow-hidden mb-3">
         <div 
-          className="h-full bg-[#DEE42F] rounded-full transition-all duration-300"
+          className="h-full bg-[#DEE42F] transition-all duration-300"
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -1853,13 +1853,13 @@ function CompletionIndicator({ items }) {
         {items.map((item, i) => (
           <span 
             key={i}
-            className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${
+            className={`text-xs px-2 py-1 flex items-center gap-1 ${
               item.done 
                 ? 'bg-[#DEE42F]/10 text-[#B23A3A]' 
                 : 'bg-[#E4E2DC] text-[#B3B0A8]'
             }`}
           >
-            {item.done ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-current" />}
+            {item.done ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 border border-current" />}
             {item.label}
           </span>
         ))}
@@ -1877,7 +1877,7 @@ function ProgressSteps({ currentStep, steps, assessments }) {
         <div className="hidden md:flex items-center justify-center gap-2">
           {steps.map((step, i) => (
             <div key={step.id} className="flex items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
+              <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium transition-all ${
                 i < currentStep ? 'bg-[#DEE42F] text-white' : i === currentStep ? 'bg-[#DEE42F]/10 text-[#B23A3A] ring-2 ring-[#E53935]' : 'bg-[#E4E2DC] text-gray-400'
               }`}>
                 {i < currentStep ? <Check className="w-4 h-4" /> : i + 1}
@@ -1896,7 +1896,7 @@ function ProgressSteps({ currentStep, steps, assessments }) {
             {steps.slice(1).map((_, i) => (
               <div 
                 key={i}
-                className={`w-2 h-2 rounded-full ${i < currentStep ? 'bg-[#DEE42F]' : i === currentStep - 1 ? 'bg-[#DEE42F]' : 'bg-[#DCDAD3]'}`}
+                className={`w-2 h-0.5 ${i < currentStep ? 'bg-[#DEE42F]' : i === currentStep - 1 ? 'bg-[#DEE42F]' : 'bg-[#DCDAD3]'}`}
               />
             ))}
           </div>
@@ -1935,7 +1935,7 @@ function WelcomePage({ onStart }) {
 
         {/* Headline */}
         <h1 
-          className={`text-5xl md:text-6xl font-bold text-[#0B0B0B] mb-6 leading-tight transition-all duration-1000 ease-out ${
+          className={`dc-display text-[#0B0B0B] mb-6 leading-tight transition-all duration-1000 ease-out ${
             animate 
               ? 'opacity-100 translate-y-0' 
               : 'opacity-0 translate-y-8'
@@ -2120,7 +2120,7 @@ function AdditionalPropertiesInput({ project, setProject }) {
           <Plus className="w-4 h-4 text-[#8A877D]" />
           <span className="text-sm font-medium text-[#0B0B0B]">Additional Properties</span>
           {props.length > 0 && (
-            <span className="text-xs font-semibold px-2 py-0.5 bg-[#0B0B0B] text-white rounded-full">{props.length}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 bg-[#0B0B0B] text-white">{props.length}</span>
           )}
         </div>
         <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -2205,7 +2205,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
   return (
     <div className="max-w-2xl mx-auto p-8 animate-fade-in">
       <MobileAssessmentBanner />
-      <h2 className="text-3xl font-bold text-[#0B0B0B] mb-2">Brand Details</h2>
+      <h2 className="dc-h2 text-[#0B0B0B] mb-2">Brand Details</h2>
       <p className="text-[#4A4840] mb-8">Tell us about the brand you're assessing.</p>
 
       <div className="space-y-6">
@@ -2440,7 +2440,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
           <p className="text-xs text-[#8A877D]">Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis.</p>
         </div>
         {extractRisk(propertyData.consistencyAnalysis) && (
-          <span className="text-xs font-bold px-3 py-1 rounded-full text-white flex-shrink-0"
+          <span className="text-xs font-bold px-3 py-1 text-white flex-shrink-0"
             style={{ backgroundColor: riskColor(propertyData.consistencyAnalysis) }}>
             {extractRisk(propertyData.consistencyAnalysis)} Risk
           </span>
@@ -2468,7 +2468,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
                   <td className="py-2 pr-3 font-semibold text-[#0B0B0B]">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
                   <td className="py-2 pr-3 text-[#666] max-w-[180px] truncate" title={prop.url}>{prop.url}</td>
                   <td className="py-2 pr-3">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F2F0EA] text-[#444]">
+                    <span className="px-2 py-0.5 text-[10px] font-semibold bg-[#F2F0EA] text-[#444]">
                       {PROPERTY_TYPES.find(t => t.id === prop.type)?.label || prop.type}
                     </span>
                   </td>
@@ -3251,7 +3251,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
             <div key={index} className="relative">
               <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DCDAD3]" />
               <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white rounded-full p-1 hover:bg-gray-100">
+                className="absolute top-2 right-2 bg-white p-1 hover:bg-gray-100">
                 <X className="w-4 h-4" />
               </button>
               <div className="absolute bottom-2 left-2 bg-[#0B0B0B] text-white text-xs px-2 py-1 ">
@@ -4058,7 +4058,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       <div className="flex items-center gap-3">
         <Icon className="w-5 h-5 text-[#8A877D]" />
         <span className="font-medium text-[#0B0B0B]">{title}</span>
-        {badge && <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">{badge}</span>}
+        {badge && <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700">{badge}</span>}
         {hasContent && <Check className="w-4 h-4 text-[#059669]" />}
       </div>
       <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -4100,8 +4100,8 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </div>
         {isRunningAll && (
           <div className="mt-3">
-            <div className="w-full bg-[#F2F0EA] rounded-full h-2 mb-1.5">
-              <div className="bg-[#DEE42F] h-2 rounded-full transition-all duration-500 ease-out" style={{ width: `${runAllProgress}%` }} />
+            <div className="w-full bg-[#F2F0EA] h-2 mb-1.5">
+              <div className="bg-[#DEE42F] h-2 transition-all duration-500 ease-out" style={{ width: `${runAllProgress}%` }} />
             </div>
             <p className="text-xs text-[#8A877D]">{runAllStage}</p>
           </div>
@@ -4154,7 +4154,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             <div key={index} className="relative">
               <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DCDAD3]" />
               <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white rounded-full p-1 hover:bg-gray-100">
+                className="absolute top-2 right-2 bg-white p-1 hover:bg-gray-100">
                 <X className="w-4 h-4" />
               </button>
               <div className="absolute bottom-2 left-2 bg-[#0B0B0B] text-white text-xs px-2 py-1 ">
@@ -4206,12 +4206,12 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               )}
             </div>
             <div>
-              <label className="text-xs font-medium text-[#8A877D] mb-1 block">Company Profile & About Section</label>
+              <label className="dc-kicker-sm mb-2 block">Company Profile & About Section</label>
               <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
                 placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#8A877D] mb-1 block">Recent Posts & Engagement</label>
+              <label className="dc-kicker-sm mb-2 block">Recent Posts & Engagement</label>
               <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
                 placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
             </div>
@@ -4431,7 +4431,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             </div>
 
             <div>
-              <label className="text-xs font-medium text-[#8A877D] mb-1 block">Your notes</label>
+              <label className="dc-kicker-sm mb-2 block">Your notes</label>
               <textarea value={inputs.campaignContent} onChange={(e) => updateInput('campaignContent', e.target.value)}
                 placeholder={`Anything the auto-check missed. Most useful:
 
@@ -4756,7 +4756,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
           <div key={engine.key} className={`card p-4 ${manualInput[engine.key] ? 'bg-[#E4E2DC]' : ''}`}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#DEE42F] text-white' : 'bg-[#E4E2DC]'}`}>
+                <div className={`w-10 h-10 flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#DEE42F] text-white' : 'bg-[#E4E2DC]'}`}>
                   {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-gray-400" />}
                 </div>
                 <div>
@@ -5569,7 +5569,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
             <BarChart3 className="w-7 h-7 text-[#B23A3A]" />
           </div>
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Generate Brand Report</h2>
+            <h2 className="dc-h2 text-[#0B0B0B]">Generate Brand Report</h2>
             <p className="text-[#4A4840] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
           </div>
         </div>
@@ -5582,9 +5582,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
               <p className="text-[#8A877D] mb-6">{scoringStage}</p>
               
               {/* Progress bar */}
-              <div className="w-full bg-[#F2F0EA] rounded-full h-3 mb-2">
+              <div className="w-full bg-[#F2F0EA] h-3 mb-2">
                 <div 
-                  className="bg-[#DEE42F] h-3 rounded-full transition-all duration-500 ease-out"
+                  className="bg-[#DEE42F] h-3 transition-all duration-500 ease-out"
                   style={{ width: `${scoringProgress}%` }}
                 />
               </div>
@@ -5595,19 +5595,19 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
                 {/* Data Collection */}
                 <div className="flex items-center justify-center gap-6 text-sm">
                   <div className={`flex items-center gap-2 ${scoringProgress >= 25 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
-                    {scoringProgress >= 25 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    {scoringProgress >= 25 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Website</span>
                   </div>
                   <div className={`flex items-center gap-2 ${scoringProgress >= 40 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
-                    {scoringProgress >= 40 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    {scoringProgress >= 40 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Social</span>
                   </div>
                   <div className={`flex items-center gap-2 ${scoringProgress >= 55 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
-                    {scoringProgress >= 55 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    {scoringProgress >= 55 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>AI Rep</span>
                   </div>
                   <div className={`flex items-center gap-2 ${scoringProgress >= 70 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
-                    {scoringProgress >= 70 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    {scoringProgress >= 70 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Earned</span>
                   </div>
                 </div>
@@ -5615,11 +5615,11 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
                 {/* Processing */}
                 <div className="flex items-center justify-center gap-6 text-sm">
                   <div className={`flex items-center gap-2 ${scoringProgress >= 85 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
-                    {scoringProgress >= 85 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    {scoringProgress >= 85 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Scoring</span>
                   </div>
                   <div className={`flex items-center gap-2 ${scoringProgress >= 95 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
-                    {scoringProgress >= 95 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                    {scoringProgress >= 95 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Recommendations</span>
                   </div>
                 </div>
@@ -5685,7 +5685,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
       <div className="max-w-4xl mx-auto p-8">
         <div className="card p-6 text-center">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-2">Report Generation Issue</h3>
+          <h3 className="dc-kicker text-[#0B0B0B] mb-2">Report Generation Issue</h3>
           <p className="text-[#8A877D] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
           <button onClick={() => setScores(null)} className="btn-primary">
             Try Again
@@ -7274,7 +7274,7 @@ ${content.slice(0, 8000)}`;
             </button>
           </div>
         ) : (
-          <span className="text-sm text-[#8A877D] bg-[#E4E2DC] px-3 py-1.5 rounded-full self-start">Viewing Report</span>
+          <span className="text-sm text-[#8A877D] bg-[#E4E2DC] px-3 py-1.5 self-start">Viewing Report</span>
         )}
       </div>
 
@@ -7493,7 +7493,7 @@ ${content.slice(0, 8000)}`;
                       {Array.isArray(c.channels) && c.channels.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-2">
                           {c.channels.map((ch, j) => (
-                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E4E2DC] text-[#8A877D] rounded-full">{ch}</span>
+                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E4E2DC] text-[#8A877D]">{ch}</span>
                           ))}
                         </div>
                       )}
@@ -7601,7 +7601,7 @@ ${content.slice(0, 8000)}`;
               {recommendations.slice(0, 6).map((r, i) => (
                 <div key={i} className="card p-4">
                   <div className="flex gap-3 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-[#DEE42F] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</div>
+                    <div className="w-6 h-6 bg-[#DEE42F] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-[#0B0B0B] text-sm">{r.title}</h4>
                     </div>
@@ -7612,7 +7612,7 @@ ${content.slice(0, 8000)}`;
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {r.attributes.slice(0, 3).map((attr, j) => (
-                      <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEE42F]/10 text-[#B23A3A] rounded-full">{attr}</span>
+                      <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEE42F]/10 text-[#B23A3A]">{attr}</span>
                     ))}
                   </div>
                 </div>
@@ -7625,7 +7625,7 @@ ${content.slice(0, 8000)}`;
                   {recommendations.slice(6).map((r, i) => (
                     <div key={i + 6} className="card p-4">
                       <div className="flex gap-3 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-[#DEE42F]/20 text-[#B23A3A] flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 7}</div>
+                        <div className="w-6 h-6 bg-[#DEE42F]/20 text-[#B23A3A] flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 7}</div>
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-[#0B0B0B] text-sm">{r.title}</h4>
                         </div>
@@ -7636,7 +7636,7 @@ ${content.slice(0, 8000)}`;
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {r.attributes.slice(0, 3).map((attr, j) => (
-                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEE42F]/10 text-[#B23A3A] rounded-full">{attr}</span>
+                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEE42F]/10 text-[#B23A3A]">{attr}</span>
                         ))}
                       </div>
                     </div>
@@ -7677,7 +7677,7 @@ ${content.slice(0, 8000)}`;
                             <h4 className="font-semibold text-[#0B0B0B] text-sm md:text-base">{rec.service.name}</h4>
                             <p className="text-xs text-[#8A877D]">{rec.service.category}</p>
                           </div>
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                          <span className={`text-xs px-2 py-1 font-medium ${
                             rec.priorityLevel === 'critical' ? 'bg-red-100 text-red-700' :
                             rec.priorityLevel === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
                             'bg-green-100 text-green-700'
@@ -7689,7 +7689,7 @@ ${content.slice(0, 8000)}`;
                         <p className="text-xs md:text-sm text-[#4A4840] mb-3">{rec.rationale}</p>
                         <div className="flex items-center justify-between text-xs text-[#8A877D]">
                           <span className="flex items-center gap-1">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr?.color || '#E53935' }}></span>
+                            <span className="w-3 h-3" style={{ backgroundColor: attr?.color || '#E53935' }}></span>
                             Improves {attr?.name} (currently {rec.attributeScore})
                           </span>
                           <span className="font-medium">{formatBudget(rec.service)}</span>
@@ -7711,7 +7711,7 @@ ${content.slice(0, 8000)}`;
       <div className="mb-6">
         <button 
           onClick={() => toggleSection('conclusions')} 
-          className="w-full flex items-center justify-between text-lg font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
+          className="w-full flex items-center justify-between dc-kicker text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
         >
           <span>CONCLUSIONS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.conclusions ? 'rotate-180' : ''}`} />
@@ -7730,7 +7730,7 @@ ${content.slice(0, 8000)}`;
         <div className="mb-6">
           <button 
             onClick={() => toggleSection('justification')} 
-            className="w-full flex items-center justify-between text-lg font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
+            className="w-full flex items-center justify-between dc-kicker text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
           >
             <span>SCORE JUSTIFICATION</span>
             <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.justification ? 'rotate-180' : ''}`} />
@@ -7749,7 +7749,7 @@ ${content.slice(0, 8000)}`;
       <div className="mb-8">
         <button 
           onClick={() => toggleSection('evaluated')} 
-          className="w-full flex items-center justify-between text-lg font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
+          className="w-full flex items-center justify-between dc-kicker text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
         >
           <span>WHAT WE EVALUATED</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.evaluated ? 'rotate-180' : ''}`} />
@@ -7767,7 +7767,7 @@ ${content.slice(0, 8000)}`;
       <div className="mb-8">
         <button 
           onClick={() => toggleSection('readouts')} 
-          className="w-full flex items-center justify-between text-lg font-semibold text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
+          className="w-full flex items-center justify-between dc-kicker text-[#0B0B0B] mb-4 hover:text-[#0B0B0B] transition-colors"
         >
           <span>ASSESSMENT READOUTS</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.readouts ? 'rotate-180' : ''}`} />
@@ -8088,14 +8088,14 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
   return (
     <div className="min-h-screen bg-[#F2F0EA]">
-      <div className="max-w-7xl mx-auto p-4 md:p-8">
+      <div className="dc-wrap dc-page pt-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="btn-secondary flex items-center gap-2">
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Compass Results</h1>
+              <h1 className="dc-h2 text-[#0B0B0B]">Compass Results</h1>
               <span className="text-sm text-[#8A877D]">{results.length} assessments</span>
             </div>
           </div>
@@ -8249,7 +8249,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     <div className="flex items-center gap-3">
                       <div className="text-center">
                         <div className="text-2xl font-bold" style={{ color: stage.color }}>{r.totalScore}</div>
-                        <div className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: `${stage.color}15`, color: stage.color }}>
+                        <div className="text-[10px] px-2 py-0.5" style={{ backgroundColor: `${stage.color}15`, color: stage.color }}>
                           {r.maturityLevel}
                         </div>
                       </div>
@@ -8373,7 +8373,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                 <div className="grid grid-cols-2 gap-3">
                   {ATTRIBUTES.map(attr => (
                     <div key={attr.id} className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: attr.color }}></span>
+                      <span className="w-3 h-3" style={{ backgroundColor: attr.color }}></span>
                       <span className="text-sm text-[#8A877D] w-24">{attr.name}</span>
                       <input
                         type="number"
@@ -8448,7 +8448,7 @@ function OnboardingTour({ onComplete }) {
       <div className="bg-[#0B0B0B] max-w-lg w-full overflow-hidden animate-fade-in">
         <div className="bg-[#DEE42F] p-8 text-center">
           <Icon className="w-16 h-16 text-[#0B0B0B] mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-[#0B0B0B]">{currentStep.title}</h2>
+          <h2 className="dc-h2 text-[#0B0B0B]">{currentStep.title}</h2>
         </div>
         
         <div className="p-6">
@@ -8459,7 +8459,7 @@ function OnboardingTour({ onComplete }) {
             {steps.map((_, i) => (
               <div 
                 key={i} 
-                className={`w-2 h-2 rounded-full transition-colors ${i === step ? 'bg-[#DEE42F]' : 'bg-[#666666]'}`}
+                className={`w-2 h-2 transition-colors ${i === step ? 'bg-[#DEE42F]' : 'bg-[#666666]'}`}
               />
             ))}
           </div>
@@ -8754,7 +8754,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
             {aiInsights.map((story, idx) => (
               <div key={idx} className="p-5 bg-[#0B0B0B] ">
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-full bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
+                  <div className="w-8 h-8 bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
                     {idx + 1}
                   </div>
                   <div>
@@ -9228,7 +9228,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
                   onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
                 >
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
+                  <div className="w-3 h-3 flex-shrink-0" style={{ backgroundColor: sector.color }} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-[#0B0B0B] leading-tight">{sector.name}</div>
                     <div className="text-xs text-[#666]">{sector.count}b{isPinned ? ' · pinned' : ''}</div>
@@ -9257,7 +9257,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               <div className="text-xs font-semibold text-[#0B0B0B] text-right leading-tight pr-1">{attr.name}</div>
               <div className="relative h-9 flex items-center" style={{ overflow: 'visible' }}>
                 {/* Background track */}
-                <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
+                <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6]" />
                 {/* Stage markers */}
                 {[25, 40, 56, 70, 85].map(mark => (
                   <div key={mark} className="absolute w-px h-3 bg-[#DCDAD3]"
@@ -9265,11 +9265,11 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 ))}
                 {/* Range fill */}
                 {sectorScores.length > 1 && (
-                  <div className="absolute h-1.5 rounded-full"
+                  <div className="absolute h-1.5"
                     style={{ left: `${min}%`, width: `${Math.max(max - min, 0.5)}%`, backgroundColor: 'rgba(229,57,53,0.18)' }} />
                 )}
                 {/* Mean line */}
-                <div className="absolute w-0.5 h-6 rounded-full bg-[#CFD32F] z-10"
+                <div className="absolute w-0.5 h-6 bg-[#CFD32F] z-10"
                   style={{ left: `${mean}%`, transform: 'translateX(-50%)' }} />
                 {/* Sector dots */}
                 {sectorScores.map((s, si) => {
@@ -9292,7 +9292,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                           }}>
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-white text-xs font-semibold"
                             style={{ backgroundColor: s.color }}>
-                            <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70 flex-shrink-0" />
+                            <div className="w-1.5 h-1.5 bg-white opacity-70 flex-shrink-0" />
                             {s.name}
                             <span className="ml-1 font-bold opacity-90">{s.score}</span>
                           </div>
@@ -9308,7 +9308,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                       )}
                       {/* Dot */}
                       <div
-                        className="w-3 h-3 rounded-full ring-2 ring-white transition-transform"
+                        className="w-3 h-3 ring-2 ring-white transition-transform"
                         style={{
                           backgroundColor: s.color,
                           cursor: 'pointer',
@@ -9362,7 +9362,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               {/* Text explanations */}
               <div className="flex flex-col gap-2 justify-center text-xs text-[#8A877D]">
                 <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 mt-0.5 w-3 h-3 rounded-full bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 12 }} />
+                  <div className="flex-shrink-0 mt-0.5 w-3 h-3 bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 12 }} />
                   <span><strong className="text-[#0B0B0B]">Coloured dots</strong> — each dot is one sector's average score for this attribute. Hover the octagon or cards above to match colours to sectors.</span>
                 </div>
                 <div className="flex items-start gap-2">
@@ -9372,7 +9372,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   <span><strong className="text-[#0B0B0B]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
                 </div>
                 <div className="flex items-start gap-2">
-                <div className="flex-shrink-0 mt-1.5 w-7 h-2 rounded-full" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
+                <div className="flex-shrink-0 mt-1.5 w-7 h-2" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
                   <span><strong className="text-[#0B0B0B]">Light red band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
                 </div>
               </div>
@@ -9416,7 +9416,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               >
                 {/* Sector label */}
                 <div className="flex items-center gap-2 pr-1">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
+                  <div className="w-2 h-2 flex-shrink-0" style={{ backgroundColor: sector.color }} />
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-[#0B0B0B] truncate leading-tight">{sector.name}</div>
                     <div className="text-[10px] text-[#666]">{sector.count}b</div>
@@ -9426,17 +9426,17 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 {/* Track */}
                 <div className="relative h-9 flex items-center" style={{ overflow: 'visible' }}>
                   {/* Background track */}
-                  <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6] rounded-full" />
+                  <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6]" />
                   {/* Stage markers */}
                   {[25, 40, 56, 70, 85].map(mark => (
                     <div key={mark} className="absolute w-px h-3 bg-[#DCDAD3]"
                       style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
                   ))}
                   {/* Range fill */}
-                  <div className="absolute h-1.5 rounded-full"
+                  <div className="absolute h-1.5"
                     style={{ left: `${sMin}%`, width: `${Math.max(sMax - sMin, 0.5)}%`, backgroundColor: sector.color + '30' }} />
                   {/* Sector avg line */}
-                  <div className="absolute w-0.5 h-6 rounded-full z-10"
+                  <div className="absolute w-0.5 h-6 z-10"
                     style={{ left: `${sAvg}%`, transform: 'translateX(-50%)', backgroundColor: sector.color }} />
                   {/* Attribute dots */}
                   {attrScores.map((a) => {
@@ -9454,7 +9454,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                             style={{ bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
                             <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-white text-xs font-semibold"
                               style={{ backgroundColor: sector.color }}>
-                              <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70 flex-shrink-0" />
+                              <div className="w-1.5 h-1.5 bg-white opacity-70 flex-shrink-0" />
                               {a.name}
                               <span className="ml-1 font-bold opacity-90">{a.score}</span>
                             </div>
@@ -9464,7 +9464,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                         )}
                         {/* Dot */}
                         <div
-                          className="w-2.5 h-2.5 rounded-full ring-2 ring-white transition-transform"
+                          className="w-2.5 h-2.5 ring-2 ring-white transition-transform"
                           style={{
                             backgroundColor: sector.color,
                             transform: isHovered ? 'scale(1.7)' : 'scale(1)',
@@ -9513,7 +9513,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               </div>
               <div className="flex flex-col gap-2 justify-center text-xs text-[#8A877D]">
                 <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 mt-0.5 w-2.5 h-2.5 rounded-full bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 10 }} />
+                  <div className="flex-shrink-0 mt-0.5 w-2.5 h-2.5 bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 10 }} />
                   <span><strong className="text-[#0B0B0B]">Coloured dots</strong> — each dot is one attribute score for that sector. Hover to see the attribute name and score.</span>
                 </div>
                 <div className="flex items-start gap-2">
@@ -9523,7 +9523,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   <span><strong className="text-[#0B0B0B]">Coloured line</strong> — the sector's overall average score across all eight attributes. The number on the right is this value.</span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 mt-1.5 w-7 h-2 rounded-full" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
+                  <div className="flex-shrink-0 mt-1.5 w-7 h-2" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
                   <span><strong className="text-[#0B0B0B]">Light band</strong> — spans from the lowest to highest attribute score for that sector, showing how consistent or varied the sector is.</span>
                 </div>
               </div>
@@ -9554,7 +9554,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               >
                 {/* Header */}
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="w-1.5 rounded-full self-stretch" style={{ backgroundColor: sector.color }} />
+                  <div className="w-1.5 self-stretch" style={{ backgroundColor: sector.color }} />
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-[#0B0B0B] text-sm leading-tight">{sector.name}</div>
                     <div className="text-[10px] text-[#666] mt-0.5">{sector.count} brand{sector.count !== 1 ? 's' : ''} · {stage.name}</div>
@@ -9570,7 +9570,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     const isBot = bot2.some(t => t.id === attr.id);
                     return (
                       <div key={attr.id}
-                        className={`rounded p-1.5 text-center ${isTop ? 'bg-[#0B0B0B]' : isBot ? 'bg-[#F2F0EA]' : 'bg-[#FFFFFF]'}`}>
+                        className={`p-1.5 text-center ${isTop ? 'bg-[#0B0B0B]' : isBot ? 'bg-[#F2F0EA]' : 'bg-[#FFFFFF]'}`}>
                         <div className={`text-[9px] font-semibold leading-none mb-0.5 ${isTop ? 'text-[#E2E65A]' : 'text-[#999]'}`}>
                           {attr.name.slice(0, 3).toUpperCase()}
                         </div>
@@ -9788,14 +9788,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
 
   return (
     <div className="min-h-screen bg-[#F2F0EA]">
-      <div className="max-w-7xl mx-auto p-4 md:p-8">
+      <div className="dc-wrap dc-page pt-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="btn-secondary flex items-center gap-2">
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Compare</h1>
+              <h1 className="dc-h2 text-[#0B0B0B]">Compare</h1>
               <p className="text-sm text-[#8A877D]">Compare brands or explore the consciousness landscape</p>
             </div>
           </div>
@@ -10014,7 +10014,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         return (
                           <div key={brand.id} className="text-center">
                             <div 
-                              className="w-14 h-14 md:w-18 md:h-18 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-lg md:text-xl border-4"
+                              className="w-14 h-14 md:w-18 md:h-18 flex items-center justify-center mx-auto mb-2 text-white font-bold text-lg md:text-xl border-4"
                               style={{ backgroundColor: color, borderColor: color + '60', width: '64px', height: '64px' }}
                             >
                               {brand.totalScore}
@@ -10025,7 +10025,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         );
                       })}
                       <div className="text-center border-l-2 border-[#DCDAD3] pl-4">
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl bg-[#0B0B0B]">
+                        <div className="w-16 h-16 flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl bg-[#0B0B0B]">
                           {Math.round(selectedBrands.reduce((sum, b) => sum + b.totalScore, 0) / selectedBrands.length)}
                         </div>
                         <div className="font-medium text-xs text-[#0B0B0B]">AVG</div>
@@ -10086,7 +10086,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                               return (
                                 <div key={attr.id} className="flex items-center gap-2">
                                   <div className="w-24 flex-shrink-0 flex items-center gap-2">
-                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: attr.color }} />
+                                    <div className="w-2.5 h-2.5 flex-shrink-0" style={{ backgroundColor: attr.color }} />
                                     <span className="text-xs font-medium text-[#0B0B0B] truncate">{attr.name}</span>
                                   </div>
                                   <div className="flex-1 flex gap-1">
@@ -10134,7 +10134,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         }, { diff: -Infinity, name: '-', score: 0 });
                         return (
                           <div key={brand.id} className="flex items-start gap-3 p-3 bg-[#F2F0EA]">
-                            <div className="w-2 h-12 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: color }} />
+                            <div className="w-2 h-12 flex-shrink-0 mt-1" style={{ backgroundColor: color }} />
                             <div className="flex-1 min-w-0">
                               <div className="font-semibold text-sm text-[#0B0B0B] mb-2">{brand.brandName}</div>
                               <div className="grid grid-cols-3 gap-2 text-xs">
@@ -10194,7 +10194,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                                 </div>
                                 <div className="w-20 text-center flex-shrink-0">
                                   <div className="flex items-center gap-1 justify-center">
-                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: attr.color }} />
+                                    <div className="w-2 h-2" style={{ backgroundColor: attr.color }} />
                                     <span className="text-[#8A877D]">{attr.name}</span>
                                   </div>
                                 </div>
@@ -10310,7 +10310,7 @@ function AssessmentStatusIndicator({ assessments }) {
       {Object.entries(statuses).map(([key, status]) => (
         <div 
           key={key}
-          className={`w-2 h-2 rounded-full ${
+          className={`w-2 h-2 ${
             status === 'complete' ? 'bg-green-500' : 
             status === 'partial' ? 'bg-yellow-500' : 
             'bg-[#DCDAD3]'
@@ -10572,7 +10572,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Saved Assessments</h2>
+          <h2 className="dc-h2 text-[#0B0B0B]">Saved Assessments</h2>
           <p className="text-sm text-[#8A877D]">Your assessments are stored securely in the cloud</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
@@ -10608,7 +10608,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       {assessments.length === 0 ? (
         <div className="card p-12 text-center">
           <FileText className="w-12 h-12 text-[#DCDAD3] mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-2">No Saved Assessments</h3>
+          <h3 className="dc-kicker text-[#0B0B0B] mb-2">No Saved Assessments</h3>
           <p className="text-[#8A877D] mb-4">Complete an assessment and click Save to store it here.</p>
           <p className="text-sm text-[#B3B0A8]">Or import a previously exported assessment using the Import button above.</p>
         </div>
@@ -10884,12 +10884,12 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
               </p>
             </div>
 
-            <label className="text-xs font-medium text-[#8A877D] mb-1 block">Password</label>
+            <label className="dc-kicker-sm mb-2 block">Password</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder="Set a password for the client"
               className="w-full px-3 py-2 border border-[#DCDAD3] bg-white text-sm mb-3" />
 
-            <label className="text-xs font-medium text-[#8A877D] mb-1 block">Confirm password</label>
+            <label className="dc-kicker-sm mb-2 block">Confirm password</label>
             <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && create()}
               placeholder="Repeat it"
@@ -11222,7 +11222,7 @@ function ClientReportGate({ token }) {
           className="h-9 mx-auto mb-4"
           style={{ filter: 'brightness(0)' }}
         />
-        <p className="text-2xl sm:text-3xl font-bold text-[#0B0B0B] leading-tight tracking-tight">
+        <p className="text-2xl sm:dc-h2 text-[#0B0B0B] leading-tight tracking-tight">
           Consequential brands are conscious brands
         </p>
       </div>
@@ -11327,10 +11327,10 @@ function SharedReportView({ report, onClose }) {
           <div className="flex items-center gap-4">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
             <div className="h-6 w-px bg-[#0B0B0B]" />
-            <span className="text-lg font-semibold text-[#0B0B0B]">Conscious Compass</span>
+            <span className="dc-kicker text-[#0B0B0B]">Conscious Compass</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-[#8A877D] bg-[#E4E2DC] px-3 py-1 rounded-full">Shared Report (Read-only)</span>
+            <span className="text-sm text-[#8A877D] bg-[#E4E2DC] px-3 py-1">Shared Report (Read-only)</span>
             <button onClick={onClose} className="btn-secondary text-sm">
               Start New Assessment
             </button>
@@ -11348,10 +11348,10 @@ function SharedReportView({ report, onClose }) {
 
         {/* Overall Score */}
         <div className="card p-8 mb-8 text-center bg-gradient-to-br from-[#E53935]/5 to-[#E53935]/10">
-          <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-[#DEE42F] text-white mb-4">
+          <div className="inline-flex items-center justify-center w-32 h-32 bg-[#DEE42F] text-white mb-4">
             <span className="text-5xl font-bold">{overall}</span>
           </div>
-          <h2 className="text-2xl font-bold text-[#0B0B0B] mb-2">{stage.name}</h2>
+          <h2 className="dc-h2 text-[#0B0B0B] mb-2">{stage.name}</h2>
           <p className="text-[#4A4840] mb-4">{stage.description}</p>
           {scores.headline && (
             <p className="text-lg italic text-[#0B0B0B] border-t border-[#DCDAD3] pt-4 mt-4">
@@ -11362,13 +11362,13 @@ function SharedReportView({ report, onClose }) {
 
         {/* Spider Chart */}
         <div className="card p-6 mb-8">
-          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4 text-center">Brand Consciousness Profile</h3>
+          <h3 className="dc-kicker text-[#0B0B0B] mb-4 text-center">Brand Consciousness Profile</h3>
           <SpiderChart scores={scores} size={450} animate={false} />
         </div>
 
         {/* Executive Summary */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">EXECUTIVE SUMMARY</h3>
+          <h3 className="dc-kicker text-[#0B0B0B] mb-4">EXECUTIVE SUMMARY</h3>
           <p className="text-[#4A4840] leading-relaxed">
             {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
           </p>
@@ -11376,7 +11376,7 @@ function SharedReportView({ report, onClose }) {
 
         {/* Score Summary */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">SCORE SUMMARY</h3>
+          <h3 className="dc-kicker text-[#0B0B0B] mb-4">SCORE SUMMARY</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ATTRIBUTES.map(attr => (
               <div key={attr.id} className="text-center p-3 bg-[#E4E2DC] ">
@@ -11392,7 +11392,7 @@ function SharedReportView({ report, onClose }) {
 
         {/* Maturity Stage Context */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">MATURITY STAGE CONTEXT</h3>
+          <h3 className="dc-kicker text-[#0B0B0B] mb-4">MATURITY STAGE CONTEXT</h3>
           <p className="text-[#4A4840] leading-relaxed">
             With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
           </p>
@@ -11497,7 +11497,7 @@ function SharedReportView({ report, onClose }) {
             <div className="card p-5 mb-4 border-l-4 border-[#F59E0B]">
               <div className="flex items-center gap-2 mb-4">
                 <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0" />
-                <h3 className="text-lg font-semibold text-[#0B0B0B]">SIGNAL CONFLICTS</h3>
+                <h3 className="dc-kicker text-[#0B0B0B]">SIGNAL CONFLICTS</h3>
               </div>
               <p className="text-sm text-[#8A877D] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
               <div className="space-y-4">
@@ -11507,7 +11507,7 @@ function SharedReportView({ report, onClose }) {
                       <h4 className="font-semibold text-[#92400E] text-sm leading-snug">{c.title}</h4>
                       <div className="flex gap-1.5 flex-shrink-0">
                         {c.attributes.map((attr, ai) => (
-                          <span key={attr} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E]">
+                          <span key={attr} className="text-[10px] font-bold px-2 py-0.5 bg-[#FEF3C7] text-[#92400E]">
                             {attr} {c.scores[ai]}
                           </span>
                         ))}
@@ -11608,7 +11608,7 @@ function SharedReportView({ report, onClose }) {
           {recommendations.map((r, i) => (
             <div key={i} className="card p-5">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-[#DEE42F] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
+                <div className="w-8 h-8 bg-[#DEE42F] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
                 <div className="flex-1">
                   <h4 className="font-semibold text-[#0B0B0B] mb-2">{r.title}</h4>
                   <p className="text-sm text-[#4A4840] leading-relaxed mb-2">
@@ -11616,7 +11616,7 @@ function SharedReportView({ report, onClose }) {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {r.attributes.map((attr, j) => (
-                      <span key={j} className="text-xs px-2 py-1 bg-[#DEE42F]/10 text-[#B23A3A] rounded-full font-medium">{attr}</span>
+                      <span key={j} className="text-xs px-2 py-1 bg-[#DEE42F]/10 text-[#B23A3A] font-medium">{attr}</span>
                     ))}
                   </div>
                 </div>
@@ -11662,7 +11662,7 @@ function SharedReportView({ report, onClose }) {
 
         {/* Conclusions */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">CONCLUSIONS</h3>
+          <h3 className="dc-kicker text-[#0B0B0B] mb-4">CONCLUSIONS</h3>
           <p className="text-[#4A4840] leading-relaxed">
             {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
           </p>
@@ -11670,7 +11670,7 @@ function SharedReportView({ report, onClose }) {
 
         {/* What We Evaluated */}
         <div className="card p-5 mb-4">
-          <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">WHAT WE EVALUATED</h3>
+          <h3 className="dc-kicker text-[#0B0B0B] mb-4">WHAT WE EVALUATED</h3>
           <p className="text-[#4A4840] leading-relaxed mb-4">
             This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model ({project.businessModel?.toUpperCase() || 'B2B'}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
           </p>
@@ -11718,7 +11718,7 @@ function SharedReportView({ report, onClose }) {
         {/* Score Justification */}
         {scores.justification && (
           <div className="card p-5 mb-4 bg-[#F2F0EA]">
-            <h3 className="text-lg font-semibold text-[#0B0B0B] mb-4">SCORE JUSTIFICATION</h3>
+            <h3 className="dc-kicker text-[#0B0B0B] mb-4">SCORE JUSTIFICATION</h3>
             <p className="text-sm text-[#4A4840] leading-relaxed">
               {scores.justification}
             </p>
@@ -12109,7 +12109,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
   // ── Render ──────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#F2F0EA]">
-      <div className="max-w-5xl mx-auto p-4 md:p-8">
+      <div className="dc-wrap dc-page pt-8">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8 gap-4">
@@ -12120,9 +12120,9 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Sparkles className="w-5 h-5 text-[#6366F1]" />
-                <h1 className="text-xl md:text-2xl font-bold text-[#0B0B0B]">Stay Conscious</h1>
+                <h1 className="dc-h2 text-[#0B0B0B]">Stay Conscious</h1>
                 {newsletter && (
-                  <span className="text-xs font-medium px-2 py-0.5 bg-[#0B0B0B] text-white rounded-full">
+                  <span className="text-xs font-medium px-2 py-0.5 bg-[#0B0B0B] text-white">
                     Issue #{newsletter.issueNumber}
                   </span>
                 )}
@@ -12181,7 +12181,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
         {/* Loading */}
         {(loading || refreshing) && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-12 h-12 rounded-full bg-[#6366F1]/10 flex items-center justify-center">
+            <div className="w-12 h-12 bg-[#6366F1]/10 flex items-center justify-center">
               <Loader2 className="w-6 h-6 text-[#6366F1] animate-spin" />
             </div>
             <p className="text-sm text-[#8A877D]">{refreshing ? 'Composing this week\'s edition...' : 'Loading newsletter...'}</p>
@@ -12213,15 +12213,15 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             {/* Lead Story */}
             <div className="bg-[#0B0B0B] p-6 md:p-8">
               <div className="flex items-center gap-2 mb-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1"
                   style={{ backgroundColor: catColor(newsletter.leadStory?.category) + '30', color: catColor(newsletter.leadStory?.category) }}>
                   {newsletter.leadStory?.category}
                 </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#555] px-2.5 py-1 rounded-full bg-white/5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#555] px-2.5 py-1 bg-white/5">
                   Lead Story
                 </span>
               </div>
-              <h2 className="text-xl md:text-2xl font-bold text-white leading-snug mb-4">
+              <h2 className="dc-h2 font-bold text-white leading-snug mb-4">
                 {newsletter.leadStory?.headline}
               </h2>
               <p className="text-[#D1D5DB] leading-relaxed mb-4">{newsletter.leadStory?.insight}</p>
@@ -12241,11 +12241,11 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                       <div className="flex items-start gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                            <span className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1"
                               style={{ backgroundColor: catBg(item.category), color: catColor(item.category) }}>
                               {item.category}
                             </span>
-                            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(item.category) }} />
+                            <div className="w-1.5 h-1.5 flex-shrink-0" style={{ backgroundColor: catColor(item.category) }} />
                           </div>
                           <h3 className="font-semibold text-[#0B0B0B] leading-snug mb-2">{item.headline}</h3>
                           <p className="text-sm text-[#4A4840] leading-relaxed">{item.insight}</p>
@@ -12299,7 +12299,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                 <div className="space-y-3">
                   {newsletter.storyOpportunities.map((story, idx) => (
                     <div key={idx} className="card p-4 flex items-start gap-4">
-                      <div className="w-7 h-7 rounded-full bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-xs mt-0.5">
+                      <div className="w-7 h-7 bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-xs mt-0.5">
                         {idx + 1}
                       </div>
                       <div>
