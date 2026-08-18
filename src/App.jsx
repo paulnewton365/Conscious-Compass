@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.8.0';
+const APP_VERSION = '3.8.2';
 import { 
   supabase, 
   signUp, 
@@ -1939,13 +1939,7 @@ function WelcomePage({ onStart }) {
   ];
 
   return (
-    <div className="dc-wrap dc-page relative" style={{ padding: '56px 40px 72px' }}>
-      <img
-        src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
-        alt="Antenna Group"
-        style={{ height: 26, width: 'auto', display: 'block', marginBottom: 36, filter: 'brightness(0)', ...rise('0ms') }}
-      />
-
+    <div className="dc-wrap dc-page relative" style={{ padding: '40px 32px 72px' }}>
       <div className="grid gap-12 items-center"
         style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(220px,320px)' }}>
         <div>
@@ -9332,9 +9326,9 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       </div>
 
       {/* Attribute Landscape — dot range chart */}
-      <div className="bg-white border border-[#DCDAD3] p-6">
+      <div className="bg-white" style={{ padding: 28 }}>
         <div className="mb-5">
-          <h3 className="font-semibold text-[#0B0B0B]">Attribute Landscape</h3>
+          <h3 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute landscape</h3>
           <p className="text-xs text-[#8A877D] mt-1">
             Where each sector scores on every attribute — see the legend below to read the chart.
           </p>
@@ -9359,7 +9353,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     style={{ left: `${min}%`, width: `${Math.max(max - min, 0.5)}%`, backgroundColor: 'rgba(229,57,53,0.18)' }} />
                 )}
                 {/* Mean line */}
-                <div className="absolute w-0.5 h-6 bg-[#CFD32F] z-10"
+                <div className="absolute w-0.5 h-6 bg-[#8A877D] z-10"
                   style={{ left: `${mean}%`, transform: 'translateX(-50%)' }} />
                 {/* Sector dots */}
                 {sectorScores.map((s, si) => {
@@ -9457,7 +9451,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
-                    <div className="w-0.5 h-4 bg-[#CFD32F] mx-auto" />
+                    <div className="w-0.5 h-4 bg-[#8A877D] mx-auto" />
                   </div>
                   <span><strong className="text-[#0B0B0B]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
                 </div>
@@ -9609,7 +9603,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
-                    <div className="w-0.5 h-4 mx-auto" style={{ backgroundColor: '#E53935' }} />
+                    <div className="w-0.5 h-4 mx-auto" style={{ backgroundColor: '#DCDAD3' }} />
                   </div>
                   <span><strong className="text-[#0B0B0B]">Coloured line</strong> — the sector's overall average score across all eight attributes. The number on the right is this value.</span>
                 </div>
@@ -9934,7 +9928,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
         </div>
 
         {results.length === 0 ? (
-          <div className="card text-center">
+          <div className="bg-white" style={{ padding: 22 }}>
             <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results to Compare</h3>
             <p className="text-[#8A877D]">Complete some assessments first to compare brands.</p>
@@ -10055,7 +10049,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             {/* Comparison View */}
             <div className="lg:col-span-2">
               {selectedBrands.length < 2 ? (
-                <div className="card text-center">
+                <div className="bg-white" style={{ padding: 22 }}>
                   <Users className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Select Brands to Compare</h3>
                   <p className="text-[#8A877D]">Choose at least 2 brands from the list to see a comparison.</p>
@@ -13087,7 +13081,7 @@ function AppContent() {
 
           {/* Draft restore banner */}
           {currentStep === 0 && draftRestoreOffer && (
-            <div className="dc-wrap dc-page">
+            <div className="dc-wrap" style={{ padding: '24px 32px 0' }}>
               <div className="flex items-start gap-4 bg-white px-5 py-4" style={{ borderLeft: '6px solid #DEE42F' }}>
                                 <div className="flex-1 min-w-0">
                   <p className="text-[17px] font-bold tracking-tight text-[#0B0B0B]">Unsaved assessment found</p>
