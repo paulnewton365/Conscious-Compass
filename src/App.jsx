@@ -127,7 +127,7 @@ function AuthPage({ onAuthSuccess }) {
           <p className="text-[#8A877D]">{isLogin ? 'Sign in to access the assessment tool' : 'Create an account to get started'}</p>
         </div>
         
-        <form onSubmit={handleSubmit} className="card p-6">
+        <form onSubmit={handleSubmit} className="card">
           {!isLogin && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Full Name</label>
@@ -304,7 +304,7 @@ function AdminPage({ currentUser, onBack }) {
         </div>
 
         {loading ? (
-          <div className="card p-12 text-center">
+          <div className="card text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#B23A3A]" />
             <p className="mt-4 text-[#8A877D]">Loading users...</p>
           </div>
@@ -1603,7 +1603,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
   const progressWidth = isVisible ? score : 0;
   
   return (
-    <div ref={containerRef} className="card p-6 overflow-hidden">
+    <div ref={containerRef} className="card overflow-hidden">
       {!hideTitle && <h3 className="dc-kicker text-[#0B0B0B] mb-6">Brand Consciousness Maturity</h3>}
       
       {/* Progress Track */}
@@ -1653,7 +1653,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
       <div className="flex justify-between items-center mb-6">
         <div className="text-sm text-[#8A877D]">Progress</div>
         <div className="flex items-baseline gap-1">
-          <span className="text-3xl font-bold" style={{ color: stage.color }}>{animatedScore}</span>
+          <span className="dc-h2 font-bold" style={{ color: stage.color }}>{animatedScore}</span>
           <span className="text-lg text-[#B3B0A8]">/100</span>
         </div>
       </div>
@@ -1714,11 +1714,13 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
+  // Active nav carries a lime underline rather than a filled block, which is
+  // how the redesign signals position.
   const navBtnClass = (page) =>
-    `flex items-center gap-2 text-sm px-3 py-1.5  transition-colors ${
+    `flex items-center gap-2 px-1 py-1 transition-colors text-[12px] font-semibold tracking-[0.04em] ${
       activePage === page
-        ? 'bg-[#0B0B0B] text-white font-medium'
-        : 'text-[#4A4840] hover:text-[#0B0B0B] hover:bg-[#DCDAD3]'
+        ? 'dc-nav-active'
+        : 'text-[#8A877D] hover:text-[#0B0B0B]'
     }`;
 
   const mobileNavBtnClass = (page) =>
@@ -1729,8 +1731,8 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
     }`;
   
   return (
-    <header className="bg-[#F2F0EA] border-b border-[#DCDAD3] py-4 md:py-5 px-4 md:px-6">
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
+    <header className="bg-white border-b-2 border-[#0B0B0B] py-4 md:py-[18px] px-4 md:px-6">
+      <div className="dc-wrap flex items-center justify-between gap-6 flex-wrap">
         <button onClick={onGoHome || onNewAssessment} className="flex items-center gap-2 md:gap-4 hover:opacity-75 transition-opacity">
           <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
           <div className="hidden lg:block h-6 w-px bg-[#0B0B0B]" />
@@ -1872,17 +1874,19 @@ function CompletionIndicator({ items }) {
 function ProgressSteps({ currentStep, steps, assessments }) {
   return (
     <div className="bg-white border-b border-[#DCDAD3] py-3 md:py-4 px-4 md:px-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="dc-wrap">
         {/* Desktop Progress */}
-        <div className="hidden md:flex items-center justify-center gap-2">
+        {/* Steps read as a tracked ledger with a lime rule under the
+            completed span, not as numbered circles. */}
+        <div className="hidden md:grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0,1fr))` }}>
           {steps.map((step, i) => (
-            <div key={step.id} className="flex items-center">
-              <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium transition-all ${
-                i < currentStep ? 'bg-[#DEE42F] text-white' : i === currentStep ? 'bg-[#DEE42F]/10 text-[#B23A3A] ring-2 ring-[#E53935]' : 'bg-[#E4E2DC] text-gray-400'
-              }`}>
-                {i < currentStep ? <Check className="w-4 h-4" /> : i + 1}
+            <div key={step.id} className="pt-2" style={{ borderTop: `3px solid ${i <= currentStep ? '#DEE42F' : '#DCDAD3'}` }}>
+              <div className="flex items-center gap-1.5">
+                {i < currentStep && <Check className="w-3 h-3 text-[#0B0B0B]" />}
+                <span className={`text-[10px] font-bold tracking-[0.12em] uppercase ${
+                  i === currentStep ? 'text-[#0B0B0B]' : i < currentStep ? 'text-[#4A4840]' : 'text-[#B3B0A8]'
+                }`}>{step.label || step.name || step.id}</span>
               </div>
-              {i < steps.length - 1 && <div className={`w-8 h-0.5 mx-1 ${i < currentStep ? 'bg-[#DEE42F]' : 'bg-[#DCDAD3]'}`} />}
             </div>
           ))}
         </div>
@@ -2203,7 +2207,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
   const canProceed = project.brandName && project.websiteUrl && apiKey;
 
   return (
-    <div className="max-w-2xl mx-auto p-8 animate-fade-in">
+    <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
       <h2 className="dc-h2 text-[#0B0B0B] mb-2">Brand Details</h2>
       <p className="text-[#4A4840] mb-8">Tell us about the brand you're assessing.</p>
@@ -2429,7 +2433,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
   };
 
   return (
-    <div className="card p-5 mb-4 border-l-4 border-[#1976D2]">
+    <div className="card mb-[2px] border-l-4 border-[#1976D2]">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
@@ -2625,7 +2629,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
   const hasAnyScore = Object.values(techAudit.scores).some(s => s !== '' && s !== undefined);
 
   return (
-    <div className="card p-5 mb-4">
+    <div className="card mb-[2px]">
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="text-sm font-medium text-[#0B0B0B]">Technical Performance Audit</h3>
@@ -3148,14 +3152,14 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+    <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
         <div className="w-12 h-12 bg-[#DEE42F]/10 flex items-center justify-center">
           <Globe className="w-6 h-6 text-[#B23A3A]" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-[#0B0B0B]">Website Assessment</h2>
+          <h2 className="text-[17px] font-bold tracking-tight">Website Assessment</h2>
           <p className="text-sm text-[#8A877D]">{project.brandName} · {project.websiteUrl}</p>
         </div>
       </div>
@@ -3163,7 +3167,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       <CompletionIndicator items={completionItems} />
 
       {/* Auto-Assess Website */}
-      <div className="card p-5 mb-4 border-l-4 border-[#0B0B0B]">
+      <div className="card mb-[2px] border-l-4 border-[#0B0B0B]">
         <div className="flex items-start justify-between mb-3">
           <div>
             <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
@@ -3197,7 +3201,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Pages Reviewed */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Pages Reviewed</h3>
         <p className="text-sm text-[#8A877D] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
         <input 
@@ -3210,7 +3214,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Recognition & Credentials */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-[#0B0B0B]">Recognition & Credentials (Optional)</h3>
           <button 
@@ -3238,7 +3242,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Screenshots */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2 flex items-center gap-2">
           <Image className="w-5 h-5" /> Website Screenshots (up to 4)
         </h3>
@@ -3280,7 +3284,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Website Content */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Website Content (Optional)</h3>
         <p className="text-sm text-[#8A877D] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
         <textarea 
@@ -3299,7 +3303,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       </div>
 
       {/* SEO Visibility Assessment */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-semibold text-[#0B0B0B]">SEO Visibility Assessment</h3>
@@ -3370,7 +3374,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       />
 
       {/* Assessor Observations */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
         <p className="text-sm text-[#8A877D] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
@@ -3394,7 +3398,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       {error && <div className="bg-red-50 border border-red-200 p-4 mb-6 text-red-700">{error}</div>}
 
       {isComplete && (
-        <div className="card p-5 mb-4">
+        <div className="card mb-[2px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#B23A3A]" /> Analysis Complete
@@ -4053,27 +4057,27 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
   const AccordionHeader = ({ title, icon: Icon, isOpen, onClick, badge, hasContent }) => (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center justify-between p-4  transition-colors ${isOpen ? 'bg-[#E4E2DC]' : 'bg-white hover:bg-[#F2F0EA]'} border border-[#DCDAD3]`}
+      className={`w-full flex items-center justify-between px-5 py-4 bg-white transition-colors ${isOpen ? 'border-b border-[#DCDAD3]' : 'hover:bg-[#F2F0EA]'}`}
     >
       <div className="flex items-center gap-3">
-        <Icon className="w-5 h-5 text-[#8A877D]" />
-        <span className="font-medium text-[#0B0B0B]">{title}</span>
-        {badge && <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700">{badge}</span>}
+        <Icon className="w-4 h-4 text-[#8A877D]" />
+        <span className="text-[17px] font-bold tracking-tight text-[#0B0B0B]">{title}</span>
+        {badge && <span className="dc-meta">{badge}</span>}
         {hasContent && <Check className="w-4 h-4 text-[#059669]" />}
       </div>
-      <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
     </button>
   );
 
   return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+    <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
         <div className="w-12 h-12 bg-[#8B5CF6]/10 flex items-center justify-center">
           <Users className="w-6 h-6 text-[#8B5CF6]" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-[#0B0B0B]">Social Media Assessment</h2>
+          <h2 className="text-[17px] font-bold tracking-tight">Social Media Assessment</h2>
           <p className="text-sm text-[#8A877D]">{project.brandName}'s social presence</p>
         </div>
       </div>
@@ -4081,7 +4085,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       <CompletionIndicator items={completionItems} />
 
       {/* Run Everything */}
-      <div className="card p-4 mb-4 border-l-4 border-[#0B0B0B]">
+      <div className="card mb-[2px] border-l-4 border-[#0B0B0B]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
           <div className="min-w-0">
             <h3 className="text-sm font-medium text-[#0B0B0B] flex items-center gap-2">
@@ -4109,7 +4113,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       </div>
 
       {/* Social Media Health Check Section */}
-      <div className="card p-4 mb-4 border-l-4 border-[#8B5CF6]">
+      <div className="card mb-[2px] border-l-4 border-[#8B5CF6]">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="text-sm font-medium text-[#0B0B0B] flex items-center gap-2">
@@ -4141,7 +4145,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       </div>
 
       {/* Screenshots - Matching Website Style */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2 flex items-center gap-2">
           <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) <span className="text-red-500">*</span>
         </h3>
@@ -4184,7 +4188,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       {/* LinkedIn Section */}
       {isChannelVisible('linkedin') && (
-      <div className="mb-3">
+      <div className="mb-[2px]">
         <AccordionHeader 
           title="LinkedIn" 
           icon={ExternalLink} 
@@ -4222,7 +4226,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       {/* X/Twitter Section */}
       {isChannelVisible('x') && (
-      <div className="mb-3">
+      <div className="mb-[2px]">
         <AccordionHeader 
           title="X (Twitter)" 
           icon={ExternalLink} 
@@ -4252,7 +4256,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       {/* Instagram Section */}
       {isChannelVisible('instagram') && (
-      <div className="mb-3">
+      <div className="mb-[2px]">
         <AccordionHeader 
           title="Instagram" 
           icon={Image} 
@@ -4273,7 +4277,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       {/* YouTube */}
       {isChannelVisible('youtube') && (
-      <div className="mb-3">
+      <div className="mb-[2px]">
         <AccordionHeader 
           title="YouTube" 
           icon={Play} 
@@ -4302,7 +4306,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       {/* Other platforms, auto only */}
       {inputs.otherPlatformsAuto && (
-        <div className="card p-4 mb-3">
+        <div className="card mb-[2px]">
           <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Facebook, TikTok, Bluesky, Substack</h3>
           <AutoPanel content={inputs.otherPlatformsAuto} />
         </div>
@@ -4320,7 +4324,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       )}
 
       {/* Reputation Section (Glassdoor, WIPO) */}
-      <div className="mb-4">
+      <div className="mb-[2px]">
         <AccordionHeader 
           title="Reputation & Trust Signals" 
           icon={Shield} 
@@ -4372,7 +4376,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       </div>
 
       {/* Campaign & Paid Signals - merged from Hashtags and Paid Media */}
-      <div className="mb-4">
+      <div className="mb-[2px]">
         <AccordionHeader 
           title="Campaign & Paid Signals" 
           icon={Target} 
@@ -4447,14 +4451,14 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       {/* Third-party conversation, auto only */}
       {inputs.thirdPartyAuto && (
-        <div className="card p-4 mb-4">
+        <div className="card mb-[2px]">
           <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Third-Party Conversation</h3>
           <AutoPanel content={inputs.thirdPartyAuto} />
         </div>
       )}
 
       {/* Observations - Simplified */}
-      <div className="card p-4 mb-4">
+      <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Notes</h3>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
@@ -4470,7 +4474,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {error && <div className="bg-red-50 border border-red-200 p-3 mb-4 text-red-700 text-sm">{error}</div>}
 
       {isComplete && (
-        <div className="card p-5 mb-4">
+        <div className="card mb-[2px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#8B5CF6]" /> Analysis Complete
@@ -4720,14 +4724,14 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+    <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
         <div className="w-12 h-12 bg-[#3B82F6]/10 flex items-center justify-center">
           <Bot className="w-6 h-6 text-[#3B82F6]" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-[#0B0B0B]">AI Reputation Assessment</h2>
+          <h2 className="text-[17px] font-bold tracking-tight">AI Reputation Assessment</h2>
           <p className="text-sm text-[#8A877D]">What prospects discover when researching {project.brandName}</p>
         </div>
       </div>
@@ -4735,7 +4739,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       <CompletionIndicator items={completionItems} />
 
       {/* AI Brand Perception Prompt */}
-      <div className="card p-4 mb-4 border-l-4 border-[#3B82F6]">
+      <div className="card mb-[2px] border-l-4 border-[#3B82F6]">
         <div className="flex items-start justify-between mb-2">
           <div>
             <h3 className="text-sm font-medium text-[#0B0B0B] mb-0.5">AI Brand Research Prompt</h3>
@@ -4792,7 +4796,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       </div>
 
       {/* AI Training Sources */}
-      <div className="card p-4 mb-4 border-l-4 border-[#6366F1]">
+      <div className="card mb-[2px] border-l-4 border-[#6366F1]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">AI Training Sources</h3>
         <p className="text-xs text-[#8A877D] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
         <div className="space-y-3">
@@ -4840,7 +4844,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       </div>
 
       {/* Third-Party & Search Signals (auto-fetched, NOT AI engines) */}
-      <div className="card p-4 mb-4 border-l-4 border-[#0B0B0B]">
+      <div className="card mb-[2px] border-l-4 border-[#0B0B0B]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">Third-Party &amp; Search Signals</h3>
         <p className="text-xs text-[#8A877D] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
         <div className="space-y-3">
@@ -4872,7 +4876,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       </div>
 
       {/* Assessor Observations */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
         <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the synthesis.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
@@ -4886,7 +4890,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       )}
 
       {isComplete && (
-        <div className="card p-5 mb-4">
+        <div className="card mb-[2px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#3B82F6]" /> Synthesis Complete
@@ -5064,14 +5068,14 @@ Write in flowing prose with specific examples. End with priority recommendations
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+    <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
         <div className="w-12 h-12 bg-[#10B981]/10 flex items-center justify-center">
           <Newspaper className="w-6 h-6 text-[#10B981]" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-[#0B0B0B]">Earned Media Assessment</h2>
+          <h2 className="text-[17px] font-bold tracking-tight">Earned Media Assessment</h2>
           <p className="text-sm text-[#8A877D]">{project.brandName}'s press coverage</p>
         </div>
       </div>
@@ -5079,7 +5083,7 @@ Write in flowing prose with specific examples. End with priority recommendations
       <CompletionIndicator items={completionItems} />
 
       {/* Coverage Paste Field */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Media Coverage (Last 3 Months)</h3>
         <p className="text-sm text-[#8A877D] mb-4">
           Paste any press coverage, news articles, mentions, or media clips from the last 3 months.
@@ -5105,7 +5109,7 @@ Example:
       </div>
 
       {/* Auto-Assess Earned Media Performance */}
-      <div className="card p-5 mb-4 border-l-4 border-[#10B981]">
+      <div className="card mb-[2px] border-l-4 border-[#10B981]">
         <div className="flex items-start justify-between mb-3">
           <div>
             <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
@@ -5139,7 +5143,7 @@ Example:
       </div>
 
       {/* Assessor Observations - before analysis button */}
-      <div className="card p-5 mb-4">
+      <div className="card mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
         <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
@@ -5155,7 +5159,7 @@ Example:
       {error && <div className="bg-red-50 border border-red-200 p-4 mb-6 text-red-700">{error}</div>}
 
       {isComplete && (
-        <div className="card p-5 mb-4">
+        <div className="card mb-[2px]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#10B981]" /> Analysis Complete
@@ -5574,7 +5578,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
           </div>
         </div>
 
-        <div className="card p-6 md:p-8 text-center mb-6">
+        <div className="card text-center mb-[2px]">
           {isScoring ? (
             <div className="max-w-lg mx-auto">
               <Loader2 className="w-16 h-16 text-[#B23A3A] mx-auto mb-6 animate-spin" />
@@ -5631,7 +5635,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
                   <p className="text-xs text-[#8A877D] mb-4 text-center">The latest from Stay Conscious</p>
                   <div className="space-y-3">
                     {waitingStories.map((s, i) => (
-                      <div key={i} className="card p-3 text-left">
+                      <div key={i} className="card text-left">
                         {s.category && (
                           <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-[#B23A3A] mb-1">{s.category}</span>
                         )}
@@ -5682,8 +5686,8 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, 
   // Safety check - if overall is 0 or NaN, show error
   if (!overall || isNaN(overall)) {
     return (
-      <div className="max-w-4xl mx-auto p-8">
-        <div className="card p-6 text-center">
+      <div className="dc-wrap dc-page">
+        <div className="card text-center">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
           <h3 className="dc-kicker text-[#0B0B0B] mb-2">Report Generation Issue</h3>
           <p className="text-[#8A877D] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
@@ -7238,7 +7242,7 @@ ${content.slice(0, 8000)}`;
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-8 animate-fade-in">
+    <div className="dc-wrap dc-page animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
           {isReadonly && (
@@ -7335,9 +7339,9 @@ ${content.slice(0, 8000)}`;
         {expandedSections.attributes && (
           <div className="grid md:grid-cols-2 gap-3 animate-fade-in">
             {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="card p-4 border-l-4" style={{ borderLeftColor: attr.color }}>
+              <div key={attr.id} className="card border-l-4" style={{ borderLeftColor: attr.color }}>
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
+                  <span className="dc-h2 font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
                   <div className="min-w-0">
                     <h4 className="font-semibold text-[#0B0B0B] text-sm">{attr.name}</h4>
                     <p className="text-xs text-[#8A877D]">{attr.fullName}</p>
@@ -7423,7 +7427,7 @@ ${content.slice(0, 8000)}`;
       {!campaignStage && (
         <div className="mb-6">
           <div className="dc-sec-head mb-4">CAMPAIGN COHERENCE</div>
-          <div className="card p-4 border-l-4 border-amber-400">
+          <div className="card border-l-4 border-amber-400">
             <p className="text-sm text-[#4A4840] leading-relaxed">
               These scores were produced before campaign coherence existed, or the scoring pass did not return it.
               Regenerate the report to score campaign coherence and apply the framework {FRAMEWORK_VERSION} adjustment.
@@ -7448,7 +7452,7 @@ ${content.slice(0, 8000)}`;
           </button>
           {expandedSections.campaign && (
             <div className="animate-fade-in space-y-3">
-              <div className="card p-5">
+              <div className="card">
                 <div className="flex flex-wrap items-start gap-4 mb-4">
                   <div className="text-center flex-shrink-0">
                     <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
@@ -7488,7 +7492,7 @@ ${content.slice(0, 8000)}`;
               {Array.isArray(campaign.campaigns) && campaign.campaigns.length > 0 && (
                 <div className="grid md:grid-cols-2 gap-3">
                   {campaign.campaigns.map((c, i) => (
-                    <div key={i} className="card p-4">
+                    <div key={i} className="card">
                       <h4 className="font-semibold text-[#0B0B0B] text-sm mb-1">{c.name}</h4>
                       {Array.isArray(c.channels) && c.channels.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-2">
@@ -7506,7 +7510,7 @@ ${content.slice(0, 8000)}`;
 
               {/* Score adjustment, shown openly */}
               {campaignAffected.length > 0 && (
-                <div className="card p-4">
+                <div className="card">
                   <h4 className="text-sm font-semibold text-[#0B0B0B] mb-1">Score Adjustment</h4>
                   <p className="text-xs text-[#8A877D] mb-3 leading-relaxed">
                     Attribute scores judge the quality of the work. Campaign coherence is scored separately and applied here, so the two are never counted twice.
@@ -7538,7 +7542,7 @@ ${content.slice(0, 8000)}`;
       {benchmarkUnavailableReason && (
         <div className="mb-6">
           <div className="dc-sec-head mb-4">BENCHMARK COMPARISON</div>
-          <div className="card p-4 border-l-4 border-amber-400">
+          <div className="card border-l-4 border-amber-400">
             <p className="text-sm text-[#4A4840] leading-relaxed">{benchmarkUnavailableReason}</p>
           </div>
         </div>
@@ -7599,7 +7603,7 @@ ${content.slice(0, 8000)}`;
           <div className="animate-fade-in">
             <div className="grid md:grid-cols-2 gap-3">
               {recommendations.slice(0, 6).map((r, i) => (
-                <div key={i} className="card p-4">
+                <div key={i} className="card">
                   <div className="flex gap-3 mb-2">
                     <div className="w-6 h-6 bg-[#DEE42F] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</div>
                     <div className="flex-1 min-w-0">
@@ -7623,7 +7627,7 @@ ${content.slice(0, 8000)}`;
                 <summary className="text-sm text-[#B23A3A] cursor-pointer hover:underline">View {recommendations.length - 6} more recommendations</summary>
                 <div className="grid md:grid-cols-2 gap-3 mt-3">
                   {recommendations.slice(6).map((r, i) => (
-                    <div key={i + 6} className="card p-4">
+                    <div key={i + 6} className="card">
                       <div className="flex gap-3 mb-2">
                         <div className="w-6 h-6 bg-[#DEE42F]/20 text-[#B23A3A] flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 7}</div>
                         <div className="flex-1 min-w-0">
@@ -7671,7 +7675,7 @@ ${content.slice(0, 8000)}`;
                   {topServices.map((rec, i) => {
                     const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
                     return (
-                      <div key={i} className="card p-4 md:p-5 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
+                      <div key={i} className="card border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h4 className="font-semibold text-[#0B0B0B] text-sm md:text-base">{rec.service.name}</h4>
@@ -7717,7 +7721,7 @@ ${content.slice(0, 8000)}`;
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.conclusions ? 'rotate-180' : ''}`} />
         </button>
         {expandedSections.conclusions && (
-          <div className="card p-4 md:p-6 animate-fade-in">
+          <div className="card animate-fade-in">
             <p className="text-sm md:text-base text-[#4A4840] leading-relaxed">
               {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
             </p>
@@ -7736,7 +7740,7 @@ ${content.slice(0, 8000)}`;
             <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.justification ? 'rotate-180' : ''}`} />
           </button>
           {expandedSections.justification && (
-            <div className="card p-4 md:p-6 animate-fade-in bg-[#F2F0EA]">
+            <div className="card animate-fade-in bg-[#F2F0EA]">
               <p className="text-sm text-[#4A4840] leading-relaxed">
                 {scores.justification}
               </p>
@@ -7755,7 +7759,7 @@ ${content.slice(0, 8000)}`;
           <ChevronDown className={`w-5 h-5 transition-transform ${expandedSections.evaluated ? 'rotate-180' : ''}`} />
         </button>
         {expandedSections.evaluated && (
-          <div className="card p-4 md:p-6 animate-fade-in">
+          <div className="card animate-fade-in">
             <p className="text-sm md:text-base text-[#4A4840] leading-relaxed">
               This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
@@ -8113,7 +8117,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
         {/* Search and Filters */}
         {results.length > 0 && (
-          <div className="card p-4 mb-6">
+          <div className="card mb-[2px]">
             <div className="flex flex-wrap items-center gap-3">
               {/* Search */}
               <div className="relative flex-1 min-w-[200px]">
@@ -8184,7 +8188,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
         )}
 
         {results.length === 0 ? (
-          <div className="card p-12 text-center">
+          <div className="card text-center">
             <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results Yet</h3>
             <p className="text-[#8A877D] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
@@ -8195,7 +8199,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
             )}
           </div>
         ) : filteredResults.length === 0 ? (
-          <div className="card p-12 text-center">
+          <div className="card text-center">
             <Search className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Matching Results</h3>
             <p className="text-[#8A877D] mb-4">Try adjusting your search or filters.</p>
@@ -8248,7 +8252,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     {/* Score Badge */}
                     <div className="flex items-center gap-3">
                       <div className="text-center">
-                        <div className="text-2xl font-bold" style={{ color: stage.color }}>{r.totalScore}</div>
+                        <div className="dc-h2 font-bold" style={{ color: stage.color }}>{r.totalScore}</div>
                         <div className="text-[10px] px-2 py-0.5" style={{ backgroundColor: `${stage.color}15`, color: stage.color }}>
                           {r.maturityLevel}
                         </div>
@@ -8307,7 +8311,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-[#DCDAD3]">
-              <h3 className="text-xl font-bold text-[#0B0B0B]">Add Manual Entry</h3>
+              <h3 className="text-[17px] font-bold tracking-tight">Add Manual Entry</h3>
               <button onClick={() => setShowAddModal(false)} className="text-[#8A877D] hover:text-[#0B0B0B]">
                 <X className="w-6 h-6" />
               </button>
@@ -8631,7 +8635,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
 
   if (!portfolioStats) {
     return (
-      <div className="card p-12 text-center">
+      <div className="card text-center">
         <TrendingUp className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
         <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Data for Insights</h3>
         <p className="text-[#8A877D]">Add some brand assessments to see portfolio insights.</p>
@@ -8645,24 +8649,24 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
     <div className="space-y-6">
       {/* Portfolio Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card p-5 text-center">
+        <div className="card text-center">
           <div className="text-4xl font-bold text-[#0B0B0B] mb-1">{portfolioStats.totalBrands}</div>
           <div className="text-sm text-[#8A877D]">Brands Assessed</div>
         </div>
-        <div className="card p-5 text-center">
+        <div className="card text-center">
           <div className="text-4xl font-bold mb-1" style={{ color: getMaturityStage(portfolioStats.avgScore).color }}>
             {portfolioStats.avgScore}
           </div>
           <div className="text-sm text-[#8A877D]">Portfolio Average</div>
         </div>
-        <div className="card p-5 text-center">
+        <div className="card text-center">
           <div className="text-lg font-bold text-[#059669] mb-1 flex items-center justify-center gap-1">
             <TrendingUp className="w-5 h-5" />
             {ATTRIBUTES.find(a => a.id === portfolioStats.strongestAttr[0])?.name}
           </div>
           <div className="text-sm text-[#8A877D]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
         </div>
-        <div className="card p-5 text-center">
+        <div className="card text-center">
           <div className="text-lg font-bold text-[#F59E0B] mb-1 flex items-center justify-center gap-1">
             <TrendingDown className="w-5 h-5" />
             {ATTRIBUTES.find(a => a.id === portfolioStats.weakestAttr[0])?.name}
@@ -8672,7 +8676,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
       </div>
 
       {/* Score Distribution Visualization */}
-      <div className="card p-6">
+      <div className="card">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Portfolio Maturity Distribution</h3>
         <div className="flex items-end gap-3 mb-4" style={{ height: '160px' }}>
           {portfolioStats.scoreDistribution.map((bucket, idx) => {
@@ -8703,7 +8707,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
       </div>
 
       {/* AI Insights Section */}
-      <div className="card p-6">
+      <div className="card">
         <div className="flex items-start justify-between mb-4 gap-4">
           <div>
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
@@ -8967,7 +8971,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
   if (!results.length) {
     return (
-      <div className="card p-12 text-center">
+      <div className="card text-center">
         <div className="text-4xl mb-4">🌐</div>
         <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Landscape Data Yet</h3>
         <p className="text-[#8A877D]">Complete assessments across multiple sectors to see the consciousness landscape.</p>
@@ -9857,7 +9861,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
         </div>
 
         {results.length === 0 ? (
-          <div className="card p-12 text-center">
+          <div className="card text-center">
             <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results to Compare</h3>
             <p className="text-[#8A877D]">Complete some assessments first to compare brands.</p>
@@ -9874,7 +9878,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             {/* Brand Selection with Filters */}
             <div className="lg:col-span-1 space-y-4">
               {/* Filters */}
-              <div className="card p-4">
+              <div className="card">
                 <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Filters</h3>
                 <div className="space-y-3">
                   <div>
@@ -9923,7 +9927,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
               </div>
 
               {/* Brand List */}
-              <div className="card p-4">
+              <div className="card">
                 <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">
                   Select Brands ({selectedBrands.length}/{maxComparison})
                   {filteredResults.length !== results.length && (
@@ -9978,7 +9982,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             {/* Comparison View */}
             <div className="lg:col-span-2">
               {selectedBrands.length < 2 ? (
-                <div className="card p-12 text-center">
+                <div className="card text-center">
                   <Users className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Select Brands to Compare</h3>
                   <p className="text-[#8A877D]">Choose at least 2 brands from the list to see a comparison.</p>
@@ -9986,7 +9990,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
               ) : (
                 <div className="space-y-6">
                   {/* Overall Score Comparison */}
-                  <div className="card p-4 md:p-6">
+                  <div className="card">
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <h3 className="text-sm font-medium text-[#0B0B0B]">Overall Scores</h3>
                       {/* Chart type toggle — only show if ≤ maxRadar brands */}
@@ -10047,7 +10051,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     })() : null;
 
                     return (
-                      <div className="card p-4 md:p-6">
+                      <div className="card">
                         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                           <h3 className="text-sm font-medium text-[#0B0B0B]">Radar Comparison</h3>
                           {commonIndustry && (
@@ -10066,7 +10070,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
 
                   {/* Bar chart view (always shown when chartType === 'bars', or when > maxRadar brands) */}
                   {(chartType === 'bars' || selectedBrands.length > maxRadar) && (
-                    <div className="card p-4 md:p-6">
+                    <div className="card">
                       <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Attribute Comparison</h3>
                       <div className="overflow-x-auto">
                         <div style={{ minWidth: `${Math.max(400, selectedBrands.length * 80 + 120)}px` }}>
@@ -10118,7 +10122,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                   )}
 
                   {/* Consciousness Profile */}
-                  <div className="card p-4 md:p-6">
+                  <div className="card">
                     <h3 className="text-sm font-medium text-[#0B0B0B] mb-4">Consciousness Profiles</h3>
                     <div className="space-y-4">
                       {selectedBrands.map((brand, bi) => {
@@ -10165,19 +10169,19 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     const bWins = ATTRIBUTES.filter(attr => (b.scores?.[attr.id] || 0) > (a.scores?.[attr.id] || 0));
                     const tied = ATTRIBUTES.filter(attr => (a.scores?.[attr.id] || 0) === (b.scores?.[attr.id] || 0));
                     return (
-                      <div className="card p-4 md:p-6">
+                      <div className="card">
                         <h3 className="text-sm font-medium text-[#0B0B0B] mb-4">Head to Head</h3>
                         <div className="grid grid-cols-3 gap-3 text-center mb-4">
                           <div className="bg-[#E4E2DC] p-3">
-                            <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
+                            <div className="dc-h2 font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
                             <div className="text-xs text-[#8A877D] mt-1 truncate">{a.brandName} leads</div>
                           </div>
                           <div className="bg-[#E4E2DC] p-3">
-                            <div className="text-2xl font-bold text-[#B3B0A8]">{tied.length}</div>
+                            <div className="dc-h2 font-bold text-[#B3B0A8]">{tied.length}</div>
                             <div className="text-xs text-[#8A877D] mt-1">Tied</div>
                           </div>
                           <div className="bg-[#E4E2DC] p-3">
-                            <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
+                            <div className="dc-h2 font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
                             <div className="text-xs text-[#8A877D] mt-1 truncate">{b.brandName} leads</div>
                           </div>
                         </div>
@@ -10210,7 +10214,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                   })()}
 
                   {/* Quick Insights */}
-                  <div className="card p-4 md:p-6">
+                  <div className="card">
                     <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Quick Insights</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <div className="bg-[#E4E2DC] p-3">
@@ -10400,7 +10404,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
   return createPortal((
     <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-[100]"
       onClick={onClose}>
-      <div className="card p-6 max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-[#0B0B0B]">
@@ -10606,7 +10610,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       )}
 
       {assessments.length === 0 ? (
-        <div className="card p-12 text-center">
+        <div className="card text-center">
           <FileText className="w-12 h-12 text-[#DCDAD3] mx-auto mb-4" />
           <h3 className="dc-kicker text-[#0B0B0B] mb-2">No Saved Assessments</h3>
           <p className="text-[#8A877D] mb-4">Complete an assessment and click Save to store it here.</p>
@@ -10669,7 +10673,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           )}
 
           {filtered.length === 0 ? (
-            <div className="card p-8 text-center">
+            <div className="card text-center">
               <p className="text-[#8A877D]">No assessments match your filters.</p>
             </div>
           ) : (
@@ -10861,7 +10865,7 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
   return createPortal((
     <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-[100]"
       onClick={onClose}>
-      <div className="card p-6 max-w-lg w-full my-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="card max-w-lg w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-[#0B0B0B]">Client link</h3>
@@ -10991,7 +10995,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Upper panel ─────────────────────────────────────── */}
         <h3 className="dc-sec-head mb-4">RESULTS AT A GLANCE</h3>
-        <div className="card p-6 mb-4">
+        <div className="card mb-[2px]">
           <div className="grid md:grid-cols-2 gap-6 items-start">
             <div>
               <div className="flex items-start gap-5">
@@ -11003,7 +11007,7 @@ function ClientReportView({ payload }) {
                   <div className="text-xs text-[#8A877D] mt-1.5">out of 100</div>
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-xl font-bold text-[#0B0B0B]">{stage.name}</h2>
+                  <h2 className="text-[17px] font-bold tracking-tight">{stage.name}</h2>
                   <p className="text-sm text-[#8A877D] leading-relaxed mt-1">{stage.description}</p>
                 </div>
               </div>
@@ -11051,9 +11055,9 @@ function ClientReportView({ payload }) {
           {ATTRIBUTES.map(a => {
             const sc = scores?.[a.id] || {};
             return (
-              <div key={a.id} className="card p-5">
+              <div key={a.id} className="card">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl font-bold" style={{ color: a.color }}>{sc.score || 0}</span>
+                  <span className="dc-h2 font-bold" style={{ color: a.color }}>{sc.score || 0}</span>
                   <div className="min-w-0">
                     <h4 className="font-semibold text-[#0B0B0B] text-sm">{a.name}</h4>
                     <p className="text-xs text-[#8A877D]">{a.fullName}</p>
@@ -11088,7 +11092,7 @@ function ClientReportView({ payload }) {
         {campaignStage && (
           <>
             <h3 className="dc-sec-head mb-4">CAMPAIGN COHERENCE</h3>
-            <div className="card p-5 mb-6">
+            <div className="card mb-[2px]">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
                   <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
@@ -11129,7 +11133,7 @@ function ClientReportView({ payload }) {
         {benchmark && benchmarkAvg && (
           <>
           <h3 className="dc-sec-head mb-4">BENCHMARK COMPARISON</h3>
-          <div className="card p-5 mb-3">
+          <div className="card mb-[2px]">
             <p className="text-xs text-[#8A877D] mb-3">
               {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
             </p>
@@ -11162,7 +11166,7 @@ function ClientReportView({ payload }) {
         {payload.conclusion && (
           <>
             <h3 className="dc-sec-head mb-4">CONCLUSIONS</h3>
-            <div className="card p-6 mb-6">
+            <div className="card mb-[2px]">
               <p className="text-sm text-[#4A4840] leading-relaxed">{payload.conclusion}</p>
             </div>
           </>
@@ -11227,7 +11231,7 @@ function ClientReportGate({ token }) {
         </p>
       </div>
 
-      <div className="card p-8 max-w-md w-full">
+      <div className="card max-w-md w-full">
         {status === 'loading' && (
           <div className="text-center">
             <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#B23A3A]" />
@@ -11246,7 +11250,7 @@ function ClientReportGate({ token }) {
 
         {status === 'locked' && row && (
           <>
-            <h1 className="text-xl font-bold text-[#0B0B0B]">{row.brand_name}</h1>
+            <h1 className="text-[17px] font-bold tracking-tight">{row.brand_name}</h1>
             <p className="text-sm text-[#8A877D] mt-1 mb-5">
               Conscious Compass assessment. Enter the password you were given to view this report.
             </p>
@@ -11323,7 +11327,7 @@ function SharedReportView({ report, onClose }) {
     <div className="min-h-screen bg-[#F2F0EA]">
       {/* Header */}
       <header className="bg-[#F2F0EA] border-b border-[#DCDAD3] py-5 px-6">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="dc-wrap flex items-center justify-between gap-6 flex-wrap">
           <div className="flex items-center gap-4">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
             <div className="h-6 w-px bg-[#0B0B0B]" />
@@ -11338,7 +11342,7 @@ function SharedReportView({ report, onClose }) {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+      <div className="dc-wrap dc-page animate-fade-in">
         {/* Report Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-[#0B0B0B] mb-2">Brand Consciousness Report</h1>
@@ -11347,7 +11351,7 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Overall Score */}
-        <div className="card p-8 mb-8 text-center bg-gradient-to-br from-[#E53935]/5 to-[#E53935]/10">
+        <div className="card mb-8 text-center bg-gradient-to-br from-[#E53935]/5 to-[#E53935]/10">
           <div className="inline-flex items-center justify-center w-32 h-32 bg-[#DEE42F] text-white mb-4">
             <span className="text-5xl font-bold">{overall}</span>
           </div>
@@ -11361,13 +11365,13 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Spider Chart */}
-        <div className="card p-6 mb-8">
+        <div className="card mb-8">
           <h3 className="dc-kicker text-[#0B0B0B] mb-4 text-center">Brand Consciousness Profile</h3>
           <SpiderChart scores={scores} size={450} animate={false} />
         </div>
 
         {/* Executive Summary */}
-        <div className="card p-5 mb-4">
+        <div className="card mb-[2px]">
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">EXECUTIVE SUMMARY</h3>
           <p className="text-[#4A4840] leading-relaxed">
             {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
@@ -11375,12 +11379,12 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Score Summary */}
-        <div className="card p-5 mb-4">
+        <div className="card mb-[2px]">
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">SCORE SUMMARY</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ATTRIBUTES.map(attr => (
               <div key={attr.id} className="text-center p-3 bg-[#E4E2DC] ">
-                <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
+                <div className="dc-h2 font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
                 <div className="text-xs text-[#8A877D] mt-1">{attr.name}</div>
               </div>
             ))}
@@ -11391,7 +11395,7 @@ function SharedReportView({ report, onClose }) {
         <MaturityContinuum score={overall} />
 
         {/* Maturity Stage Context */}
-        <div className="card p-5 mb-4">
+        <div className="card mb-[2px]">
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">MATURITY STAGE CONTEXT</h3>
           <p className="text-[#4A4840] leading-relaxed">
             With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
@@ -11494,7 +11498,7 @@ function SharedReportView({ report, onClose }) {
           if (conflicts.length === 0) return null;
 
           return (
-            <div className="card p-5 mb-4 border-l-4 border-[#F59E0B]">
+            <div className="card mb-[2px] border-l-4 border-[#F59E0B]">
               <div className="flex items-center gap-2 mb-4">
                 <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0" />
                 <h3 className="dc-kicker text-[#0B0B0B]">SIGNAL CONFLICTS</h3>
@@ -11526,7 +11530,7 @@ function SharedReportView({ report, onClose }) {
         {sharedCampaignStage && (
           <>
             <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">CAMPAIGN COHERENCE</h3>
-            <div className="card p-5 mb-8">
+            <div className="card mb-8">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
                   <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
@@ -11575,7 +11579,7 @@ function SharedReportView({ report, onClose }) {
         <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
         <div className="space-y-4 mb-8">
           {ATTRIBUTES.map(attr => (
-            <div key={attr.id} className="card p-5">
+            <div key={attr.id} className="card">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: attr.color }}>
@@ -11606,7 +11610,7 @@ function SharedReportView({ report, onClose }) {
         <p className="text-[#8A877D] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
         <div className="space-y-4 mb-6">
           {recommendations.map((r, i) => (
-            <div key={i} className="card p-5">
+            <div key={i} className="card">
               <div className="flex items-start gap-4">
                 <div className="w-8 h-8 bg-[#DEE42F] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
                 <div className="flex-1">
@@ -11645,7 +11649,7 @@ function SharedReportView({ report, onClose }) {
                     : 'Contact for pricing';
                   
                   return (
-                    <div key={i} className="card p-4 border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
+                    <div key={i} className="card border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
                       <h4 className="font-semibold text-[#0B0B0B] mb-2">{rec.service.name}</h4>
                       <p className="text-xs text-[#8A877D] mb-2">{rec.service.category}</p>
                       <p className="text-sm text-[#4A4840] mb-2">
@@ -11661,7 +11665,7 @@ function SharedReportView({ report, onClose }) {
         })()}
 
         {/* Conclusions */}
-        <div className="card p-5 mb-4">
+        <div className="card mb-[2px]">
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">CONCLUSIONS</h3>
           <p className="text-[#4A4840] leading-relaxed">
             {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
@@ -11669,7 +11673,7 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* What We Evaluated */}
-        <div className="card p-5 mb-4">
+        <div className="card mb-[2px]">
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">WHAT WE EVALUATED</h3>
           <p className="text-[#4A4840] leading-relaxed mb-4">
             This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model ({project.businessModel?.toUpperCase() || 'B2B'}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
@@ -11717,7 +11721,7 @@ function SharedReportView({ report, onClose }) {
 
         {/* Score Justification */}
         {scores.justification && (
-          <div className="card p-5 mb-4 bg-[#F2F0EA]">
+          <div className="card mb-[2px] bg-[#F2F0EA]">
             <h3 className="dc-kicker text-[#0B0B0B] mb-4">SCORE JUSTIFICATION</h3>
             <p className="text-sm text-[#4A4840] leading-relaxed">
               {scores.justification}
@@ -12190,7 +12194,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
 
         {/* Error */}
         {error && !loading && !refreshing && (
-          <div className="card p-8 text-center">
+          <div className="card text-center">
             <AlertCircle className="w-10 h-10 text-[#B23A3A] mx-auto mb-3" />
             <p className="text-[#8A877D] mb-4">{error}</p>
             <button onClick={loadNewsletter} className="btn-primary">Try Again</button>
@@ -12199,7 +12203,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
 
         {/* Empty */}
         {!newsletter && !loading && !error && (
-          <div className="card p-12 text-center">
+          <div className="card text-center">
             <Sparkles className="w-10 h-10 text-[#DCDAD3] mx-auto mb-3" />
             <p className="text-[#8A877D]">No newsletter available yet.</p>
             {isAdmin && <p className="text-sm text-[#B3B0A8] mt-2">Use Force Refresh to generate the first edition.</p>}
@@ -12237,7 +12241,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                 <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Brand Intelligence</h2>
                 <div className="space-y-4">
                   {newsletter.intelligenceItems.map((item, i) => (
-                    <div key={i} className="card p-5">
+                    <div key={i} className="card">
                       <div className="flex items-start gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
@@ -12298,7 +12302,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                 <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Story Opportunities</h2>
                 <div className="space-y-3">
                   {newsletter.storyOpportunities.map((story, idx) => (
-                    <div key={idx} className="card p-4 flex items-start gap-4">
+                    <div key={idx} className="card flex items-start gap-4">
                       <div className="w-7 h-7 bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-xs mt-0.5">
                         {idx + 1}
                       </div>
@@ -13019,7 +13023,7 @@ function AppContent() {
 
           {/* Draft restore banner */}
           {currentStep === 0 && draftRestoreOffer && (
-            <div className="max-w-2xl mx-auto px-4 pt-6">
+            <div className="dc-wrap dc-page">
               <div className="flex items-start gap-4 bg-[#FFFBEB] border border-[#FCD34D] px-5 py-4 ">
                 <span className="text-2xl leading-none mt-0.5">🔄</span>
                 <div className="flex-1 min-w-0">
