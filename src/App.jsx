@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.13.1';
+const APP_VERSION = '3.14.0';
 import { 
   supabase, 
   signUp, 
@@ -1168,6 +1168,34 @@ function PositionBands({ stageName }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// Stat block from the assessment pages in the design: a large figure with a
+// muted suffix over a tracked label, on white, separated by 2px of ground.
+function StatBlock({ value, suffix = '/100', label }) {
+  const has = value !== null && value !== undefined && value !== '';
+  return (
+    <div className="bg-white" style={{ flex: '1 1 160px', minWidth: 0, padding: '20px 22px' }}>
+      <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1,
+        color: has ? scoreColor(value) : '#B3B0A8' }}>
+        {has ? value : '—'}
+        {has && suffix && (
+          <span style={{ fontSize: 15, fontWeight: 500, color: '#8A877D', letterSpacing: 0 }}>{suffix}</span>
+        )}
+      </div>
+      <div className="dc-kicker-sm" style={{ marginTop: 8 }}>{label}</div>
+    </div>
+  );
+}
+
+// Tracked section label used above each block of the assessment pages.
+function FieldSection({ label, children, tight = false }) {
+  return (
+    <section style={{ marginTop: tight ? 28 : 40 }}>
+      <div className="dc-kicker" style={{ marginBottom: 14 }}>{label}</div>
+      {children}
+    </section>
   );
 }
 
@@ -2726,37 +2754,36 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       )}
 
       {!fetchError && (
-        <div className="bg-[#E4E2DC] p-3 mb-4">
-          <p className="text-xs text-[#8A877D]">
-            Click "Auto-Fetch" to get scores automatically, or "Manual" to verify on Google PageSpeed.
-          </p>
-        </div>
+        <p className="text-[12px] text-[#4A4840]" style={{ marginBottom: 16 }}>
+          Auto-fetch pulls the scores, or verify them manually on Google PageSpeed.
+        </p>
       )}
 
-      {/* Score Input Grid */}
-      <div className="grid grid-cols-4 gap-3">
+      {/* Score Input Grid — stat blocks with the figure as the input */}
+      <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))' }}>
         {[
           { key: 'performance', label: 'Performance' },
           { key: 'accessibility', label: 'Accessibility' },
-          { key: 'bestPractices', label: 'Best Practices' },
+          { key: 'bestPractices', label: 'Best practices' },
           { key: 'seo', label: 'SEO' },
         ].map((item) => (
-          <div key={item.key} className="text-center">
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={techAudit.scores[item.key] ?? ''}
-              onChange={(e) => updateScore(item.key, e.target.value)}
-              placeholder="-"
-              className="w-full text-center text-2xl font-bold py-2 border border-[#DCDAD3] bg-white focus:ring-2 focus:ring-[#E53935] focus:border-transparent"
-              style={{ color: getScoreColor(techAudit.scores[item.key]) }}
-            />
-            <div className="text-xs text-[#8A877D] mt-1">{item.label}</div>
-            <div 
-              className="text-[10px] font-medium"
-              style={{ color: getScoreColor(techAudit.scores[item.key]) }}
-            >
+          <div key={item.key} className="bg-white" style={{ padding: '18px 20px' }}>
+            <div className="flex items-baseline gap-1">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={techAudit.scores[item.key] ?? ''}
+                onChange={(e) => updateScore(item.key, e.target.value)}
+                placeholder="—"
+                className="bg-transparent border-0 p-0 focus:outline-none"
+                style={{ width: '2.6ch', fontSize: 34, fontWeight: 700, letterSpacing: '-.03em',
+                  lineHeight: 1, color: techAudit.scores[item.key] === '' ? '#B3B0A8' : scoreColor(techAudit.scores[item.key]) }}
+              />
+              <span style={{ fontSize: 15, fontWeight: 500, color: '#8A877D' }}>/100</span>
+            </div>
+            <div className="dc-kicker-sm" style={{ marginTop: 8 }}>{item.label}</div>
+            <div className="text-[10px] font-bold" style={{ marginTop: 3, color: '#8A877D' }}>
               {getScoreLabel(techAudit.scores[item.key])}
             </div>
           </div>
@@ -3230,10 +3257,10 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       <div className="dc-panel-dark mb-[2px]">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
+            <div className="dc-kicker" style={{ marginBottom: 6 }}>
               <Sparkles className="w-4 h-4 text-[#B23A3A]" />
               Auto-Assess Website
-            </h3>
+            </div>
             <p className="text-xs text-[#8A877D]">
               AI-powered comprehensive analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization.
             </p>
@@ -3261,8 +3288,8 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Pages Reviewed */}
-      <div className="card mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Pages Reviewed</h3>
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+        <div className="dc-kicker" style={{ marginBottom: 14 }}>Pages Reviewed</div>
         <p className="text-sm text-[#8A877D] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
         <input 
           type="text" 
@@ -3274,9 +3301,9 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Recognition & Credentials */}
-      <div className="card mb-[2px]">
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-[#0B0B0B]">Recognition & Credentials (Optional)</h3>
+          <div className="dc-kicker">Recognition & Credentials (Optional)</div>
           <button 
             onClick={runCredentialsAssess} 
             disabled={isAssessingCredentials || !project.brandName}
@@ -3302,10 +3329,10 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Screenshots */}
-      <div className="card mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2 flex items-center gap-2">
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+        <div className="dc-kicker flex items-center gap-2" style={{ marginBottom: 14 }}>
           <Image className="w-5 h-5" /> Website Screenshots (up to 4)
-        </h3>
+        </div>
         <p className="text-sm text-[#8A877D] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
@@ -3344,8 +3371,8 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </div>
 
       {/* Website Content */}
-      <div className="card mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Website Content (Optional)</h3>
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+        <div className="dc-kicker" style={{ marginBottom: 14 }}>Website Content (Optional)</div>
         <p className="text-sm text-[#8A877D] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
         <textarea 
           value={websiteContent} 
@@ -3363,10 +3390,10 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       </div>
 
       {/* SEO Visibility Assessment */}
-      <div className="card mb-[2px]">
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-semibold text-[#0B0B0B]">SEO Visibility Assessment</h3>
+            <div className="dc-kicker">SEO Visibility Assessment</div>
             <p className="text-sm text-[#8A877D]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
           </div>
         </div>
@@ -3434,8 +3461,8 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       />
 
       {/* Assessor Observations */}
-      <div className="card mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+        <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
         <p className="text-sm text-[#8A877D] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Add your observations about:
@@ -3458,7 +3485,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-6 text-[#B23A3A]">{error}</div>}
 
       {isComplete && (
-        <div className="card mb-[2px]">
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#B23A3A]" /> Analysis Complete
@@ -4202,10 +4229,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       </div>
 
       {/* Screenshots - Matching Website Style */}
-      <div className="card mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2 flex items-center gap-2">
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+        <div className="dc-kicker flex items-center gap-2" style={{ marginBottom: 14 }}>
           <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) <span className="text-[#B23A3A]">*</span>
-        </h3>
+        </div>
         <p className="text-sm text-[#8A877D] mb-4">Upload screenshots of key social profiles for visual analysis. Required to proceed.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
@@ -4363,8 +4390,8 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       {/* Other platforms, auto only */}
       {inputs.otherPlatformsAuto && (
-        <div className="card mb-[2px]">
-          <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Facebook, TikTok, Bluesky, Substack</h3>
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+          <div className="dc-kicker" style={{ marginBottom: 14 }}>Facebook, TikTok, Bluesky, Substack</div>
           <AutoPanel content={inputs.otherPlatformsAuto} />
         </div>
       )}
@@ -4508,15 +4535,15 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       {/* Third-party conversation, auto only */}
       {inputs.thirdPartyAuto && (
-        <div className="card mb-[2px]">
-          <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Third-Party Conversation</h3>
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+          <div className="dc-kicker" style={{ marginBottom: 14 }}>Third-Party Conversation</div>
           <AutoPanel content={inputs.thirdPartyAuto} />
         </div>
       )}
 
       {/* Observations - Simplified */}
-      <div className="card mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Notes</h3>
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+        <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Notes</div>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
       </div>
@@ -4531,7 +4558,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3 mb-4 text-[#B23A3A] text-sm">{error}</div>}
 
       {isComplete && (
-        <div className="card mb-[2px]">
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#0B0B0B]" /> Analysis Complete
@@ -4930,8 +4957,8 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       </div>
 
       {/* Assessor Observations */}
-      <div className="card mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+        <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
         <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the synthesis.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
@@ -4944,7 +4971,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       )}
 
       {isComplete && (
-        <div className="card mb-[2px]">
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#0B0B0B]" /> Synthesis Complete
@@ -5134,8 +5161,8 @@ Write in flowing prose with specific examples. End with priority recommendations
       <CompletionIndicator items={completionItems} />
 
       {/* Coverage Paste Field */}
-      <div className="card mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Media Coverage (Last 3 Months)</h3>
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+        <div className="dc-kicker" style={{ marginBottom: 14 }}>Media Coverage (Last 3 Months)</div>
         <p className="text-sm text-[#8A877D] mb-4">
           Paste any press coverage, news articles, mentions, or media clips from the last 3 months.
         </p>
@@ -5163,10 +5190,10 @@ Example:
       <div className="dc-panel-dark mb-[2px]">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
+            <div className="dc-kicker" style={{ marginBottom: 6 }}>
               <Sparkles className="w-4 h-4 text-[#0F7A4F]" />
               Auto-Assess Earned Media Performance
-            </h3>
+            </div>
             <p className="text-xs text-[#8A877D]">
               AI-powered comprehensive analysis across 7 dimensions: Coverage Quality, Reach, Sentiment, Share of Voice, Message Consistency, Thought Leadership, and Audience Relevance.
             </p>
@@ -5194,8 +5221,8 @@ Example:
       </div>
 
       {/* Assessor Observations - before analysis button */}
-      <div className="card mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-2">Assessor Observations</h3>
+      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
+        <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
         <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
@@ -5210,7 +5237,7 @@ Example:
       {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-6 text-[#B23A3A]">{error}</div>}
 
       {isComplete && (
-        <div className="card mb-[2px]">
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Check className="w-5 h-5 text-[#0F7A4F]" /> Analysis Complete
@@ -8304,7 +8331,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
         {/* Search and Filters */}
         {results.length > 0 && (
-          <div className="card mb-[2px]">
+          <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
             <div className="flex flex-wrap items-center gap-3">
               {/* Search */}
               <div className="relative flex-1 min-w-[200px]">
@@ -9211,7 +9238,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       {/* Hero: Landscape Octagon + Sector Legend */}
       <div className="bg-white border border-[#DCDAD3] p-6">
         <div className="mb-5">
-          <h3 className="font-semibold text-[#0B0B0B]">Consciousness Landscape</h3>
+          <div className="dc-kicker">Consciousness Landscape</div>
           <p className="text-xs text-[#8A877D] mt-1">
             Each sector's average brand consciousness — hover a sector to isolate. Dashed yellow = cross-sector mean.
           </p>
@@ -11611,7 +11638,7 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Executive Summary */}
-        <div className="card mb-[2px]">
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">EXECUTIVE SUMMARY</h3>
           <p className="text-[#4A4840] leading-relaxed">
             {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
@@ -11619,7 +11646,7 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Score Summary */}
-        <div className="card mb-[2px]">
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">SCORE SUMMARY</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ATTRIBUTES.map(attr => (
@@ -11635,7 +11662,7 @@ function SharedReportView({ report, onClose }) {
         <MaturityContinuum score={overall} />
 
         {/* Maturity Stage Context */}
-        <div className="card mb-[2px]">
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">MATURITY STAGE CONTEXT</h3>
           <p className="text-[#4A4840] leading-relaxed">
             With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
@@ -11905,7 +11932,7 @@ function SharedReportView({ report, onClose }) {
         })()}
 
         {/* Conclusions */}
-        <div className="card mb-[2px]">
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">CONCLUSIONS</h3>
           <p className="text-[#4A4840] leading-relaxed">
             {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
@@ -11913,7 +11940,7 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* What We Evaluated */}
-        <div className="card mb-[2px]">
+        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">WHAT WE EVALUATED</h3>
           <p className="text-[#4A4840] leading-relaxed mb-4">
             This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model ({project.businessModel?.toUpperCase() || 'B2B'}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
