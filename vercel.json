@@ -2,13 +2,48 @@
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "functions": {
+    "api/claude.js": {
+      "maxDuration": 300
+    },
+    "api/search.js": {
+      "maxDuration": 120
+    },
+    "api/refresh-stay-conscious.js": {
+      "maxDuration": 300
+    },
+    "api/refresh-landscape-analysis.js": {
+      "maxDuration": 300
+    },
+    "api/refresh-insights-analysis.js": {
+      "maxDuration": 300
+    },
+    "api/refresh-stay-conscious-newsletter.js": {
+      "maxDuration": 300
+    }
+  },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ],
   "crons": [
-    { "path": "/api/refresh-stay-conscious",            "schedule": "0 22 * * 0" },
-    { "path": "/api/refresh-landscape-analysis",        "schedule": "30 22 * * 0" },
-    { "path": "/api/refresh-insights-analysis",         "schedule": "0 23 * * 0" },
-    { "path": "/api/refresh-stay-conscious-newsletter", "schedule": "30 23 * * 0" }
+    {
+      "path": "/api/refresh-stay-conscious",
+      "schedule": "0 22 * * 0"
+    },
+    {
+      "path": "/api/refresh-landscape-analysis",
+      "schedule": "30 22 * * 0"
+    },
+    {
+      "path": "/api/refresh-insights-analysis",
+      "schedule": "0 23 * * 0"
+    },
+    {
+      "path": "/api/refresh-stay-conscious-newsletter",
+      "schedule": "30 23 * * 0"
+    }
   ]
 }
