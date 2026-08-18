@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '2.25.2';
+const APP_VERSION = '2.26.0';
 import { 
   supabase, 
   signUp, 
@@ -972,14 +972,15 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
 
   const getPoint = (index, value) => {
     const angle = angleStep * index - Math.PI / 2;
-    const r = (value / 100) * radius;
+    // Only the plotted values scale with progress. Grid and labels hold still.
+    const r = ((value * progress) / 100) * radius;
     return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
   };
 
   const gridLevels = [20, 40, 60, 80, 100];
 
   return (
-    <div>
+    <div ref={wrapRef} style={animateOnScroll ? { transition: 'opacity 400ms ease', opacity: inView ? 1 : 0.35 } : undefined}>
       <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} style={{ width: '100%', maxWidth: size + 'px', overflow: 'visible' }} className="mx-auto">
         {/* Grid polygons */}
         {gridLevels.map(level => {
@@ -1003,14 +1004,16 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
         {industryAvg && (() => {
           const pts = attrs.map((attr, i) => getPoint(i, industryAvg[attr.id] || 0));
           const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-          return <path d={d} fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeDasharray="4 3" />;
+          return <path d={d} fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeDasharray="4 3"
+            style={{ transition: 'd 900ms cubic-bezier(0.22, 1, 0.36, 1)' }} />;
         })()}
         {/* Brand polygons */}
         {brands.map((brand, bi) => {
           const color = COMPARISON_COLORS[bi % COMPARISON_COLORS.length];
           const pts = attrs.map((attr, i) => getPoint(i, brand.scores?.[attr.id] || 0));
           const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
-          return <path key={brand.id || bi} d={d} fill={color + '25'} stroke={color} strokeWidth="2" />;
+          return <path key={brand.id || bi} d={d} fill={color + '25'} stroke={color} strokeWidth="2"
+            style={{ transition: 'd 900ms cubic-bezier(0.22, 1, 0.36, 1)' }} />;
         })}
         {/* Attribute labels */}
         {attrs.map((attr, i) => {
@@ -1046,17 +1049,83 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
 }
 
 // Maturity Continuum Visual
+// Fires once when the element scrolls into view. Same pattern MaturityContinuum
+// already uses, lifted out so the campaign ladder and the benchmark radar can
+// share it rather than each rolling their own observer.
+function useInView(threshold = 0.25) {
+  const ref = useRef(null);
+  const [inView, setInView] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') { setInView(true); return; }
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setInView(true); obs.disconnect(); }
+    }, { threshold });
+    obs.observe(node);
+    return () => obs.disconnect();
+  }, [threshold]);
+
+  return [ref, inView];
+}
+
+// Campaign coherence ladder. Five rungs; level 0 is the absence of a campaign,
+// not a rung. Rungs fill left to right on scroll, staggered. Shared by the
+// report, the shared report and the client report so all three behave alike.
+function CampaignLadder({ level }) {
+  const [ref, inView] = useInView(0.4);
+  const lvl = Number.isFinite(Number(level)) ? Number(level) : 0;
+
+  return (
+    <div ref={ref}>
+      <div className="flex gap-1 mb-1">
+        {CAMPAIGN_LADDER.filter(l => l.level > 0).map((l, i) => (
+          <div key={l.level} className="flex-1 text-center">
+            <div className="h-1.5 rounded-full mb-1 bg-[#E8E6E1] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#E53935] origin-left"
+                style={{
+                  transform: `scaleX(${inView && lvl >= l.level ? 1 : 0})`,
+                  transition: 'transform 520ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  transitionDelay: `${i * 110}ms`,
+                }}
+              />
+            </div>
+            <div
+              className={`text-[9px] leading-tight ${l.level === lvl ? 'text-[#1A1A1A] font-semibold' : 'text-[#999]'}`}
+              style={{
+                opacity: inView ? 1 : 0,
+                transition: 'opacity 400ms ease',
+                transitionDelay: `${i * 110 + 120}ms`,
+              }}
+            >
+              {l.name}
+            </div>
+          </div>
+        ))}
+      </div>
+      {lvl === 0 && (
+        <p className="text-[10px] text-[#E53935] font-semibold mb-2">
+          No campaign detected. The brand sits below the first rung.
+        </p>
+      )}
+      <div className="mb-3" />
+    </div>
+  );
+}
+
 // ── Benchmark visual 1: attribute spread ─────────────────────
 // Rows are the eight attributes. Each row shows the cohort range as a band,
 // the cohort average as a line, and this brand's score as a filled dot.
-function BenchmarkSpread({ benchmark, brandName }) {
+function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
   const [hovered, setHovered] = useState(null);
   if (!benchmark) return null;
 
   return (
     <div className="bg-white border border-[#E8E6E1] rounded p-5">
       <div className="mb-4">
-        <h3 className="font-semibold text-[#1A1A1A] text-sm">Attribute Benchmark Spread</h3>
+        {!hideTitle && <h3 className="font-semibold text-[#1A1A1A] text-sm">Attribute Benchmark Spread</h3>}
         <p className="text-xs text-[#666666] mt-1">
           {brandName} against {benchmark.cohortLabel.toLowerCase()}. The band is the range across those brands, the line is their average, the dot is {brandName}.
         </p>
@@ -1253,7 +1322,7 @@ function BenchmarkProvenance({ benchmark }) {
   );
 }
 
-function MaturityContinuum({ score }) {
+function MaturityContinuum({ score, hideTitle = false }) {
   const stage = getMaturityStage(score);
   const [isVisible, setIsVisible] = useState(false);
   const [animatedScore, setAnimatedScore] = useState(0);
@@ -1303,7 +1372,7 @@ function MaturityContinuum({ score }) {
   
   return (
     <div ref={containerRef} className="card p-6 overflow-hidden">
-      <h3 className="text-lg font-semibold text-[#1A1A1A] mb-6">Brand Consciousness Maturity</h3>
+      {!hideTitle && <h3 className="text-lg font-semibold text-[#1A1A1A] mb-6">Brand Consciousness Maturity</h3>}
       
       {/* Progress Track */}
       <div className="relative mb-4">
@@ -7100,22 +7169,7 @@ ${content.slice(0, 8000)}`;
                   </div>
                 </div>
 
-                {/* Ladder. Five tiers. Level 0 is the absence of a campaign,
-                    not a rung, so it reads as an empty ladder rather than a bar. */}
-                <div className="flex gap-1 mb-1">
-                  {CAMPAIGN_LADDER.filter(l => l.level > 0).map(l => (
-                    <div key={l.level} className="flex-1 text-center">
-                      <div className={`h-1.5 rounded-full mb-1 ${campaignStage.level >= l.level ? 'bg-[#E53935]' : 'bg-[#E8E6E1]'}`} />
-                      <div className={`text-[9px] leading-tight ${l.level === campaignStage.level ? 'text-[#1A1A1A] font-semibold' : 'text-[#999]'}`}>
-                        {l.name}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {campaignStage.level === 0 && (
-                  <p className="text-[10px] text-[#E53935] font-semibold mb-2">No campaign detected. The brand sits below the first rung.</p>
-                )}
-                <div className="mb-3" />
+                <CampaignLadder level={campaignStage.level} />
 
                 <p className="text-xs text-[#333333] leading-relaxed">{campaignStage.description}</p>
 
@@ -7227,6 +7281,7 @@ ${content.slice(0, 8000)}`;
                     size={320}
                     industryAvg={benchmarkAvgScores}
                     avgLabel={`${benchmark.cohortLabel} avg`}
+                    animateOnScroll
                   />
                 </div>
               </div>
@@ -10632,6 +10687,7 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
+        <h3 className="text-base font-semibold text-[#1A1A1A] mb-3">RESULTS AT A GLANCE</h3>
         <div className="card p-6 mb-4">
           <div className="grid md:grid-cols-2 gap-6 items-start">
             <div>
@@ -10681,8 +10737,9 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Maturity ────────────────────────────────────────── */}
+        <h3 className="text-base font-semibold text-[#1A1A1A] mb-3">BRAND MATURITY</h3>
         <div className="mb-6">
-          <MaturityContinuum score={overall} />
+          <MaturityContinuum score={overall} hideTitle />
         </div>
 
         {/* ── Attribute analysis, no recommendations ──────────── */}
@@ -10737,17 +10794,7 @@ function ClientReportView({ payload }) {
                 </div>
               </div>
 
-              <div className="flex gap-1 mb-1">
-                {CAMPAIGN_LADDER.filter(l => l.level > 0).map(l => (
-                  <div key={l.level} className="flex-1 text-center">
-                    <div className={`h-1.5 rounded-full mb-1 ${campaignStage.level >= l.level ? 'bg-[#E53935]' : 'bg-[#E8E6E1]'}`} />
-                    <div className={`text-[9px] leading-tight ${l.level === campaignStage.level ? 'text-[#1A1A1A] font-semibold' : 'text-[#999]'}`}>
-                      {l.name}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mb-3" />
+              <CampaignLadder level={campaignStage.level} />
 
               <p className="text-xs text-[#333333] leading-relaxed">{campaignStage.description}</p>
               {campaign.rationale && (
@@ -10767,9 +10814,10 @@ function ClientReportView({ payload }) {
 
         {/* ── Profile against benchmark ───────────────────────── */}
         {benchmark && benchmarkAvg && (
-          <div className="card p-5 mb-6">
-            <h3 className="font-semibold text-[#1A1A1A] text-sm">Profile Against Benchmark</h3>
-            <p className="text-xs text-[#666666] mt-1 mb-3">
+          <>
+          <h3 className="text-base font-semibold text-[#1A1A1A] mb-3">BENCHMARK COMPARISON</h3>
+          <div className="card p-5 mb-3">
+            <p className="text-xs text-[#666666] mb-3">
               {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
             </p>
             <div className="flex justify-center">
@@ -10783,17 +10831,18 @@ function ClientReportView({ payload }) {
                 size={340}
                 industryAvg={benchmarkAvg}
                 avgLabel={`${benchmark.cohortLabel} avg`}
+                animateOnScroll
               />
             </div>
           </div>
-        )}
-
-        {/* Attribute benchmark spread. Guarded on attrRanges because links
-            issued before this shipped do not carry it. */}
-        {benchmark?.attrRanges && (
-          <div className="mb-6">
-            <BenchmarkSpread benchmark={benchmark} brandName={project.brandName} />
-          </div>
+          {/* Guarded on attrRanges because links issued before this shipped
+              do not carry it. */}
+          {benchmark.attrRanges && (
+            <div className="mb-6">
+              <BenchmarkSpread benchmark={benchmark} brandName={project.brandName} hideTitle />
+            </div>
+          )}
+          </>
         )}
 
         {/* ── Conclusion ──────────────────────────────────────── */}
@@ -11166,18 +11215,7 @@ function SharedReportView({ report, onClose }) {
                   {sharedCampaign.verdict && <p className="text-sm text-[#1A1A1A] font-medium leading-relaxed">{sharedCampaign.verdict}</p>}
                 </div>
               </div>
-              <div className="flex gap-1 mb-1">
-                {CAMPAIGN_LADDER.filter(l => l.level > 0).map(l => (
-                  <div key={l.level} className="flex-1 text-center">
-                    <div className={`h-1.5 rounded-full mb-1 ${sharedCampaignStage.level >= l.level ? 'bg-[#E53935]' : 'bg-[#E8E6E1]'}`} />
-                    <div className={`text-[9px] leading-tight ${l.level === sharedCampaignStage.level ? 'text-[#1A1A1A] font-semibold' : 'text-[#999]'}`}>{l.name}</div>
-                  </div>
-                ))}
-              </div>
-              {sharedCampaignStage.level === 0 && (
-                <p className="text-[10px] text-[#E53935] font-semibold mb-2">No campaign detected. The brand sits below the first rung.</p>
-              )}
-              <div className="mb-3" />
+              <CampaignLadder level={sharedCampaignStage.level} />
               <p className="text-xs text-[#333333] leading-relaxed">{sharedCampaignStage.description}</p>
               {sharedCampaign.rationale && <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">Why this level:</span> {sharedCampaign.rationale}</p>}
               {sharedCampaign.toNextLevel && <p className="text-xs text-[#333333] mt-2 leading-relaxed"><span className="font-semibold">To reach level {Math.min(5, sharedCampaignStage.level + 1)}:</span> {sharedCampaign.toNextLevel}</p>}
