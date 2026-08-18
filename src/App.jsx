@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.5.1';
+const APP_VERSION = '3.6.0';
 import { 
   supabase, 
   signUp, 
@@ -7399,44 +7399,66 @@ ${content.slice(0, 8000)}`;
         <SectionHead label="Attribute analysis" open={expandedSections.attributes}
           onToggle={() => toggleSection('attributes')} />
         {expandedSections.attributes && (
-          <div className="grid md:grid-cols-2 gap-3 animate-fade-in">
-            {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="card border-l-4" style={{ borderLeftColor: attr.color }}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
-                  <div className="min-w-0">
-                    <h4 className="font-semibold text-[#0B0B0B] text-sm">{attr.name}</h4>
-                    <p className="text-xs text-[#8A877D]">{attr.fullName}</p>
+          <div className="grid gap-[2px] animate-fade-in"
+            style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', marginTop: 40 }}>
+            {ATTRIBUTES.map(attr => {
+              const sc = scores[attr.id] || {};
+              const avg = benchmark?.attrAvgs?.[attr.id];
+              const delta = avg != null ? (sc.score || 0) - avg : null;
+              const adj = campaignAdjustment(attr.id);
+              return (
+                <div key={attr.id} className="bg-white" style={{ padding: 24 }}>
+                  {/* Header: figure, name, delta chip */}
+                  <div className="flex items-start gap-4"
+                    style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14 }}>
+                    <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9 }}>
+                      {sc.score || 0}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{attr.name}</h4>
+                      <p className="text-[11px] font-semibold text-[#8A877D] mt-0.5" style={{ letterSpacing: '.04em' }}>
+                        {attr.fullName}
+                      </p>
+                    </div>
+                    {delta != null && (
+                      /* Positive deltas take the lime chip, negatives an
+                         outlined one. The design signals direction by weight,
+                         not by red and green. */
+                      <div className={delta > 0 ? 'dc-pill' : 'dc-pill-o'}>
+                        {delta > 0 ? '+' : ''}{delta}
+                      </div>
+                    )}
                   </div>
+
+                  {avg != null && (
+                    <p className="dc-kicker-sm" style={{ marginTop: 14 }}>Sector average {avg}</p>
+                  )}
+                  {adj !== 0 && (
+                    <p className="dc-kicker-sm" style={{ marginTop: 6 }}>
+                      {sc.baseScore} base {adj > 0 ? '+' : ''}{adj} campaign coherence
+                    </p>
+                  )}
+
+                  <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.55, marginTop: 12 }}>
+                    {sc.findings || sc.summary || attr.description}
+                  </p>
+                  {sc.impact && (
+                    <p className="text-[13px]" style={{ lineHeight: 1.55, marginTop: 10 }}>
+                      <b className="font-bold">What&rsquo;s driving it:</b> {String(sc.impact).replace(/^What'?s driving it:?\s*/i, '')}
+                    </p>
+                  )}
+                  {sc.actions && (
+                    <p className="text-[13px]"
+                      style={{ lineHeight: 1.55, marginTop: 14, borderLeft: '4px solid #DEE42F', paddingLeft: 12 }}>
+                      <b className="font-bold">To improve:</b> {String(sc.actions).replace(/^To improve( the score)?:?\s*/i, '')}
+                    </p>
+                  )}
+                  {sc.opportunity && (
+                    <p className="text-[12px] svc-link" style={{ marginTop: 12 }}>{sc.opportunity}</p>
+                  )}
                 </div>
-                {campaignAdjustment(attr.id) !== 0 && (
-                  <p className="text-[10px] text-[#999] mb-2 tabular-nums">
-                    {scores[attr.id]?.baseScore} base
-                    <span className={campaignAdjustment(attr.id) > 0 ? ' text-[#059669]' : ' text-[#B23A3A]'}>
-                      {' '}{campaignAdjustment(attr.id) > 0 ? '+' : ''}{campaignAdjustment(attr.id)}
-                    </span>{' '}campaign coherence
-                  </p>
-                )}
-                {benchmark && (
-                  <p className="text-[10px] text-[#999] mb-2 tabular-nums">
-                    {benchmark.cohortLabel} average {benchmark.attrAvgs?.[attr.id] ?? 0}
-                    {(() => {
-                      const d = (scores[attr.id]?.score || 0) - (benchmark.attrAvgs?.[attr.id] ?? 0);
-                      return <span className={d > 0 ? ' text-[#059669]' : d < 0 ? ' text-[#B23A3A]' : ''}>{' '}({d > 0 ? '+' : ''}{d})</span>;
-                    })()}
-                  </p>
-                )}
-                <p className="text-xs text-[#4A4840] leading-relaxed">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
-                {scores[attr.id]?.impact && (
-                  <p className="text-xs text-[#4A4840] mt-2 leading-relaxed"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
-                )}
-                {scores[attr.id]?.actions && (
-                  <p className="text-xs text-[#4A4840] mt-2 leading-relaxed"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
-                )}
-                {scores[attr.id]?.opportunity && (
-                  <p className="text-xs mt-2 svc-link">→ {scores[attr.id].opportunity}</p>
-                )}
-              </div>
+              );
+            })}
             ))}
           </div>
         )}
@@ -7642,53 +7664,35 @@ ${content.slice(0, 8000)}`;
         <SectionHead label="Recommendations" open={expandedSections.recommendations}
           onToggle={() => toggleSection('recommendations')} />
         {expandedSections.recommendations && (
-          <div className="animate-fade-in">
-            <div className="grid md:grid-cols-2 gap-3">
-              {recommendations.slice(0, 6).map((r, i) => (
-                <div key={i} className="card">
-                  <div className="flex gap-3 mb-2">
-                    <div className="w-6 h-6 bg-[#DEE42F] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 1}</div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-[#0B0B0B] text-sm">{r.title}</h4>
-                    </div>
-                  </div>
-                  <p className="text-xs text-[#8A877D] leading-relaxed mb-2">{r.description}</p>
-                  <div className="bg-[#E4E2DC] p-2 mb-2">
-                    <p className="text-xs text-[#4A4840] leading-relaxed"><span className="font-medium text-[#B23A3A]">Benefit:</span> {r.impact}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {r.attributes.slice(0, 3).map((attr, j) => (
-                      <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEE42F]/10 text-[#B23A3A]">{attr}</span>
-                    ))}
-                  </div>
+          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+            {/* Ledger rows: ordinal, title and description, attribute chip. */}
+            {recommendations.map((r, i) => (
+              <div key={i} className="grid gap-6 items-baseline"
+                style={{ gridTemplateColumns: '56px minmax(0,1fr) 150px', padding: '22px 0',
+                  borderBottom: '1px solid #DCDAD3' }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#B3B0A8', letterSpacing: '-.02em' }}>
+                  {String(i + 1).padStart(2, '0')}
                 </div>
-              ))}
-            </div>
-            {recommendations.length > 6 && (
-              <details className="mt-3">
-                <summary className="text-sm text-[#B23A3A] cursor-pointer hover:underline">View {recommendations.length - 6} more recommendations</summary>
-                <div className="grid md:grid-cols-2 gap-3 mt-3">
-                  {recommendations.slice(6).map((r, i) => (
-                    <div key={i + 6} className="card">
-                      <div className="flex gap-3 mb-2">
-                        <div className="w-6 h-6 bg-[#DEE42F]/20 text-[#B23A3A] flex items-center justify-center font-bold text-xs flex-shrink-0">{i + 7}</div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-[#0B0B0B] text-sm">{r.title}</h4>
-                        </div>
-                      </div>
-                      <p className="text-xs text-[#8A877D] leading-relaxed mb-2">{r.description}</p>
-                      <div className="bg-[#E4E2DC] p-2 mb-2">
-                        <p className="text-xs text-[#4A4840] leading-relaxed"><span className="font-medium text-[#B23A3A]">Benefit:</span> {r.impact}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {r.attributes.slice(0, 3).map((attr, j) => (
-                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEE42F]/10 text-[#B23A3A]">{attr}</span>
-                        ))}
-                      </div>
-                    </div>
+                <div className="min-w-0">
+                  <h4 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.02em' }}>{r.title}</h4>
+                  <p className="text-[14px] text-[#4A4840] mt-1">{r.description}</p>
+                  {r.impact && (
+                    <p className="text-[13px] text-[#4A4840] mt-2.5"
+                      style={{ borderLeft: '4px solid #DEE42F', paddingLeft: 12, lineHeight: 1.55 }}>
+                      <b className="font-bold">Benefit:</b> {r.impact}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em' }}>
+                  {r.attributes.slice(0, 2).map((attr, j) => (
+                    <span key={j} className="inline-block uppercase"
+                      style={{ background: '#DEE42F', padding: '4px 7px', marginLeft: 4, marginBottom: 4 }}>
+                      {attr}
+                    </span>
                   ))}
                 </div>
-              </details>
+              </div>
+            ))}
             )}
           </div>
         )}
