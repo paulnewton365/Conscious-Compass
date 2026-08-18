@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { FOOTPRINT_CHANNELS, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
+import { FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.14.3';
+const APP_VERSION = '3.15.1';
 import { 
   supabase, 
   signUp, 
@@ -1283,6 +1283,144 @@ const FP_TILES = 13;
 
 // Ranked rows step from lime through olive to ink.
 const FP_RAMP = ['#DFF01F', '#D3E81C', '#BFDA18', '#A5C214', '#8AA810', '#3A3A36', '#0B0B0B', '#0B0B0B'];
+
+// ── Presence map ─────────────────────────────────────────────
+// Brand at the centre, channels as nodes sized by the evidence found, and
+// links drawn where one channel demonstrably carries something from another.
+//
+// The map answers the question the ledger could not: does this brand's
+// presence connect, or is it several unrelated appearances? An empty middle
+// is a finding, not a rendering failure.
+function FootprintMap({ footprint, brandName }) {
+  const summary = summariseFootprint(footprint);
+  const [ref, inView] = useInView(0.2);
+  if (!summary) return null;
+
+  const W = 940, H = 560, cx = W / 2, cy = H / 2 - 6;
+  const R = 186;
+  const rows = summary.rows;
+  const maxSignals = Math.max(1, ...rows.map(r => r.signals));
+
+  // Fixed positions keep the map comparable between brands: a channel always
+  // sits in the same place, so two footprints can be read against each other.
+  const pos = {};
+  rows.forEach((r, i) => {
+    const a = (i / rows.length) * 2 * Math.PI - Math.PI / 2;
+    pos[r.id] = { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a };
+  });
+
+  const isBrandVoice = (id) => FOOTPRINT_VOICE.brand.includes(id);
+  const nodeR = (r) => (r.signals > 0 || r.share > 0)
+    ? 15 + Math.sqrt(r.signals / maxSignals) * 22
+    : 11;
+
+  const links = Array.isArray(footprint.links) ? footprint.links.filter(l => pos[l.from] && pos[l.to]) : [];
+
+  return (
+    <div ref={ref} style={{ backgroundColor: FP_PAPER, padding: '28px 24px 8px' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+        {/* Spokes: presence. Faint where a channel has no evidence. */}
+        {rows.map((r) => {
+          const p = pos[r.id]; const has = r.signals > 0 || r.share > 0;
+          return (
+            <line key={'s' + r.id} x1={cx} y1={cy} x2={p.x} y2={p.y}
+              stroke={has ? '#C9C6BE' : '#E4E2DC'} strokeWidth={has ? 1.5 : 1}
+              strokeDasharray={has ? '' : '3 4'}
+              style={{ opacity: inView ? 1 : 0, transition: 'opacity 500ms ease' }} />
+          );
+        })}
+
+        {/* Links: corroboration between channels, drawn as curves through
+            the middle so a connected footprint reads as a woven centre. */}
+        {links.map((l, i) => {
+          const a = pos[l.from], b = pos[l.to];
+          const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          // Bow toward the hub but not into it: at 0.55 the curve collided with
+          // the centre node and read as a line passing behind it.
+          const qx = mx + (cx - mx) * 0.32, qy = my + (cy - my) * 0.32;
+          return (
+            <path key={'l' + i} d={`M${a.x},${a.y} Q${qx},${qy} ${b.x},${b.y}`}
+              fill="none" stroke={FP_LIME} strokeWidth={l.strength === 'strong' ? 4 : 2}
+              strokeDasharray={l.strength === 'strong' ? '' : '5 5'}
+              strokeLinecap="round"
+              style={{
+                opacity: inView ? 1 : 0,
+                transition: 'opacity 700ms ease',
+                transitionDelay: `${300 + i * 90}ms`,
+              }} />
+          );
+        })}
+
+        {/* Centre: the brand */}
+        <circle cx={cx} cy={cy} r={54} fill={FP_INK}
+          style={{ transform: inView ? 'scale(1)' : 'scale(0.6)', transformOrigin: `${cx}px ${cy}px`,
+            transition: 'transform 600ms cubic-bezier(0.22,1,0.36,1)' }} />
+        <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: 26, fontWeight: 700, fill: FP_LIME, letterSpacing: '-.03em' }}>
+          {summary.totalSignals}
+        </text>
+        <text x={cx} y={cy + 14} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#8A877D', letterSpacing: '.14em' }}>
+          SIGNALS
+        </text>
+
+        {/* Channel nodes */}
+        {rows.map((r, i) => {
+          const p = pos[r.id]; const has = r.signals > 0 || r.share > 0;
+          const rad = nodeR(r);
+          const brandVoice = isBrandVoice(r.id);
+          const outward = Math.cos(p.a) > 0.25 ? 'start' : Math.cos(p.a) < -0.25 ? 'end' : 'middle';
+          const lx = p.x + Math.cos(p.a) * (rad + 12);
+          const ly = p.y + Math.sin(p.a) * (rad + 12);
+          return (
+            <g key={r.id} style={{
+              opacity: inView ? 1 : 0,
+              transform: inView ? 'translateY(0)' : 'translateY(10px)',
+              transition: 'opacity 500ms ease, transform 500ms cubic-bezier(0.22,1,0.36,1)',
+              transitionDelay: `${120 + i * 60}ms`,
+            }}>
+              <circle cx={p.x} cy={p.y} r={rad}
+                fill={has ? (brandVoice ? FP_INK : FP_LIME) : 'transparent'}
+                stroke={has ? 'none' : '#C9C6BE'} strokeWidth={1.5} strokeDasharray={has ? '' : '3 4'} />
+              {has && (
+                <text x={p.x} y={p.y + 5} textAnchor="middle"
+                  style={{ fontSize: 14, fontWeight: 700, fill: brandVoice ? '#FFFFFF' : FP_INK }}>
+                  {r.signals}
+                </text>
+              )}
+              <text x={lx} y={ly - 2} textAnchor={outward}
+                style={{ fontSize: 13, fontWeight: 700, fill: has ? FP_INK : '#A9A69E' }}>
+                {r.name}
+              </text>
+              <text x={lx} y={ly + 13} textAnchor={outward}
+                style={{ fontSize: 10.5, fill: '#8A877D' }}>
+                {has ? String(r.evidence || '').slice(0, 34) : 'No evidence found'}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Legend and the connection read */}
+      <div className="flex flex-wrap items-center gap-x-7 gap-y-2" style={{ marginTop: 4, paddingBottom: 18 }}>
+        <span className="flex items-center gap-2 text-[11px]" style={{ color: FP_INK }}>
+          <span style={{ width: 12, height: 12, background: FP_INK, display: 'inline-block' }} /> Brand controls
+        </span>
+        <span className="flex items-center gap-2 text-[11px]" style={{ color: FP_INK }}>
+          <span style={{ width: 12, height: 12, background: FP_LIME, display: 'inline-block' }} /> Market generates
+        </span>
+        <span className="flex items-center gap-2 text-[11px]" style={{ color: FP_MUTED }}>
+          <span style={{ width: 18, height: 4, background: FP_LIME, display: 'inline-block' }} /> Corroborated between channels
+        </span>
+        <span className="text-[11px]" style={{ color: FP_MUTED }}>Node size = evidence found</span>
+      </div>
+
+      <p className="text-[13px] font-medium" style={{ color: FP_INK, paddingBottom: 20, maxWidth: '78ch' }}>
+        {links.length === 0
+          ? `Nothing carries between channels. ${brandName} appears in ${summary.channelsWithEvidence} places, but nothing found in one is picked up in another.`
+          : `${links.length} connection${links.length === 1 ? '' : 's'} between channels: ${links.map(l => l.note).filter(Boolean).join('; ')}.`}
+      </p>
+    </div>
+  );
+}
 
 function FootprintMosaic({ footprint, brandName, compact = false }) {
   const summary = summariseFootprint(footprint);
@@ -5538,6 +5676,23 @@ RULES:
 - Level 5 requires publicly observable evidence of influence. Do not infer impact from the brand's own marketing claims.
 - Be sceptical. A hashtag is not a campaign. A content series is not a campaign. Most brands sit at 1 or 2.
 
+CONNECTIONS BETWEEN FOOTPRINT CHANNELS:
+
+In "links", record where one channel demonstrably carries something from another. This is what turns a list of channels into a picture of how a brand travels.
+
+Only record a link you can actually evidence:
+- AI answers citing or paraphrasing the brand's owned research → owned to ai
+- Earned coverage quoting the brand's own data or naming its research → owned to earned
+- Third-party discussion referencing the brand's campaign, framing or terminology → social to thirdParty, or earned to thirdParty
+- Podcast or analyst work drawing on the brand's published material → owned to podcast, owned to analyst
+- Paid creative carrying the same idea as the organic work → social to paid
+
+Rules:
+- "strong" means the connection is explicit: named, quoted or cited. "weak" means the same subject appears in both but the link is inferred.
+- Do NOT link two channels merely because both mention the brand. Presence in both is not connection.
+- If nothing genuinely connects, return an empty array. An unconnected footprint is a real and important finding: it means the brand is present in several places but nothing carries between them.
+- Maximum six links. Report the strongest.
+
 BRAND FOOTPRINT:
 
 Map where ${project.brandName} actually shows up across every surface a person could encounter it. This is DESCRIPTIVE ONLY. It does not change any attribute score. Do not adjust your scoring because of it.
@@ -5571,6 +5726,9 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
   "justification": "Under 150 words. Why the overall score is what it is. Call out notably high/low scores with evidence.",
   "footprint": {
     "verdict": "One sentence on where this brand shows up and where it does not. Direct. Max 20 words.",
+    "links": [
+      { "from": "channel id", "to": "channel id", "strength": "strong|weak", "note": "What actually connects them. Max 8 words." }
+    ],
     "channels": {
 ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, "evidence": "max 6 words, or 'No evidence found'", "sentiment": -100 to 100 or null }`).join(',\n')}
     }
@@ -7485,11 +7643,13 @@ ${content.slice(0, 8000)}`;
       </section>
 
       {/* Score tiles — separated by paper, not by borders */}
-      <div className="dc-tiles grid-cols-4 md:grid-cols-8 mb-10" style={{ gridTemplateColumns: undefined }}>
+      <div className="dc-tiles grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
         {ATTRIBUTES.map(attr => (
-          <div key={attr.id} className="dc-tile" style={{ gap: 6, padding: '14px 12px' }}>
+          <div key={attr.id} className="dc-tile" style={{ gap: 6, padding: '16px 14px' }}>
             <div className="dc-kicker-sm leading-tight break-words">{attr.name}</div>
-            <div className="text-3xl font-bold tracking-tight" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
+            <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: scoreColor(scores[attr.id]?.score) }}>
+              {scores[attr.id]?.score || 0}
+            </div>
           </div>
         ))}
       </div>
@@ -7669,7 +7829,10 @@ ${content.slice(0, 8000)}`;
           onToggle={() => toggleSection('footprint')} />
           {expandedSections.footprint && (
             <div className="animate-fade-in">
-              <FootprintMosaic footprint={scores.footprint} brandName={project.brandName} />
+              <FootprintMap footprint={scores.footprint} brandName={project.brandName} />
+              <div style={{ marginTop: 2 }}>
+                <FootprintMosaic footprint={scores.footprint} brandName={project.brandName} />
+              </div>
             </div>
           )}
         </div>
@@ -11243,42 +11406,47 @@ function ClientReportView({ payload }) {
         {/* ── Upper panel ─────────────────────────────────────── */}
         <SectionHead label="Results at a glance" />
         <div>
-          <div className="grid gap-14 items-start" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
+          {/* Identical to the internal report's glance section: same grid, same
+              type scale, same rhythm. Kept in step deliberately. */}
+          <div className="grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
             <div>
-              <div className="flex items-start gap-5">
-                <div className="text-center flex-shrink-0">
-                  <div className="flex items-center justify-center font-bold"
+              <div className="flex gap-6 items-start">
+                <div className="flex-shrink-0">
+                  <div className="flex items-center justify-center"
                     style={{ width: 96, height: 96, background: '#0B0B0B', color: '#DEE42F',
-                      fontSize: 44, letterSpacing: '-.03em' }}>
+                      fontSize: 44, fontWeight: 700, letterSpacing: '-.03em' }}>
                     {overall}
                   </div>
-                  <div className="text-xs text-[#8A877D] mt-1.5">out of 100</div>
+                  <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#8A877D] text-center mt-2">out of 100</div>
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-[17px] font-bold tracking-tight">{stage.name}</h2>
-                  <p className="text-sm text-[#8A877D] leading-relaxed mt-1">{stage.description}</p>
+                  <h3 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.025em', lineHeight: 1.05 }}>{stage.name}</h3>
+                  <p className="text-[15px] leading-relaxed text-[#4A4840] mt-2.5" style={{ maxWidth: '44ch' }}>{stage.description}</p>
                 </div>
               </div>
 
-              <div className="border-t border-[#DCDAD3] my-5" />
-
               {scores?.headline && (
-                <blockquote style={{ margin: '32px 0 0', borderLeft: '6px solid #DEE42F',
-                  padding: '2px 0 2px 22px', fontSize: 'clamp(19px,1.9vw,24px)', fontWeight: 600,
-                  letterSpacing: '-.02em', lineHeight: 1.28 }}>
+                <blockquote style={{ margin: '36px 0 0', borderLeft: '6px solid #DEE42F', padding: '2px 0 2px 22px',
+                  fontSize: 'clamp(21px,2.1vw,27px)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.25 }}>
                   &ldquo;{scores.headline}&rdquo;
                 </blockquote>
               )}
-              <p className="text-sm text-[#4A4840] leading-relaxed">
-                <span className="font-semibold">{project.brandName}</span> demonstrates strength in{' '}
-                <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>{strengths.map(a => a.name).join(' and ')}</span>
-                , with opportunities to grow in{' '}
-                <span className="font-bold" style={{ borderBottom: '2px dotted #8A877D' }}>{growth.map(a => a.name).join(' and ')}</span>.
+
+              <div style={{ height: 1, background: '#DCDAD3', margin: '32px 0 20px' }} />
+
+              <p className="text-[16px] leading-relaxed" style={{ maxWidth: '52ch' }}>
+                <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
+                <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
+                  {strengths.map(a => a.name).join(' and ')}
+                </span>, with opportunities to grow in{' '}
+                <span className="font-bold" style={{ borderBottom: '2px dotted #8A877D' }}>
+                  {growth.map(a => a.name).join(' and ')}
+                </span>.
               </p>
             </div>
 
-            <div className="bg-[#E4E2DC] p-4 flex justify-center">
-              <SpiderChart scores={scores} size={340} />
+            <div className="bg-white" style={{ padding: 14 }}>
+              <SpiderChart scores={scores} size={420} />
             </div>
           </div>
         </div>
@@ -11351,7 +11519,10 @@ function ClientReportView({ payload }) {
           <>
             <SectionHead label="Brand footprint" />
             <div className="mb-6 overflow-hidden">
-              <FootprintMosaic footprint={payload.footprint} brandName={project.brandName} compact />
+              <FootprintMap footprint={payload.footprint} brandName={project.brandName} />
+              <div style={{ marginTop: 2 }}>
+                <FootprintMosaic footprint={payload.footprint} brandName={project.brandName} compact />
+              </div>
             </div>
           </>
         )}
