@@ -356,7 +356,13 @@ input:focus, select:focus, textarea:focus {
                 letter-spacing: -0.02em; }
 
 .dc-panel     { background: var(--antenna-white); padding: 24px; }
-.dc-panel-dark{ background: var(--antenna-ink); color: #FFFFFF; padding: 40px; }
+.dc-panel-dark{ background: var(--antenna-ink); color: #FFFFFF; padding: 24px 28px; }
+.dc-panel-dark p, .dc-panel-dark .muted { color: var(--antenna-faint); }
+/* Inside a dark panel a secondary button inverts rather than disappearing */
+.dc-panel-dark .btn-secondary { background: transparent; color: #FFFFFF; border-color: #FFFFFF; }
+.dc-panel-dark .text-\[\#8A877D\] { color: var(--antenna-faint); }
+.dc-panel-dark .text-\[\#0B0B0B\] { color: #FFFFFF; }
+.dc-panel-dark .text-\[\#4A4840\] { color: var(--antenna-faint); }
 
 input::placeholder, textarea::placeholder { color: #A9A69E; }
 a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; text-underline-offset: 2px; }

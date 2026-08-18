@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.1.0';
 import { 
   supabase, 
   signUp, 
@@ -1653,7 +1653,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
       <div className="flex justify-between items-center mb-6">
         <div className="text-sm text-[#8A877D]">Progress</div>
         <div className="flex items-baseline gap-1">
-          <span className="dc-h2 font-bold" style={{ color: stage.color }}>{animatedScore}</span>
+          <span className="text-2xl font-bold" style={{ color: stage.color }}>{animatedScore}</span>
           <span className="text-lg text-[#B3B0A8]">/100</span>
         </div>
       </div>
@@ -1913,71 +1913,67 @@ function ProgressSteps({ currentStep, steps, assessments }) {
 // Welcome Page
 function WelcomePage({ onStart }) {
   const [animate, setAnimate] = useState(false);
-  
+
   useEffect(() => {
     // Trigger animation after mount
     const timer = setTimeout(() => setAnimate(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
-  return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-8 relative overflow-hidden">
-      <div className="max-w-3xl text-center">
+  const rise = (delay) => ({
+    opacity: animate ? 1 : 0,
+    transform: animate ? 'translateY(0)' : 'translateY(18px)',
+    transition: 'opacity 800ms ease, transform 800ms cubic-bezier(0.22, 1, 0.36, 1)',
+    transitionDelay: animate ? delay : '0ms',
+  });
 
-        {/* Fully Conscious Badge — centred above headline */}
-        <div
-          className={`flex justify-center mb-8 transition-all duration-1000 ease-out ${
-            animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          <img
-            src="/fully-conscious-badge.png"
-            alt="Fully Conscious"
-            className="w-32 md:w-40 lg:w-48 drop-shadow-lg hover:scale-105 transition-transform duration-300"
-          />
+  const steps = [
+    ['01', 'Assess', 'Website, social, AI reputation and earned media, from publicly observable evidence only.'],
+    ['02', 'Score', 'Eight attributes, six maturity stages, benchmarked against the sector.'],
+    ['03', 'Act', 'Prioritised recommendations mapped to the work that moves them.'],
+  ];
+
+  return (
+    <div className="dc-wrap dc-page relative" style={{ padding: '56px 40px 72px' }}>
+      <img
+        src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
+        alt="Antenna Group"
+        style={{ height: 26, width: 'auto', display: 'block', marginBottom: 36, filter: 'brightness(0)', ...rise('0ms') }}
+      />
+
+      <div className="grid gap-12 items-center"
+        style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(220px,320px)' }}>
+        <div>
+          <h1 style={{ fontSize: 'clamp(38px,5vw,68px)', fontWeight: 700, letterSpacing: '-.035em',
+            lineHeight: .95, maxWidth: '20ch', ...rise('150ms') }}>
+            Consequential brands are conscious brands
+          </h1>
+          <p className="dc-lead" style={{ marginTop: 22, ...rise('300ms') }}>
+            They don't just show up, they stand out. They don't follow trends; they shape narratives.
+            The Conscious Compass explores your brand's impact across eight essential attributes.
+          </p>
+          <div className="dc-btns" style={{ marginTop: 32, ...rise('450ms') }}>
+            <button onClick={onStart} className="btn-primary">Start new assessment</button>
+          </div>
         </div>
 
-        {/* Headline */}
-        <h1 
-          className={`dc-display text-[#0B0B0B] mb-6 leading-tight transition-all duration-1000 ease-out ${
-            animate 
-              ? 'opacity-100 translate-y-0' 
-              : 'opacity-0 translate-y-8'
-          }`}
-          style={{ transitionDelay: animate ? '200ms' : '0ms' }}
-        >
-          <span className="block">Consequential brands</span>
-          <span className="block">are conscious brands.</span>
-        </h1>
-        
-        {/* Subtitle */}
-        <p 
-          className={`text-xl text-[#4A4840] mb-8 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
-            animate 
-              ? 'opacity-100 translate-y-0' 
-              : 'opacity-0 translate-y-6'
-          }`}
-          style={{ transitionDelay: animate ? '400ms' : '0ms' }}
-        >
-          They don't just show up, they stand out. They don't follow trends; they shape narratives. 
-          The Conscious Compass explores your brand's impact across 8 essential attributes.
-        </p>
-        
-        {/* Button */}
-        <div 
-          className={`transition-all duration-700 ease-out ${
-            animate 
-              ? 'opacity-100 translate-y-0' 
-              : 'opacity-0 translate-y-4'
-          }`}
-          style={{ transitionDelay: animate ? '700ms' : '0ms' }}
-        >
-          <button onClick={onStart} className="btn-primary btn-arrow text-lg px-8 py-4">
-            Start Assessment
-          </button>
+        <div className="bg-white" style={{ padding: 20, ...rise('300ms') }}>
+          <img src="/fully-conscious-badge.png" alt="Fully Conscious"
+            style={{ width: '100%', height: 'auto', display: 'block' }} />
+          <div className="dc-stat-l" style={{ marginTop: 14, textAlign: 'center' }}>Fully Conscious</div>
         </div>
       </div>
-      
+
+      <div className="dc-tiles" style={{ marginTop: 56, gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', ...rise('600ms') }}>
+        {steps.map(([n, title, body]) => (
+          <div key={n} className="bg-white" style={{ padding: 28, minHeight: 200 }}>
+            <div className="dc-kicker">{n}</div>
+            <h3 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', marginTop: 10 }}>{title}</h3>
+            <p style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--antenna-body)', marginTop: 10 }}>{body}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="absolute bottom-4 right-4 text-xs text-[#B3B0A8]">
         v{APP_VERSION}
       </div>
@@ -1985,7 +1981,6 @@ function WelcomePage({ onStart }) {
   );
 }
 
-// Read-Only Welcome Page - for users with read-only access
 function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessments }) {
   const [animate, setAnimate] = useState(false);
   
@@ -2433,7 +2428,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
   };
 
   return (
-    <div className="card mb-[2px] border-l-4 border-[#1976D2]">
+    <div className="dc-panel-dark mb-[2px]">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
@@ -3155,19 +3150,16 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
     <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#DEE42F]/10 flex items-center justify-center">
-          <Globe className="w-6 h-6 text-[#B23A3A]" />
-        </div>
         <div>
-          <h2 className="text-[17px] font-bold tracking-tight">Website Assessment</h2>
-          <p className="text-sm text-[#8A877D]">{project.brandName} · {project.websiteUrl}</p>
+          <h2 className="dc-h2">Website Assessment</h2>
+          <p className="dc-standfirst">{project.brandName} · {project.websiteUrl}</p>
         </div>
       </div>
 
       <CompletionIndicator items={completionItems} />
 
       {/* Auto-Assess Website */}
-      <div className="card mb-[2px] border-l-4 border-[#0B0B0B]">
+      <div className="dc-panel-dark mb-[2px]">
         <div className="flex items-start justify-between mb-3">
           <div>
             <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
@@ -3338,7 +3330,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         ) : (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-[#0B0B0B] flex items-center gap-2">
+              <span className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
                 <Check className="w-4 h-4 text-green-600" /> SEO Assessment Complete
                 <span className="text-xs text-[#8A877D] font-normal">(will be included in Website Analysis)</span>
               </span>
@@ -4073,26 +4065,23 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
     <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#8B5CF6]/10 flex items-center justify-center">
-          <Users className="w-6 h-6 text-[#8B5CF6]" />
-        </div>
         <div>
-          <h2 className="text-[17px] font-bold tracking-tight">Social Media Assessment</h2>
-          <p className="text-sm text-[#8A877D]">{project.brandName}'s social presence</p>
+          <h2 className="dc-h2">Social Media Assessment</h2>
+          <p className="dc-standfirst">{project.brandName}'s social presence</p>
         </div>
       </div>
 
       <CompletionIndicator items={completionItems} />
 
       {/* Run Everything */}
-      <div className="card mb-[2px] border-l-4 border-[#0B0B0B]">
+      <div className="dc-panel-dark mb-[2px]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
           <div className="min-w-0">
-            <h3 className="text-sm font-medium text-[#0B0B0B] flex items-center gap-2">
+            <h3 className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#B23A3A]" />
               Run Everything
             </h3>
-            <p className="text-xs text-[#8A877D]">Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
+            <p className="text-[13px] text-[#B3B0A8] mt-1">Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
           </div>
           <button
             onClick={runEverything}
@@ -4113,14 +4102,14 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       </div>
 
       {/* Social Media Health Check Section */}
-      <div className="card mb-[2px] border-l-4 border-[#8B5CF6]">
+      <div className="dc-panel-dark mb-[2px]">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium text-[#0B0B0B] flex items-center gap-2">
+            <h3 className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
               Social Media Health Check
             </h3>
-            <p className="text-xs text-[#8A877D]">Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes.</p>
+            <p className="text-[13px] text-[#B3B0A8] mt-1">Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes.</p>
           </div>
           <button 
             onClick={() => runAutoCheck()} 
@@ -4727,19 +4716,16 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
     <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#3B82F6]/10 flex items-center justify-center">
-          <Bot className="w-6 h-6 text-[#3B82F6]" />
-        </div>
         <div>
-          <h2 className="text-[17px] font-bold tracking-tight">AI Reputation Assessment</h2>
-          <p className="text-sm text-[#8A877D]">What prospects discover when researching {project.brandName}</p>
+          <h2 className="dc-h2">AI Reputation Assessment</h2>
+          <p className="dc-standfirst">What prospects discover when researching {project.brandName}</p>
         </div>
       </div>
 
       <CompletionIndicator items={completionItems} />
 
       {/* AI Brand Perception Prompt */}
-      <div className="card mb-[2px] border-l-4 border-[#3B82F6]">
+      <div className="dc-panel-dark mb-[2px]">
         <div className="flex items-start justify-between mb-2">
           <div>
             <h3 className="text-sm font-medium text-[#0B0B0B] mb-0.5">AI Brand Research Prompt</h3>
@@ -4796,7 +4782,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       </div>
 
       {/* AI Training Sources */}
-      <div className="card mb-[2px] border-l-4 border-[#6366F1]">
+      <div className="dc-panel-dark mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">AI Training Sources</h3>
         <p className="text-xs text-[#8A877D] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
         <div className="space-y-3">
@@ -4844,7 +4830,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       </div>
 
       {/* Third-Party & Search Signals (auto-fetched, NOT AI engines) */}
-      <div className="card mb-[2px] border-l-4 border-[#0B0B0B]">
+      <div className="dc-panel-dark mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">Third-Party &amp; Search Signals</h3>
         <p className="text-xs text-[#8A877D] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
         <div className="space-y-3">
@@ -5071,12 +5057,9 @@ Write in flowing prose with specific examples. End with priority recommendations
     <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
       <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 bg-[#10B981]/10 flex items-center justify-center">
-          <Newspaper className="w-6 h-6 text-[#10B981]" />
-        </div>
         <div>
-          <h2 className="text-[17px] font-bold tracking-tight">Earned Media Assessment</h2>
-          <p className="text-sm text-[#8A877D]">{project.brandName}'s press coverage</p>
+          <h2 className="dc-h2">Earned Media Assessment</h2>
+          <p className="dc-standfirst">{project.brandName}'s press coverage</p>
         </div>
       </div>
 
@@ -5109,7 +5092,7 @@ Example:
       </div>
 
       {/* Auto-Assess Earned Media Performance */}
-      <div className="card mb-[2px] border-l-4 border-[#10B981]">
+      <div className="dc-panel-dark mb-[2px]">
         <div className="flex items-start justify-between mb-3">
           <div>
             <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
@@ -7341,7 +7324,7 @@ ${content.slice(0, 8000)}`;
             {ATTRIBUTES.map(attr => (
               <div key={attr.id} className="card border-l-4" style={{ borderLeftColor: attr.color }}>
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="dc-h2 font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
+                  <span className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</span>
                   <div className="min-w-0">
                     <h4 className="font-semibold text-[#0B0B0B] text-sm">{attr.name}</h4>
                     <p className="text-xs text-[#8A877D]">{attr.fullName}</p>
@@ -8252,7 +8235,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     {/* Score Badge */}
                     <div className="flex items-center gap-3">
                       <div className="text-center">
-                        <div className="dc-h2 font-bold" style={{ color: stage.color }}>{r.totalScore}</div>
+                        <div className="text-2xl font-bold" style={{ color: stage.color }}>{r.totalScore}</div>
                         <div className="text-[10px] px-2 py-0.5" style={{ backgroundColor: `${stage.color}15`, color: stage.color }}>
                           {r.maturityLevel}
                         </div>
@@ -10173,15 +10156,15 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         <h3 className="text-sm font-medium text-[#0B0B0B] mb-4">Head to Head</h3>
                         <div className="grid grid-cols-3 gap-3 text-center mb-4">
                           <div className="bg-[#E4E2DC] p-3">
-                            <div className="dc-h2 font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
+                            <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
                             <div className="text-xs text-[#8A877D] mt-1 truncate">{a.brandName} leads</div>
                           </div>
                           <div className="bg-[#E4E2DC] p-3">
-                            <div className="dc-h2 font-bold text-[#B3B0A8]">{tied.length}</div>
+                            <div className="text-2xl font-bold text-[#B3B0A8]">{tied.length}</div>
                             <div className="text-xs text-[#8A877D] mt-1">Tied</div>
                           </div>
                           <div className="bg-[#E4E2DC] p-3">
-                            <div className="dc-h2 font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
+                            <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
                             <div className="text-xs text-[#8A877D] mt-1 truncate">{b.brandName} leads</div>
                           </div>
                         </div>
@@ -11057,7 +11040,7 @@ function ClientReportView({ payload }) {
             return (
               <div key={a.id} className="card">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="dc-h2 font-bold" style={{ color: a.color }}>{sc.score || 0}</span>
+                  <span className="text-2xl font-bold" style={{ color: a.color }}>{sc.score || 0}</span>
                   <div className="min-w-0">
                     <h4 className="font-semibold text-[#0B0B0B] text-sm">{a.name}</h4>
                     <p className="text-xs text-[#8A877D]">{a.fullName}</p>
@@ -11384,7 +11367,7 @@ function SharedReportView({ report, onClose }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ATTRIBUTES.map(attr => (
               <div key={attr.id} className="text-center p-3 bg-[#E4E2DC] ">
-                <div className="dc-h2 font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
+                <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
                 <div className="text-xs text-[#8A877D] mt-1">{attr.name}</div>
               </div>
             ))}
