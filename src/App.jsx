@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.26.5';
+const APP_VERSION = '3.26.6';
 import { 
   supabase, 
   signUp, 
@@ -11038,7 +11038,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                       <>
                         <button onClick={() => { setResetting(resetting === link.token ? null : link.token); setNewPassword(''); setError(null); }}
                           className="btn-secondary !text-[10px] !px-3 !py-2">
-                          Reset password
+                          Refresh &amp; reset password
                         </button>
                         <button onClick={() => revoke(link)} disabled={busy === link.token}
                           className="btn-secondary !text-[10px] !px-3 !py-2 text-[#B23A3A]">
@@ -11054,6 +11054,8 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                     <p className="text-[11px] text-[#68655B] mb-2 leading-relaxed">
                       The old password cannot be recovered, so the report is rebuilt from the saved
                       assessment and re-encrypted. The URL stays the same, so any link already sent keeps working.
+                      Because the report is rebuilt, this also refreshes a link issued before newer
+                      sections existed.
                       {sourceFor(link) ? '' : ` No saved assessment found for ${link.brand_name}.`}
                     </p>
                     <div className="flex gap-2">
