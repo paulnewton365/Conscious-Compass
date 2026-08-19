@@ -514,3 +514,25 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
   .dc-fpmap text { font-size: 15px !important; }
   .dc-fpmap { min-height: 320px; }
 }
+
+/* Maturity band labels: the columns are proportional to each band's width, so
+   the narrow bands cannot hold their names on a phone. Below 640px the row
+   drops the proportional alignment and becomes a plain two-column legend,
+   which stays readable. The bar above still carries the proportions. */
+@media (max-width: 640px) {
+  .dc-maturity-labels {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 4px 14px !important;
+    margin-top: 14px !important;
+  }
+  .dc-maturity-labels > div { font-size: 11px; line-height: 1.35; }
+}
+@media (max-width: 380px) {
+  .dc-maturity-labels { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+/* Overall Position pill: absolutely positioned at the score, so a long brand
+   name pushes past the track edge on a phone. Keep the score, drop the name. */
+@media (max-width: 640px) {
+  .dc-pill-brand { display: none; }
+}

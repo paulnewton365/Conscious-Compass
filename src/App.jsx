@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, getPresenceLevel, hasFootprintData, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
+import { TRUST_LENSES, TRUST_FOUNDATION, computeTrustLenses, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, getPresenceLevel, hasFootprintData, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.18.0';
+const APP_VERSION = '3.19.0';
 import { 
   supabase, 
   signUp, 
@@ -1280,6 +1280,128 @@ const FP_LIME  = '#DEE42F';
 const FP_EMPTY = '#E4E2DC';
 const FP_MUTED = '#8A877D';
 
+
+// ── Trust & credibility lens ─────────────────────────────────
+// A different read on scores already given. Every figure is computed in code
+// from fixed weights, so no model call and no added latency: the only thing
+// the scoring pass supplies is the findings list.
+function TrustLensPanel({ scores, findings = [], overall }) {
+  const data = computeTrustLenses(scores, findings);
+  const [ref, inView] = useInView(0.15);
+  if (!data) return null;
+
+  // A 30-50 window rather than 0-100. Lens scores are weighted means of the
+  // same eight attributes, so they cluster tightly; a full-width scale would
+  // render four near-identical bars and hide the differences that matter.
+  const LO = 30, HI = 50;
+  const pos = (v) => Math.max(0, Math.min(100, ((v - LO) / (HI - LO)) * 100));
+
+  const Row = ({ row, foundation = false, delay = 0 }) => (
+    <div style={{ background: foundation ? '#F2F0EA' : '#FFFFFF', padding: '20px 22px', marginBottom: 2 }}>
+      <div className="flex items-start justify-between gap-5 flex-wrap">
+        <div className="flex items-baseline gap-4 min-w-0">
+          <span style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, color: scoreColor(row.score) }}>
+            {row.score}
+          </span>
+          <div className="min-w-0">
+            <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{row.name}</div>
+            <div className="text-[12px] text-[#8A877D]">{row.def}</div>
+          </div>
+        </div>
+        <div className="text-right text-[11px] text-[#8A877D]" style={{ minWidth: 150 }}>
+          <div>Led by {row.leadName}, {row.leadPct}%</div>
+          {row.findingsCount > 0 && (
+            <div style={{ marginTop: 2 }}>{row.findingsCount} finding{row.findingsCount === 1 ? '' : 's'} below bear on this</div>
+          )}
+        </div>
+      </div>
+
+      {/* Scale */}
+      <div className="relative" style={{ marginTop: 18, height: 30 }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 12, height: 6, background: '#E4E2DC' }} />
+        <div style={{
+          position: 'absolute', left: 0, top: 12, height: 6, background: foundation ? '#8A877D' : '#0B0B0B',
+          width: `${inView ? pos(row.score) : 0}%`,
+          transition: 'width 700ms cubic-bezier(0.22,1,0.36,1)', transitionDelay: `${delay}ms`,
+        }} />
+        {Number.isFinite(overall) && (
+          <div style={{ position: 'absolute', left: `${pos(overall)}%`, top: 6, width: 3, height: 18, background: '#DEE42F' }} />
+        )}
+        {[30, 40, 50].map(t => (
+          <span key={t} className="text-[9px] text-[#B3B0A8]"
+            style={{ position: 'absolute', left: `${pos(t)}%`, top: 22, transform: 'translateX(-50%)' }}>{t}</span>
+        ))}
+      </div>
+
+      {/* Weights, shown openly */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1" style={{ marginTop: 16 }}>
+        {row.contributions.map(c => (
+          <span key={c.id} className="text-[10px]" style={{ color: '#8A877D' }}>
+            <b style={{ color: '#0B0B0B', fontWeight: 700 }}>{c.name}</b> {c.weight}%
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div ref={ref}>
+      <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '84ch', marginBottom: 24 }}>
+        Each lens reweights the same eight attribute scores already on this report. None is a new
+        measurement. Some attributes carry every lens, some carry none. Authenticity is set apart at
+        the base because the model treats it as the foundation the other three rest on, not a peer.
+      </p>
+
+      {data.rows.map((row, i) => <Row key={row.id} row={row} delay={i * 90} />)}
+
+      <div className="dc-kicker" style={{ marginTop: 22, marginBottom: 10 }}>
+        Authenticity is the foundation the three above rest on
+      </div>
+      <Row row={data.foundation} foundation delay={280} />
+
+      {/* Attribute reach */}
+      <div style={{ background: '#FFFFFF', padding: '18px 22px', marginTop: 2 }}>
+        <div className="dc-kicker-sm" style={{ marginBottom: 12 }}>Attribute reach</div>
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          {data.reach.map(a => (
+            <span key={a.id} className="text-[11px]" style={{ color: a.count ? '#0B0B0B' : '#B3B0A8' }}>
+              <b style={{ fontWeight: 700 }}>{a.name}</b>{' '}
+              {a.count === 0 ? 'carries none' : `carries ${a.count} of 4`}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Findings */}
+      {findings.length > 0 && (
+        <div style={{ marginTop: 28, borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
+          <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>What sits behind these scores</h4>
+          <p className="text-[12px] text-[#8A877D]" style={{ marginTop: 4, marginBottom: 14, maxWidth: '84ch' }}>
+            Publicly observable findings, tagged to the lenses they bear on. These explain the scores; they do not change them.
+          </p>
+          {findings.map((f, i) => (
+            <div key={i} className="grid items-center gap-3.5"
+              style={{ gridTemplateColumns: '12px minmax(0,1fr) auto', padding: '11px 0', borderBottom: '1px solid #DCDAD3' }}>
+              <span style={{ width: 10, height: 10, background: f.supports ? '#DEE42F' : '#0B0B0B' }} />
+              <span className="text-[13px]">{f.text}</span>
+              <span className="flex flex-wrap gap-1 justify-end">
+                {(f.tags || []).map(t => (
+                  <span key={t} className="text-[9px] font-bold uppercase"
+                    style={{ letterSpacing: '.1em', border: '1px solid #DCDAD3', padding: '3px 7px', color: '#8A877D' }}>{t}</span>
+                ))}
+              </span>
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-6 text-[11px] text-[#8A877D]" style={{ marginTop: 14 }}>
+            <span className="flex items-center gap-2"><span style={{ width: 10, height: 10, background: '#DEE42F' }} /> Supports the score</span>
+            <span className="flex items-center gap-2"><span style={{ width: 10, height: 10, background: '#0B0B0B' }} /> Works against it</span>
+            <span>Weights are fixed in code, not judged by the model, so the same scores always give the same lenses.</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Presence map ─────────────────────────────────────────────
 // Brand at the centre, channels as nodes sized by the evidence found, and
@@ -5405,6 +5527,7 @@ function ReportPage({ project, setProject, scores, setScores, assessments, apiKe
     services: true,
     conclusions: true,
     justification: false,
+    trust: true,
     footprint: true,
     campaign: true,
     benchmark: true,
@@ -5598,23 +5721,6 @@ RULES:
 - Level 5 requires publicly observable evidence of influence. Do not infer impact from the brand's own marketing claims.
 - Be sceptical. A hashtag is not a campaign. A content series is not a campaign. Most brands sit at 1 or 2.
 
-CONNECTIONS BETWEEN FOOTPRINT CHANNELS:
-
-In "links", record where one channel demonstrably carries something from another. This is what turns a list of channels into a picture of how a brand travels.
-
-Only record a link you can actually evidence:
-- AI answers citing or paraphrasing the brand's owned research → owned to ai
-- Earned coverage quoting the brand's own data or naming its research → owned to earned
-- Third-party discussion referencing the brand's campaign, framing or terminology → social to thirdParty, or earned to thirdParty
-- Podcast or analyst work drawing on the brand's published material → owned to podcast, owned to analyst
-- Paid creative carrying the same idea as the organic work → social to paid
-
-Rules:
-- "strong" means the connection is explicit: named, quoted or cited. "weak" means the same subject appears in both but the link is inferred.
-- Do NOT link two channels merely because both mention the brand. Presence in both is not connection.
-- If nothing genuinely connects, return an empty array. An unconnected footprint is a real and important finding: it means the brand is present in several places but nothing carries between them.
-- Maximum six links. Report the strongest.
-
 BRAND FOOTPRINT:
 
 Map where ${project.brandName} actually shows up across every surface a person could encounter it. This is DESCRIPTIVE ONLY. It does not change any attribute score. Do not adjust your scoring because of it.
@@ -5635,6 +5741,18 @@ RULES, and the first matters most:
 - "evidence" is what you actually observed, max 6 words. Name sources where you can.
 - "sentiment" runs -100 to 100, only where others are speaking about the brand. Use null for owned and paid.
 - Be sceptical. Most channels for most brands land in the 1-5 range. Anything at 7 or above should be rare and earned, and 9-10 exceptional.
+
+TRUST, CREDIBILITY, REPUTATION AND AUTHENTICITY:
+
+The report re-reads the attribute scores through four lenses. Those scores are calculated in code from fixed weights, so DO NOT score the lenses. Supply only the evidence.
+
+In "trustFindings", list 6 to 9 publicly observable findings bearing on those four ideas. They explain the scores; they never change them.
+
+- Tag each to every lens it bears on: trust, credibility, reputation, authenticity.
+- "supports": true where the finding strengthens the reading, false where it works against it. Include both. A list of only faults is a worse explanation than a balanced one.
+- Each must be independently verifiable by someone looking at the same public sources. Name the outlet, platform or document.
+- Max 12 words each. No hedging, no recommendations.
+- Draw on the evidence above: contradictions between channels, third-party conflation, review platforms, analyst or press citation, membership and institutional backing, dormant assets, unexplained architecture.
 
 CONNECTIONS BETWEEN FOOTPRINT CHANNELS:
 
@@ -5683,6 +5801,9 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
   "headline": "Single pithy sentence (max 20 words) capturing brand state and primary opportunity. Specific, not generic.",
   "conclusion": "2-3 sentences naming the specific transformation available. Reference actual findings. No generic phrases.",
   "justification": "Under 150 words. Why the overall score is what it is. Call out notably high/low scores with evidence.",
+  "trustFindings": [
+    { "text": "One publicly observable finding bearing on trust, credibility, reputation or authenticity. Max 12 words. Name the source.", "tags": ["trust|credibility|reputation|authenticity"], "supports": true }
+  ],
   "footprint": {
     "verdict": "One sentence on where this brand shows up and where it does not. Direct. Max 20 words.",
     "links": [
@@ -7502,6 +7623,7 @@ ${content.slice(0, 8000)}`;
     'Attribute analysis',
     'Brand footprint',
     'Campaign coherence',
+    'Trust and credibility',
     'Benchmark comparison',
     'Recommendations',
     'Recommended services',
@@ -7637,7 +7759,10 @@ ${content.slice(0, 8000)}`;
 
             <PositionBands stageName={stage.name} />
 
-            <div className="grid gap-[2px]" style={{
+            {/* Band labels. The columns are proportional to band width, which
+                gives "Pre-Foundational" about 90px on a phone. Below 640px the
+                row becomes a two-column legend instead. */}
+            <div className="dc-maturity-labels grid gap-[2px]" style={{
               gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), marginTop: 10 }}>
               {MATURITY_STAGES.map(st => (
                 <div key={st.id} className="text-[11px]"
@@ -7888,6 +8013,17 @@ ${content.slice(0, 8000)}`;
         </div>
       )}
 
+      {/* Trust & Credibility Lens - Collapsible */}
+      <div className="dc-reveal" style={{ marginTop: 80 }}>
+        <SectionHead label="Trust and credibility" open={expandedSections.trust}
+          onToggle={() => toggleSection('trust')} />
+        {expandedSections.trust && (
+          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+            <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={overall} />
+          </div>
+        )}
+      </div>
+
       {/* Industry Benchmark - Collapsible */}
       {benchmarkUnavailableReason && (
         <div className="dc-reveal" style={{ marginTop: 80 }}>
@@ -7922,8 +8058,11 @@ ${content.slice(0, 8000)}`;
                 <div className="relative" style={{ padding: '56px 0 8px' }}>
                   <div className="absolute flex flex-col items-center gap-1.5"
                     style={{ left: `${overall}%`, top: 8, transform: 'translateX(-50%)' }}>
+                    {/* The pill is absolutely positioned at the score, so a long
+                        brand name overflows the track on a phone. The name drops
+                        below 640px; the score always stays. */}
                     <div style={{ background: '#0B0B0B', color: '#FFFFFF', fontSize: 11, fontWeight: 700, letterSpacing: '.02em', padding: '5px 9px', whiteSpace: 'nowrap' }}>
-                      {project.brandName} {overall}
+                      <span className="dc-pill-brand">{project.brandName} </span>{overall}
                     </div>
                     <div style={{ width: 2, height: 14, background: '#0B0B0B' }} />
                   </div>
@@ -11160,6 +11299,7 @@ function makeClientPayload({ project, scores, benchmark }) {
         }
       : null,
     footprint: scores?.footprint || null,
+    trustFindings: scores?.trustFindings || [],
     conclusion: String(scores?.conclusion || scores?.justification || '').replace(/[\u2014\u2013]/g, '-'),
     generatedAt: new Date().toISOString(),
   };
@@ -11329,6 +11469,7 @@ function ClientReportView({ payload }) {
     'Attribute analysis',
     ...(hasFootprintData(payload.footprint) ? ['Brand footprint'] : []),
     ...(campaignStage ? ['Campaign coherence'] : []),
+    'Trust and credibility',
     ...(benchmark ? ['Benchmark comparison'] : []),
     ...(payload.conclusion ? ['Conclusions'] : []),
   ];
@@ -11438,7 +11579,7 @@ function ClientReportView({ payload }) {
               <div style={{ width: 2, height: 12, background: '#0B0B0B' }} />
             </div>
             <PositionBands stageName={stage.name} />
-            <div className="grid gap-[2px]" style={{
+            <div className="dc-maturity-labels grid gap-[2px]" style={{
               gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), marginTop: 10 }}>
               {MATURITY_STAGES.map(st => (
                 <div key={st.id} className="text-[11px]"
@@ -11529,6 +11670,12 @@ function ClientReportView({ payload }) {
             </div>
           </>
         )}
+
+        {/* ── Trust and credibility ───────────────────────────── */}
+        <SectionHead label="Trust and credibility" />
+        <div style={{ marginTop: 32, marginBottom: 8 }}>
+          <TrustLensPanel scores={scores} findings={payload.trustFindings || []} overall={overall} />
+        </div>
 
         {/* ── Benchmark comparison ────────────────────────────── */}
         {benchmark && benchmarkAvg && (

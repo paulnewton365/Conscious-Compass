@@ -418,6 +418,74 @@ export function summariseFootprint(footprint) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// TRUST & CREDIBILITY LENSES
+//
+// A different read on scores already given, never a new measurement. Each
+// lens is a weighted blend of the eight attributes, computed in code so the
+// same attribute scores always produce the same lens scores and two assessors
+// cannot disagree. Weights sum to 100 per lens and are shown on the panel.
+//
+// Authenticity is held apart from the other three. The model treats it as the
+// foundation the others rest on rather than a peer to compare against them.
+// ─────────────────────────────────────────────────────────────
+
+export const TRUST_LENSES = [
+  { id: 'credibility', name: 'Credibility', def: 'Whether the promise is believable',
+    weights: { INTENTIONAL: 40, AWAKE: 25, AWARE: 20, SENTIENT: 15 } },
+  { id: 'trust', name: 'Trust', def: 'Whether audiences believe it',
+    weights: { AWARE: 45, INTENTIONAL: 20, ATTENTIVE: 20, REFLECTIVE: 15 } },
+  { id: 'reputation', name: 'Reputation', def: 'Whether the promise is kept',
+    weights: { AWAKE: 40, ATTENTIVE: 20, AWARE: 20, INTENTIONAL: 20 } },
+];
+
+export const TRUST_FOUNDATION = {
+  id: 'authenticity', name: 'Authenticity', def: 'Internal culture, externally expressed',
+  weights: { REFLECTIVE: 50, SENTIENT: 20, AWARE: 15, VISIONARY: 15 },
+};
+
+const lensScore = (weights, scores) => {
+  let total = 0, used = 0;
+  Object.entries(weights).forEach(([attr, w]) => {
+    const v = Number(scores?.[attr]?.score);
+    if (Number.isFinite(v)) { total += v * w; used += w; }
+  });
+  return used ? Math.round(total / used) : 0;
+};
+
+export function computeTrustLenses(scores, findings = []) {
+  if (!scores) return null;
+  const build = (lens) => {
+    const score = lensScore(lens.weights, scores);
+    const entries = Object.entries(lens.weights).sort((a, b) => b[1] - a[1]);
+    const [leadAttr, leadPct] = entries[0];
+    const lead = ATTRIBUTES.find(a => a.id === leadAttr);
+    return {
+      ...lens,
+      score,
+      leadName: lead ? lead.name : leadAttr,
+      leadPct,
+      contributions: entries.map(([attr, w]) => {
+        const a = ATTRIBUTES.find(x => x.id === attr);
+        return { id: attr, name: a ? a.name : attr, weight: w, score: Number(scores?.[attr]?.score) || 0 };
+      }),
+      findingsCount: findings.filter(f => Array.isArray(f.tags) && f.tags.includes(lens.id)).length,
+    };
+  };
+
+  const rows = TRUST_LENSES.map(build);
+  const foundation = build(TRUST_FOUNDATION);
+
+  // How many lenses each attribute carries. Some carry every lens, some none,
+  // which is worth showing: it explains why the lenses move together.
+  const reach = ATTRIBUTES.map(a => {
+    const inLenses = [...TRUST_LENSES, TRUST_FOUNDATION].filter(l => l.weights[a.id] !== undefined);
+    return { id: a.id, name: a.name, score: Number(scores?.[a.id]?.score) || 0, count: inLenses.length };
+  });
+
+  return { rows, foundation, reach, findings };
+}
+
 export const SERVICE_RECOMMENDATIONS = {
   AWAKE: [
     { title: 'Original Research Program', description: 'Commission proprietary studies that generate unique insights others must cite. Design research to answer questions the industry is asking.', impact: 'Original research positions the brand as a primary source, earning media coverage and backlinks while creating assets competitors cannot replicate.', attributes: ['Awake', 'Cogent'], answersQuestion: 'Establishes the brand as the source others reference, shifting from participant to leader in discourse.' },
