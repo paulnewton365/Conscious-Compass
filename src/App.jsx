@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.15.1';
+const APP_VERSION = '3.16.0';
 import { 
   supabase, 
   signUp, 
@@ -1317,7 +1317,42 @@ function FootprintMap({ footprint, brandName }) {
   const links = Array.isArray(footprint.links) ? footprint.links.filter(l => pos[l.from] && pos[l.to]) : [];
 
   return (
-    <div ref={ref} style={{ backgroundColor: FP_PAPER, padding: '28px 24px 8px' }}>
+    <div ref={ref} style={{ backgroundColor: FP_PAPER, padding: '28px 28px 8px' }}>
+      {/* Masthead, carried over from the retired mosaic panel */}
+      <div className="flex flex-wrap items-start justify-between gap-6" style={{ marginBottom: 18 }}>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
+            <span style={{ width: 10, height: 10, background: FP_LIME, display: 'inline-block' }} />
+            <span className="text-[10px] font-bold uppercase" style={{ letterSpacing: '.16em', color: FP_INK }}>
+              Brand Footprint
+            </span>
+          </div>
+          <h3 style={{ fontSize: 'clamp(28px,3.2vw,44px)', fontWeight: 700, letterSpacing: '-.03em',
+            lineHeight: .95, color: FP_INK }}>
+            Where the brand shows up.
+          </h3>
+        </div>
+        <div className="flex gap-8 flex-shrink-0">
+          <div className="text-right">
+            <div className="text-[9px] font-bold uppercase" style={{ letterSpacing: '.14em', color: FP_MUTED, marginBottom: 4 }}>
+              Total signals
+            </div>
+            <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: FP_INK }}>
+              {summary.totalSignals}
+            </div>
+          </div>
+          <div className="text-right" style={{ borderLeft: `1px solid ${FP_EMPTY}`, paddingLeft: 32 }}>
+            <div className="text-[9px] font-bold uppercase" style={{ letterSpacing: '.14em', color: FP_MUTED, marginBottom: 4 }}>
+              Channels with evidence
+            </div>
+            <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: FP_INK }}>
+              {summary.channelsWithEvidence} of {summary.channelCount}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={{ height: 2, background: FP_INK, marginBottom: 8 }} />
+
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
         {/* Spokes: presence. Faint where a channel has no evidence. */}
         {rows.map((r) => {
@@ -1355,10 +1390,10 @@ function FootprintMap({ footprint, brandName }) {
         <circle cx={cx} cy={cy} r={54} fill={FP_INK}
           style={{ transform: inView ? 'scale(1)' : 'scale(0.6)', transformOrigin: `${cx}px ${cy}px`,
             transition: 'transform 600ms cubic-bezier(0.22,1,0.36,1)' }} />
-        <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: 26, fontWeight: 700, fill: FP_LIME, letterSpacing: '-.03em' }}>
+        <text x={cx} y={cy - 3} textAnchor="middle" style={{ fontSize: 22, fontWeight: 700, fill: FP_LIME, letterSpacing: '-.03em' }}>
           {summary.totalSignals}
         </text>
-        <text x={cx} y={cy + 14} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#8A877D', letterSpacing: '.14em' }}>
+        <text x={cx} y={cy + 15} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#B3B0A8', letterSpacing: '.14em' }}>
           SIGNALS
         </text>
 
@@ -7623,9 +7658,9 @@ ${content.slice(0, 8000)}`;
               </blockquote>
             )}
 
-            <div style={{ height: 1, background: '#DCDAD3', margin: '32px 0 20px' }} />
+            <div style={{ height: 1, background: '#DCDAD3', margin: '36px 0 26px' }} />
 
-            <p className="text-[16px] leading-relaxed" style={{ maxWidth: '52ch' }}>
+            <p className="text-[16px]" style={{ maxWidth: '52ch', lineHeight: 1.75 }}>
               <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
               <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
                 {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}
@@ -7770,17 +7805,32 @@ ${content.slice(0, 8000)}`;
                   Attribute scores judge the quality of the work. Campaign coherence is scored
                   separately and applied here, so the two are never counted twice.
                 </p>
-                <div style={{ marginTop: 4 }}>
+                <div className="grid items-baseline dc-kicker-sm"
+                  style={{ gridTemplateColumns: '1fr 34px 30px 34px', gap: 10, textAlign: 'right',
+                    paddingBottom: 8, marginTop: 4 }}>
+                  <span />
+                  <span>Base</span>
+                  <span>Adj</span>
+                  <span>Final</span>
+                </div>
+                <div>
                   {campaignAffected.map(attr => {
                     const adj = campaignAdjustment(attr.id);
                     return (
                       <div key={attr.id} className="flex items-center justify-between"
                         style={{ padding: '9px 0', borderBottom: '1px solid #E4E2DC' }}>
                         <span className="text-[13px] font-bold truncate">{attr.name}</span>
-                        <span className="text-[12px] tabular-nums text-[#8A877D] flex-shrink-0 ml-3">
-                          {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
-                          <span className="font-bold" style={{ color: adj > 0 ? SCORE_GREEN : SCORE_RED }}> {adj > 0 ? '+' : ''}{adj} </span>
-                          <span className="font-bold text-[15px]" style={{ color: scoreColor(scores[attr.id]?.score) }}>{scores[attr.id]?.score}</span>
+                        <span className="grid items-baseline flex-shrink-0 tabular-nums"
+                          style={{ gridTemplateColumns: '34px 30px 34px', gap: 10, textAlign: 'right' }}>
+                          <span className="text-[12px] text-[#8A877D]">
+                            {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
+                          </span>
+                          <span className="text-[12px] font-bold" style={{ color: adj > 0 ? SCORE_GREEN : SCORE_RED }}>
+                            {adj > 0 ? '+' : ''}{adj}
+                          </span>
+                          <span className="text-[15px] font-bold" style={{ color: scoreColor(scores[attr.id]?.score) }}>
+                            {scores[attr.id]?.score}
+                          </span>
                         </span>
                       </div>
                     );
@@ -7830,9 +7880,6 @@ ${content.slice(0, 8000)}`;
           {expandedSections.footprint && (
             <div className="animate-fade-in">
               <FootprintMap footprint={scores.footprint} brandName={project.brandName} />
-              <div style={{ marginTop: 2 }}>
-                <FootprintMosaic footprint={scores.footprint} brandName={project.brandName} />
-              </div>
             </div>
           )}
         </div>
@@ -11432,9 +11479,9 @@ function ClientReportView({ payload }) {
                 </blockquote>
               )}
 
-              <div style={{ height: 1, background: '#DCDAD3', margin: '32px 0 20px' }} />
+              <div style={{ height: 1, background: '#DCDAD3', margin: '36px 0 26px' }} />
 
-              <p className="text-[16px] leading-relaxed" style={{ maxWidth: '52ch' }}>
+              <p className="text-[16px]" style={{ maxWidth: '52ch', lineHeight: 1.75 }}>
                 <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
                 <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
                   {strengths.map(a => a.name).join(' and ')}
@@ -11520,9 +11567,6 @@ function ClientReportView({ payload }) {
             <SectionHead label="Brand footprint" />
             <div className="mb-6 overflow-hidden">
               <FootprintMap footprint={payload.footprint} brandName={project.brandName} />
-              <div style={{ marginTop: 2 }}>
-                <FootprintMosaic footprint={payload.footprint} brandName={project.brandName} compact />
-              </div>
             </div>
           </>
         )}
