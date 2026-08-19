@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.24.1';
+const APP_VERSION = '3.23.2';
 import { 
   supabase, 
   signUp, 
@@ -1336,8 +1336,16 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   // pegged every marker at the right edge for a strong brand.
   const scoreSet = [...data.rows, data.foundation].map(r => r.score)
     .concat(Number.isFinite(overall) ? [overall] : []);
-  const RLO = Math.max(0, Math.floor(Math.min(...scoreSet) / 5) * 5 - 5);
-  const RHI = Math.min(100, Math.ceil(Math.max(...scoreSet) / 5) * 5 + 5);
+  let RLO = Math.max(0, Math.floor(Math.min(...scoreSet) / 5) * 5 - 5);
+  let RHI = Math.min(100, Math.ceil(Math.max(...scoreSet) / 5) * 5 + 5);
+  // Keep at least 20 points of range. Four tightly clustered lenses would
+  // otherwise produce a window a few points wide, where a single point of
+  // difference reads as an enormous gap.
+  if (RHI - RLO < 20) {
+    const mid = (RHI + RLO) / 2;
+    RLO = Math.max(0, Math.min(80, Math.round((mid - 10) / 5) * 5));
+    RHI = RLO + 20;
+  }
   const RMID = Math.round((RLO + RHI) / 2);
 
   // Ruler: a dot for the lens score, a lime tick for the compass overall.
