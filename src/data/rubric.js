@@ -443,12 +443,15 @@ export const TRUST_LENSES = [
   // broken experience quietly undermines the claim.
   { id: 'credibility', name: 'Credibility', def: 'Whether the promise is believable',
     weights: { INTENTIONAL: 35, AWAKE: 20, COGENT: 15, AWARE: 15, SENTIENT: 10, ATTENTIVE: 5 } },
-  // Aware still leads. Awake and Cogent contribute lightly: visible narrative
-  // and demonstrable rigour both help audiences decide whether to believe.
+  // Aware still leads, but Cogent now carries real weight: audiences decide
+  // whether to believe on evidence, not only on being understood.
   { id: 'trust', name: 'Trust', def: 'Whether audiences believe it',
-    weights: { AWARE: 40, INTENTIONAL: 20, ATTENTIVE: 20, REFLECTIVE: 10, AWAKE: 5, COGENT: 5 } },
+    weights: { AWARE: 35, INTENTIONAL: 20, COGENT: 15, ATTENTIVE: 15, REFLECTIVE: 10, AWAKE: 5 } },
+  // Awake still leads. Cogent, Sentient and Reflective contribute lightly:
+  // keeping a promise well is judged partly on evidence, on how the work
+  // lands, and on whether the brand is honest about itself.
   { id: 'reputation', name: 'Reputation', def: 'Whether the promise is kept',
-    weights: { AWAKE: 40, ATTENTIVE: 20, AWARE: 20, INTENTIONAL: 20 } },
+    weights: { AWAKE: 35, INTENTIONAL: 20, ATTENTIVE: 15, AWARE: 15, COGENT: 5, SENTIENT: 5, REFLECTIVE: 5 } },
 ];
 
 export const TRUST_FOUNDATION = {

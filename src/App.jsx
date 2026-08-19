@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.22.1';
+const APP_VERSION = '3.23.0';
 import { 
   supabase, 
   signUp, 
@@ -7786,8 +7786,9 @@ ${content.slice(0, 8000)}`;
       <section className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="Brand maturity" />
         {/* Segmented bar proportional to each band's width, with the score
-            marked above it. Replaces the gradient rail and dot markers. */}
-        <div style={{ marginTop: 44 }}>
+            marked above it. Replaces the gradient rail and dot markers.
+            Top padding clears the marker, which sits above the bar. */}
+        <div className="bg-white" style={{ marginTop: 24, padding: '52px 32px 32px' }}>
           <div className="relative">
             <div className="absolute flex flex-col items-center gap-1"
               style={{ left: `${overall}%`, top: -30, transform: 'translateX(-50%)' }}>
@@ -11544,7 +11545,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Maturity ────────────────────────────────────────── */}
         <SectionHead label="Brand maturity" />
-        <div className="mb-6">
+        <div className="bg-white mb-6" style={{ padding: '52px 32px 32px' }}>
           <div className="relative">
             <div className="absolute flex flex-col items-center gap-1"
               style={{ left: `${overall}%`, top: -30, transform: 'translateX(-50%)' }}>

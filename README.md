@@ -171,11 +171,11 @@ Fixed in code, summing to 100 per lens.
 | Lens | Weights |
 |------|---------|
 | Credibility | Intentional 35, Awake 20, Cogent 15, Aware 15, Sentient 10, Attentive 5 |
-| Trust | Aware 40, Intentional 20, Attentive 20, Reflective 10, Awake 5, Cogent 5 |
-| Reputation | Awake 40, Attentive 20, Aware 20, Intentional 20 |
+| Trust | Aware 35, Intentional 20, Cogent 15, Attentive 15, Reflective 10, Awake 5 |
+| Reputation | Awake 35, Intentional 20, Attentive 15, Aware 15, Cogent 5, Sentient 5, Reflective 5 |
 | Authenticity | Reflective 45, Sentient 20, Aware 15, Visionary 15, Intentional 5 |
 
-Aware and Intentional feed all four lenses, so a brand weak in either reads weak across every lens. Every attribute now feeds at least one. The reach note on the panel is generated from these weights rather than written, so it stays true if they change.
+Aware and Intentional feed all four lenses, so a brand weak in either reads weak across every lens. Visionary feeds only Authenticity; every other attribute feeds three or four. The reach note on the panel is generated from these weights rather than written, so it stays true if they change.
 
 The client-facing report shows the lenses but not the findings beneath them; `trustFindings` is excluded from the cleansed payload rather than merely hidden.
 
