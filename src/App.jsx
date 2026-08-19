@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.25.0';
+const APP_VERSION = '3.25.1';
 import { 
   supabase, 
   signUp, 
@@ -6377,7 +6377,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
   // If no scores yet, show scoring prompt
   if (!hasValidScores) {
     return (
-      <div className="dc-wrap dc-page dc-report-ground pt-8 animate-fade-in">
+      <div className="dc-wrap dc-page pt-8 animate-fade-in">
         <div className="flex items-start gap-4 mb-8">
           <div className="w-14 h-14 bg-[#DEE42F]/10 flex items-center justify-center flex-shrink-0">
             <BarChart3 className="w-7 h-7 text-[#B23A3A]" />
@@ -11547,8 +11547,11 @@ function ClientReportView({ payload }) {
     : null;
 
   return (
-    <div className="min-h-screen bg-[#E4E2DC]">
-      <div className="dc-wrap dc-page dc-report-ground pt-8">
+    // Root matches the internal report exactly. The extra full-bleed wrapper
+    // put a second background behind the page panel, which is why the client
+    // ground read darker and the sections looked boxed against it.
+    <div className="dc-wrap dc-page pt-8 animate-fade-in">
+      <div>
         {/* Masthead. Client-facing view only; the internal report has no
             equivalent and should not gain one. */}
         <div className="mb-10">
