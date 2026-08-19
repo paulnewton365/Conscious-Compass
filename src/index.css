@@ -579,3 +579,9 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
 .dc-report-ground .dc-keep-white .bg-white,
 .dc-report-ground .dc-keep-white .card,
 .dc-report-ground .dc-keep-white .dc-tile { background-color: #FFFFFF !important; }
+
+/* Attribute cards carry a hairline so each one is bounded on any ground.
+   Previously the separation was only the 2px grid gap showing through, which
+   disappeared whenever the card and the section behind it resolved to the
+   same colour. */
+.dc-attr-card { border: 1px solid var(--antenna-rule); }

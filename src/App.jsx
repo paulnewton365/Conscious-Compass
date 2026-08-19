@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.23.3';
+const APP_VERSION = '3.24.0';
 import { 
   supabase, 
   signUp, 
@@ -7869,7 +7869,7 @@ ${content.slice(0, 8000)}`;
               const delta = avg != null ? (sc.score || 0) - avg : null;
               const adj = campaignAdjustment(attr.id);
               return (
-                <div key={attr.id} className="bg-white" style={{ padding: 24 }}>
+                <div key={attr.id} className="bg-white dc-attr-card" style={{ padding: 24 }}>
                   {/* Header: figure, name, delta chip */}
                   <div className="flex items-start gap-4"
                     style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14 }}>
@@ -11461,7 +11461,8 @@ function ClientReportView({ payload }) {
 
   const sorted = [...ATTRIBUTES].map(a => ({ ...a, score: scores?.[a.id]?.score || 0 }))
     .sort((x, y) => y.score - x.score);
-  const strengths = sorted.slice(0, 2);
+  // Order matches the internal report: strengths ascending, growth descending.
+  const strengths = sorted.slice(0, 2).reverse();
   const growth = sorted.slice(-2).reverse();
 
   const campaign = scores?.campaignCoherence || null;
@@ -11512,17 +11513,25 @@ function ClientReportView({ payload }) {
             style={{ filter: 'brightness(0)' }}
           />
           <div className="dc-kicker mb-3">Brand Facing Report</div>
-          <h1 className="text-[clamp(34px,5vw,60px)] font-bold tracking-[-0.035em] leading-[0.94] text-[#0B0B0B]">{project.brandName}</h1>
-          <p className="dc-standfirst">
-            Conscious Compass Assessment{industryName ? ` | ${industryName}` : ''}
+          {/* Type and subtitle match the internal report exactly. The client
+              report had a smaller title and a tracked uppercase standfirst,
+              which read as a different document. */}
+          <h1 style={{ fontSize: 'clamp(40px,6vw,88px)', fontWeight: 700, letterSpacing: '-.035em',
+            lineHeight: .92, margin: '4px 0 0', maxWidth: '18ch', textWrap: 'balance' }}>
+            {project.brandName}
+          </h1>
+          <p className="text-[14px] font-semibold text-[#68655B] mt-5" style={{ letterSpacing: '.04em' }}>
+            Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
           </p>
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        <SectionHead label="Results at a glance" />
-        <div className="dc-keep-white">
-          {/* Identical to the internal report's glance section: same grid, same
-              type scale, same rhythm. Kept in step deliberately. */}
+        {/* Structurally identical to the internal report: the keep-white class
+            sits on the section alongside the head, not on a bare wrapper
+            inside it. On a wrapper it painted the whole block white, which is
+            why this section looked boxed and the main report did not. */}
+        <section className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
+          <SectionHead label="Results at a glance" />
           <div className="dc-split grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
             <div>
               <div className="flex gap-6 items-start">
@@ -11564,7 +11573,7 @@ function ClientReportView({ payload }) {
               <SpiderChart scores={scores} size={420} />
             </div>
           </div>
-        </div>
+        </section>
 
         {/* ── Attribute scores ────────────────────────────────── */}
         <div className="dc-tiles dc-keep-white grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
@@ -11600,12 +11609,15 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Attribute analysis, no recommendations ──────────── */}
+        <div className="dc-reveal dc-keep-white">
         <SectionHead label="Attribute analysis" />
         <div className="dc-keep-white grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
           {ATTRIBUTES.map(a => {
             const sc = scores?.[a.id] || {};
+            const avg = benchmark?.attrAvgs?.[a.id];
+            const delta = avg != null ? (sc.score || 0) - avg : null;
             return (
-              <div key={a.id} className="card">
+              <div key={a.id} className="card dc-attr-card">
                 <div className="flex items-start gap-4" style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14 }}>
                   <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9,
                     color: scoreColor(sc.score) }}>{sc.score || 0}</div>
@@ -11613,9 +11625,24 @@ function ClientReportView({ payload }) {
                     <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{a.name}</h4>
                     <p className="text-[11px] font-semibold text-[#68655B] mt-0.5" style={{ letterSpacing: '.04em' }}>{a.fullName}</p>
                   </div>
+                  {delta != null && (
+                    /* Same delta chip as the internal report. The client already
+                       sees the benchmark section, so the sector comparison is
+                       consistent rather than newly disclosed. */
+                    <div className={delta > 0 ? 'dc-pill' : 'dc-pill-o'}>
+                      {delta > 0 ? '+' : ''}{delta}
+                    </div>
+                  )}
                 </div>
+
+                {/* Sector average only. The campaign coherence adjustment is
+                    deliberately absent from the client report. */}
+                <div style={{ marginTop: 14, minHeight: 14 }}>
+                  {avg != null && <p className="dc-kicker-sm">Sector average {avg}</p>}
+                </div>
+
                 {sc.findings && (
-                  <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.55, marginTop: 14 }}>{sc.findings}</p>
+                  <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.55, marginTop: 12 }}>{sc.findings}</p>
                 )}
                 {sc.impact && (
                   <p className="text-[13px]" style={{ lineHeight: 1.55, marginTop: 10 }}>
@@ -11628,15 +11655,16 @@ function ClientReportView({ payload }) {
             );
           })}
         </div>
+        </div>
 
         {/* ── Brand footprint ─────────────────────────────────── */}
         {hasFootprintData(payload.footprint) && (
-          <>
+          <div className="dc-reveal">
             <SectionHead label="Brand footprint" />
             <div className="mb-6 overflow-hidden">
               <FootprintMap footprint={payload.footprint} brandName={project.brandName} />
             </div>
-          </>
+          </div>
         )}
 
         {/* ── Campaign coherence ──────────────────────────────── */}
@@ -11688,10 +11716,61 @@ function ClientReportView({ payload }) {
 
         {/* ── Benchmark comparison ────────────────────────────── */}
         {benchmark && benchmarkAvg && (
-          <>
+          <div className="dc-reveal">
           <SectionHead label="Benchmark comparison" />
+
+          {/* Overall Position, identical to the internal report. It was absent
+              from the client entirely, so rank and percentile never appeared. */}
+          <div className="bg-white" style={{ marginTop: 24, padding: '28px 32px' }}>
+            <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Overall Position</h4>
+            <p className="text-[13px] text-[#68655B] mt-1">
+              Where {project.brandName} sits against {benchmark.cohortLabel.toLowerCase()}.
+            </p>
+
+            <div className="relative" style={{ padding: '56px 0 8px' }}>
+              <div className="absolute flex flex-col items-center gap-1.5"
+                style={{ left: `${overall}%`, top: 8, transform: 'translateX(-50%)' }}>
+                <div style={{ background: '#0B0B0B', color: '#FFFFFF', fontSize: 11, fontWeight: 700,
+                  letterSpacing: '.02em', padding: '5px 9px', whiteSpace: 'nowrap' }}>
+                  <span className="dc-pill-brand">{project.brandName} </span>{overall}
+                </div>
+                <div style={{ width: 2, height: 14, background: '#0B0B0B' }} />
+              </div>
+
+              <PositionBands stageName={stage.name} />
+
+              {benchmark.avgScore != null && (
+                <div className="absolute flex flex-col items-center gap-1"
+                  style={{ left: `${benchmark.avgScore}%`, top: 70, transform: 'translateX(-50%)' }}>
+                  <div style={{ width: 2, height: 14, background: '#68655B' }} />
+                  <div className="text-[11px] font-bold text-[#68655B]" style={{ whiteSpace: 'nowrap' }}>
+                    sector {benchmark.avgScore}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between text-[10px] font-semibold text-[#B3B0A8]" style={{ marginTop: 48 }}>
+                {[0, 25, 50, 75, 100].map(v => <span key={v}>{v}</span>)}
+              </div>
+            </div>
+
+            <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
+              borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
+              {[
+                [`${overall - (benchmark.avgScore || 0) > 0 ? '+' : ''}${overall - (benchmark.avgScore || 0)}`, 'vs sector average'],
+                [benchmark.rank ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
+                [benchmark.percentile != null ? ordinalSuffix(benchmark.percentile) : '—', 'percentile'],
+              ].map(([v, l]) => (
+                <div key={l} style={{ paddingRight: 20 }}>
+                  <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>{v}</div>
+                  <div className="dc-kicker-sm" style={{ marginTop: 6 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="dc-split grid gap-[2px] items-start"
-            style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)' }}>
+            style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 2 }}>
             {/* Spread, matching the internal report's ledger. Guarded on
                 attrRanges because links issued before this shipped lack it. */}
             <div className="bg-white" style={{ padding: '28px 32px' }}>
@@ -11754,7 +11833,7 @@ function ClientReportView({ payload }) {
               </div>
             </div>
           </div>
-          </>
+          </div>
         )}
 
         {/* ── Conclusion ──────────────────────────────────────── */}
