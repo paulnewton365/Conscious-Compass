@@ -344,9 +344,16 @@ export const FOOTPRINT_PRESENCE_DEFINITION =
 // "this was never measured".
 export function hasFootprintData(footprint) {
   if (!footprint || !footprint.channels) return false;
+  // At least one channel must carry a level ABOVE zero.
+  //
+  // Requiring only that the field exists was not enough: an all-zero footprint
+  // renders as eight empty circles and a 0.0 hub, which is indistinguishable
+  // from no data and states something false. An assessed brand always has a
+  // website, so owned can never legitimately be 0 across the board. All zeros
+  // means the pass failed, not that the brand is absent everywhere.
   return FOOTPRINT_CHANNELS.some(c => {
     const v = footprint.channels[c.id];
-    return v && v.level !== undefined && v.level !== null && Number.isFinite(Number(v.level));
+    return v && Number.isFinite(Number(v.level)) && Number(v.level) > 0;
   });
 }
 

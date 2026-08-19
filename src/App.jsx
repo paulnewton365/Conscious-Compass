@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.17.2';
+const APP_VERSION = '3.17.3';
 import { 
   supabase, 
   signUp, 
@@ -5710,6 +5710,15 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             }
             if (!parsed.footprint) {
               console.warn('Scoring pass returned no footprint object. The Brand Footprint section will be hidden for this assessment.');
+            } else if (!hasFootprintData(parsed.footprint)) {
+              // Every channel at zero is a failed pass, not a real finding: an
+              // assessed brand always has a website. Say so loudly rather than
+              // letting the section quietly disappear.
+              console.warn(
+                'Scoring pass returned a footprint with every channel at level 0. ' +
+                'That is a parse or scoring failure, not a real result, so the section is hidden. ' +
+                'Raw footprint:', parsed.footprint
+              );
             }
             const level = parsed.campaignCoherence?.level;
             const adjusted = applyCampaignModifiers(parsed, level);
