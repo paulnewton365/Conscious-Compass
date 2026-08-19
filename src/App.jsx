@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.22.0';
+const APP_VERSION = '3.22.1';
 import { 
   supabase, 
   signUp, 
@@ -1291,7 +1291,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const [ref, inView] = useInView(0.12);
   if (!data) return null;
 
-  const INK = '#0B0B0B', LIME = '#DEE42F', CARD = '#F2F0EA', GROUND = '#E4E2DC';
+  const INK = '#0B0B0B', LIME = '#DEE42F', CARD = '#FFFFFF', GROUND = '#F2F0EA';
   const MUTED = '#8A877D', RULE = '#DCDAD3';
 
   const toggle = (id) => setSpotlight(prev => (prev === id ? null : id));
@@ -8077,17 +8077,8 @@ ${content.slice(0, 8000)}`;
           onToggle={() => toggleSection('benchmark')} />
           {expandedSections.benchmark && (
             <div className="animate-fade-in">
-              {/* Basis line */}
-              <p className="text-[12px] leading-relaxed text-[#8A877D]" style={{ marginTop: 20, maxWidth: '70ch' }}>
-                <b className="text-[#0B0B0B] font-bold">Benchmark basis:</b>{' '}
-                {benchmark.cohortLabel}, n={benchmark.count}
-                {benchmark.dateRange ? `, assessed ${new Date(benchmark.dateRange.from).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} to ${new Date(benchmark.dateRange.to).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ''}
-                {benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}.
-                {benchmark.fallbackReason ? ` ${benchmark.fallbackReason}` : ''}
-              </p>
-
               {/* Overall position */}
-              <div style={{ marginTop: 36 }} ref={benchmarkPositionRef}>
+              <div className="bg-white" style={{ marginTop: 24, padding: '28px 32px' }} ref={benchmarkPositionRef}>
                 <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Overall Position</h4>
                 <p className="text-[13px] text-[#8A877D] mt-1">
                   Where {project.brandName} sits against {benchmark.cohortLabel.toLowerCase()}.
@@ -8120,13 +8111,13 @@ ${content.slice(0, 8000)}`;
                   </div>
                 </div>
 
-                <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 2 }}>
+                <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
                   {[
                     [`${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`, 'vs sector average'],
                     [benchmark.rank ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
                     [benchmark.percentile != null ? ordinalSuffix(benchmark.percentile) : '—', 'percentile'],
                   ].map(([v, l]) => (
-                    <div key={l} className="bg-white" style={{ padding: '18px 20px' }}>
+                    <div key={l} style={{ paddingRight: 20 }}>
                       <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>{v}</div>
                       <div className="dc-kicker-sm" style={{ marginTop: 6 }}>{l}</div>
                     </div>
@@ -8135,8 +8126,8 @@ ${content.slice(0, 8000)}`;
               </div>
 
               {/* Spread and profile side by side */}
-              <div className="dc-split grid gap-14 items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 48 }}>
-                <div ref={benchmarkSpreadRef}>
+              <div className="dc-split grid gap-[2px] items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 2 }}>
+                <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkSpreadRef}>
                   <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
                   <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
                     The band is the range across those brands, the line is their average, the dot is {project.brandName}.
@@ -8174,12 +8165,12 @@ ${content.slice(0, 8000)}`;
                   </div>
                 </div>
 
-                <div ref={benchmarkRadarRef}>
+                <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkRadarRef}>
                   <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
                   <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
                     {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
                   </p>
-                  <div className="bg-white" style={{ padding: 8, marginTop: 24 }}>
+                  <div style={{ marginTop: 20 }}>
                     <ComparisonSpiderChart
                       brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall,
                         scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores[a.id]?.score || 0; return acc; }, {}) }]}
@@ -11663,11 +11654,11 @@ function ClientReportView({ payload }) {
         {benchmark && benchmarkAvg && (
           <>
           <SectionHead label="Benchmark comparison" />
-          <div className="dc-split grid gap-14 items-start"
+          <div className="dc-split grid gap-[2px] items-start"
             style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)' }}>
             {/* Spread, matching the internal report's ledger. Guarded on
                 attrRanges because links issued before this shipped lack it. */}
-            <div>
+            <div className="bg-white" style={{ padding: '28px 32px' }}>
               <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
               <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
                 The band is the range across those brands, the line is their average, the dot is {project.brandName}.
@@ -11710,12 +11701,12 @@ function ClientReportView({ payload }) {
               )}
             </div>
 
-            <div>
+            <div className="bg-white" style={{ padding: '28px 32px' }}>
               <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
               <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
                 {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
               </p>
-              <div className="bg-white" style={{ padding: 8, marginTop: 24 }}>
+              <div style={{ marginTop: 20 }}>
                 <ComparisonSpiderChart
                   brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall,
                     scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores?.[a.id]?.score || 0; return acc; }, {}) }]}
@@ -12136,7 +12127,6 @@ function SharedReportView({ report, onClose }) {
           <>
             <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">BENCHMARK COMPARISON</h3>
             <div className="space-y-3 mb-8">
-              <BenchmarkProvenance benchmark={sharedBenchmark} />
               <BenchmarkPositionBar benchmark={sharedBenchmark} brandName={project.brandName} />
               <BenchmarkSpread benchmark={sharedBenchmark} brandName={project.brandName} />
             </div>
