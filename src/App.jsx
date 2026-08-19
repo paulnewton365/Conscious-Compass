@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.23.2';
+const APP_VERSION = '3.23.3';
 import { 
   supabase, 
   signUp, 
@@ -1274,7 +1274,9 @@ function CampaignLadder({ level }) {
 // inventing it would undermine everything else on the page. The ledger reports
 // SIGNALS instead: the count of distinct pieces of evidence actually found.
 // ─────────────────────────────────────────────────────────────
-const FP_PAPER = '#F2F0EA';
+// White inside the report, matching every other section. The empty-tile tone
+// steps to the page ground so the unfilled state still reads on white.
+const FP_PAPER = '#FFFFFF';
 const FP_INK   = '#0B0B0B';
 const FP_LIME  = '#DEE42F';
 const FP_EMPTY = '#E4E2DC';
@@ -1291,7 +1293,10 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const [ref, inView] = useInView(0.12);
   if (!data) return null;
 
-  const INK = '#0B0B0B', LIME = '#DEE42F', CARD = '#F2F0EA', GROUND = '#E4E2DC';
+  // Inside the report the page ground is paper and blocks are white, matching
+  // every other section. These are deliberately not the standalone-page
+  // values (#F2F0EA cards on #E4E2DC), which render as a grey slab here.
+  const INK = '#0B0B0B', LIME = '#DEE42F', CARD = '#FFFFFF', GROUND = '#F2F0EA';
   const MUTED = '#68655B', RULE = '#DCDAD3';
 
   const toggle = (id) => setSpotlight(prev => (prev === id ? null : id));
