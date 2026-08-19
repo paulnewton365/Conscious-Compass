@@ -8,7 +8,7 @@
      sign rather than by red and green. */
   --antenna-paper:      #F2F0EA;   /* panel surface */
   --antenna-ground:     #E4E2DC;   /* page ground behind panels */
-  --antenna-white:      #F2F0EA;   /* panels (paper, not white) */
+  --antenna-white:      #FFFFFF;   /* panels */
   --antenna-ink:        #0B0B0B;   /* headings, primary text */
   --antenna-body:       #4A4840;   /* body copy */
   --antenna-muted:      #68655B;   /* labels, captions. Darkened when panels
@@ -281,7 +281,7 @@ input:focus, select:focus, textarea:focus {
    ───────────────────────────────────────────────────────────── */
 
 /* Pages are paper panels sitting on the darker app ground. */
-.dc-page      { background: var(--antenna-ground); padding: 40px 32px 72px; }
+.dc-page      { background: var(--antenna-paper); padding: 40px 32px 72px; }
 .dc-wrap      { max-width: 1180px; margin: 0 auto; }
 
 /* Page header: title with a tracked uppercase standfirst */
@@ -564,7 +564,18 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
   .dc-findings-grid { grid-template-columns: minmax(0, 1fr) !important; }
 }
 
-/* Panels are paper, not white. Tailwind's bg-white is a literal colour, so it
-   is overridden here rather than at every call site. Unlayered CSS beats
-   layered utilities, which is what makes this stick. */
-.bg-white { background-color: var(--antenna-white) !important; }
+/* ── Report ground ──────────────────────────────────────────
+   The report pages alone run panels on paper against a darker ground. Every
+   other page keeps white panels on paper. Three sections opt back out, because
+   their content reads better on white: results at a glance, attribute analysis
+   and recommendations.
+   Unlayered rules, so they beat Tailwind's bg-white utility. */
+.dc-report-ground { background: var(--antenna-ground); }
+.dc-report-ground .bg-white,
+.dc-report-ground .card,
+.dc-report-ground .dc-tile { background-color: var(--antenna-paper) !important; }
+
+.dc-report-ground .dc-keep-white,
+.dc-report-ground .dc-keep-white .bg-white,
+.dc-report-ground .dc-keep-white .card,
+.dc-report-ground .dc-keep-white .dc-tile { background-color: #FFFFFF !important; }

@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.24.0';
+const APP_VERSION = '3.24.1';
 import { 
   supabase, 
   signUp, 
@@ -6049,7 +6049,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
   // If no scores yet, show scoring prompt
   if (!hasValidScores) {
     return (
-      <div className="dc-wrap dc-page pt-8 animate-fade-in">
+      <div className="dc-wrap dc-page dc-report-ground pt-8 animate-fade-in">
         <div className="flex items-start gap-4 mb-8">
           <div className="w-14 h-14 bg-[#DEE42F]/10 flex items-center justify-center flex-shrink-0">
             <BarChart3 className="w-7 h-7 text-[#B23A3A]" />
@@ -7747,7 +7747,7 @@ ${content.slice(0, 8000)}`;
       </header>
 
       {/* ── 01 Results at a glance ───────────────────────────── */}
-      <section className="dc-reveal" style={{ marginTop: 80 }}>
+      <section className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
         <SectionHead label="Results at a glance" />
         <div className="dc-split grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
           <div>
@@ -7793,7 +7793,7 @@ ${content.slice(0, 8000)}`;
       </section>
 
       {/* Score tiles — separated by paper, not by borders */}
-      <div className="dc-tiles grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
+      <div className="dc-tiles dc-keep-white grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
         {ATTRIBUTES.map(attr => (
           <div key={attr.id} className="dc-tile" style={{ gap: 6, padding: '16px 14px' }}>
             <div className="dc-kicker-sm leading-tight break-words">{attr.name}</div>
@@ -7844,7 +7844,7 @@ ${content.slice(0, 8000)}`;
       </section>
 
       {/* Attribute Analysis - Collapsible */}
-      <div className="dc-reveal" style={{ marginTop: 80 }}>
+      <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
         <SectionHead label="Attribute analysis" open={expandedSections.attributes}
           onToggle={() => toggleSection('attributes')} />
         {expandedSections.attributes && (
@@ -8211,7 +8211,7 @@ ${content.slice(0, 8000)}`;
       )}
 
       {/* Recommendations - Collapsible */}
-      <div className="dc-reveal" style={{ marginTop: 80 }}>
+      <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
         <SectionHead label="Recommendations" open={expandedSections.recommendations}
           onToggle={() => toggleSection('recommendations')} />
         {expandedSections.recommendations && (
@@ -11487,8 +11487,8 @@ function ClientReportView({ payload }) {
     : null;
 
   return (
-    <div className="min-h-screen bg-[#F2F0EA]">
-      <div className="dc-wrap dc-page pt-8">
+    <div className="min-h-screen bg-[#E4E2DC]">
+      <div className="dc-wrap dc-page dc-report-ground pt-8">
         {/* Masthead. Client-facing view only; the internal report has no
             equivalent and should not gain one. */}
         <div className="mb-10">
@@ -11507,7 +11507,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Upper panel ─────────────────────────────────────── */}
         <SectionHead label="Results at a glance" />
-        <div>
+        <div className="dc-keep-white">
           {/* Identical to the internal report's glance section: same grid, same
               type scale, same rhythm. Kept in step deliberately. */}
           <div className="dc-split grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
@@ -11554,7 +11554,7 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Attribute scores ────────────────────────────────── */}
-        <div className="dc-tiles grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
+        <div className="dc-tiles dc-keep-white grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
           {ATTRIBUTES.map(a => (
             <div key={a.id} className="dc-tile" style={{ gap: 6, padding: '16px 14px' }}>
               <div className="dc-kicker-sm leading-tight break-words">{a.name}</div>
@@ -11588,7 +11588,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Attribute analysis, no recommendations ──────────── */}
         <SectionHead label="Attribute analysis" />
-        <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
+        <div className="dc-keep-white grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
           {ATTRIBUTES.map(a => {
             const sc = scores?.[a.id] || {};
             return (
