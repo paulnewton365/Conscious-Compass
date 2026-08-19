@@ -542,3 +542,15 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
 @media (max-width: 640px) {
   .dc-lens-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
 }
+
+/* Trust lens: the eight attribute bar columns must shrink and wrap rather than
+   overflow at 375px. Below 640px they run four across on two rows, and the
+   left description column takes the full width above them. */
+@media (max-width: 760px) {
+  .dc-lens-row { gap: 24px !important; }
+  .dc-lens-row > div:first-child { flex: 1 1 100% !important; width: 100% !important; }
+}
+@media (max-width: 640px) {
+  .dc-lens-bars { flex-wrap: wrap !important; }
+  .dc-lens-bars > button { flex: 0 0 calc(25% - 2px) !important; }
+}

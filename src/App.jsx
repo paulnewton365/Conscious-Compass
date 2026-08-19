@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.21.1';
+const APP_VERSION = '3.22.0';
 import { 
   supabase, 
   signUp, 
@@ -1287,153 +1287,211 @@ const FP_MUTED = '#8A877D';
 // the scoring pass supplies is the findings list.
 function TrustLensPanel({ scores, findings = [], overall, showFindings = true }) {
   const data = computeTrustLenses(scores, findings);
-  const [ref, inView] = useInView(0.15);
+  const [spotlight, setSpotlight] = useState(null);
+  const [ref, inView] = useInView(0.12);
   if (!data) return null;
 
-  // A narrow window rather than 0-100. Lens scores are weighted means of the
-  // same eight attributes, so they cluster tightly and a full scale would draw
-  // four near-identical bars. The window widens to hold whatever the scores
-  // actually are: pinned at 30-50 it blew out to full width the moment a lens
-  // reached 50.
-  const allScores = [...data.rows, data.foundation].map(r => r.score)
-    .concat(Number.isFinite(overall) ? [overall] : []);
-  const LO = Math.min(30, Math.floor(Math.min(...allScores) / 5) * 5 - 5);
-  const HI = Math.max(50, Math.ceil(Math.max(...allScores) / 5) * 5 + 5);
-  const pos = (v) => Math.max(0, Math.min(100, ((v - LO) / (HI - LO)) * 100));
-  const ticks = [LO, Math.round((LO + HI) / 2), HI];
+  const INK = '#0B0B0B', LIME = '#DEE42F', CARD = '#F2F0EA', GROUND = '#E4E2DC';
+  const MUTED = '#8A877D', RULE = '#DCDAD3';
 
-  // Every attribute against every lens: its weight, or a zero.
-  const Weights = ({ contributions }) => (
-    <div className="dc-lens-grid grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(8, minmax(0,1fr))', marginTop: 16 }}>
-      {contributions.map(c => (
-        <div key={c.id} style={{ background: c.weight ? '#F2F0EA' : 'transparent', padding: '8px 4px', textAlign: 'center' }}>
-          <div className="text-[9px] font-bold" style={{ letterSpacing: '.1em', color: c.weight ? '#0B0B0B' : '#B3B0A8' }}>
-            {c.code}
+  const toggle = (id) => setSpotlight(prev => (prev === id ? null : id));
+  const lit = (id) => spotlight === id;
+
+  // Reach bars: light grey at zero, through to lime at full reach.
+  const reachFill = (count, total) => {
+    if (count === 0) return RULE;
+    if (count === total) return LIME;
+    return count >= total - 1 ? INK : '#8A877D';
+  };
+
+  // Eight columns of bars, shared by the reach panel and every lens row.
+  const BarRow = ({ items, trackH = 64, dark = false, caption }) => (
+    <div className="dc-lens-bars flex-1" style={{ display: 'flex', gap: 2, minWidth: 0 }}>
+      {items.map(it => (
+        <button key={it.id} onClick={() => toggle(it.id)} type="button"
+          style={{
+            flex: 1, minWidth: 0, background: lit(it.id) ? (dark ? '#2A2A26' : '#EAEFC0') : 'transparent',
+            border: 0, padding: '4px 2px', cursor: 'pointer', textAlign: 'center',
+          }}>
+          <div style={{ height: trackH, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            <div style={{
+              width: '100%',
+              height: `${inView ? Math.max(it.pct, it.value ? 4 : 2) : 0}%`,
+              background: it.fill,
+              transition: 'height 600ms cubic-bezier(0.22,1,0.36,1)',
+            }} />
           </div>
-          <div className="text-[11px] font-bold" style={{ marginTop: 3, color: c.weight ? '#0B0B0B' : '#B3B0A8' }}>
-            {c.weight ? `${c.weight}%` : '0'}
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', marginTop: 8,
+            color: dark ? (it.value ? '#FFFFFF' : '#6E6E68') : (it.value ? INK : '#B3B0A8') }}>
+            {it.code}
           </div>
-        </div>
+          <div style={{ fontSize: 10, marginTop: 2, color: dark ? '#9A9A94' : MUTED }}>{it.label}</div>
+        </button>
       ))}
+      {caption}
     </div>
   );
 
-  const Row = ({ row, foundation = false, delay = 0 }) => (
-    <div style={{ background: '#FFFFFF', padding: '22px 24px', marginBottom: 2 }}>
-      <div className="flex items-baseline gap-4 min-w-0">
-        <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, color: scoreColor(row.score) }}>
-          {row.score}
-        </span>
-        <div className="min-w-0">
-          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>{row.name}</div>
-          <div className="text-[12px] text-[#8A877D]" style={{ maxWidth: '28ch' }}>{row.def}</div>
-          <div className="dc-kicker-sm" style={{ marginTop: 8 }}>Led by {row.leadName}, {row.leadPct}%</div>
-          {showFindings && row.findingsCount > 0 && (
-            <div className="text-[11px] text-[#8A877D]" style={{ marginTop: 3 }}>
-              {row.findingsCount} finding{row.findingsCount === 1 ? '' : 's'} below bear on this
-            </div>
+  // Ruler: a dot for the lens score, a lime tick for the compass overall.
+  const Ruler = ({ score, dark = false }) => {
+    const LO = 30, HI = 50;
+    const at = (v) => Math.max(0, Math.min(100, ((v - LO) / (HI - LO)) * 100));
+    return (
+      <div style={{ marginTop: 18, maxWidth: 320 }}>
+        <div style={{ position: 'relative', height: 20 }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 9, height: 2, background: dark ? '#3A3A36' : RULE }} />
+          {Number.isFinite(overall) && (
+            <div style={{ position: 'absolute', left: `${at(overall)}%`, top: 2, width: 3, height: 16, background: LIME }} />
           )}
+          <div style={{
+            position: 'absolute', left: `${inView ? at(score) : 0}%`, top: 3,
+            width: 14, height: 14, borderRadius: 0, background: dark ? '#FFFFFF' : INK,
+            transform: 'translateX(-50%)', transition: 'left 700ms cubic-bezier(0.22,1,0.36,1)',
+          }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginTop: 2,
+          color: dark ? '#7A7A74' : '#B3B0A8' }}>
+          <span>30</span><span>40</span><span>50</span>
+        </div>
+        <div style={{ fontSize: 10, marginTop: 6, color: dark ? '#9A9A94' : MUTED }}>
+          30&ndash;50 scale · <span style={{ color: LIME, fontWeight: 700 }}>lime</span> = compass overall {overall}
         </div>
       </div>
+    );
+  };
 
-      <div className="relative" style={{ marginTop: 20, height: 32 }}>
-        <div style={{ position: 'absolute', left: 0, right: 0, top: 10, height: 8, background: '#E4E2DC' }} />
-        <div style={{
-          position: 'absolute', left: 0, top: 10, height: 8, background: '#0B0B0B',
-          width: `${inView ? pos(row.score) : 0}%`,
-          transition: 'width 700ms cubic-bezier(0.22,1,0.36,1)', transitionDelay: `${delay}ms`,
-        }} />
-        {Number.isFinite(overall) && (
-          <div style={{ position: 'absolute', left: `${pos(overall)}%`, top: 4, width: 3, height: 20, background: '#DEE42F' }} />
-        )}
-        {ticks.map(t => (
-          <span key={t} className="text-[9px] text-[#B3B0A8]"
-            style={{ position: 'absolute', left: `${pos(t)}%`, top: 22, transform: 'translateX(-50%)' }}>{t}</span>
-        ))}
+  const LensRow = ({ row, dark = false }) => {
+    const items = row.contributions.map(c => ({
+      id: c.id, code: c.code, value: c.weight,
+      label: c.weight ? `${c.weight}%` : '0',
+      // Height reads against a 50 point ceiling, so a dominant weight is
+      // visibly taller rather than every bar filling its track.
+      pct: (c.weight / 50) * 100,
+      fill: c.weight === 0 ? (dark ? '#3A3A36' : RULE)
+        : c.id === row.contributions.reduce((m, x) => (x.weight > m.weight ? x : m), row.contributions[0]).id
+          ? LIME : (dark ? '#8A8A84' : INK),
+    }));
+    return (
+      <div style={{ background: dark ? INK : CARD, color: dark ? '#FFFFFF' : INK, padding: '32px 40px', marginBottom: 2 }}>
+        {dark && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', color: LIME, marginBottom: 14 }}>FOUNDATION</div>}
+        <div className="dc-lens-row" style={{ display: 'flex', gap: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ width: 280, minWidth: 240, flex: '0 1 280px' }}>
+            <div style={{ fontSize: 60, fontWeight: 700, letterSpacing: '-.04em', lineHeight: .9,
+              color: dark ? LIME : scoreColor(row.score) }}>{row.score}</div>
+            <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-.02em', marginTop: 10 }}>{row.name}</div>
+            <div style={{ fontSize: 13, color: dark ? '#9A9A94' : MUTED, marginTop: 2 }}>{row.def}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase',
+              color: dark ? '#9A9A94' : MUTED, marginTop: 12 }}>
+              Led by {row.leadName}, {row.leadPct}%
+            </div>
+            {showFindings && row.findingsCount > 0 && (
+              <div style={{ fontSize: 11, color: dark ? '#9A9A94' : MUTED, marginTop: 4 }}>
+                {row.findingsCount} finding{row.findingsCount === 1 ? '' : 's'} below bear on this
+              </div>
+            )}
+            <Ruler score={row.score} dark={dark} />
+          </div>
+          <BarRow items={items} dark={dark} />
+        </div>
       </div>
-      <div className="text-[10px] text-[#8A877D]" style={{ marginTop: 6 }}>
-        {LO}&ndash;{HI} scale · <span style={{ color: '#0B0B0B', fontWeight: 700 }}>lime</span> = compass overall {overall}
-      </div>
+    );
+  };
 
-      <Weights contributions={row.contributions} />
-    </div>
-  );
+  const reachItems = data.reach.map(a => ({
+    id: a.id, code: a.code, value: a.count, label: `${a.count}/${a.total}`,
+    pct: (a.count / a.total) * 100, fill: reachFill(a.count, a.total),
+  }));
 
   return (
-    <div ref={ref}>
-      <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '86ch', marginBottom: 24 }}>
-        Each lens below reweights the same eight attribute scores already on this report. None is a new
-        measurement. Some attributes carry every lens; some carry none. Authenticity is set apart at the
-        base because the model treats it as the foundation the other three rest on, not a peer to compare
-        against them.
-      </p>
+    <div ref={ref} style={{ background: GROUND }}>
+      {/* Header */}
+      <div style={{ background: CARD, padding: 40, marginBottom: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <span style={{ width: 10, height: 10, background: LIME, display: 'inline-block' }} />
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase' }}>
+            Trust &amp; Credibility Lens
+          </span>
+        </div>
+        <h3 style={{ fontSize: 'clamp(28px,3.4vw,44px)', fontWeight: 700, letterSpacing: '-.03em', lineHeight: .98 }}>
+          Trust, credibility, reputation, and authenticity
+        </h3>
+        <p style={{ fontSize: 14, color: MUTED, maxWidth: '78ch', marginTop: 14, lineHeight: 1.55 }}>
+          Each lens below reweights the same eight attribute scores already on this report. None is a new
+          measurement. Some attributes carry every lens; some carry none. Authenticity is set apart at the
+          base because the model treats it as the foundation the other three rest on, not a peer to compare
+          against them.
+        </p>
+      </div>
 
-      {/* Attribute reach leads: it explains why the lenses move together. */}
-      <div style={{ background: '#FFFFFF', padding: '20px 24px', marginBottom: 2 }}>
-        <div className="dc-kicker-sm">Attribute reach</div>
-        <p className="text-[13px]" style={{ marginTop: 6, marginBottom: 14, fontWeight: 600 }}>{data.reachNote}</p>
-        <div className="dc-lens-grid grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(8, minmax(0,1fr))' }}>
-          {data.reach.map(a => (
-            <div key={a.id} style={{ background: a.count ? '#F2F0EA' : 'transparent', padding: '10px 4px', textAlign: 'center' }}>
-              <div className="text-[9px] font-bold" style={{ letterSpacing: '.1em', color: a.count ? '#0B0B0B' : '#B3B0A8' }}>
-                {a.code}
-              </div>
-              <div className="text-[13px] font-bold" style={{ marginTop: 4, color: a.count ? '#0B0B0B' : '#B3B0A8' }}>
-                {a.count}/{a.total}
-              </div>
+      {/* Attribute reach */}
+      <div style={{ background: CARD, padding: '32px 40px', marginBottom: 2 }}>
+        <div className="dc-lens-row" style={{ display: 'flex', gap: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ width: 280, minWidth: 240, flex: '0 1 280px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: MUTED }}>
+              Attribute reach
             </div>
-          ))}
+            <p style={{ fontSize: 14, fontWeight: 600, marginTop: 8, lineHeight: 1.5 }}>{data.reachNote}</p>
+            <p style={{ fontSize: 12, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>
+              How many of the four lenses each attribute carries. Click any column to spotlight it across
+              the panel.
+            </p>
+          </div>
+          <BarRow items={reachItems} />
         </div>
       </div>
 
-      {data.rows.map((row, i) => <Row key={row.id} row={row} delay={i * 90} />)}
+      {data.rows.map(row => <LensRow key={row.id} row={row} />)}
 
-      <div className="dc-kicker" style={{ marginTop: 26, marginBottom: 10 }}>
-        Authenticity is the foundation the three above rest on
+      {/* Divider */}
+      <div style={{ background: GROUND, padding: '18px 0', textAlign: 'center', marginBottom: 2 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: MUTED }}>
+          Authenticity is the foundation the three above rest on
+        </span>
       </div>
-      <div className="dc-kicker-sm" style={{ marginBottom: 8 }}>Foundation</div>
-      <Row row={data.foundation} foundation delay={280} />
 
-      {/* Findings are internal detail: the client report passes showFindings
-          false and never receives them in its payload. */}
+      <LensRow row={data.foundation} dark />
+
       {showFindings && findings.length === 0 && (
-        <div style={{ marginTop: 30, borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
+        <div style={{ background: CARD, padding: 40, marginTop: 2 }}>
           <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>What sits behind these scores</h4>
-          <p className="text-[13px] text-[#4A4840]" style={{ marginTop: 10, maxWidth: '80ch', lineHeight: 1.6,
-            borderLeft: '6px solid #DEE42F', paddingLeft: 18 }}>
-            These scores were produced before the supporting findings were captured. Regenerate the
-            report to list the publicly observable evidence behind each lens.
+          <p style={{ fontSize: 14, color: '#4A4840', marginTop: 10, maxWidth: '80ch', lineHeight: 1.6,
+            borderLeft: `6px solid ${LIME}`, paddingLeft: 18 }}>
+            These scores were produced before the supporting findings were captured. Regenerate the report
+            to list the publicly observable evidence behind each lens.
           </p>
         </div>
       )}
 
       {showFindings && findings.length > 0 && (
-        <div style={{ marginTop: 30, borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
-          <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>What sits behind these scores</h4>
-          <p className="text-[12px] text-[#8A877D]" style={{ marginTop: 4, marginBottom: 14, maxWidth: '86ch' }}>
+        <div style={{ background: CARD, padding: 40, marginTop: 2 }}>
+          <h4 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.025em' }}>What sits behind these scores</h4>
+          <p style={{ fontSize: 14, color: MUTED, marginTop: 8, marginBottom: 22, maxWidth: '80ch' }}>
             Publicly observable findings, tagged to the lenses they bear on. These explain the scores; they do not change them.
           </p>
-          {findings.map((f, i) => (
-            <div key={i} className="grid items-center gap-3.5"
-              style={{ gridTemplateColumns: '12px minmax(0,1fr) auto', padding: '12px 0', borderBottom: '1px solid #DCDAD3' }}>
-              <span style={{ width: 10, height: 10, background: f.supports ? '#DEE42F' : '#0B0B0B' }} />
-              <span className="text-[13px]">{f.text}</span>
-              <span className="flex flex-wrap gap-1 justify-end">
-                {(f.tags || []).map(t => (
-                  <span key={t} className="text-[9px] font-bold uppercase"
-                    style={{ letterSpacing: '.1em', border: '1px solid #DCDAD3', padding: '3px 7px', color: '#8A877D' }}>{t}</span>
-                ))}
-              </span>
-            </div>
-          ))}
-          <div className="flex flex-wrap gap-6 text-[11px] text-[#8A877D]" style={{ marginTop: 14 }}>
-            <span className="flex items-center gap-2"><span style={{ width: 10, height: 10, background: '#DEE42F' }} /> Supports the score</span>
-            <span className="flex items-center gap-2"><span style={{ width: 10, height: 10, background: '#0B0B0B' }} /> Works against it</span>
+          <div style={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))' }}>
+            {findings.map((f, i) => (
+              <div key={i} style={{ background: '#FFFFFF', padding: 22 }}>
+                <span style={{ width: 12, height: 12, background: f.supports ? LIME : INK, display: 'inline-block' }} />
+                <p style={{ fontSize: 15, lineHeight: 1.45, marginTop: 12 }}>{f.text}</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 14 }}>
+                  {(f.tags || []).map(t => (
+                    <span key={t} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em',
+                      textTransform: 'uppercase', border: `1px solid ${RULE}`, padding: '3px 7px', color: MUTED }}>{t}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-          <p className="text-[11px] text-[#8A877D]" style={{ marginTop: 14, maxWidth: '90ch' }}>
-            <b style={{ color: '#0B0B0B' }}>Weights are fixed in code, not judged by the model</b>, so the same attribute
-            scores always produce the same lens scores and two assessors cannot disagree. They sum to 100 per lens and
-            are shown openly above.
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginTop: 22, fontSize: 12, color: MUTED }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 12, height: 12, background: LIME, display: 'inline-block' }} /> Supports the score</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 12, height: 12, background: INK, display: 'inline-block' }} /> Works against it</span>
+          </div>
+          <p style={{ fontSize: 11, color: MUTED, marginTop: 16, maxWidth: '90ch', lineHeight: 1.6 }}>
+            <b style={{ color: INK }}>Weights are fixed in code, not judged by the model</b>, so the same attribute
+            scores always produce the same lens scores and two assessors cannot disagree. They sum to 100 per lens
+            and are shown openly above.
           </p>
         </div>
       )}
