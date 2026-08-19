@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.25.1';
+const APP_VERSION = '3.26.0';
 import { 
   supabase, 
   signUp, 
@@ -1119,6 +1119,30 @@ function useInView(threshold = 0.25) {
   return [ref, inView];
 }
 
+// Counts a number up once it scrolls into view, matching the headline score
+// at the top of the report. Uses requestAnimationFrame with the same
+// easeOutCubic as the other reveals rather than setInterval, so it stays in
+// step with the bars animating alongside it.
+function useCountUp(target, inView, duration = 1200) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    const end = Number(target) || 0;
+    if (!inView) { setValue(0); return; }
+    if (typeof window === 'undefined' || !window.requestAnimationFrame) { setValue(end); return; }
+    let raf;
+    const start = performance.now();
+    const ease = (t) => 1 - Math.pow(1 - t, 3);
+    const tick = (now) => {
+      const t = Math.min((now - start) / duration, 1);
+      setValue(Math.round(end * ease(t)));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, inView, duration]);
+  return value;
+}
+
 // Ramps 0 to 1 once the element is in view.
 //
 // CSS cannot transition an SVG `d` attribute set as a React prop, so the
@@ -1380,6 +1404,14 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
     );
   };
 
+  const LensScore = ({ row, dark }) => {
+    const shown = useCountUp(row.score, inView);
+    return (
+      <div style={{ fontSize: 60, fontWeight: 700, letterSpacing: '-.04em', lineHeight: .9,
+        color: dark ? LIME : scoreColor(row.score) }}>{shown}</div>
+    );
+  };
+
   const LensRow = ({ row, dark = false }) => {
     const items = row.contributions.map(c => ({
       id: c.id, code: c.code, value: c.weight,
@@ -1396,8 +1428,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
         {dark && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', color: LIME, marginBottom: 14 }}>FOUNDATION</div>}
         <div className="dc-lens-row" style={{ display: 'flex', gap: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ width: 280, minWidth: 240, flex: '0 1 280px' }}>
-            <div style={{ fontSize: 60, fontWeight: 700, letterSpacing: '-.04em', lineHeight: .9,
-              color: dark ? LIME : scoreColor(row.score) }}>{row.score}</div>
+            <LensScore row={row} dark={dark} />
             <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-.02em', marginTop: 10 }}>{row.name}</div>
             <div style={{ fontSize: 13, color: dark ? '#9A9A94' : MUTED, marginTop: 2 }}>{row.def}</div>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase',
@@ -11534,8 +11565,10 @@ function ClientReportView({ payload }) {
     const idx = clientSections.indexOf(label);
     const n = String(idx >= 0 ? idx + 1 : clientSections.length + 1).padStart(2, '0');
     return (
-      <div className="dc-reveal flex items-baseline gap-4 pb-3"
-        style={{ borderBottom: '2px solid #0B0B0B', marginTop: 80, marginBottom: 40 }}>
+      /* Spacing comes from the section wrapper, exactly as in the internal
+         report. Carrying it here as well doubled every gap. */
+      <div className="w-full flex items-baseline gap-4 pb-3"
+        style={{ borderBottom: '2px solid #0B0B0B' }}>
         <span className="text-[11px] font-bold tracking-[0.16em] text-[#68655B]">{n}</span>
         <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#0B0B0B]">{label}</span>
       </div>
@@ -11584,6 +11617,7 @@ function ClientReportView({ payload }) {
         <ReportScoreTiles scores={scores} />
 
         {/* ── Maturity ────────────────────────────────────────── */}
+        <div className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="Brand maturity" />
         <div className="bg-white mb-6" style={{ padding: '52px 32px 32px' }}>
           <div className="relative">
@@ -11603,6 +11637,7 @@ function ClientReportView({ payload }) {
             </div>
           </div>
         </div>
+        </div>
 
         {/* ── Attribute analysis ─────────────────────────────── */}
         <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
@@ -11616,7 +11651,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Brand footprint ─────────────────────────────────── */}
         {hasFootprintData(payload.footprint) && (
-          <div className="dc-reveal">
+          <div className="dc-reveal" style={{ marginTop: 80 }}>
             <SectionHead label="Brand footprint" />
             <div className="mb-6 overflow-hidden">
               <FootprintMap footprint={payload.footprint} brandName={project.brandName} />
@@ -11626,7 +11661,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
-          <>
+          <div className="dc-reveal" style={{ marginTop: 80 }}>
             <SectionHead label="Campaign coherence" />
             <div className="bg-white" style={{ padding: 24 }}>
               <div className="flex flex-wrap items-start gap-4 mb-4">
@@ -11662,13 +11697,15 @@ function ClientReportView({ payload }) {
                 </p>
               )}
             </div>
-          </>
+          </div>
         )}
 
         {/* ── Trust and credibility ───────────────────────────── */}
+        <div className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="Trust and credibility" />
         <div style={{ marginTop: 32, marginBottom: 8 }}>
           <TrustLensPanel scores={scores} overall={overall} showFindings={false} />
+        </div>
         </div>
 
         {/* ── Benchmark comparison ────────────────────────────── */}
@@ -11683,12 +11720,12 @@ function ClientReportView({ payload }) {
 
         {/* ── Conclusion ──────────────────────────────────────── */}
         {payload.conclusion && (
-          <>
+          <div className="dc-reveal" style={{ marginTop: 80 }}>
             <SectionHead label="Conclusions" />
             <div className="bg-white" style={{ padding: 24 }}>
               <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>{payload.conclusion}</p>
             </div>
-          </>
+          </div>
         )}
 
         <p className="text-[11px] text-[#999] text-center py-6">
