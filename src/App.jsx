@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.21.0';
+const APP_VERSION = '3.21.1';
 import { 
   supabase, 
   signUp, 
@@ -1290,11 +1290,17 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const [ref, inView] = useInView(0.15);
   if (!data) return null;
 
-  // A 30-50 window rather than 0-100. Lens scores are weighted means of the
-  // same eight attributes, so they cluster tightly; a full-width scale would
-  // render four near-identical bars and hide the differences that matter.
-  const LO = 30, HI = 50;
+  // A narrow window rather than 0-100. Lens scores are weighted means of the
+  // same eight attributes, so they cluster tightly and a full scale would draw
+  // four near-identical bars. The window widens to hold whatever the scores
+  // actually are: pinned at 30-50 it blew out to full width the moment a lens
+  // reached 50.
+  const allScores = [...data.rows, data.foundation].map(r => r.score)
+    .concat(Number.isFinite(overall) ? [overall] : []);
+  const LO = Math.min(30, Math.floor(Math.min(...allScores) / 5) * 5 - 5);
+  const HI = Math.max(50, Math.ceil(Math.max(...allScores) / 5) * 5 + 5);
   const pos = (v) => Math.max(0, Math.min(100, ((v - LO) / (HI - LO)) * 100));
+  const ticks = [LO, Math.round((LO + HI) / 2), HI];
 
   // Every attribute against every lens: its weight, or a zero.
   const Weights = ({ contributions }) => (
@@ -1314,20 +1320,16 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
 
   const Row = ({ row, foundation = false, delay = 0 }) => (
     <div style={{ background: '#FFFFFF', padding: '22px 24px', marginBottom: 2 }}>
-      <div className="flex items-start justify-between gap-6 flex-wrap">
-        <div className="flex items-baseline gap-4 min-w-0">
-          <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, color: scoreColor(row.score) }}>
-            {row.score}
-          </span>
-          <div className="min-w-0">
-            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>{row.name}</div>
-            <div className="text-[12px] text-[#8A877D]" style={{ maxWidth: '24ch' }}>{row.def}</div>
-          </div>
-        </div>
-        <div className="text-right" style={{ minWidth: 170 }}>
-          <div className="dc-kicker-sm">Led by {row.leadName}, {row.leadPct}%</div>
-          {row.findingsCount > 0 && (
-            <div className="text-[11px] text-[#8A877D]" style={{ marginTop: 4 }}>
+      <div className="flex items-baseline gap-4 min-w-0">
+        <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, color: scoreColor(row.score) }}>
+          {row.score}
+        </span>
+        <div className="min-w-0">
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>{row.name}</div>
+          <div className="text-[12px] text-[#8A877D]" style={{ maxWidth: '28ch' }}>{row.def}</div>
+          <div className="dc-kicker-sm" style={{ marginTop: 8 }}>Led by {row.leadName}, {row.leadPct}%</div>
+          {showFindings && row.findingsCount > 0 && (
+            <div className="text-[11px] text-[#8A877D]" style={{ marginTop: 3 }}>
               {row.findingsCount} finding{row.findingsCount === 1 ? '' : 's'} below bear on this
             </div>
           )}
@@ -1344,13 +1346,13 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
         {Number.isFinite(overall) && (
           <div style={{ position: 'absolute', left: `${pos(overall)}%`, top: 4, width: 3, height: 20, background: '#DEE42F' }} />
         )}
-        {[30, 40, 50].map(t => (
+        {ticks.map(t => (
           <span key={t} className="text-[9px] text-[#B3B0A8]"
             style={{ position: 'absolute', left: `${pos(t)}%`, top: 22, transform: 'translateX(-50%)' }}>{t}</span>
         ))}
       </div>
       <div className="text-[10px] text-[#8A877D]" style={{ marginTop: 6 }}>
-        30&ndash;50 scale · <span style={{ color: '#0B0B0B', fontWeight: 700 }}>lime</span> = compass overall {overall}
+        {LO}&ndash;{HI} scale · <span style={{ color: '#0B0B0B', fontWeight: 700 }}>lime</span> = compass overall {overall}
       </div>
 
       <Weights contributions={row.contributions} />
@@ -1391,6 +1393,19 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
       </div>
       <div className="dc-kicker-sm" style={{ marginBottom: 8 }}>Foundation</div>
       <Row row={data.foundation} foundation delay={280} />
+
+      {/* Findings are internal detail: the client report passes showFindings
+          false and never receives them in its payload. */}
+      {showFindings && findings.length === 0 && (
+        <div style={{ marginTop: 30, borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
+          <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>What sits behind these scores</h4>
+          <p className="text-[13px] text-[#4A4840]" style={{ marginTop: 10, maxWidth: '80ch', lineHeight: 1.6,
+            borderLeft: '6px solid #DEE42F', paddingLeft: 18 }}>
+            These scores were produced before the supporting findings were captured. Regenerate the
+            report to list the publicly observable evidence behind each lens.
+          </p>
+        </div>
+      )}
 
       {showFindings && findings.length > 0 && (
         <div style={{ marginTop: 30, borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
