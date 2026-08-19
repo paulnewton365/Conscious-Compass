@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
+import { FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_SIGNAL_DEFINITION, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.16.0';
+const APP_VERSION = '3.16.1';
 import { 
   supabase, 
   signUp, 
@@ -1414,20 +1414,20 @@ function FootprintMap({ footprint, brandName }) {
             }}>
               <circle cx={p.x} cy={p.y} r={rad}
                 fill={has ? (brandVoice ? FP_INK : FP_LIME) : 'transparent'}
-                stroke={has ? 'none' : '#C9C6BE'} strokeWidth={1.5} strokeDasharray={has ? '' : '3 4'} />
+                stroke={has ? 'none' : '#C9C6BE'} strokeWidth={1.5} strokeDasharray={has ? '' : '3 4'}>
+                {/* The evidence moved off the canvas; it lives here instead,
+                    alongside what the channel means. */}
+                <title>{`${r.name} — ${r.hint}\n\n${has ? `${r.signals} signal${r.signals === 1 ? '' : 's'}: ${r.evidence}` : 'No evidence found'}`}</title>
+              </circle>
               {has && (
                 <text x={p.x} y={p.y + 5} textAnchor="middle"
                   style={{ fontSize: 14, fontWeight: 700, fill: brandVoice ? '#FFFFFF' : FP_INK }}>
                   {r.signals}
                 </text>
               )}
-              <text x={lx} y={ly - 2} textAnchor={outward}
+              <text x={lx} y={ly + 4} textAnchor={outward}
                 style={{ fontSize: 13, fontWeight: 700, fill: has ? FP_INK : '#A9A69E' }}>
                 {r.name}
-              </text>
-              <text x={lx} y={ly + 13} textAnchor={outward}
-                style={{ fontSize: 10.5, fill: '#8A877D' }}>
-                {has ? String(r.evidence || '').slice(0, 34) : 'No evidence found'}
               </text>
             </g>
           );
@@ -1445,8 +1445,12 @@ function FootprintMap({ footprint, brandName }) {
         <span className="flex items-center gap-2 text-[11px]" style={{ color: FP_MUTED }}>
           <span style={{ width: 18, height: 4, background: FP_LIME, display: 'inline-block' }} /> Corroborated between channels
         </span>
-        <span className="text-[11px]" style={{ color: FP_MUTED }}>Node size = evidence found</span>
+        <span className="text-[11px]" style={{ color: FP_MUTED }}>Node size = signals found</span>
       </div>
+
+      <p className="text-[11px]" style={{ color: FP_MUTED, maxWidth: '86ch', marginTop: -8, paddingBottom: 14 }}>
+        {FOOTPRINT_SIGNAL_DEFINITION} Hover a channel for what it covers and what was found.
+      </p>
 
       <p className="text-[13px] font-medium" style={{ color: FP_INK, paddingBottom: 20, maxWidth: '78ch' }}>
         {links.length === 0
@@ -5737,7 +5741,8 @@ For each of these eight channels, report what you can actually observe in the ev
 ${FOOTPRINT_CHANNELS.map(c => `- ${c.id}: ${c.name}. ${c.hint}`).join('\n')}
 
 RULES, and the first one matters most:
-- COUNT ONLY WHAT YOU CAN SEE. "signals" is the number of distinct pieces of evidence you actually observed for that channel: named articles, named accounts, named threads, specific citations. If you observed three articles, that is 3, not an estimate of total coverage.
+- COUNT ONLY WHAT YOU CAN SEE. ${FOOTPRINT_SIGNAL_DEFINITION} If you observed three articles, that is 3, not an estimate of total coverage.
+- ANALYST COVERAGE means third parties analysing the brand: industry analysts, investment or equity research, institutional reports that cite it. The brand's own research belongs in owned, never here.
 - NEVER estimate audience reach, impressions or total mention volume. Those are not publicly observable and a fabricated number would discredit the whole report. There is no reach field for this reason.
 - A channel with no observable evidence gets share 0, signals 0 and evidence "No evidence found". Do not invent presence to fill the table. An empty channel is a finding.
 - "share" is that channel's percentage of the brand's total observed footprint. Shares across all channels must sum to 100. Channels with no evidence get 0.

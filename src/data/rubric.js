@@ -308,15 +308,21 @@ export function applyCampaignModifiers(scores, campaignLevel) {
 // brands and can be benchmarked by sector later.
 // ─────────────────────────────────────────────────────────────
 
+// A SIGNAL is one distinct piece of publicly observable evidence: a named
+// article, a named account, a specific citation, a specific thread. It is a
+// count of things actually found, never an estimate of reach or volume.
+export const FOOTPRINT_SIGNAL_DEFINITION =
+  'A signal is one distinct piece of publicly observable evidence: a named article, a named account, a specific citation or a specific thread. Signals count what was found, never estimated reach or audience size.';
+
 export const FOOTPRINT_CHANNELS = [
-  { id: 'earned',     name: 'Earned media',          hint: 'Trade and national press, bylines, quotes in coverage' },
-  { id: 'social',     name: 'Social',                hint: 'Owned social channels and their visible engagement' },
-  { id: 'thirdParty', name: 'Third-party discussion', hint: 'Reddit, forums, review sites, community mentions' },
-  { id: 'owned',      name: 'Owned channels',        hint: 'Website, blog, newsletter, resource library' },
-  { id: 'ai',         name: 'AI / LLM answers',      hint: 'Whether AI systems cite the brand unprompted' },
-  { id: 'paid',       name: 'Paid',                  hint: 'Visible advertising across ad libraries' },
-  { id: 'podcast',    name: 'Podcasts / video',      hint: 'Appearances, interviews, YouTube presence' },
-  { id: 'analyst',    name: 'Analyst / research',    hint: 'Analyst notes, cited research, industry reports' },
+  { id: 'earned',     name: 'Earned media',          hint: 'Trade and national press. Articles, bylines and quotes the brand did not pay for.' },
+  { id: 'social',     name: 'Social',                hint: 'The brand\'s own social channels and the engagement they visibly attract.' },
+  { id: 'thirdParty', name: 'Third-party discussion', hint: 'Reddit, forums, review sites and community mentions. People talking without the brand present.' },
+  { id: 'owned',      name: 'Owned channels',        hint: 'Website, blog, newsletter, resource library. Anything the brand publishes and controls.' },
+  { id: 'ai',         name: 'AI / LLM answers',      hint: 'Whether AI systems describe or cite the brand when asked about the category.' },
+  { id: 'paid',       name: 'Paid',                  hint: 'Advertising visible in public ad libraries.' },
+  { id: 'podcast',    name: 'Podcasts / video',      hint: 'Podcast appearances, interviews and video where someone else holds the microphone.' },
+  { id: 'analyst',    name: 'Analyst coverage',      hint: 'Industry analysts, investment research and institutional reports that cite the brand or its data. Not the brand\'s own research: that is owned.' },
 ];
 
 // Brand-controlled surfaces versus surfaces the market controls. The split
