@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.23.0';
+const APP_VERSION = '3.24.0';
 import { 
   supabase, 
   signUp, 
@@ -59,7 +59,7 @@ class ErrorBoundary extends React.Component {
               <AlertCircle className="w-8 h-8 text-[#B23A3A]" />
             </div>
             <h1 className="text-[22px] font-bold tracking-tight text-[#0B0B0B] mb-2">Something went wrong</h1>
-            <p className="text-[#8A877D] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
+            <p className="text-[#68655B] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
             <button 
               onClick={() => window.location.reload()} 
               className="btn-primary"
@@ -302,14 +302,14 @@ function AdminPage({ currentUser, onBack }) {
           </button>
           <div>
             <h1 className="dc-h2 text-[#0B0B0B]">User management</h1>
-            <p className="text-sm text-[#8A877D]">Approve users and manage access</p>
+            <p className="text-sm text-[#68655B]">Approve users and manage access</p>
           </div>
         </div>
 
         {loading ? (
           <div className="card text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#B23A3A]" />
-            <p className="mt-4 text-[#8A877D]">Loading users...</p>
+            <p className="mt-4 text-[#68655B]">Loading users...</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -317,8 +317,8 @@ function AdminPage({ currentUser, onBack }) {
             {/* Pending Users */}
             {users.filter(u => !u.is_approved).length > 0 && (
               <div>
-                <h2 className="text-sm font-semibold text-[#8A877D] uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-[#8A877D]" />
+                <h2 className="text-sm font-semibold text-[#68655B] uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-[#68655B]" />
                   Pending Approval ({users.filter(u => !u.is_approved).length})
                 </h2>
                 <div className="space-y-3">
@@ -330,7 +330,7 @@ function AdminPage({ currentUser, onBack }) {
                         </div>
                         <div>
                           <div className="font-semibold text-[#0B0B0B]">{user.full_name || 'No name'}</div>
-                          <div className="text-sm text-[#8A877D]">{user.email}</div>
+                          <div className="text-sm text-[#68655B]">{user.email}</div>
                           <div className="text-xs text-[#B3B0A8] mt-0.5">Signed up {formatDate(user.created_at)}</div>
                         </div>
                       </div>
@@ -355,7 +355,7 @@ function AdminPage({ currentUser, onBack }) {
 
             {/* Active Users */}
             <div>
-              <h2 className="text-sm font-semibold text-[#8A877D] uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-[#68655B] uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Users className="w-4 h-4 text-[#059669]" />
                 Active Users ({users.filter(u => u.is_approved).length})
               </h2>
@@ -377,7 +377,7 @@ function AdminPage({ currentUser, onBack }) {
                             <span className={`text-xs px-2 py-0.5 text-white ${roleColor}`}>{roleLabel}</span>
                             {isSelf && <span className="text-xs text-[#B3B0A8]">(you)</span>}
                           </div>
-                          <div className="text-sm text-[#8A877D] mt-0.5 truncate">{user.email}</div>
+                          <div className="text-sm text-[#68655B] mt-0.5 truncate">{user.email}</div>
                           <div className="flex gap-3 mt-1">
                             <span className="text-xs text-[#B3B0A8]">
                               Joined {formatDate(user.created_at)}
@@ -410,7 +410,7 @@ function AdminPage({ currentUser, onBack }) {
                             className={`text-sm px-3 py-1.5  border transition-colors ${
                               user.is_admin
                                 ? 'border-[#0B0B0B] text-[#B23A3A] hover:bg-[#DEE42F]/10'
-                                : 'border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
+                                : 'border-[#DCDAD3] text-[#68655B] hover:border-[#0B0B0B]'
                             }`}>
                             <Shield className="w-3.5 h-3.5 inline mr-1" />
                             {user.is_admin ? 'Remove Admin' : 'Make Admin'}
@@ -994,7 +994,7 @@ function MiniSpiderChart({ scores, size = 120 }) {
 // Comparison Spider Chart — multi-brand overlapping radar, max 4 brands
 // Ink first, lime second, then two neutral steps. Distinguishable without
 // reintroducing the primary palette the redesign removed.
-const COMPARISON_COLORS = ['#0B0B0B', '#DEE42F', '#8A877D', '#B3B0A8'];
+const COMPARISON_COLORS = ['#0B0B0B', '#DEE42F', '#68655B', '#B3B0A8'];
 
 const LANDSCAPE_SECTOR_COLORS = [
   '#E53935', '#1976D2', '#F57C00', '#388E3C',
@@ -1078,7 +1078,7 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
           <div key={brand.id || bi} className="flex items-center gap-1.5">
             <div className="w-3 h-3 flex-shrink-0" style={{ backgroundColor: COMPARISON_COLORS[bi % COMPARISON_COLORS.length] }} />
             <span className="text-xs font-medium text-[#0B0B0B]">{brand.brandName}</span>
-            <span className="text-xs text-[#8A877D]">({brand.totalScore})</span>
+            <span className="text-xs text-[#68655B]">({brand.totalScore})</span>
           </div>
         ))}
         {industryAvg && (
@@ -1181,7 +1181,7 @@ function StatBlock({ value, suffix = '/100', label }) {
         color: has ? scoreColor(value) : '#B3B0A8' }}>
         {has ? value : '—'}
         {has && suffix && (
-          <span style={{ fontSize: 15, fontWeight: 500, color: '#8A877D', letterSpacing: 0 }}>{suffix}</span>
+          <span style={{ fontSize: 15, fontWeight: 500, color: '#68655B', letterSpacing: 0 }}>{suffix}</span>
         )}
       </div>
       <div className="dc-kicker-sm" style={{ marginTop: 8 }}>{label}</div>
@@ -1274,11 +1274,11 @@ function CampaignLadder({ level }) {
 // inventing it would undermine everything else on the page. The ledger reports
 // SIGNALS instead: the count of distinct pieces of evidence actually found.
 // ─────────────────────────────────────────────────────────────
-const FP_PAPER = '#FFFFFF';
+const FP_PAPER = '#F2F0EA';
 const FP_INK   = '#0B0B0B';
 const FP_LIME  = '#DEE42F';
 const FP_EMPTY = '#E4E2DC';
-const FP_MUTED = '#8A877D';
+const FP_MUTED = '#68655B';
 
 
 // ── Trust & credibility lens ─────────────────────────────────
@@ -1291,8 +1291,8 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const [ref, inView] = useInView(0.12);
   if (!data) return null;
 
-  const INK = '#0B0B0B', LIME = '#DEE42F', CARD = '#FFFFFF', GROUND = '#F2F0EA';
-  const MUTED = '#8A877D', RULE = '#DCDAD3';
+  const INK = '#0B0B0B', LIME = '#DEE42F', CARD = '#F2F0EA', GROUND = '#E4E2DC';
+  const MUTED = '#68655B', RULE = '#DCDAD3';
 
   const toggle = (id) => setSpotlight(prev => (prev === id ? null : id));
   const lit = (id) => spotlight === id;
@@ -1301,7 +1301,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const reachFill = (count, total) => {
     if (count === 0) return RULE;
     if (count === total) return LIME;
-    return count >= total - 1 ? INK : '#8A877D';
+    return count >= total - 1 ? INK : '#68655B';
   };
 
   // Eight columns of bars, shared by the reach panel and every lens row.
@@ -1332,10 +1332,17 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
     </div>
   );
 
+  // The window holds whatever the scores actually are. Fixed at 30-50 it
+  // pegged every marker at the right edge for a strong brand.
+  const scoreSet = [...data.rows, data.foundation].map(r => r.score)
+    .concat(Number.isFinite(overall) ? [overall] : []);
+  const RLO = Math.max(0, Math.floor(Math.min(...scoreSet) / 5) * 5 - 5);
+  const RHI = Math.min(100, Math.ceil(Math.max(...scoreSet) / 5) * 5 + 5);
+  const RMID = Math.round((RLO + RHI) / 2);
+
   // Ruler: a dot for the lens score, a lime tick for the compass overall.
   const Ruler = ({ score, dark = false }) => {
-    const LO = 30, HI = 50;
-    const at = (v) => Math.max(0, Math.min(100, ((v - LO) / (HI - LO)) * 100));
+    const at = (v) => Math.max(0, Math.min(100, ((v - RLO) / (RHI - RLO)) * 100));
     return (
       <div style={{ marginTop: 18, maxWidth: 320 }}>
         <div style={{ position: 'relative', height: 20 }}>
@@ -1351,10 +1358,10 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginTop: 2,
           color: dark ? '#7A7A74' : '#B3B0A8' }}>
-          <span>30</span><span>40</span><span>50</span>
+          <span>{RLO}</span><span>{RMID}</span><span>{RHI}</span>
         </div>
         <div style={{ fontSize: 10, marginTop: 6, color: dark ? '#9A9A94' : MUTED }}>
-          30&ndash;50 scale · <span style={{ color: LIME, fontWeight: 700 }}>lime</span> = compass overall {overall}
+          {RLO}&ndash;{RHI} scale · <span style={{ color: LIME, fontWeight: 700 }}>lime</span> = compass overall {overall}
         </div>
       </div>
     );
@@ -1452,8 +1459,8 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
       <LensRow row={data.foundation} dark />
 
       {showFindings && findings.length === 0 && (
-        <div style={{ background: CARD, padding: 40, marginTop: 2 }}>
-          <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>What sits behind these scores</h4>
+        <div style={{ background: CARD, padding: '32px 40px', marginTop: 2 }}>
+          <h4 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.025em' }}>What sits behind these scores</h4>
           <p style={{ fontSize: 14, color: '#4A4840', marginTop: 10, maxWidth: '80ch', lineHeight: 1.6,
             borderLeft: `6px solid ${LIME}`, paddingLeft: 18 }}>
             These scores were produced before the supporting findings were captured. Regenerate the report
@@ -1463,37 +1470,52 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
       )}
 
       {showFindings && findings.length > 0 && (
-        <div style={{ background: CARD, padding: 40, marginTop: 2 }}>
-          <h4 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.025em' }}>What sits behind these scores</h4>
-          <p style={{ fontSize: 14, color: MUTED, marginTop: 8, marginBottom: 22, maxWidth: '80ch' }}>
-            Publicly observable findings, tagged to the lenses they bear on. These explain the scores; they do not change them.
-          </p>
-          <div style={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))' }}>
+        <>
+          {/* Heading sits in its own block above the cards, as in the design */}
+          <div style={{ background: CARD, padding: '32px 40px 26px', marginTop: 2 }}>
+            <h4 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.025em' }}>What sits behind these scores</h4>
+            <p style={{ fontSize: 13, color: MUTED, marginTop: 6, maxWidth: '72ch', lineHeight: 1.5 }}>
+              Publicly observable findings, tagged to the lenses they bear on. These explain the scores; they do not change them.
+            </p>
+          </div>
+
+          {/* Two columns rather than three: the findings are sentences, and at
+              three across they wrapped to three lines each. */}
+          <div className="dc-findings-grid" style={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fit,minmax(420px,1fr))', marginTop: 2 }}>
             {findings.map((f, i) => (
-              <div key={i} style={{ background: '#FFFFFF', padding: 22 }}>
-                <span style={{ width: 12, height: 12, background: f.supports ? LIME : INK, display: 'inline-block' }} />
-                <p style={{ fontSize: 15, lineHeight: 1.45, marginTop: 12 }}>{f.text}</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 14 }}>
-                  {(f.tags || []).map(t => (
-                    <span key={t} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em',
-                      textTransform: 'uppercase', border: `1px solid ${RULE}`, padding: '3px 7px', color: MUTED }}>{t}</span>
-                  ))}
+              <div key={i} style={{ background: CARD, padding: '22px 26px' }}>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                  {/* Marker sits on the first line of the text, not above it */}
+                  <span style={{ flex: 'none', width: 12, height: 12, marginTop: 6,
+                    background: f.supports ? LIME : INK, display: 'inline-block' }} />
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.4, letterSpacing: '-.01em' }}>{f.text}</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10 }}>
+                      {(f.tags || []).map(t => (
+                        <span key={t} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em',
+                          textTransform: 'uppercase', background: GROUND, padding: '4px 8px', color: '#4A4840' }}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginTop: 22, fontSize: 12, color: MUTED }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 12, height: 12, background: LIME, display: 'inline-block' }} /> Supports the score</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 12, height: 12, background: INK, display: 'inline-block' }} /> Works against it</span>
+
+          <div style={{ background: CARD, padding: '22px 40px 32px', marginTop: 2 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, fontSize: 12, color: MUTED }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 12, height: 12, background: LIME, display: 'inline-block' }} /> Supports the score</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 12, height: 12, background: INK, display: 'inline-block' }} /> Works against it</span>
+            </div>
+            <p style={{ fontSize: 11, color: MUTED, marginTop: 16, maxWidth: '90ch', lineHeight: 1.6 }}>
+              <b style={{ color: INK }}>Weights are fixed in code, not judged by the model</b>, so the same attribute
+              scores always produce the same lens scores and two assessors cannot disagree. They sum to 100 per lens
+              and are shown openly above.
+            </p>
           </div>
-          <p style={{ fontSize: 11, color: MUTED, marginTop: 16, maxWidth: '90ch', lineHeight: 1.6 }}>
-            <b style={{ color: INK }}>Weights are fixed in code, not judged by the model</b>, so the same attribute
-            scores always produce the same lens scores and two assessors cannot disagree. They sum to 100 per lens
-            and are shown openly above.
-          </p>
-        </div>
+        </>
       )}
     </div>
   );
@@ -1717,7 +1739,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
     <div className="bg-white border border-[#DCDAD3] p-5" ref={revealRef}>
       <div className="mb-4">
         {!hideTitle && <h3 className="font-semibold text-[#0B0B0B] text-sm">Attribute Benchmark Spread</h3>}
-        <p className="text-xs text-[#8A877D] mt-1">
+        <p className="text-xs text-[#68655B] mt-1">
           {brandName} against {benchmark.cohortLabel.toLowerCase()}. The band is the range across those brands, the line is their average, the dot is {brandName}.
         </p>
       </div>
@@ -1802,7 +1824,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-[#DCDAD3] flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-[#8A877D]">
+      <div className="mt-4 pt-3 border-t border-[#DCDAD3] flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-[#68655B]">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 bg-[#0B0B0B] ring-2 ring-white" />
           <span>{brandName}</span>
@@ -1842,7 +1864,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
     <div className="bg-white border border-[#DCDAD3] p-5">
       <div className="mb-4">
         <h3 className="font-semibold text-[#0B0B0B] text-sm">Overall Position</h3>
-        <p className="text-xs text-[#8A877D] mt-1">
+        <p className="text-xs text-[#68655B] mt-1">
           Where {brandName} sits against {benchmark.cohortLabel.toLowerCase()}{isSector ? ' and against every brand assessed' : ''}.
         </p>
       </div>
@@ -1892,13 +1914,13 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
           <div className={`text-lg font-bold ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#B23A3A]' : 'text-[#0B0B0B]'}`}>
             {delta > 0 ? `+${delta}` : delta}
           </div>
-          <div className="text-[10px] text-[#8A877D] leading-tight">vs {scopeNoun} average</div>
+          <div className="text-[10px] text-[#68655B] leading-tight">vs {scopeNoun} average</div>
         </div>
         <div>
           <div className="text-lg font-bold text-[#0B0B0B]">
             {benchmark.rank ? `${ordinal(benchmark.rank)} of ${benchmark.count}` : `${benchmark.count}`}
           </div>
-          <div className="text-[10px] text-[#8A877D] leading-tight">
+          <div className="text-[10px] text-[#68655B] leading-tight">
             {benchmark.rank ? `rank in ${scopeNoun}` : 'brands compared'}
           </div>
         </div>
@@ -1906,7 +1928,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
           <div className="text-lg font-bold text-[#0B0B0B]">
             {benchmark.percentile != null ? ordinal(benchmark.percentile) : '—'}
           </div>
-          <div className="text-[10px] text-[#8A877D] leading-tight">percentile</div>
+          <div className="text-[10px] text-[#68655B] leading-tight">percentile</div>
         </div>
       </div>
     </div>
@@ -1924,7 +1946,7 @@ function BenchmarkProvenance({ benchmark }) {
   const span = from && to ? (from === to ? from : `${from} to ${to}`) : null;
 
   return (
-    <div className="text-[11px] text-[#8A877D] bg-[#F2F0EA] border border-[#DCDAD3] px-3 py-2 leading-relaxed">
+    <div className="text-[11px] text-[#68655B] bg-[#F2F0EA] border border-[#DCDAD3] px-3 py-2 leading-relaxed">
       <span className="font-medium text-[#0B0B0B]">Benchmark basis:</span>{' '}
       {benchmark.cohortLabel}, n={benchmark.count}
       {span ? `, assessed ${span}` : ''}
@@ -2031,7 +2053,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
       
       {/* Score display */}
       <div className="flex justify-between items-center mb-6">
-        <div className="text-sm text-[#8A877D]">Progress</div>
+        <div className="text-sm text-[#68655B]">Progress</div>
         <div className="flex items-baseline gap-1">
           <span className="text-2xl font-bold" style={{ color: stage.color }}>{animatedScore}</span>
           <span className="text-lg text-[#B3B0A8]">/100</span>
@@ -2057,7 +2079,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
                     borderColor: s.color
                   }}
                 />
-                <span className={`text-[10px] text-center leading-tight hidden sm:block ${isCurrent ? 'font-bold text-[#0B0B0B]' : 'text-[#8A877D]'}`}>
+                <span className={`text-[10px] text-center leading-tight hidden sm:block ${isCurrent ? 'font-bold text-[#0B0B0B]' : 'text-[#68655B]'}`}>
                   {s.name}
                 </span>
               </div>
@@ -2080,7 +2102,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
         
         {/* Progress to next stage */}
         {score < 100 && (
-          <div className="text-xs text-[#8A877D]">
+          <div className="text-xs text-[#68655B]">
             <span className="font-medium" style={{ color: stage.color }}>{Math.min(100, MATURITY_STAGES.find(s => s.min > score)?.min || 100) - score} points</span> to next level
           </div>
         )}
@@ -2100,7 +2122,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
     `flex items-center gap-2 px-1 py-1 transition-colors text-[12px] font-semibold tracking-[0.04em] ${
       activePage === page
         ? 'dc-nav-active'
-        : 'text-[#8A877D] hover:text-[#0B0B0B]'
+        : 'text-[#68655B] hover:text-[#0B0B0B]'
     }`;
 
   const mobileNavBtnClass = (page) =>
@@ -2149,10 +2171,10 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             {isReadonly && (
               <span className="text-xs px-2 py-0.5 bg-[#B3B0A8] text-white">Read-only</span>
             )}
-            <span className="text-xs text-[#8A877D] max-w-[120px] truncate" title={user?.email}>
+            <span className="text-xs text-[#68655B] max-w-[120px] truncate" title={user?.email}>
               {profile?.full_name || user?.email?.split('@')[0]}
             </span>
-            <button onClick={onLogout} className="flex items-center gap-1 text-sm text-[#8A877D] hover:text-[#0B0B0B] transition-colors" title="Sign out">
+            <button onClick={onLogout} className="flex items-center gap-1 text-sm text-[#68655B] hover:text-[#0B0B0B] transition-colors" title="Sign out">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -2195,7 +2217,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
           
           {/* Mobile User Controls */}
           <div className="pt-2 mt-2 border-t border-[#DCDAD3]">
-            <div className="px-4 py-2 text-sm text-[#8A877D]">
+            <div className="px-4 py-2 text-sm text-[#68655B]">
               Signed in as <span className="font-medium">{profile?.full_name || user?.email}</span>
             </div>
             {profile?.is_admin && (
@@ -2222,7 +2244,7 @@ function CompletionIndicator({ items }) {
   return (
     <div className="bg-white border border-[#DCDAD3] p-3 mb-6">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-[#8A877D] uppercase tracking-wide">Progress</span>
+        <span className="text-xs font-medium text-[#68655B] uppercase tracking-wide">Progress</span>
         <span className="text-xs font-medium text-[#0B0B0B]">{completed}/{total} complete</span>
       </div>
       <div className="h-1.5 bg-[#F2F0EA] overflow-hidden mb-3">
@@ -2402,7 +2424,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
         </p>
         
         <p 
-          className={`text-sm text-[#8A877D] mb-8 transition-all duration-1000 ease-out ${
+          className={`text-sm text-[#68655B] mb-8 transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
           style={{ transitionDelay: animate ? '500ms' : '0ms' }}
@@ -2490,18 +2512,18 @@ function AdditionalPropertiesInput({ project, setProject }) {
         className="w-full flex items-center justify-between px-4 py-3 bg-[#FFFFFF] hover:bg-[#F2F0EA] transition-colors text-left"
       >
         <div className="flex items-center gap-2">
-          <Plus className="w-4 h-4 text-[#8A877D]" />
+          <Plus className="w-4 h-4 text-[#68655B]" />
           <span className="text-sm font-medium text-[#0B0B0B]">Additional Properties</span>
           {props.length > 0 && (
             <span className="text-xs font-semibold px-2 py-0.5 bg-[#0B0B0B] text-white">{props.length}</span>
           )}
         </div>
-        <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-[#68655B] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
         <div className="p-4 space-y-4 border-t border-[#DCDAD3]">
-          <p className="text-xs text-[#8A877D]">
+          <p className="text-xs text-[#68655B]">
             Add regional sites, translated versions, microsites or other digital properties owned by this brand. Leave blank to assess the primary URL only.
           </p>
 
@@ -2521,7 +2543,7 @@ function AdditionalPropertiesInput({ project, setProject }) {
           {props.map((prop, i) => (
             <div key={i} className="p-3 bg-[#F2F0EA] space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#8A877D] w-4">{i + 1}</span>
+                <span className="text-xs font-semibold text-[#68655B] w-4">{i + 1}</span>
                 <input
                   type="url"
                   value={prop.url}
@@ -2610,7 +2632,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
             className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]">
             {INDUSTRIES.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-          <p className="text-xs text-[#8A877D] mt-1">Used for industry context in the assessment</p>
+          <p className="text-xs text-[#68655B] mt-1">Used for industry context in the assessment</p>
         </div>
 
         <div>
@@ -2623,7 +2645,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
             className="w-full px-4 py-3 border border-[#DCDAD3] bg-white text-sm leading-relaxed resize-y"
             style={{ minHeight: '120px' }}
           />
-          <p className="text-xs text-[#8A877D] mt-1">Optional. This is the lens for the whole report. State what the brand wants, for example to reposition, reach a new audience, or launch, and the assessment will judge how ready the brand is to get there. It is not quoted in the report, only reflected as the brand's stated ambition. Leave it blank and this lens is not applied.</p>
+          <p className="text-xs text-[#68655B] mt-1">Optional. This is the lens for the whole report. State what the brand wants, for example to reposition, reach a new audience, or launch, and the assessment will judge how ready the brand is to get there. It is not quoted in the report, only reflected as the brand's stated ambition. Leave it blank and this lens is not applied.</p>
         </div>
 
         {/* Only show API key field if no default is configured */}
@@ -2632,7 +2654,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
             <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Claude API Key *</label>
             <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
               placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#DCDAD3] bg-white font-mono text-sm" />
-            <p className="text-xs text-[#8A877D] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#B23A3A] hover:underline">console.anthropic.com</a></p>
+            <p className="text-xs text-[#68655B] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#B23A3A] hover:underline">console.anthropic.com</a></p>
           </div>
         )}
         {DEFAULT_API_KEY && (
@@ -2808,9 +2830,9 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
           <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
             <Globe className="w-4 h-4 text-[#1976D2]" />
             Digital Property Consistency
-            <span className="text-xs font-normal text-[#8A877D]">— {additionalProperties.length} additional {additionalProperties.length === 1 ? 'property' : 'properties'}</span>
+            <span className="text-xs font-normal text-[#68655B]">— {additionalProperties.length} additional {additionalProperties.length === 1 ? 'property' : 'properties'}</span>
           </h3>
-          <p className="text-xs text-[#8A877D]">Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis.</p>
+          <p className="text-xs text-[#68655B]">Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis.</p>
         </div>
         {extractRisk(propertyData.consistencyAnalysis) && (
           <span className="text-xs font-bold px-3 py-1 text-white flex-shrink-0"
@@ -2919,7 +2941,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
 
   // Helper function to get color based on PageSpeed score
   const getScoreColor = (score) => {
-    if (score === '' || score === undefined || score === null) return '#8A877D';
+    if (score === '' || score === undefined || score === null) return '#68655B';
     const num = parseInt(score);
     if (num >= 90) return '#059669'; // Green - Good
     if (num >= 50) return '#D97706'; // Amber - Needs Improvement
@@ -3002,7 +3024,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="text-sm font-medium text-[#0B0B0B]">Technical Performance Audit</h3>
-          <p className="text-xs text-[#8A877D]">PageSpeed scores impact ATTENTIVE & COGENT</p>
+          <p className="text-xs text-[#68655B]">PageSpeed scores impact ATTENTIVE & COGENT</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -3058,10 +3080,10 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
                 style={{ width: '2.6ch', fontSize: 34, fontWeight: 700, letterSpacing: '-.03em',
                   lineHeight: 1, color: techAudit.scores[item.key] === '' ? '#B3B0A8' : scoreColor(techAudit.scores[item.key]) }}
               />
-              <span style={{ fontSize: 15, fontWeight: 500, color: '#8A877D' }}>/100</span>
+              <span style={{ fontSize: 15, fontWeight: 500, color: '#68655B' }}>/100</span>
             </div>
             <div className="dc-kicker-sm" style={{ marginTop: 8 }}>{item.label}</div>
-            <div className="text-[10px] font-bold" style={{ marginTop: 3, color: '#8A877D' }}>
+            <div className="text-[10px] font-bold" style={{ marginTop: 3, color: '#68655B' }}>
               {getScoreLabel(techAudit.scores[item.key])}
             </div>
           </div>
@@ -3071,7 +3093,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       {hasAnyScore && (
         <div className="mt-3 pt-3 border-t border-[#DCDAD3] flex items-center gap-2">
           <Check className="w-4 h-4 text-[#059669]" />
-          <span className="text-xs text-[#8A877D]">Scores will be included in assessment</span>
+          <span className="text-xs text-[#68655B]">Scores will be included in assessment</span>
         </div>
       )}
     </div>
@@ -3584,7 +3606,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       {/* Pages Reviewed */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Pages Reviewed</div>
-        <p className="text-sm text-[#8A877D] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
+        <p className="text-sm text-[#68655B] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
         <input 
           type="text" 
           value={pagesReviewed} 
@@ -3610,7 +3632,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
             )}
           </button>
         </div>
-        <p className="text-sm text-[#8A877D] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
+        <p className="text-sm text-[#68655B] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
         <textarea 
           value={credentialsContent} 
           onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ ...assessmentData, credentialsContent: e.target.value }); }}
@@ -3627,7 +3649,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         <div className="dc-kicker flex items-center gap-2" style={{ marginBottom: 14 }}>
           <Image className="w-4 h-4" /> Screenshots (up to 2)
         </div>
-        <p className="text-sm text-[#8A877D] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
+        <p className="text-sm text-[#68655B] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
         
@@ -3651,7 +3673,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
               {isCompressing ? (
                 <><Loader2 className="w-6 h-6 text-[#B23A3A] animate-spin" /><span className="text-sm text-[#B23A3A]">Compressing...</span></>
               ) : (
-                <><Upload className="w-6 h-6 text-[#0B0B0B]" /><span className="text-sm text-[#0B0B0B] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#8A877D]">{2 - images.length} remaining</span></>
+                <><Upload className="w-6 h-6 text-[#0B0B0B]" /><span className="text-sm text-[#0B0B0B] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#68655B]">{2 - images.length} remaining</span></>
               )}
             </button>
           )}
@@ -3667,7 +3689,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       {/* Website Content */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Website Content (Optional)</div>
-        <p className="text-sm text-[#8A877D] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
+        <p className="text-sm text-[#68655B] mb-3">Paste key content from the website: headlines, taglines, about text, value propositions, etc.</p>
         <textarea 
           value={websiteContent} 
           onChange={(e) => { setWebsiteContent(e.target.value); setAssessmentData({ ...assessmentData, websiteContent: e.target.value }); }}
@@ -3688,13 +3710,13 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="dc-kicker">SEO Visibility Assessment</div>
-            <p className="text-sm text-[#8A877D]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
+            <p className="text-sm text-[#68655B]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
           </div>
         </div>
 
         {!seoAssessment ? (
           <div>
-            <p className="text-sm text-[#8A877D] mb-4">
+            <p className="text-sm text-[#68655B] mb-4">
               Claude will analyze {project.brandName}'s likely SEO visibility based on brand name uniqueness, 
               industry competitiveness, content signals, and identify target keywords they should rank for.
             </p>
@@ -3721,7 +3743,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
             <div className="flex items-center justify-between mb-3">
               <span className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
                 <Check className="w-4 h-4 text-[#059669]" /> SEO Assessment Complete
-                <span className="text-xs text-[#8A877D] font-normal">(will be included in Website Analysis)</span>
+                <span className="text-xs text-[#68655B] font-normal">(will be included in Website Analysis)</span>
               </span>
               <button 
                 onClick={runSeoAssessment} 
@@ -3757,7 +3779,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       {/* Assessor Observations */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
-        <p className="text-sm text-[#8A877D] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
+        <p className="text-sm text-[#68655B] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Add your observations about:
 - Brand alignment issues
@@ -4441,12 +4463,12 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       className={`w-full flex items-center justify-between px-5 py-4 bg-white transition-colors ${isOpen ? 'border-b border-[#DCDAD3]' : 'hover:bg-[#F2F0EA]'}`}
     >
       <div className="flex items-center gap-3">
-        <Icon className="w-4 h-4 text-[#8A877D]" />
+        <Icon className="w-4 h-4 text-[#68655B]" />
         <span className="text-[17px] font-bold tracking-tight text-[#0B0B0B]">{title}</span>
         {badge && <span className="dc-meta">{badge}</span>}
         {hasContent && <Check className="w-4 h-4 text-[#059669]" />}
       </div>
-      <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      <ChevronDown className={`w-4 h-4 text-[#68655B] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
     </button>
   );
 
@@ -4485,7 +4507,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             <div className="w-full bg-[#F2F0EA] h-2 mb-1.5">
               <div className="bg-[#DEE42F] h-2 transition-all duration-500 ease-out" style={{ width: `${runAllProgress}%` }} />
             </div>
-            <p className="text-xs text-[#8A877D]">{runAllStage}</p>
+            <p className="text-xs text-[#68655B]">{runAllStage}</p>
           </div>
         )}
       </div>
@@ -4527,7 +4549,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         <div className="dc-kicker flex items-center gap-2" style={{ marginBottom: 14 }}>
           <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) <span className="text-[#B23A3A]">*</span>
         </div>
-        <p className="text-sm text-[#8A877D] mb-4">Upload screenshots of key social profiles for visual analysis. Required to proceed.</p>
+        <p className="text-sm text-[#68655B] mb-4">Upload screenshots of key social profiles for visual analysis. Required to proceed.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
         
@@ -4551,7 +4573,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               {isCompressing ? (
                 <><Loader2 className="w-6 h-6 text-[#B23A3A] animate-spin" /><span className="text-sm text-[#B23A3A]">Compressing...</span></>
               ) : (
-                <><Upload className="w-6 h-6 text-[#0B0B0B]" /><span className="text-sm text-[#0B0B0B] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#8A877D]">{SOCIAL_SCREENSHOT_MAX - images.length} remaining</span></>
+                <><Upload className="w-6 h-6 text-[#0B0B0B]" /><span className="text-sm text-[#0B0B0B] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#68655B]">{SOCIAL_SCREENSHOT_MAX - images.length} remaining</span></>
               )}
             </button>
           )}
@@ -4694,7 +4716,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {relevance.secondary.length > 0 && (
         <button
           onClick={() => setShowAllChannels(v => !v)}
-          className="text-xs text-[#8A877D] hover:text-[#0B0B0B] transition-colors mb-4 flex items-center gap-1.5"
+          className="text-xs text-[#68655B] hover:text-[#0B0B0B] transition-colors mb-4 flex items-center gap-1.5"
         >
           <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAllChannels ? 'rotate-180' : ''}`} />
           {showAllChannels ? 'Show priority channels only' : `Show all channels (${relevance.secondary.length} more)`}
@@ -4715,7 +4737,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#8A877D]">Glassdoor <span className="text-[#4A4840]">(→ Reflective)</span></label>
+                <label className="text-xs font-medium text-[#68655B]">Glassdoor <span className="text-[#4A4840]">(→ Reflective)</span></label>
                 <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
                    className="px-2 py-0.5 bg-[#E4E2DC] text-[#4A4840] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1">
                   Verify <ExternalLink className="w-2.5 h-2.5" />
@@ -4765,7 +4787,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         />
         {expanded.campaign && (
           <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
-            <p className="text-xs text-[#8A877D]">
+            <p className="text-xs text-[#68655B]">
               This is what drives the Campaign Coherence score. What matters is whether a strategy and a creative idea thread the activity together, not how much activity there is.
               {project.businessModel === 'b2b'
                 ? ' For B2B, LinkedIn Ads and Google Search usually carry the weight.'
@@ -4792,7 +4814,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
                   <span>LinkedIn{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#B3B0A8] hover:bg-[#8A877D]' : project.businessModel === 'b2c' ? 'bg-black hover:bg-[#0B0B0B] ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-[#0B0B0B]'}`}>
+                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#B3B0A8] hover:bg-[#68655B]' : project.businessModel === 'b2c' ? 'bg-black hover:bg-[#0B0B0B] ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-[#0B0B0B]'}`}>
                   <span>TikTok{project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -4802,7 +4824,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Hashtag search</div>
               <div className="grid grid-cols-2 gap-2">
                 <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-gradient-to-r from-[#8A877D] to-pink-500 text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
+                   className="px-2 py-1.5 bg-gradient-to-r from-[#68655B] to-pink-500 text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
                   <span>Instagram #</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://www.linkedin.com/search/results/content/?keywords=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
@@ -5118,7 +5140,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
         <div className="flex items-start justify-between mb-2">
           <div>
             <h3 className="text-sm font-medium text-[#0B0B0B] mb-0.5">AI Brand Research Prompt</h3>
-            <p className="text-xs text-[#8A877D]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
+            <p className="text-xs text-[#68655B]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
           </div>
         </div>
         <div className="bg-[#F2F0EA] p-3 max-h-32 overflow-y-auto mb-2">
@@ -5140,7 +5162,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 </div>
                 <div>
                   <h4 className="font-medium">{engine.name}</h4>
-                  <p className="text-sm text-[#8A877D]">{engine.brand}</p>
+                  <p className="text-sm text-[#68655B]">{engine.brand}</p>
                 </div>
               </div>
               <a
@@ -5173,12 +5195,12 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       {/* AI Training Sources */}
       <div className="dc-panel-dark mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">AI Training Sources</h3>
-        <p className="text-xs text-[#8A877D] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
+        <p className="text-xs text-[#68655B] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
         <div className="space-y-3">
           {/* Wikipedia */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#8A877D]">Wikipedia</label>
+              <label className="text-xs font-medium text-[#68655B]">Wikipedia</label>
               <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer"
                  className="px-2 py-0.5 bg-[#E4E2DC] text-[#4A4840] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1">
                 Search Wikipedia <ExternalLink className="w-2.5 h-2.5" />
@@ -5194,7 +5216,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
           {/* Reddit Answers */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#0B0B0B]">Reddit Answers <span className="text-[#8A877D] font-normal">(AI search visibility)</span></label>
+              <label className="text-xs font-medium text-[#0B0B0B]">Reddit Answers <span className="text-[#68655B] font-normal">(AI search visibility)</span></label>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => copyToClipboard(redditPrompt)}
@@ -5221,7 +5243,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       {/* Third-Party & Search Signals (auto-fetched, NOT AI engines) */}
       <div className="dc-panel-dark mb-[2px]">
         <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">Third-Party &amp; Search Signals</h3>
-        <p className="text-xs text-[#8A877D] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
+        <p className="text-xs text-[#68655B] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
         <div className="space-y-3">
           {[
             { key: 'news', label: 'Google News', value: googleNewsContent, setter: setGoogleNewsContent, field: 'googleNewsContent', run: fetchGoogleNews, placeholder: `Recent press and news coverage of ${project.brandName}...` },
@@ -5230,7 +5252,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
           ].map(row => (
             <div key={row.key}>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#8A877D]">{row.label} {row.sub && <span className="font-normal text-[#999]">{row.sub}</span>}</label>
+                <label className="text-xs font-medium text-[#68655B]">{row.label} {row.sub && <span className="font-normal text-[#999]">{row.sub}</span>}</label>
                 <button
                   onClick={row.run}
                   disabled={!!fetching[row.label]}
@@ -5253,7 +5275,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       {/* Assessor Observations */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
-        <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the synthesis.</p>
+        <p className="text-sm text-[#68655B] mb-3">Your observations will be included in the synthesis.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
       </div>
@@ -5457,7 +5479,7 @@ Write in flowing prose with specific examples. End with priority recommendations
       {/* Coverage Paste Field */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Media Coverage (Last 3 Months)</div>
-        <p className="text-sm text-[#8A877D] mb-4">
+        <p className="text-sm text-[#68655B] mb-4">
           Paste any press coverage, news articles, mentions, or media clips from the last 3 months.
         </p>
         <textarea 
@@ -5475,7 +5497,7 @@ Example:
 ..."
           className="w-full h-28 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
         />
-        <p className="text-xs text-[#8A877D] mt-2">
+        <p className="text-xs text-[#68655B] mt-2">
           Include: news articles, podcast appearances, conference keynotes, analyst mentions, awards announcements, industry rankings
         </p>
       </div>
@@ -5488,7 +5510,7 @@ Example:
               <Sparkles className="w-4 h-4 text-[#0F7A4F]" />
               Auto-Assess Earned Media Performance
             </div>
-            <p className="text-xs text-[#8A877D]">
+            <p className="text-xs text-[#68655B]">
               AI-powered comprehensive analysis across 7 dimensions: Coverage Quality, Reach, Sentiment, Share of Voice, Message Consistency, Thought Leadership, and Audience Relevance.
             </p>
           </div>
@@ -5517,7 +5539,7 @@ Example:
       {/* Assessor Observations - before analysis button */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
-        <p className="text-sm text-[#8A877D] mb-3">Your observations will be included in the analysis and final report.</p>
+        <p className="text-sm text-[#68655B] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
           placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
       </div>
@@ -6043,7 +6065,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             <div className="max-w-lg mx-auto">
               <Loader2 className="w-16 h-16 text-[#B23A3A] mx-auto mb-6 animate-spin" />
               <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Generating Report...</h3>
-              <p className="text-[#8A877D] mb-6">{scoringStage}</p>
+              <p className="text-[#68655B] mb-6">{scoringStage}</p>
               
               {/* Progress bar */}
               <div className="w-full bg-[#F2F0EA] h-3 mb-2">
@@ -6052,7 +6074,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
                   style={{ width: `${scoringProgress}%` }}
                 />
               </div>
-              <p className="text-sm text-[#8A877D] mb-8">{scoringProgress}% complete</p>
+              <p className="text-sm text-[#68655B] mb-8">{scoringProgress}% complete</p>
               
               {/* Progress steps - centered */}
               <div className="space-y-3">
@@ -6092,7 +6114,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
               {waitingStories.length > 0 && (
                 <div className="mt-8 pt-6 border-t border-[#DCDAD3]">
                   <p className="text-xs font-semibold text-[#B3B0A8] uppercase tracking-wider text-center">While you're waiting</p>
-                  <p className="text-xs text-[#8A877D] mb-4 text-center">The latest from Stay Conscious</p>
+                  <p className="text-xs text-[#68655B] mb-4 text-center">The latest from Stay Conscious</p>
                   <div className="space-y-3">
                     {waitingStories.map((s, i) => (
                       <div key={i} className="card text-left">
@@ -6100,7 +6122,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
                           <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-[#B23A3A] mb-1">{s.category}</span>
                         )}
                         <div className="font-semibold text-sm text-[#0B0B0B] leading-snug">{s.headline}</div>
-                        {s.summary && <div className="text-xs text-[#8A877D] mt-1 leading-relaxed">{s.summary}</div>}
+                        {s.summary && <div className="text-xs text-[#68655B] mt-1 leading-relaxed">{s.summary}</div>}
                       </div>
                     ))}
                   </div>
@@ -6111,7 +6133,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             <>
               <Compass className="w-16 h-16 text-[#B23A3A] mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Assessment Complete</h3>
-              <p className="text-[#8A877D] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
+              <p className="text-[#68655B] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
               
               <button 
                 onClick={runScoring} 
@@ -6148,9 +6170,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
     return (
       <div className="dc-wrap dc-page">
         <div className="card text-center">
-          <AlertCircle className="w-12 h-12 text-[#8A877D] mx-auto mb-4" />
+          <AlertCircle className="w-12 h-12 text-[#68655B] mx-auto mb-4" />
           <h3 className="dc-kicker text-[#0B0B0B] mb-2">Report Generation Issue</h3>
-          <p className="text-[#8A877D] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
+          <p className="text-[#68655B] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
           <button onClick={() => setScores(null)} className="btn-primary">
             Try Again
           </button>
@@ -7677,9 +7699,9 @@ ${content.slice(0, 8000)}`;
     return (
       <button onClick={onToggle}
         className="w-full flex items-baseline gap-4 pb-3 border-b-2 border-[#0B0B0B] hover:opacity-60 transition-opacity text-left">
-        <span className="text-[11px] font-bold tracking-[0.16em] text-[#8A877D]">{n}</span>
+        <span className="text-[11px] font-bold tracking-[0.16em] text-[#68655B]">{n}</span>
         <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#0B0B0B] flex-1">{label}</span>
-        {onToggle && <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform ${open ? 'rotate-180' : ''}`} />}
+        {onToggle && <ChevronDown className={`w-4 h-4 text-[#68655B] transition-transform ${open ? 'rotate-180' : ''}`} />}
       </button>
     );
   };
@@ -7718,7 +7740,7 @@ ${content.slice(0, 8000)}`;
           lineHeight: .92, margin: '28px 0 0', maxWidth: '18ch', textWrap: 'balance' }}>
           {project.brandName}
         </h1>
-        <p className="text-[14px] font-semibold text-[#8A877D] mt-5" style={{ letterSpacing: '.04em' }}>
+        <p className="text-[14px] font-semibold text-[#68655B] mt-5" style={{ letterSpacing: '.04em' }}>
           Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
         </p>
 
@@ -7736,7 +7758,7 @@ ${content.slice(0, 8000)}`;
                     fontSize: 44, fontWeight: 700, letterSpacing: '-.03em' }}>
                   {animatedScore}
                 </div>
-                <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#8A877D] text-center mt-2">out of 100</div>
+                <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#68655B] text-center mt-2">out of 100</div>
               </div>
               <div>
                 <h3 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.025em', lineHeight: 1.05 }}>{stage.name}</h3>
@@ -7758,7 +7780,7 @@ ${content.slice(0, 8000)}`;
               <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
                 {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}
               </span>, with opportunities to grow in{' '}
-              <span className="font-bold" style={{ borderBottom: '2px dotted #8A877D' }}>
+              <span className="font-bold" style={{ borderBottom: '2px dotted #68655B' }}>
                 {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}
               </span>.
             </p>
@@ -7806,7 +7828,7 @@ ${content.slice(0, 8000)}`;
               {MATURITY_STAGES.map(st => (
                 <div key={st.id} className="text-[11px]"
                   style={{ fontWeight: st.name === stage.name ? 700 : 600,
-                    color: st.name === stage.name ? '#0B0B0B' : '#8A877D' }}>
+                    color: st.name === stage.name ? '#0B0B0B' : '#68655B' }}>
                   {st.name}
                 </div>
               ))}
@@ -7816,7 +7838,7 @@ ${content.slice(0, 8000)}`;
           <div style={{ marginTop: 28, borderLeft: '6px solid #DEE42F', padding: '6px 0 6px 20px',
             fontSize: 18, fontWeight: 600, letterSpacing: '-.01em' }}>
             <b className="font-bold">{stage.name}</b>
-            {nextStage && <span style={{ color: '#8A877D', fontWeight: 500 }}> · {nextStage.min - overall} points to {nextStage.name}</span>}
+            {nextStage && <span style={{ color: '#68655B', fontWeight: 500 }}> · {nextStage.min - overall} points to {nextStage.name}</span>}
           </div>
         </div>
       </section>
@@ -7844,7 +7866,7 @@ ${content.slice(0, 8000)}`;
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{attr.name}</h4>
-                      <p className="text-[11px] font-semibold text-[#8A877D] mt-0.5" style={{ letterSpacing: '.04em' }}>
+                      <p className="text-[11px] font-semibold text-[#68655B] mt-0.5" style={{ letterSpacing: '.04em' }}>
                         {attr.fullName}
                       </p>
                     </div>
@@ -7898,7 +7920,7 @@ ${content.slice(0, 8000)}`;
             {campaignAffected.length > 0 && campaignStage && (
               <div className="bg-white" style={{ padding: 24 }}>
                 <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>Score adjustment</h4>
-                <p className="text-[12px] text-[#8A877D]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DCDAD3' }}>
+                <p className="text-[12px] text-[#68655B]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DCDAD3' }}>
                   Attribute scores judge the quality of the work. Campaign coherence is scored
                   separately and applied here, so the two are never counted twice.
                 </p>
@@ -7919,7 +7941,7 @@ ${content.slice(0, 8000)}`;
                         <span className="text-[13px] font-bold truncate">{attr.name}</span>
                         <span className="dc-adj-row grid items-baseline flex-shrink-0 tabular-nums"
                           style={{ gridTemplateColumns: '34px 30px 34px', gap: 10, textAlign: 'right' }}>
-                          <span className="text-[12px] text-[#8A877D]">
+                          <span className="text-[12px] text-[#68655B]">
                             {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
                           </span>
                           <span className="text-[12px] font-bold" style={{ color: adj > 0 ? SCORE_GREEN : SCORE_RED }}>
@@ -7997,11 +8019,11 @@ ${content.slice(0, 8000)}`;
                     <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
                       {campaignStage.level === 0 ? '—' : campaignStage.level}
                     </div>
-                    <div className="text-[10px] text-[#8A877D] mt-1">{campaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
+                    <div className="text-[10px] text-[#68655B] mt-1">{campaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-lg font-bold text-[#0B0B0B]">{campaignStage.name}</div>
-                    <p className="text-sm text-[#8A877D] leading-relaxed mb-2">{campaignStage.summary}</p>
+                    <p className="text-sm text-[#68655B] leading-relaxed mb-2">{campaignStage.summary}</p>
                     {campaign.verdict && (
                       <p className="text-sm text-[#0B0B0B] font-medium leading-relaxed">{campaign.verdict}</p>
                     )}
@@ -8041,7 +8063,7 @@ ${content.slice(0, 8000)}`;
                         </div>
                       )}
                       {c.idea && <p className="text-xs text-[#4A4840] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
-                      {c.evidence && <p className="text-xs text-[#8A877D] leading-relaxed">{c.evidence}</p>}
+                      {c.evidence && <p className="text-xs text-[#68655B] leading-relaxed">{c.evidence}</p>}
                     </div>
                   ))}
                 </div>
@@ -8081,7 +8103,7 @@ ${content.slice(0, 8000)}`;
               {/* Overall position */}
               <div className="bg-white" style={{ marginTop: 24, padding: '28px 32px' }} ref={benchmarkPositionRef}>
                 <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Overall Position</h4>
-                <p className="text-[13px] text-[#8A877D] mt-1">
+                <p className="text-[13px] text-[#68655B] mt-1">
                   Where {project.brandName} sits against {benchmark.cohortLabel.toLowerCase()}.
                 </p>
 
@@ -8101,8 +8123,8 @@ ${content.slice(0, 8000)}`;
 
                   <div className="absolute flex flex-col items-center gap-1"
                     style={{ left: `${benchmark.avgScore}%`, top: 70, transform: 'translateX(-50%)' }}>
-                    <div style={{ width: 2, height: 14, background: '#8A877D' }} />
-                    <div className="text-[11px] font-bold text-[#8A877D]" style={{ whiteSpace: 'nowrap' }}>
+                    <div style={{ width: 2, height: 14, background: '#68655B' }} />
+                    <div className="text-[11px] font-bold text-[#68655B]" style={{ whiteSpace: 'nowrap' }}>
                       sector {benchmark.avgScore}
                     </div>
                   </div>
@@ -8130,7 +8152,7 @@ ${content.slice(0, 8000)}`;
               <div className="dc-split grid gap-[2px] items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 2 }}>
                 <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkSpreadRef}>
                   <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
-                  <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
+                  <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
                     The band is the range across those brands, the line is their average, the dot is {project.brandName}.
                   </p>
                   <div style={{ marginTop: 24, borderTop: '1px solid #DCDAD3' }} ref={spreadRef}>
@@ -8148,7 +8170,7 @@ ${content.slice(0, 8000)}`;
                             <div className="absolute origin-left" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3',
                               transform: `scaleX(${spreadIn ? 1 : 0})`,
                               transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: `${ri * 70}ms` }} />
-                            <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#8A877D',
+                            <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#68655B',
                               opacity: spreadIn ? 1 : 0, transition: 'opacity 400ms ease', transitionDelay: `${ri * 70 + 260}ms` }} />
                             <div className="absolute" style={{ left: `${spreadIn ? v : rng.min}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF',
                               opacity: spreadIn ? 1 : 0,
@@ -8168,7 +8190,7 @@ ${content.slice(0, 8000)}`;
 
                 <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkRadarRef}>
                   <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
-                  <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
+                  <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
                     {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
                   </p>
                   <div style={{ marginTop: 20 }}>
@@ -8285,10 +8307,10 @@ ${content.slice(0, 8000)}`;
                   </div>
                   <div className="text-left">
                     <h4 className="font-medium text-[#0B0B0B]">Website Assessment</h4>
-                    <p className="text-xs text-[#8A877D]">Auto-assess, SEO visibility, and full analysis</p>
+                    <p className="text-xs text-[#68655B]">Auto-assess, SEO visibility, and full analysis</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${expandedSections.readoutWebsite ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#68655B] transition-transform ${expandedSections.readoutWebsite ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutWebsite && (
                 <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
@@ -8332,10 +8354,10 @@ ${content.slice(0, 8000)}`;
                   </div>
                   <div className="text-left">
                     <h4 className="font-medium text-[#0B0B0B]">Social Media Assessment</h4>
-                    <p className="text-xs text-[#8A877D]">Platform analysis and Reddit Answers AI visibility</p>
+                    <p className="text-xs text-[#68655B]">Platform analysis and Reddit Answers AI visibility</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${expandedSections.readoutSocial ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#68655B] transition-transform ${expandedSections.readoutSocial ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutSocial && (
                 <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
@@ -8371,10 +8393,10 @@ ${content.slice(0, 8000)}`;
                   </div>
                   <div className="text-left">
                     <h4 className="font-medium text-[#0B0B0B]">AI Reputation Assessment</h4>
-                    <p className="text-xs text-[#8A877D]">AI engine reputation synthesis</p>
+                    <p className="text-xs text-[#68655B]">AI engine reputation synthesis</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${expandedSections.readoutAI ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#68655B] transition-transform ${expandedSections.readoutAI ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutAI && (
                 <div className="border-t border-[#DCDAD3] p-4 bg-[#F2F0EA]">
@@ -8383,7 +8405,7 @@ ${content.slice(0, 8000)}`;
                       <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
                     </div>
                   ) : (
-                    <p className="text-sm text-[#8A877D]">No synthesis generated yet.</p>
+                    <p className="text-sm text-[#68655B]">No synthesis generated yet.</p>
                   )}
                 </div>
               )}
@@ -8401,10 +8423,10 @@ ${content.slice(0, 8000)}`;
                   </div>
                   <div className="text-left">
                     <h4 className="font-medium text-[#0B0B0B]">Earned Media Assessment</h4>
-                    <p className="text-xs text-[#8A877D]">Auto-assess performance and coverage analysis</p>
+                    <p className="text-xs text-[#68655B]">Auto-assess performance and coverage analysis</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#8A877D] transition-transform ${expandedSections.readoutEarned ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#68655B] transition-transform ${expandedSections.readoutEarned ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutEarned && (
                 <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
@@ -8595,7 +8617,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
             </button>
             <div>
               <h1 className="dc-h2 text-[#0B0B0B]">Compass Results</h1>
-              <span className="text-sm text-[#8A877D]">{results.length} assessments</span>
+              <span className="text-sm text-[#68655B]">{results.length} assessments</span>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -8675,7 +8697,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
             {/* Results count */}
             {hasActiveFilters && (
-              <div className="mt-3 text-sm text-[#8A877D]">
+              <div className="mt-3 text-sm text-[#68655B]">
                 Showing {filteredResults.length} of {results.length} results
               </div>
             )}
@@ -8686,7 +8708,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
           <div className="card text-center">
             <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results Yet</h3>
-            <p className="text-[#8A877D] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
+            <p className="text-[#68655B] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
             {profile?.is_admin && (
               <button onClick={() => setShowAddModal(true)} className="btn-primary">
                 Add Manual Entry
@@ -8697,7 +8719,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
           <div className="card text-center">
             <Search className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Matching Results</h3>
-            <p className="text-[#8A877D] mb-4">Try adjusting your search or filters.</p>
+            <p className="text-[#68655B] mb-4">Try adjusting your search or filters.</p>
             <button onClick={clearFilters} className="btn-secondary">
               Clear Filters
             </button>
@@ -8735,10 +8757,10 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     <div className="dc-col-hide text-[13px] text-[#4A4840] truncate">{r.industry}</div>
                     <div className="text-[20px] font-bold text-right" style={{ color: scoreColor(r.totalScore) }}>{r.totalScore}</div>
                     <div className="dc-col-hide text-[13px] font-semibold">{r.maturityLevel}</div>
-                    <div className="dc-col-hide text-[13px] text-[#8A877D] text-right">
+                    <div className="dc-col-hide text-[13px] text-[#68655B] text-right">
                       {assessmentDate ? assessmentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform justify-self-end ${isExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-[#68655B] transition-transform justify-self-end ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
                   
                   {/* Expanded Details */}
@@ -8755,7 +8777,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                             {ATTRIBUTES.map(attr => (
                               <div key={attr.id} className="text-center p-2 bg-white ">
                                 <div className="text-lg font-bold" style={{ color: attr.color }}>{r.scores?.[attr.id] || 0}</div>
-                                <div className="text-[10px] text-[#8A877D] truncate">{attr.name}</div>
+                                <div className="text-[10px] text-[#68655B] truncate">{attr.name}</div>
                               </div>
                             ))}
                           </div>
@@ -8763,7 +8785,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       </div>
                       
                       {/* Meta Info */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#8A877D]">
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#68655B]">
                         <span><strong>Assessor:</strong> {r.assessorName || 'Unknown'}</span>
                         <span><strong>Full Date:</strong> {r.savedAt ? new Date(r.savedAt).toLocaleString() : '-'}</span>
                         {profile?.is_admin && (
@@ -8790,7 +8812,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
           <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-[#DCDAD3]">
               <h3 className="text-[17px] font-bold tracking-tight">Add Manual Entry</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-[#8A877D] hover:text-[#0B0B0B]">
+              <button onClick={() => setShowAddModal(false)} className="text-[#68655B] hover:text-[#0B0B0B]">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -8844,7 +8866,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     onChange={(e) => setManualEntry({ ...manualEntry, totalScore: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
                     className="w-24 px-3 py-2 border border-[#DCDAD3] text-center text-lg font-bold"
                   />
-                  <span className="text-sm text-[#8A877D]">
+                  <span className="text-sm text-[#68655B]">
                     Weighted score (not auto-calculated from attributes)
                   </span>
                 </div>
@@ -8856,7 +8878,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                   {ATTRIBUTES.map(attr => (
                     <div key={attr.id} className="flex items-center gap-2">
                       <span className="w-3 h-3" style={{ backgroundColor: attr.color }}></span>
-                      <span className="text-sm text-[#8A877D] w-24">{attr.name}</span>
+                      <span className="text-sm text-[#68655B] w-24">{attr.name}</span>
                       <input
                         type="number"
                         min="0"
@@ -8981,7 +9003,7 @@ function OnboardingTour({ onComplete }) {
                 localStorage.setItem('conscious-compass-onboarded', 'true');
                 onComplete();
               }}
-              className="w-full text-center text-sm text-[#8A877D] mt-4 hover:text-[#E8FF00] transition-colors"
+              className="w-full text-center text-sm text-[#68655B] mt-4 hover:text-[#E8FF00] transition-colors"
             >
               Skip tour
             </button>
@@ -9116,7 +9138,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
       <div className="card text-center">
         <TrendingUp className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
         <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Data for Insights</h3>
-        <p className="text-[#8A877D]">Add some brand assessments to see portfolio insights.</p>
+        <p className="text-[#68655B]">Add some brand assessments to see portfolio insights.</p>
       </div>
     );
   }
@@ -9129,27 +9151,27 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card text-center">
           <div className="text-4xl font-bold text-[#0B0B0B] mb-1">{portfolioStats.totalBrands}</div>
-          <div className="text-sm text-[#8A877D]">Brands Assessed</div>
+          <div className="text-sm text-[#68655B]">Brands Assessed</div>
         </div>
         <div className="card text-center">
           <div className="text-4xl font-bold mb-1" style={{ color: getMaturityStage(portfolioStats.avgScore).color }}>
             {portfolioStats.avgScore}
           </div>
-          <div className="text-sm text-[#8A877D]">Portfolio Average</div>
+          <div className="text-sm text-[#68655B]">Portfolio Average</div>
         </div>
         <div className="card text-center">
           <div className="text-lg font-bold text-[#059669] mb-1 flex items-center justify-center gap-1">
             <TrendingUp className="w-5 h-5" />
             {ATTRIBUTES.find(a => a.id === portfolioStats.strongestAttr[0])?.name}
           </div>
-          <div className="text-sm text-[#8A877D]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
+          <div className="text-sm text-[#68655B]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
         </div>
         <div className="card text-center">
           <div className="text-lg font-bold text-[#F59E0B] mb-1 flex items-center justify-center gap-1">
             <TrendingDown className="w-5 h-5" />
             {ATTRIBUTES.find(a => a.id === portfolioStats.weakestAttr[0])?.name}
           </div>
-          <div className="text-sm text-[#8A877D]">Growth Opportunity ({portfolioStats.weakestAttr[1]})</div>
+          <div className="text-sm text-[#68655B]">Growth Opportunity ({portfolioStats.weakestAttr[1]})</div>
         </div>
       </div>
 
@@ -9177,7 +9199,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         <div className="flex gap-3">
           {portfolioStats.scoreDistribution.map((bucket, idx) => (
             <div key={idx} className="flex-1 text-center">
-              <div className="text-xs text-[#8A877D]">{bucket.label}</div>
+              <div className="text-xs text-[#68655B]">{bucket.label}</div>
               <div className="text-[10px] text-[#B3B0A8]">{bucket.range}</div>
             </div>
           ))}
@@ -9191,7 +9213,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
             <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
               <Lightbulb className="w-5 h-5 text-[#E8FF00]" style={{filter: 'drop-shadow(0 0 2px #E8FF00)'}} /> Story Opportunities
             </h3>
-            <p className="text-xs text-[#8A877D] mt-1">Thought leadership angles from your assessment data. Refreshes automatically every Sunday night.</p>
+            <p className="text-xs text-[#68655B] mt-1">Thought leadership angles from your assessment data. Refreshes automatically every Sunday night.</p>
             {refreshedAt && (
               <p className="text-[10px] text-[#999] mt-1">
                 Last updated {refreshedAt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at {refreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -9217,14 +9239,14 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         )}
 
         {loading && (
-          <div className="text-center py-8 text-[#8A877D]">
+          <div className="text-center py-8 text-[#68655B]">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#DCDAD3]" />
             <p className="text-sm">Loading story opportunities…</p>
           </div>
         )}
 
         {!aiInsights && !loading && !error && (
-          <div className="text-center py-8 text-[#8A877D]">
+          <div className="text-center py-8 text-[#68655B]">
             <Lightbulb className="w-12 h-12 mx-auto mb-3 text-[#DCDAD3]" />
             <p className="text-sm">No stories available yet. They will appear here after the first Sunday night refresh.</p>
             {isAdmin && <p className="text-xs text-[#999] mt-2">As an admin, you can trigger it now using Force Refresh above.</p>}
@@ -9452,7 +9474,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       <div className="card text-center">
         <div className="text-4xl mb-4">🌐</div>
         <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Landscape Data Yet</h3>
-        <p className="text-[#8A877D]">Complete assessments across multiple sectors to see the consciousness landscape.</p>
+        <p className="text-[#68655B]">Complete assessments across multiple sectors to see the consciousness landscape.</p>
       </div>
     );
   }
@@ -9474,7 +9496,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       {/* Controls row */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-[#8A877D] uppercase tracking-wide">Year:</span>
+          <span className="text-xs font-semibold text-[#68655B] uppercase tracking-wide">Year:</span>
           {['all', ...years].map(y => (
             <button
               key={y}
@@ -9482,14 +9504,14 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               className={`px-3 py-1 text-xs font-medium transition-colors ${
                 (y === 'all' && selectedYears.includes('all')) || (!selectedYears.includes('all') && selectedYears.includes(y))
                   ? 'bg-[#0B0B0B] text-white'
-                  : 'bg-white border border-[#DCDAD3] text-[#8A877D] hover:border-[#0B0B0B]'
+                  : 'bg-white border border-[#DCDAD3] text-[#68655B] hover:border-[#0B0B0B]'
               }`}
             >
               {y === 'all' ? 'All time' : y}
             </button>
           ))}
         </div>
-        <div className="flex gap-4 text-xs text-[#8A877D]">
+        <div className="flex gap-4 text-xs text-[#68655B]">
           <span><strong className="text-[#0B0B0B]">{filteredResults.length}</strong> assessments</span>
           <span><strong className="text-[#0B0B0B]">{sectors.length}</strong> sectors</span>
         </div>
@@ -9511,7 +9533,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           <div key={i} className="bg-white border border-[#DCDAD3] p-4 ">
             <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wide mb-1">{tile.label}</div>
             <div className="font-bold text-lg text-[#0B0B0B] truncate" style={{ color: tile.color }}>{tile.value}</div>
-            {tile.sub !== undefined && <div className="text-xs text-[#8A877D]">avg {tile.sub}</div>}
+            {tile.sub !== undefined && <div className="text-xs text-[#68655B]">avg {tile.sub}</div>}
           </div>
         ))}
       </div>
@@ -9520,7 +9542,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       <div className="bg-white border border-[#DCDAD3] p-6">
         <div className="mb-5">
           <div className="dc-kicker">Consciousness Landscape</div>
-          <p className="text-xs text-[#8A877D] mt-1">
+          <p className="text-xs text-[#68655B] mt-1">
             Each sector's average brand consciousness — hover a sector to isolate. Dashed yellow = cross-sector mean.
           </p>
         </div>
@@ -9727,7 +9749,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       <div className="bg-white" style={{ padding: 28 }}>
         <div className="mb-5">
           <h3 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute landscape</h3>
-          <p className="text-xs text-[#8A877D] mt-1">
+          <p className="text-xs text-[#68655B] mt-1">
             Where each sector scores on every attribute — see the legend below to read the chart.
           </p>
         </div>
@@ -9751,7 +9773,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     style={{ left: `${min}%`, width: `${Math.max(max - min, 0.5)}%`, backgroundColor: 'rgba(229,57,53,0.18)' }} />
                 )}
                 {/* Mean line */}
-                <div className="absolute w-0.5 h-6 bg-[#8A877D] z-10"
+                <div className="absolute w-0.5 h-6 bg-[#68655B] z-10"
                   style={{ left: `${mean}%`, transform: 'translateX(-50%)' }} />
                 {/* Sector dots */}
                 {sectorScores.map((s, si) => {
@@ -9842,14 +9864,14 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 </svg>
               </div>
               {/* Text explanations */}
-              <div className="flex flex-col gap-2 justify-center text-xs text-[#8A877D]">
+              <div className="flex flex-col gap-2 justify-center text-xs text-[#68655B]">
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-0.5 w-3 h-3 bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 12 }} />
                   <span><strong className="text-[#0B0B0B]">Coloured dots</strong> — each dot is one sector's average score for this attribute. Hover the octagon or cards above to match colours to sectors.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
-                    <div className="w-0.5 h-4 bg-[#8A877D] mx-auto" />
+                    <div className="w-0.5 h-4 bg-[#68655B] mx-auto" />
                   </div>
                   <span><strong className="text-[#0B0B0B]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
                 </div>
@@ -9867,7 +9889,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       <div className="bg-white p-7">
         <div className="mb-5">
           <h3 className="text-[20px] font-bold tracking-tight text-[#0B0B0B]">Sector attribute spread</h3>
-          <p className="text-[13px] text-[#8A877D] mt-1.5" style={{ maxWidth: '60ch' }}>
+          <p className="text-[13px] text-[#68655B] mt-1.5" style={{ maxWidth: '60ch' }}>
             Each sector's score across all eight attributes. Each dot is one attribute score; the line is that sector's overall average.
           </p>
         </div>
@@ -9994,7 +10016,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   <text x="155" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
                 </svg>
               </div>
-              <div className="flex flex-col gap-2 justify-center text-xs text-[#8A877D]">
+              <div className="flex flex-col gap-2 justify-center text-xs text-[#68655B]">
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-0.5 w-2.5 h-2.5 bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 10 }} />
                   <span><strong className="text-[#0B0B0B]">Coloured dots</strong> — each dot is one attribute score for that sector. Hover to see the attribute name and score.</span>
@@ -10329,7 +10351,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
           <div className="bg-white" style={{ padding: 22 }}>
             <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results to Compare</h3>
-            <p className="text-[#8A877D]">Complete some assessments first to compare brands.</p>
+            <p className="text-[#68655B]">Complete some assessments first to compare brands.</p>
           </div>
         ) : viewMode === 'insights' ? (
           /* AI Insights View */
@@ -10396,7 +10418,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                 <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">
                   Select Brands ({selectedBrands.length}/{maxComparison})
                   {filteredResults.length !== results.length && (
-                    <span className="text-xs font-normal text-[#8A877D] ml-2">
+                    <span className="text-xs font-normal text-[#68655B] ml-2">
                       Showing {filteredResults.length} of {results.length}
                     </span>
                   )}
@@ -10423,7 +10445,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         <div className="flex items-center justify-between flex-1 min-w-0 gap-3">
                           <div className="min-w-0">
                             <span className="block text-[13px] font-bold truncate" style={{ letterSpacing: '-.01em' }}>{r.brandName}</span>
-                            <div className="text-[10px] font-semibold uppercase text-[#8A877D] mt-0.5" style={{ letterSpacing: '.06em' }}>
+                            <div className="text-[10px] font-semibold uppercase text-[#68655B] mt-0.5" style={{ letterSpacing: '.06em' }}>
                               {r.industry && <span>{industries.find(i => i.id === r.industry)?.name || r.industry}</span>}
                               {r.industry && r.businessModel && <span> · </span>}
                               {r.businessModel && <span>{r.businessModel.toUpperCase()}</span>}
@@ -10439,7 +10461,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     );
                   })}
                   {filteredResults.length === 0 && (
-                    <div className="text-center py-8 text-[#8A877D] text-sm">
+                    <div className="text-center py-8 text-[#68655B] text-sm">
                       No brands match the selected filters
                     </div>
                   )}
@@ -10453,7 +10475,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                 <div className="bg-white" style={{ padding: 22 }}>
                   <Users className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Select Brands to Compare</h3>
-                  <p className="text-[#8A877D]">Choose at least 2 brands from the list to see a comparison.</p>
+                  <p className="text-[#68655B]">Choose at least 2 brands from the list to see a comparison.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -10488,7 +10510,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                                 fontVariantNumeric: 'tabular-nums', color: scoreColor(brand.totalScore) }}>
                                 {brand.totalScore}
                               </span>
-                              <span className="text-[11px] font-bold text-[#8A877D]"
+                              <span className="text-[11px] font-bold text-[#68655B]"
                                 style={{ letterSpacing: '.04em', paddingBottom: 5 }}>
                                 {selectedBrands.length > 1 ? `${d > 0 ? '+' : ''}${d}` : ''}
                               </span>
@@ -10541,7 +10563,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                       <div className="overflow-x-auto">
                         <div style={{ minWidth: `${Math.max(400, selectedBrands.length * 80 + 120)}px` }}>
                           {/* Brand labels header */}
-                          <div className="flex items-center gap-2 mb-3 text-xs text-[#8A877D]">
+                          <div className="flex items-center gap-2 mb-3 text-xs text-[#68655B]">
                             <div className="w-24 flex-shrink-0"></div>
                             <div className="flex-1 flex gap-1">
                               {selectedBrands.map((brand, bi) => (
@@ -10640,15 +10662,15 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         <div className="grid grid-cols-3 gap-3 text-center mb-4">
                           <div className="bg-[#E4E2DC] p-3">
                             <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
-                            <div className="text-xs text-[#8A877D] mt-1 truncate">{a.brandName} leads</div>
+                            <div className="text-xs text-[#68655B] mt-1 truncate">{a.brandName} leads</div>
                           </div>
                           <div className="bg-[#E4E2DC] p-3">
                             <div className="text-2xl font-bold text-[#B3B0A8]">{tied.length}</div>
-                            <div className="text-xs text-[#8A877D] mt-1">Tied</div>
+                            <div className="text-xs text-[#68655B] mt-1">Tied</div>
                           </div>
                           <div className="bg-[#E4E2DC] p-3">
                             <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
-                            <div className="text-xs text-[#8A877D] mt-1 truncate">{b.brandName} leads</div>
+                            <div className="text-xs text-[#68655B] mt-1 truncate">{b.brandName} leads</div>
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -10665,7 +10687,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                                 <div className="w-20 text-center flex-shrink-0">
                                   <div className="flex items-center gap-1 justify-center">
                                     <div className="w-2 h-2" style={{ backgroundColor: attr.color }} />
-                                    <span className="text-[#8A877D]">{attr.name}</span>
+                                    <span className="text-[#68655B]">{attr.name}</span>
                                   </div>
                                 </div>
                                 <div className="flex-1">
@@ -10687,7 +10709,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Highest Overall Score</div>
                         <div className="text-[#B23A3A] font-bold text-sm">
                           {selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).brandName}
-                          <span className="text-[#8A877D] font-normal ml-2 text-xs">({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})</span>
+                          <span className="text-[#68655B] font-normal ml-2 text-xs">({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})</span>
                         </div>
                       </div>
                       <div className="bg-[#E4E2DC] p-3">
@@ -10699,7 +10721,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                             const gap = Math.max(...scores) - Math.min(...scores);
                             if (gap > maxGap) { maxGap = gap; gapAttr = attr; }
                           });
-                          return <div className="text-[#B23A3A] font-bold text-sm">{gapAttr.name} <span className="text-[#8A877D] font-normal text-xs">({maxGap} pts spread)</span></div>;
+                          return <div className="text-[#B23A3A] font-bold text-sm">{gapAttr.name} <span className="text-[#68655B] font-normal text-xs">({maxGap} pts spread)</span></div>;
                         })()}
                       </div>
                       <div className="bg-[#E4E2DC] p-3">
@@ -10710,7 +10732,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                             const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
                             if (avg > maxAvg) { maxAvg = avg; strongAttr = attr; }
                           });
-                          return <div className="text-[#059669] font-bold text-sm">{strongAttr.name} <span className="text-[#8A877D] font-normal text-xs">({Math.round(maxAvg)} avg)</span></div>;
+                          return <div className="text-[#059669] font-bold text-sm">{strongAttr.name} <span className="text-[#68655B] font-normal text-xs">({Math.round(maxAvg)} avg)</span></div>;
                         })()}
                       </div>
                       <div className="bg-[#E4E2DC] p-3">
@@ -10721,7 +10743,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                             const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
                             if (avg < minAvg) { minAvg = avg; weakAttr = attr; }
                           });
-                          return <div className="text-[#F57C00] font-bold text-sm">{weakAttr.name} <span className="text-[#8A877D] font-normal text-xs">({Math.round(minAvg)} avg)</span></div>;
+                          return <div className="text-[#F57C00] font-bold text-sm">{weakAttr.name} <span className="text-[#68655B] font-normal text-xs">({Math.round(minAvg)} avg)</span></div>;
                         })()}
                       </div>
                     </div>
@@ -10876,7 +10898,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
             <h3 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">
               Client links{links ? ` (${links.length})` : ''}
             </h3>
-            <p className="text-xs text-[#8A877D] mt-0.5">
+            <p className="text-xs text-[#68655B] mt-0.5">
               Active password-protected reports shared with clients.
             </p>
           </div>
@@ -10888,12 +10910,12 @@ function ClientLinksModal({ assessments, profile, onClose }) {
         <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
           {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
           {!links && !error && (
-            <p className="text-xs text-[#8A877D] flex items-center gap-1.5 py-4">
+            <p className="text-xs text-[#68655B] flex items-center gap-1.5 py-4">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading links...
             </p>
           )}
           {links && links.length === 0 && !error && (
-            <p className="text-sm text-[#8A877D] py-6 text-center">
+            <p className="text-sm text-[#68655B] py-6 text-center">
               No active client links. Create one from the Client Link button on a report.
             </p>
           )}
@@ -10906,7 +10928,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="font-semibold text-sm text-[#0B0B0B]">{link.brand_name}</div>
-                    <div className="text-[11px] text-[#8A877D] mt-0.5">
+                    <div className="text-[11px] text-[#68655B] mt-0.5">
                       Issued by {link.created_by_name || 'unknown'}
                       {link.created_at ? ` on ${new Date(link.created_at).toLocaleDateString()}` : ''}
                       {mine ? '' : ' (not yours)'}
@@ -10934,7 +10956,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
 
                 {resetting === link.token && (
                   <div className="mt-3 bg-[#F2F0EA] p-3">
-                    <p className="text-[11px] text-[#8A877D] mb-2 leading-relaxed">
+                    <p className="text-[11px] text-[#68655B] mb-2 leading-relaxed">
                       The old password cannot be recovered, so the report is rebuilt from the saved
                       assessment and re-encrypted. The URL stays the same, so any link already sent keeps working.
                       {sourceFor(link) ? '' : ` No saved assessment found for ${link.brand_name}.`}
@@ -11043,7 +11065,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
           <h2 className="dc-h2 text-[#0B0B0B]">Saved Assessments</h2>
-          <p className="text-sm text-[#8A877D]">Your assessments are stored securely in the cloud</p>
+          <p className="text-sm text-[#68655B]">Your assessments are stored securely in the cloud</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           {!isReadonly && (
@@ -11079,7 +11101,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
         <div className="card text-center">
           <FileText className="w-12 h-12 text-[#DCDAD3] mx-auto mb-4" />
           <h3 className="dc-kicker text-[#0B0B0B] mb-2">No Saved Assessments</h3>
-          <p className="text-[#8A877D] mb-4">Complete an assessment and click Save to store it here.</p>
+          <p className="text-[#68655B] mb-4">Complete an assessment and click Save to store it here.</p>
           <p className="text-sm text-[#B3B0A8]">Or import a previously exported assessment using the Import button above.</p>
         </div>
       ) : (
@@ -11132,7 +11154,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           {/* Results count when filtering */}
           {hasFilters && (
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-[#8A877D]">{filtered.length} of {assessments.length} assessments</p>
+              <p className="text-xs text-[#68655B]">{filtered.length} of {assessments.length} assessments</p>
               <button onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); }}
                 className="text-xs text-[#B23A3A] hover:underline">Clear filters</button>
             </div>
@@ -11140,7 +11162,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
           {filtered.length === 0 ? (
             <div className="card text-center">
-              <p className="text-[#8A877D]">No assessments match your filters.</p>
+              <p className="text-[#68655B]">No assessments match your filters.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -11170,7 +11192,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       {!isReadonly && (
                         <>
                           <button onClick={() => onShare(a)} title="Share link"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#8A877D] hover:text-[#0B0B0B] hover:bg-[#E5393508] transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#68655B] hover:text-[#0B0B0B] hover:bg-[#E5393508] transition-colors">
                             <Share2 className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onExport(a)} title="Export JSON"
@@ -11189,7 +11211,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       </button>
                       {!isReadonly && (
                         <button onClick={() => onDelete(i)} title="Delete"
-                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#8A877D] hover:text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
+                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#68655B] hover:text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -11199,11 +11221,11 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                   {!isReadonly && (
                     <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#E4E2DC] sm:hidden">
                       <button onClick={() => onShare(a)} title="Share"
-                        className="w-8 h-8 flex items-center justify-center text-[#8A877D] hover:text-[#0B0B0B] transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#68655B] hover:text-[#0B0B0B] transition-colors">
                         <Share2 className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onExport(a)} title="Export"
-                        className="w-8 h-8 flex items-center justify-center text-[#8A877D] hover:text-[#0B0B0B] transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#68655B] hover:text-[#0B0B0B] transition-colors">
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onRescore(a)}
@@ -11211,7 +11233,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                         Rescore
                       </button>
                       <button onClick={() => onDelete(i)} title="Delete"
-                        className="w-8 h-8 flex items-center justify-center text-[#8A877D] hover:text-[#B23A3A] transition-colors ml-auto">
+                        className="w-8 h-8 flex items-center justify-center text-[#68655B] hover:text-[#B23A3A] transition-colors ml-auto">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -11334,7 +11356,7 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">Client link</h3>
-            <p className="text-xs text-[#8A877D] mt-0.5">
+            <p className="text-xs text-[#68655B] mt-0.5">
               A cleansed, password-protected report for {brandName}.
             </p>
           </div>
@@ -11454,7 +11476,7 @@ function ClientReportView({ payload }) {
     return (
       <div className="dc-reveal flex items-baseline gap-4 pb-3"
         style={{ borderBottom: '2px solid #0B0B0B', marginTop: 80, marginBottom: 40 }}>
-        <span className="text-[11px] font-bold tracking-[0.16em] text-[#8A877D]">{n}</span>
+        <span className="text-[11px] font-bold tracking-[0.16em] text-[#68655B]">{n}</span>
         <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#0B0B0B]">{label}</span>
       </div>
     );
@@ -11497,7 +11519,7 @@ function ClientReportView({ payload }) {
                       fontSize: 44, fontWeight: 700, letterSpacing: '-.03em' }}>
                     {overall}
                   </div>
-                  <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#8A877D] text-center mt-2">out of 100</div>
+                  <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#68655B] text-center mt-2">out of 100</div>
                 </div>
                 <div className="min-w-0">
                   <h3 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.025em', lineHeight: 1.05 }}>{stage.name}</h3>
@@ -11519,7 +11541,7 @@ function ClientReportView({ payload }) {
                 <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
                   {strengths.map(a => a.name).join(' and ')}
                 </span>, with opportunities to grow in{' '}
-                <span className="font-bold" style={{ borderBottom: '2px dotted #8A877D' }}>
+                <span className="font-bold" style={{ borderBottom: '2px dotted #68655B' }}>
                   {growth.map(a => a.name).join(' and ')}
                 </span>.
               </p>
@@ -11558,7 +11580,7 @@ function ClientReportView({ payload }) {
               {MATURITY_STAGES.map(st => (
                 <div key={st.id} className="text-[11px]"
                   style={{ fontWeight: st.name === stage.name ? 700 : 600,
-                    color: st.name === stage.name ? '#0B0B0B' : '#8A877D' }}>{st.name}</div>
+                    color: st.name === stage.name ? '#0B0B0B' : '#68655B' }}>{st.name}</div>
               ))}
             </div>
           </div>
@@ -11576,7 +11598,7 @@ function ClientReportView({ payload }) {
                     color: scoreColor(sc.score) }}>{sc.score || 0}</div>
                   <div className="flex-1 min-w-0">
                     <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{a.name}</h4>
-                    <p className="text-[11px] font-semibold text-[#8A877D] mt-0.5" style={{ letterSpacing: '.04em' }}>{a.fullName}</p>
+                    <p className="text-[11px] font-semibold text-[#68655B] mt-0.5" style={{ letterSpacing: '.04em' }}>{a.fullName}</p>
                   </div>
                 </div>
                 {sc.findings && (
@@ -11614,13 +11636,13 @@ function ClientReportView({ payload }) {
                   <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
                     {campaignStage.level === 0 ? '—' : campaignStage.level}
                   </div>
-                  <div className="text-[10px] text-[#8A877D] mt-1">
+                  <div className="text-[10px] text-[#68655B] mt-1">
                     {campaignStage.level === 0 ? 'no tier' : 'of 5'}
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-lg font-bold text-[#0B0B0B]">{campaignStage.name}</div>
-                  <p className="text-sm text-[#8A877D] leading-relaxed mb-2">{campaignStage.summary}</p>
+                  <p className="text-sm text-[#68655B] leading-relaxed mb-2">{campaignStage.summary}</p>
                   {campaign.verdict && (
                     <p className="text-sm text-[#0B0B0B] font-medium leading-relaxed">{campaign.verdict}</p>
                   )}
@@ -11661,7 +11683,7 @@ function ClientReportView({ payload }) {
                 attrRanges because links issued before this shipped lack it. */}
             <div className="bg-white" style={{ padding: '28px 32px' }}>
               <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
-              <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
+              <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
                 The band is the range across those brands, the line is their average, the dot is {project.brandName}.
               </p>
               {benchmark.attrRanges ? (
@@ -11679,7 +11701,7 @@ function ClientReportView({ payload }) {
                         <div className="dc-ledger-track relative" style={{ height: 22 }}>
                           <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
                           <div className="absolute" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3' }} />
-                          <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#8A877D' }} />
+                          <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#68655B' }} />
                           <div className="absolute" style={{ left: `${v}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF' }} />
                         </div>
                         <div className="dc-ledger-value text-right">
@@ -11696,7 +11718,7 @@ function ClientReportView({ payload }) {
                   })}
                 </div>
               ) : (
-                <p className="text-[13px] text-[#8A877D]" style={{ marginTop: 20 }}>
+                <p className="text-[13px] text-[#68655B]" style={{ marginTop: 20 }}>
                   Range data is not available for this link. Reissue it to include the spread.
                 </p>
               )}
@@ -11704,7 +11726,7 @@ function ClientReportView({ payload }) {
 
             <div className="bg-white" style={{ padding: '28px 32px' }}>
               <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
-              <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
+              <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
                 {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
               </p>
               <div style={{ marginTop: 20 }}>
@@ -11795,14 +11817,14 @@ function ClientReportGate({ token }) {
         {status === 'loading' && (
           <div className="text-center">
             <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#B23A3A]" />
-            <p className="mt-3 text-sm text-[#8A877D]">Loading report...</p>
+            <p className="mt-3 text-sm text-[#68655B]">Loading report...</p>
           </div>
         )}
 
         {status === 'missing' && (
           <div className="text-center">
             <h1 className="text-lg font-bold text-[#0B0B0B]">Report not found</h1>
-            <p className="text-sm text-[#8A877D] mt-2">
+            <p className="text-sm text-[#68655B] mt-2">
               This link is no longer active. Contact the person who shared it with you.
             </p>
           </div>
@@ -11811,7 +11833,7 @@ function ClientReportGate({ token }) {
         {status === 'locked' && row && (
           <>
             <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.1 }}>{row.brand_name}</h1>
-            <p className="text-[13px] text-[#8A877D] mt-2 mb-6" style={{ lineHeight: 1.5 }}>
+            <p className="text-[13px] text-[#68655B] mt-2 mb-6" style={{ lineHeight: 1.5 }}>
               Conscious Compass assessment. Enter the password you were given to view this report.
             </p>
             <input
@@ -11907,7 +11929,7 @@ function SharedReportView({ report, onClose }) {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-[#0B0B0B] mb-2">Brand Consciousness Report</h1>
           <p className="text-xl text-[#4A4840]">{project.brandName}</p>
-          <p className="text-sm text-[#8A877D] mt-2">{industryName} | {project.businessModel?.toUpperCase() || 'B2B'} | {project.date || 'No date'}</p>
+          <p className="text-sm text-[#68655B] mt-2">{industryName} | {project.businessModel?.toUpperCase() || 'B2B'} | {project.date || 'No date'}</p>
         </div>
 
         {/* Overall Score */}
@@ -11945,7 +11967,7 @@ function SharedReportView({ report, onClose }) {
             {ATTRIBUTES.map(attr => (
               <div key={attr.id} className="text-center p-3 bg-[#E4E2DC] ">
                 <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-                <div className="text-xs text-[#8A877D] mt-1">{attr.name}</div>
+                <div className="text-xs text-[#68655B] mt-1">{attr.name}</div>
               </div>
             ))}
           </div>
@@ -12063,7 +12085,7 @@ function SharedReportView({ report, onClose }) {
                 <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0" />
                 <h3 className="dc-kicker text-[#0B0B0B]">SIGNAL CONFLICTS</h3>
               </div>
-              <p className="text-sm text-[#8A877D] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
+              <p className="text-sm text-[#68655B] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
               <div className="space-y-4">
                 {conflicts.map((c, i) => (
                   <div key={i} className="bg-[#FFFBEB] border border-[#FDE68A] p-4">
@@ -12096,11 +12118,11 @@ function SharedReportView({ report, onClose }) {
                   <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
                     {sharedCampaignStage.level === 0 ? '—' : sharedCampaignStage.level}
                   </div>
-                  <div className="text-[10px] text-[#8A877D] mt-1">{sharedCampaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
+                  <div className="text-[10px] text-[#68655B] mt-1">{sharedCampaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-lg font-bold text-[#0B0B0B]">{sharedCampaignStage.name}</div>
-                  <p className="text-sm text-[#8A877D] leading-relaxed mb-2">{sharedCampaignStage.summary}</p>
+                  <p className="text-sm text-[#68655B] leading-relaxed mb-2">{sharedCampaignStage.summary}</p>
                   {sharedCampaign.verdict && <p className="text-sm text-[#0B0B0B] font-medium leading-relaxed">{sharedCampaign.verdict}</p>}
                 </div>
               </div>
@@ -12114,7 +12136,7 @@ function SharedReportView({ report, onClose }) {
                     <div key={i} className="bg-[#F2F0EA] p-3">
                       <h4 className="font-semibold text-[#0B0B0B] text-sm mb-1">{c.name}</h4>
                       {c.idea && <p className="text-xs text-[#4A4840] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
-                      {c.evidence && <p className="text-xs text-[#8A877D] leading-relaxed">{c.evidence}</p>}
+                      {c.evidence && <p className="text-xs text-[#68655B] leading-relaxed">{c.evidence}</p>}
                     </div>
                   ))}
                 </div>
@@ -12146,7 +12168,7 @@ function SharedReportView({ report, onClose }) {
                   </div>
                   <div>
                     <h4 className="font-bold text-[#0B0B0B]">{attr.name}</h4>
-                    <p className="text-sm text-[#8A877D]">{attr.fullName}</p>
+                    <p className="text-sm text-[#68655B]">{attr.fullName}</p>
                   </div>
                 </div>
               </div>
@@ -12166,7 +12188,7 @@ function SharedReportView({ report, onClose }) {
 
         {/* Recommendations */}
         <h3 className="text-xl font-semibold text-[#0B0B0B] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
-        <p className="text-[#8A877D] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
+        <p className="text-[#68655B] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
         <div className="space-y-4 mb-6">
           {recommendations.map((r, i) => (
             <div key={i} className="card">
@@ -12207,13 +12229,13 @@ function SharedReportView({ report, onClose }) {
             <div className="grid md:grid-cols-2 gap-4 text-sm">
               <div className="bg-[#E4E2DC] p-3 ">
                 <h4 className="font-semibold text-[#0B0B0B] mb-2">Website Analysis</h4>
-                <p className="text-[#8A877D]">
+                <p className="text-[#68655B]">
                   {report.assessmentSummary.pagesReviewed || 'Key pages reviewed'}
                 </p>
               </div>
               <div className="bg-[#E4E2DC] p-3 ">
                 <h4 className="font-semibold text-[#0B0B0B] mb-2">Social Media</h4>
-                <p className="text-[#8A877D]">
+                <p className="text-[#68655B]">
                   {[
                     report.assessmentSummary.hasLinkedIn && 'LinkedIn',
                     report.assessmentSummary.hasX && 'X/Twitter',
@@ -12226,7 +12248,7 @@ function SharedReportView({ report, onClose }) {
               </div>
               <div className="bg-[#E4E2DC] p-3 ">
                 <h4 className="font-semibold text-[#0B0B0B] mb-2">AI Reputation</h4>
-                <p className="text-[#8A877D]">
+                <p className="text-[#68655B]">
                   {[
                     report.assessmentSummary.hasClaudeAI && 'Claude',
                     report.assessmentSummary.hasGeminiAI && 'Gemini',
@@ -12236,7 +12258,7 @@ function SharedReportView({ report, onClose }) {
               </div>
               <div className="bg-[#E4E2DC] p-3 ">
                 <h4 className="font-semibold text-[#0B0B0B] mb-2">Earned Media</h4>
-                <p className="text-[#8A877D]">
+                <p className="text-[#68655B]">
                   {report.assessmentSummary.hasEarnedMedia ? 'Coverage from past 3 months reviewed' : 'Media coverage analyzed'}
                 </p>
               </div>
@@ -12354,7 +12376,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
     'Social Signals':      '#0F7A4F',
     'Assessment Practice': '#0B0B0B',
   };
-  const catColor  = (cat) => CATEGORY_COLORS[cat] || '#8A877D';
+  const catColor  = (cat) => CATEGORY_COLORS[cat] || '#68655B';
   const catBg     = (cat) => (catColor(cat)) + '18';
 
   const clean = (t) => (t || '').replace(/[—–]/g, '-');
@@ -12519,7 +12541,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
       const body = (text, after = 160) => new Paragraph({ ...sp(0, after), children: [new TextRun({ text: clean(text), font: 'Inter', size: 20, color: '1A1A1A' })] });
       const h2   = (text) => new Paragraph({ heading: HeadingLevel.HEADING_2, ...sp(280, 80), children: [new TextRun({ text, font: 'Inter', bold: true, size: 28, color: '1A1A1A' })] });
       const rule = () => new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D9D6D0', space: 1 } }, ...sp(0, 0) });
-      const label = (text, color) => new Paragraph({ ...sp(0, 60), children: [new TextRun({ text: text.toUpperCase(), font: 'Inter', size: 16, bold: true, color: hex(color || '#8A877D') })] });
+      const label = (text, color) => new Paragraph({ ...sp(0, 60), children: [new TextRun({ text: text.toUpperCase(), font: 'Inter', size: 16, bold: true, color: hex(color || '#68655B') })] });
 
       const doc = new Document({
         styles: {
@@ -12708,7 +12730,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             <div className="w-12 h-12 bg-[#6366F1]/10 flex items-center justify-center">
               <Loader2 className="w-6 h-6 text-[#6366F1] animate-spin" />
             </div>
-            <p className="text-sm text-[#8A877D]">{refreshing ? 'Composing this week\'s edition...' : 'Loading newsletter...'}</p>
+            <p className="text-sm text-[#68655B]">{refreshing ? 'Composing this week\'s edition...' : 'Loading newsletter...'}</p>
           </div>
         )}
 
@@ -12716,7 +12738,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
         {error && !loading && !refreshing && (
           <div className="card text-center">
             <AlertCircle className="w-10 h-10 text-[#B23A3A] mx-auto mb-3" />
-            <p className="text-[#8A877D] mb-4">{error}</p>
+            <p className="text-[#68655B] mb-4">{error}</p>
             <button onClick={loadNewsletter} className="btn-primary">Try Again</button>
           </div>
         )}
@@ -12725,7 +12747,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
         {!newsletter && !loading && !error && (
           <div className="card text-center">
             <Sparkles className="w-10 h-10 text-[#DCDAD3] mx-auto mb-3" />
-            <p className="text-[#8A877D]">No newsletter available yet.</p>
+            <p className="text-[#68655B]">No newsletter available yet.</p>
             {isAdmin && <p className="text-sm text-[#B3B0A8] mt-2">Use Force Refresh to generate the first edition.</p>}
           </div>
         )}
@@ -12777,7 +12799,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                       </div>
                       <div className="border-t border-[#DCDAD3] pt-3 mt-3">
                         <div className="text-[10px] font-semibold uppercase tracking-wider text-[#B3B0A8] mb-1">Why it matters for assessment</div>
-                        <p className="text-xs text-[#8A877D] leading-relaxed">{item.whyItMatters}</p>
+                        <p className="text-xs text-[#68655B] leading-relaxed">{item.whyItMatters}</p>
                       </div>
                     </div>
                   ))}
@@ -13362,7 +13384,7 @@ function AppContent() {
       <div className="min-h-screen bg-[#F2F0EA] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#B23A3A]" />
-          <p className="mt-4 text-[#8A877D]">Loading...</p>
+          <p className="mt-4 text-[#68655B]">Loading...</p>
         </div>
       </div>
     );
@@ -13550,7 +13572,7 @@ function AppContent() {
               <div className="flex items-start gap-4 bg-white px-5 py-4" style={{ borderLeft: '6px solid #DEE42F' }}>
                                 <div className="flex-1 min-w-0">
                   <p className="text-[17px] font-bold tracking-tight text-[#0B0B0B]">Unsaved assessment found</p>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8A877D] mt-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#68655B] mt-1.5">
                     <strong>{draftRestoreOffer.project.brandName}</strong> — Step {draftRestoreOffer.currentStep} of 5 · Last saved {new Date(draftRestoreOffer.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                   </p>
                   <div className="flex gap-2 mt-3">

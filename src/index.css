@@ -6,11 +6,14 @@
      Square edges throughout, warm paper ground, lime as a marker
      colour rather than a text colour, and direction carried by the
      sign rather than by red and green. */
-  --antenna-paper:      #F2F0EA;   /* page ground */
-  --antenna-white:      #FFFFFF;   /* panels */
+  --antenna-paper:      #F2F0EA;   /* panel surface */
+  --antenna-ground:     #E4E2DC;   /* page ground behind panels */
+  --antenna-white:      #F2F0EA;   /* panels (paper, not white) */
   --antenna-ink:        #0B0B0B;   /* headings, primary text */
   --antenna-body:       #4A4840;   /* body copy */
-  --antenna-muted:      #8A877D;   /* labels, captions, negatives */
+  --antenna-muted:      #68655B;   /* labels, captions. Darkened when panels
+                                      moved from white to paper: #8A877D fell
+                                      to 3.15:1 on the new surface. */
   --antenna-faint:      #B3B0A8;   /* axis ticks, disabled */
   --antenna-rule:       #DCDAD3;   /* borders and rules */
   --antenna-rule-light: #E4E2DC;   /* secondary rules */
@@ -278,7 +281,7 @@ input:focus, select:focus, textarea:focus {
    ───────────────────────────────────────────────────────────── */
 
 /* Pages are paper panels sitting on the darker app ground. */
-.dc-page      { background: var(--antenna-paper); padding: 40px 32px 72px; }
+.dc-page      { background: var(--antenna-ground); padding: 40px 32px 72px; }
 .dc-wrap      { max-width: 1180px; margin: 0 auto; }
 
 /* Page header: title with a tracked uppercase standfirst */
@@ -554,3 +557,14 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
   .dc-lens-bars { flex-wrap: wrap !important; }
   .dc-lens-bars > button { flex: 0 0 calc(25% - 2px) !important; }
 }
+
+/* Findings cards drop to a single column on a phone: 420px minimum would
+   otherwise force a horizontal overflow below that width. */
+@media (max-width: 520px) {
+  .dc-findings-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+/* Panels are paper, not white. Tailwind's bg-white is a literal colour, so it
+   is overridden here rather than at every call site. Unlayered CSS beats
+   layered utilities, which is what makes this stick. */
+.bg-white { background-color: var(--antenna-white) !important; }
