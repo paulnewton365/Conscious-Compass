@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.17.3';
+const APP_VERSION = '3.17.4';
 import { 
   supabase, 
   signUp, 
@@ -1315,6 +1315,25 @@ function FootprintMap({ footprint, brandName }) {
 
   const links = Array.isArray(footprint.links) ? footprint.links.filter(l => pos[l.from] && pos[l.to]) : [];
 
+  // Wrap the brand name to fit the hub. Long names get more lines and a
+  // smaller face rather than overflowing the circle.
+  const hubLines = (() => {
+    const words = String(brandName || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return ['Brand'];
+    const maxChars = 15;
+    const lines = [];
+    let cur = '';
+    words.forEach(w => {
+      if (!cur) { cur = w; return; }
+      if ((cur + ' ' + w).length <= maxChars) cur += ' ' + w;
+      else { lines.push(cur); cur = w; }
+    });
+    if (cur) lines.push(cur);
+    return lines.slice(0, 4);
+  })();
+  const longest = Math.max(...hubLines.map(l => l.length));
+  const hubFont = hubLines.length >= 4 ? 10 : hubLines.length === 3 ? 11.5 : longest > 12 ? 12.5 : longest > 9 ? 14 : 16;
+
   return (
     <div ref={ref} style={{ backgroundColor: FP_PAPER, padding: '28px 28px 8px' }}>
       {/* Masthead, carried over from the retired mosaic panel */}
@@ -1386,15 +1405,19 @@ function FootprintMap({ footprint, brandName }) {
         })}
 
         {/* Centre: the brand */}
-        <circle cx={cx} cy={cy} r={54} fill={FP_INK}
+        <circle cx={cx} cy={cy} r={58} fill={FP_INK}
           style={{ transform: inView ? 'scale(1)' : 'scale(0.6)', transformOrigin: `${cx}px ${cy}px`,
             transition: 'transform 600ms cubic-bezier(0.22,1,0.36,1)' }} />
-        <text x={cx} y={cy - 3} textAnchor="middle" style={{ fontSize: 22, fontWeight: 700, fill: FP_LIME, letterSpacing: '-.03em' }}>
-          {summary.overallLevel.toFixed(1)}
-        </text>
-        <text x={cx} y={cy + 15} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#B3B0A8', letterSpacing: '.14em' }}>
-          OF {FOOTPRINT_PRESENCE_MAX}
-        </text>
+        {/* The brand, not a score. A number here read as an overall rating
+            and competed with the channel levels around it. */}
+        {hubLines.map((line, i) => (
+          <text key={i} x={cx}
+            y={cy + (i - (hubLines.length - 1) / 2) * (hubFont + 3) + hubFont / 3}
+            textAnchor="middle"
+            style={{ fontSize: hubFont, fontWeight: 700, fill: FP_LIME, letterSpacing: '-.02em' }}>
+            {line}
+          </text>
+        ))}
 
         {/* Channel nodes */}
         {rows.map((r, i) => {
