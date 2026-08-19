@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.17.4';
+const APP_VERSION = '3.18.0';
 import { 
   supabase, 
   signUp, 
@@ -1371,7 +1371,8 @@ function FootprintMap({ footprint, brandName }) {
       </div>
       <div style={{ height: 2, background: FP_INK, marginBottom: 8 }} />
 
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="dc-fpmap"
+        style={{ width: '100%', height: 'auto', display: 'block' }}>
         {/* Spokes: presence. Faint where a channel has no evidence. */}
         {rows.map((r) => {
           const p = pos[r.id]; const has = r.level > 0;
@@ -1513,7 +1514,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
           return (
             <div key={attr.id}
-              className={`grid items-center gap-3  px-2 py-1 -mx-2 transition-colors ${isHovered ? 'bg-[#F2F0EA]' : ''}`}
+              className={`dc-ledger-row grid items-center gap-3 px-2 py-1 -mx-2 transition-colors ${isHovered ? 'bg-[#F2F0EA]' : ''}`}
               style={{ gridTemplateColumns: '104px 1fr 56px' }}
               onMouseEnter={() => setHovered(attr.id)}
               onMouseLeave={() => setHovered(null)}
@@ -1574,7 +1575,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
           );
         })}
 
-        <div className="grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '104px 1fr 56px' }}>
+        <div className="dc-ledger-row grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '104px 1fr 56px' }}>
           <div />
           <div className="flex justify-between text-[10px] text-[#B3B0A8] select-none">
             {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
@@ -2096,7 +2097,7 @@ function WelcomePage({ onStart }) {
 
   return (
     <div className="dc-wrap dc-page relative" style={{ padding: '40px 32px 72px' }}>
-      <div className="grid gap-12 items-center"
+      <div className="dc-split grid gap-12 items-center"
         style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(220px,320px)' }}>
         <div>
           <h1 style={{ fontSize: 'clamp(38px,5vw,68px)', fontWeight: 700, letterSpacing: '-.035em',
@@ -7566,7 +7567,7 @@ ${content.slice(0, 8000)}`;
       {/* ── 01 Results at a glance ───────────────────────────── */}
       <section className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="Results at a glance" />
-        <div className="grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
+        <div className="dc-split grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
           <div>
             <div className="flex gap-6 items-start">
               <div className="flex-shrink-0">
@@ -7752,7 +7753,7 @@ ${content.slice(0, 8000)}`;
                       <div key={attr.id} className="flex items-center justify-between"
                         style={{ padding: '9px 0', borderBottom: '1px solid #E4E2DC' }}>
                         <span className="text-[13px] font-bold truncate">{attr.name}</span>
-                        <span className="grid items-baseline flex-shrink-0 tabular-nums"
+                        <span className="dc-adj-row grid items-baseline flex-shrink-0 tabular-nums"
                           style={{ gridTemplateColumns: '34px 30px 34px', gap: 10, textAlign: 'right' }}>
                           <span className="text-[12px] text-[#8A877D]">
                             {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
@@ -7942,7 +7943,7 @@ ${content.slice(0, 8000)}`;
                   </div>
                 </div>
 
-                <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 2 }}>
+                <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 2 }}>
                   {[
                     [`${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`, 'vs sector average'],
                     [benchmark.rank ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
@@ -7957,7 +7958,7 @@ ${content.slice(0, 8000)}`;
               </div>
 
               {/* Spread and profile side by side */}
-              <div className="grid gap-14 items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 48 }}>
+              <div className="dc-split grid gap-14 items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 48 }}>
                 <div ref={benchmarkSpreadRef}>
                   <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
                   <p className="text-[13px] leading-relaxed text-[#8A877D] mt-1" style={{ maxWidth: '52ch' }}>
@@ -7970,10 +7971,10 @@ ${content.slice(0, 8000)}`;
                       const rng = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
                       const d = v - avg;
                       return (
-                        <div key={attr.id} className="grid gap-4 items-center"
+                        <div key={attr.id} className="dc-ledger-row grid gap-4 items-center"
                           style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0', borderBottom: '1px solid #DCDAD3' }}>
                           <div className="text-[13px] font-bold">{attr.name}</div>
-                          <div className="relative" style={{ height: 22 }}>
+                          <div className="dc-ledger-track relative" style={{ height: 22 }}>
                             <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
                             <div className="absolute origin-left" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3',
                               transform: `scaleX(${spreadIn ? 1 : 0})`,
@@ -7984,7 +7985,7 @@ ${content.slice(0, 8000)}`;
                               opacity: spreadIn ? 1 : 0,
                               transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease', transitionDelay: `${ri * 70 + 120}ms` }} />
                           </div>
-                          <div className="text-right">
+                          <div className="dc-ledger-value text-right">
                             <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
                             <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B', background: d > 0 ? '#DEE42F' : 'transparent', border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
                               {d > 0 ? '+' : ''}{d}
@@ -8026,10 +8027,10 @@ ${content.slice(0, 8000)}`;
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
             {/* Ledger rows: ordinal, title and description, attribute chip. */}
             {recommendations.map((r, i) => (
-              <div key={i} className="grid gap-6 items-baseline"
+              <div key={i} className="dc-rec-row grid gap-6 items-baseline"
                 style={{ gridTemplateColumns: '56px minmax(0,1fr) 150px', padding: '22px 0',
                   borderBottom: '1px solid #DCDAD3' }}>
-                <div style={{ fontSize: 22, fontWeight: 700, color: '#B3B0A8', letterSpacing: '-.02em' }}>
+                <div className="dc-rec-ord" style={{ fontSize: 22, fontWeight: 700, color: '#B3B0A8', letterSpacing: '-.02em' }}>
                   {String(i + 1).padStart(2, '0')}
                 </div>
                 <div className="min-w-0">
@@ -8042,7 +8043,7 @@ ${content.slice(0, 8000)}`;
                     </p>
                   )}
                 </div>
-                <div className="text-right" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em' }}>
+                <div className="dc-rec-tags text-right" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em' }}>
                   {r.attributes.slice(0, 2).map((attr, j) => (
                     <span key={j} className="inline-block uppercase"
                       style={{ background: '#DEE42F', padding: '4px 7px', marginLeft: 4, marginBottom: 4 }}>
@@ -8590,12 +8591,12 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
         ) : (
           <div>
             <div className="dc-ledger-top" />
-            <div className="dc-ledger-h" style={{ gridTemplateColumns: '2fr 1.2fr .8fr 1fr .8fr 24px' }}>
+            <div className="dc-ledger-h dc-results-head" style={{ gridTemplateColumns: '2fr 1.2fr .8fr 1fr .8fr 24px' }}>
               <div>Brand</div>
-              <div>Sector</div>
+              <div className="dc-col-hide">Sector</div>
               <div style={{ textAlign: 'right' }}>Score</div>
-              <div>Stage</div>
-              <div style={{ textAlign: 'right' }}>Assessed</div>
+              <div className="dc-col-hide">Stage</div>
+              <div className="dc-col-hide" style={{ textAlign: 'right' }}>Assessed</div>
               <div />
             </div>
             {filteredResults.map((r, i) => {
@@ -8606,7 +8607,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                 <div key={r.id || i}>
                   {/* Main Row */}
                   <div
-                    className="dc-ledger-r cursor-pointer hover:bg-white transition-colors"
+                    className="dc-ledger-r dc-results-row cursor-pointer hover:bg-white transition-colors"
                     style={{ gridTemplateColumns: '2fr 1.2fr .8fr 1fr .8fr 24px' }}
                     onClick={() => toggleRow(r.id || i)}
                   >
@@ -8617,10 +8618,10 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                         {r.isManual ? ' · Manual' : ''}
                       </div>
                     </div>
-                    <div className="text-[13px] text-[#4A4840] truncate">{r.industry}</div>
+                    <div className="dc-col-hide text-[13px] text-[#4A4840] truncate">{r.industry}</div>
                     <div className="text-[20px] font-bold text-right" style={{ color: scoreColor(r.totalScore) }}>{r.totalScore}</div>
-                    <div className="text-[13px] font-semibold">{r.maturityLevel}</div>
-                    <div className="text-[13px] text-[#8A877D] text-right">
+                    <div className="dc-col-hide text-[13px] font-semibold">{r.maturityLevel}</div>
+                    <div className="dc-col-hide text-[13px] text-[#8A877D] text-right">
                       {assessmentDate ? assessmentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
                     </div>
                     <ChevronDown className={`w-4 h-4 text-[#8A877D] transition-transform justify-self-end ${isExpanded ? 'rotate-180' : ''}`} />
@@ -9619,7 +9620,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
         <div className="space-y-3.5">
           {attrLandscapeData.map(({ attr, sectorScores, min, max, mean }) => (
-            <div key={attr.id} className="grid items-center gap-3"
+            <div key={attr.id} className="dc-ledger-row grid items-center gap-3"
               style={{ gridTemplateColumns: '96px 1fr 36px' }}>
               <div className="text-xs font-semibold text-[#0B0B0B] text-right leading-tight pr-1">{attr.name}</div>
               <div className="relative h-9 flex items-center" style={{ overflow: 'visible' }}>
@@ -9692,7 +9693,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           ))}
 
           {/* Scale */}
-          <div className="grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '96px 1fr 36px' }}>
+          <div className="dc-ledger-row grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '96px 1fr 36px' }}>
             <div />
             <div className="flex justify-between text-[10px] text-[#BBB] select-none">
               {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
@@ -9851,7 +9852,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           })}
 
           {/* Scale */}
-          <div className="grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '140px 1fr 36px' }}>
+          <div className="dc-ledger-row grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '140px 1fr 36px' }}>
             <div />
             <div className="flex justify-between text-[10px] text-[#BBB] select-none">
               {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
@@ -11372,7 +11373,7 @@ function ClientReportView({ payload }) {
         <div>
           {/* Identical to the internal report's glance section: same grid, same
               type scale, same rhythm. Kept in step deliberately. */}
-          <div className="grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
+          <div className="dc-split grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
             <div>
               <div className="flex gap-6 items-start">
                 <div className="flex-shrink-0">
@@ -11533,7 +11534,7 @@ function ClientReportView({ payload }) {
         {benchmark && benchmarkAvg && (
           <>
           <SectionHead label="Benchmark comparison" />
-          <div className="grid gap-14 items-start"
+          <div className="dc-split grid gap-14 items-start"
             style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)' }}>
             {/* Spread, matching the internal report's ledger. Guarded on
                 attrRanges because links issued before this shipped lack it. */}
@@ -11550,18 +11551,18 @@ function ClientReportView({ payload }) {
                     const rng = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
                     const d = v - avg;
                     return (
-                      <div key={attr.id} className="grid gap-4 items-center"
+                      <div key={attr.id} className="dc-ledger-row grid gap-4 items-center"
                         style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0',
                           borderBottom: '1px solid #DCDAD3' }}>
                         <div className="text-[13px] font-bold">{attr.name}</div>
-                        <div className="relative" style={{ height: 22 }}>
+                        <div className="dc-ledger-track relative" style={{ height: 22 }}>
                           <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
                           <div className="absolute" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3' }} />
                           <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#8A877D' }} />
                           <div className="absolute" style={{ left: `${v}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF' }} />
                         </div>
-                        <div className="text-right">
-                          <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
+                        <div className="dc-ledger-value text-right">
+                            <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
                           <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B',
                             background: d > 0 ? '#DEE42F' : 'transparent',
                             border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px',

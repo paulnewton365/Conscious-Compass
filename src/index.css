@@ -455,3 +455,62 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
 @media (prefers-reduced-motion: reduce) {
   .dc-reveal { opacity: 1; transform: none; transition: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE — report layouts
+   The reports are built on asymmetric grids and ledger rows with
+   fixed side columns. Below 900px the two-column splits stack; below
+   640px the ledgers collapse so the label, the track and the value
+   each get the full width instead of being crushed into 80px.
+   ───────────────────────────────────────────────────────────── */
+
+/* Two-column splits: glance, benchmark, welcome */
+@media (max-width: 900px) {
+  .dc-split { grid-template-columns: minmax(0, 1fr) !important; gap: 32px !important; }
+  .dc-page  { padding: 28px 20px 56px; }
+  .dc-sec-head { font-size: 12px; }
+}
+
+/* Ledger rows: attribute spread, recommendations, results, adjustment */
+@media (max-width: 640px) {
+  .dc-ledger-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 4px 12px !important;
+  }
+  /* The track spans the full width on its own line */
+  .dc-ledger-row > .dc-ledger-track { grid-column: 1 / -1; order: 3; }
+  .dc-ledger-row > .dc-ledger-value { text-align: right; }
+
+  /* Recommendation rows: ordinal above, chips below */
+  .dc-rec-row { grid-template-columns: minmax(0, 1fr) !important; gap: 10px !important; }
+  .dc-rec-row > .dc-rec-ord { font-size: 16px; }
+  .dc-rec-row > .dc-rec-tags { text-align: left !important; }
+
+  /* Results ledger drops the sector and date columns on a phone */
+  .dc-results-row, .dc-results-head {
+    grid-template-columns: minmax(0, 1fr) 64px 24px !important;
+    gap: 12px !important;
+  }
+  .dc-results-row > .dc-col-hide, .dc-results-head > .dc-col-hide { display: none; }
+
+  /* Score adjustment: three numbers keep their columns but tighten */
+  .dc-adj-row { gap: 6px !important; }
+
+  .dc-page { padding: 22px 16px 48px; }
+  .dc-display { font-size: clamp(30px, 9vw, 46px); }
+  .dc-h2 { font-size: clamp(24px, 7vw, 32px); }
+  .dc-sec { margin-top: 48px; }
+}
+
+/* Tile grids: never below two across, never crushed */
+@media (max-width: 520px) {
+  .dc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+/* The footprint map keeps a fixed viewBox, so on a phone it scales down until
+   the ring labels are unreadable. Widening the viewBox is not possible from
+   CSS, so the labels scale up relative to the drawing instead. */
+@media (max-width: 640px) {
+  .dc-fpmap text { font-size: 15px !important; }
+  .dc-fpmap { min-height: 320px; }
+}
