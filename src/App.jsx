@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.16.1';
+const APP_VERSION = '3.16.2';
 import { 
   supabase, 
   signUp, 
@@ -8228,7 +8228,7 @@ ${content.slice(0, 8000)}`;
       )}
 
       {/* What We Evaluated - Collapsible */}
-      <div className="mb-8">
+      <div className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="What we evaluated" open={expandedSections.evaluated}
           onToggle={() => toggleSection('evaluated')} />
         {expandedSections.evaluated && (
@@ -8241,7 +8241,7 @@ ${content.slice(0, 8000)}`;
       </div>
 
       {/* Assessment Readouts - Collapsible */}
-      <div className="mb-8">
+      <div className="dc-reveal" style={{ marginTop: 80 }}>
         <SectionHead label="Assessment readouts" open={expandedSections.readouts}
           onToggle={() => toggleSection('readouts')} />
         {expandedSections.readouts && (
