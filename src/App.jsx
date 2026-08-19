@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.24.0';
+const APP_VERSION = '3.25.0';
 import { 
   supabase, 
   signUp, 
@@ -5619,6 +5619,321 @@ function useSectionReveal(deps) {
   }, deps);
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// SHARED REPORT SECTIONS
+//
+// The internal and client reports render the SAME components rather than two
+// copies of similar markup. Every previous attempt to keep them in step by
+// matching properties drifted, because a change to one was a change to only
+// one. The client hides internal detail through `showInternal`, never through
+// separate markup.
+// ─────────────────────────────────────────────────────────────
+
+function ReportGlanceSection({ project, scores, overall, stage, sortedAttrs, chartRef, animatedScore }) {
+  const shown = Number.isFinite(animatedScore) ? animatedScore : overall;
+  return (
+                  <div className="dc-split grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
+              <div>
+                <div className="flex gap-6 items-start">
+                  <div className="flex-shrink-0">
+                    <div className="flex items-center justify-center"
+                      style={{ width: 96, height: 96, background: '#0B0B0B', color: '#DEE42F',
+                        fontSize: 44, fontWeight: 700, letterSpacing: '-.03em' }}>
+                      {shown}
+                    </div>
+                    <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#68655B] text-center mt-2">out of 100</div>
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.025em', lineHeight: 1.05 }}>{stage.name}</h3>
+                    <p className="text-[15px] leading-relaxed text-[#4A4840] mt-2.5" style={{ maxWidth: '44ch' }}>{stage.description}</p>
+                  </div>
+                </div>
+
+                {scores.headline && (
+                  <blockquote style={{ margin: '36px 0 0', borderLeft: '6px solid #DEE42F', padding: '2px 0 2px 22px',
+                    fontSize: 'clamp(21px,2.1vw,27px)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.25 }}>
+                    &ldquo;{scores.headline}&rdquo;
+                  </blockquote>
+                )}
+
+                <div style={{ height: 1, background: '#DCDAD3', margin: '36px 0 26px' }} />
+
+                <p className="text-[16px]" style={{ maxWidth: '52ch', lineHeight: 1.75 }}>
+                  <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
+                  <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
+                    {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}
+                  </span>, with opportunities to grow in{' '}
+                  <span className="font-bold" style={{ borderBottom: '2px dotted #68655B' }}>
+                    {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}
+                  </span>.
+                </p>
+              </div>
+
+              <div className="bg-white" style={{ padding: 14 }} ref={chartRef}>
+                <SpiderChart scores={scores} size={420} />
+              </div>
+            </div>
+  );
+}
+
+function ReportScoreTiles({ scores }) {
+  return (
+          <div className="dc-tiles dc-keep-white grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
+            {ATTRIBUTES.map(attr => (
+              <div key={attr.id} className="dc-tile" style={{ gap: 6, padding: '16px 14px' }}>
+                <div className="dc-kicker-sm leading-tight break-words">{attr.name}</div>
+                <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: scoreColor(scores[attr.id]?.score) }}>
+                  {scores[attr.id]?.score || 0}
+                </div>
+              </div>
+            ))}
+          </div>
+  );
+}
+
+function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaignAffected,
+  campaignStage, open = true, showInternal = true }) {
+  return (
+    <>
+            {open && (
+              <div className="grid gap-[2px] animate-fade-in"
+                style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', marginTop: 32 }}>
+                {ATTRIBUTES.map(attr => {
+                  const sc = scores[attr.id] || {};
+                  const avg = benchmark?.attrAvgs?.[attr.id];
+                  const delta = avg != null ? (sc.score || 0) - avg : null;
+                  const adj = campaignAdjustment(attr.id);
+                  return (
+                    <div key={attr.id} className="bg-white dc-attr-card" style={{ padding: 24 }}>
+                      {/* Header: figure, name, delta chip */}
+                      <div className="flex items-start gap-4"
+                        style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14 }}>
+                        <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9,
+                          color: scoreColor(sc.score) }}>
+                          {sc.score || 0}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{attr.name}</h4>
+                          <p className="text-[11px] font-semibold text-[#68655B] mt-0.5" style={{ letterSpacing: '.04em' }}>
+                            {attr.fullName}
+                          </p>
+                        </div>
+                        {delta != null && (
+                          /* Positive deltas take the lime chip, negatives an
+                             outlined one. The design signals direction by weight,
+                             not by red and green. */
+                          <div className={delta > 0 ? 'dc-pill' : 'dc-pill-o'}>
+                            {delta > 0 ? '+' : ''}{delta}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Fixed-height meta block. Without it, cards with no campaign
+                          modifier sat a line higher than their neighbours and the
+                          body copy stopped aligning across the grid. */}
+                      <div style={{ marginTop: 14, minHeight: 30 }}>
+                        {avg != null && (
+                          <p className="dc-kicker-sm">Sector average {avg}</p>
+                        )}
+                        <p className="dc-kicker-sm" style={{ marginTop: 4,
+                          visibility: showInternal && adj !== 0 ? 'visible' : 'hidden' }}>
+                          {adj !== 0
+                            ? `${sc.baseScore} base ${adj > 0 ? '+' : ''}${adj} campaign coherence`
+                            : 'placeholder'}
+                        </p>
+                      </div>
+
+                      <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.55, marginTop: 12 }}>
+                        {sc.findings || sc.summary || attr.description}
+                      </p>
+                      {sc.impact && (
+                        <p className="text-[13px]" style={{ lineHeight: 1.55, marginTop: 10 }}>
+                          <b className="font-bold">What&rsquo;s driving it:</b> {String(sc.impact).replace(/^What'?s driving it:?\s*/i, '')}
+                        </p>
+                      )}
+                      {showInternal && sc.actions && (
+                        <p className="text-[13px]"
+                          style={{ lineHeight: 1.55, marginTop: 14, borderLeft: '4px solid #DEE42F', paddingLeft: 12 }}>
+                          <b className="font-bold">To improve:</b> {String(sc.actions).replace(/^To improve( the score)?:?\s*/i, '')}
+                        </p>
+                      )}
+                      {showInternal && sc.opportunity && (
+                        <p className="text-[12px] svc-link" style={{ marginTop: 12 }}>{sc.opportunity}</p>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Occupies the empty cell left by eight attributes in a
+                    three-column grid. Flows to its own row at narrower widths. */}
+                {campaignAffected.length > 0 && campaignStage && (
+                  <div className="bg-white" style={{ padding: 24 }}>
+                    <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>Score adjustment</h4>
+                    <p className="text-[12px] text-[#68655B]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DCDAD3' }}>
+                      Attribute scores judge the quality of the work. Campaign coherence is scored
+                      separately and applied here, so the two are never counted twice.
+                    </p>
+                    <div className="grid items-baseline dc-kicker-sm"
+                      style={{ gridTemplateColumns: '1fr 34px 30px 34px', gap: 10, textAlign: 'right',
+                        paddingBottom: 8, marginTop: 4 }}>
+                      <span />
+                      <span>Base</span>
+                      <span>Adj</span>
+                      <span>Final</span>
+                    </div>
+                    <div>
+                      {campaignAffected.map(attr => {
+                        const adj = campaignAdjustment(attr.id);
+                        return (
+                          <div key={attr.id} className="flex items-center justify-between"
+                            style={{ padding: '9px 0', borderBottom: '1px solid #E4E2DC' }}>
+                            <span className="text-[13px] font-bold truncate">{attr.name}</span>
+                            <span className="dc-adj-row grid items-baseline flex-shrink-0 tabular-nums"
+                              style={{ gridTemplateColumns: '34px 30px 34px', gap: 10, textAlign: 'right' }}>
+                              <span className="text-[12px] text-[#68655B]">
+                                {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
+                              </span>
+                              <span className="text-[12px] font-bold" style={{ color: adj > 0 ? SCORE_GREEN : SCORE_RED }}>
+                                {adj > 0 ? '+' : ''}{adj}
+                              </span>
+                              <span className="text-[15px] font-bold" style={{ color: scoreColor(scores[attr.id]?.score) }}>
+                                {scores[attr.id]?.score}
+                              </span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="dc-kicker-sm" style={{ marginTop: 14 }}>
+                      Level {campaignStage.level}: {CAMPAIGN_MODIFIERS[campaignStage.level].primary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].primary} primary,{' '}
+                      {CAMPAIGN_MODIFIERS[campaignStage.level].secondary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].secondary} secondary
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+    </>
+  );
+}
+
+function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, benchmarkAvgScores,
+  benchmarkPositionRef, benchmarkSpreadRef, benchmarkRadarRef, spreadRef, spreadIn, open = true }) {
+  return (
+    <>
+      {benchmark && open && (
+                <div className="animate-fade-in">
+                  {/* Overall position */}
+                  <div className="bg-white" style={{ marginTop: 24, padding: '28px 32px' }} ref={benchmarkPositionRef}>
+                    <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Overall Position</h4>
+                    <p className="text-[13px] text-[#68655B] mt-1">
+                      Where {project.brandName} sits against {benchmark.cohortLabel.toLowerCase()}.
+                    </p>
+
+                    <div className="relative" style={{ padding: '56px 0 8px' }}>
+                      <div className="absolute flex flex-col items-center gap-1.5"
+                        style={{ left: `${overall}%`, top: 8, transform: 'translateX(-50%)' }}>
+                        {/* The pill is absolutely positioned at the score, so a long
+                            brand name overflows the track on a phone. The name drops
+                            below 640px; the score always stays. */}
+                        <div style={{ background: '#0B0B0B', color: '#FFFFFF', fontSize: 11, fontWeight: 700, letterSpacing: '.02em', padding: '5px 9px', whiteSpace: 'nowrap' }}>
+                          <span className="dc-pill-brand">{project.brandName} </span>{overall}
+                        </div>
+                        <div style={{ width: 2, height: 14, background: '#0B0B0B' }} />
+                      </div>
+
+                      <PositionBands stageName={stage.name} />
+
+                      <div className="absolute flex flex-col items-center gap-1"
+                        style={{ left: `${benchmark.avgScore}%`, top: 70, transform: 'translateX(-50%)' }}>
+                        <div style={{ width: 2, height: 14, background: '#68655B' }} />
+                        <div className="text-[11px] font-bold text-[#68655B]" style={{ whiteSpace: 'nowrap' }}>
+                          sector {benchmark.avgScore}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between text-[10px] font-semibold text-[#B3B0A8]" style={{ marginTop: 48 }}>
+                        {[0, 25, 50, 75, 100].map(v => <span key={v}>{v}</span>)}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
+                      {[
+                        [`${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`, 'vs sector average'],
+                        [benchmark.rank ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
+                        [benchmark.percentile != null ? ordinalSuffix(benchmark.percentile) : '—', 'percentile'],
+                      ].map(([v, l]) => (
+                        <div key={l} style={{ paddingRight: 20 }}>
+                          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>{v}</div>
+                          <div className="dc-kicker-sm" style={{ marginTop: 6 }}>{l}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Spread and profile side by side */}
+                  <div className="dc-split grid gap-[2px] items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 2 }}>
+                    <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkSpreadRef}>
+                      <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
+                      <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
+                        The band is the range across those brands, the line is their average, the dot is {project.brandName}.
+                      </p>
+                      <div style={{ marginTop: 24, borderTop: '1px solid #DCDAD3' }} ref={spreadRef}>
+                        {ATTRIBUTES.map((attr, ri) => {
+                          const v = scores[attr.id]?.score || 0;
+                          const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
+                          const rng = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
+                          const d = v - avg;
+                          return (
+                            <div key={attr.id} className="dc-ledger-row grid gap-4 items-center"
+                              style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0', borderBottom: '1px solid #DCDAD3' }}>
+                              <div className="text-[13px] font-bold">{attr.name}</div>
+                              <div className="dc-ledger-track relative" style={{ height: 22 }}>
+                                <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
+                                <div className="absolute origin-left" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3',
+                                  transform: `scaleX(${spreadIn ? 1 : 0})`,
+                                  transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: `${ri * 70}ms` }} />
+                                <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#68655B',
+                                  opacity: spreadIn ? 1 : 0, transition: 'opacity 400ms ease', transitionDelay: `${ri * 70 + 260}ms` }} />
+                                <div className="absolute" style={{ left: `${spreadIn ? v : rng.min}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF',
+                                  opacity: spreadIn ? 1 : 0,
+                                  transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease', transitionDelay: `${ri * 70 + 120}ms` }} />
+                              </div>
+                              <div className="dc-ledger-value text-right">
+                                <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
+                                <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B', background: d > 0 ? '#DEE42F' : 'transparent', border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
+                                  {d > 0 ? '+' : ''}{d}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkRadarRef}>
+                      <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
+                      <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
+                        {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
+                      </p>
+                      <div style={{ marginTop: 20 }}>
+                        <ComparisonSpiderChart
+                          brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall,
+                            scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores[a.id]?.score || 0; return acc; }, {}) }]}
+                          size={380}
+                          industryAvg={benchmarkAvgScores}
+                          avgLabel={`${benchmark.cohortLabel} avg`}
+                          animateOnScroll
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+      )}
+    </>
+  );
+}
+
 function ReportPage({ project, setProject, scores, setScores, assessments, apiKey, onSave, onPrev, profile, compassResults = [], savedBenchmark = null }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -7762,60 +8077,11 @@ ${content.slice(0, 8000)}`;
       {/* ── 01 Results at a glance ───────────────────────────── */}
       <section className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
         <SectionHead label="Results at a glance" />
-        <div className="dc-split grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
-          <div>
-            <div className="flex gap-6 items-start">
-              <div className="flex-shrink-0">
-                <div className="flex items-center justify-center"
-                  style={{ width: 96, height: 96, background: '#0B0B0B', color: '#DEE42F',
-                    fontSize: 44, fontWeight: 700, letterSpacing: '-.03em' }}>
-                  {animatedScore}
-                </div>
-                <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#68655B] text-center mt-2">out of 100</div>
-              </div>
-              <div>
-                <h3 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.025em', lineHeight: 1.05 }}>{stage.name}</h3>
-                <p className="text-[15px] leading-relaxed text-[#4A4840] mt-2.5" style={{ maxWidth: '44ch' }}>{stage.description}</p>
-              </div>
-            </div>
-
-            {scores.headline && (
-              <blockquote style={{ margin: '36px 0 0', borderLeft: '6px solid #DEE42F', padding: '2px 0 2px 22px',
-                fontSize: 'clamp(21px,2.1vw,27px)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.25 }}>
-                &ldquo;{scores.headline}&rdquo;
-              </blockquote>
-            )}
-
-            <div style={{ height: 1, background: '#DCDAD3', margin: '36px 0 26px' }} />
-
-            <p className="text-[16px]" style={{ maxWidth: '52ch', lineHeight: 1.75 }}>
-              <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
-              <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
-                {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}
-              </span>, with opportunities to grow in{' '}
-              <span className="font-bold" style={{ borderBottom: '2px dotted #68655B' }}>
-                {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}
-              </span>.
-            </p>
-          </div>
-
-          <div className="bg-white" style={{ padding: 14 }} ref={chartRef}>
-            <SpiderChart scores={scores} size={420} />
-          </div>
-        </div>
+        <ReportGlanceSection project={project} scores={scores} overall={overall}
+          stage={stage} sortedAttrs={sortedAttrs} chartRef={chartRef} />
       </section>
 
-      {/* Score tiles — separated by paper, not by borders */}
-      <div className="dc-tiles dc-keep-white grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
-        {ATTRIBUTES.map(attr => (
-          <div key={attr.id} className="dc-tile" style={{ gap: 6, padding: '16px 14px' }}>
-            <div className="dc-kicker-sm leading-tight break-words">{attr.name}</div>
-            <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: scoreColor(scores[attr.id]?.score) }}>
-              {scores[attr.id]?.score || 0}
-            </div>
-          </div>
-        ))}
-      </div>
+      <ReportScoreTiles scores={scores} />
 
       {/* ── 02 Brand maturity ────────────────────────────────── */}
       <section className="dc-reveal" style={{ marginTop: 80 }}>
@@ -7860,132 +8126,10 @@ ${content.slice(0, 8000)}`;
       <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
         <SectionHead label="Attribute analysis" open={expandedSections.attributes}
           onToggle={() => toggleSection('attributes')} />
-        {expandedSections.attributes && (
-          <div className="grid gap-[2px] animate-fade-in"
-            style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', marginTop: 32 }}>
-            {ATTRIBUTES.map(attr => {
-              const sc = scores[attr.id] || {};
-              const avg = benchmark?.attrAvgs?.[attr.id];
-              const delta = avg != null ? (sc.score || 0) - avg : null;
-              const adj = campaignAdjustment(attr.id);
-              return (
-                <div key={attr.id} className="bg-white dc-attr-card" style={{ padding: 24 }}>
-                  {/* Header: figure, name, delta chip */}
-                  <div className="flex items-start gap-4"
-                    style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14 }}>
-                    <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9,
-                      color: scoreColor(sc.score) }}>
-                      {sc.score || 0}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{attr.name}</h4>
-                      <p className="text-[11px] font-semibold text-[#68655B] mt-0.5" style={{ letterSpacing: '.04em' }}>
-                        {attr.fullName}
-                      </p>
-                    </div>
-                    {delta != null && (
-                      /* Positive deltas take the lime chip, negatives an
-                         outlined one. The design signals direction by weight,
-                         not by red and green. */
-                      <div className={delta > 0 ? 'dc-pill' : 'dc-pill-o'}>
-                        {delta > 0 ? '+' : ''}{delta}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Fixed-height meta block. Without it, cards with no campaign
-                      modifier sat a line higher than their neighbours and the
-                      body copy stopped aligning across the grid. */}
-                  <div style={{ marginTop: 14, minHeight: 30 }}>
-                    {avg != null && (
-                      <p className="dc-kicker-sm">Sector average {avg}</p>
-                    )}
-                    <p className="dc-kicker-sm" style={{ marginTop: 4, visibility: adj !== 0 ? 'visible' : 'hidden' }}>
-                      {adj !== 0
-                        ? `${sc.baseScore} base ${adj > 0 ? '+' : ''}${adj} campaign coherence`
-                        : 'placeholder'}
-                    </p>
-                  </div>
-
-                  <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.55, marginTop: 12 }}>
-                    {sc.findings || sc.summary || attr.description}
-                  </p>
-                  {sc.impact && (
-                    <p className="text-[13px]" style={{ lineHeight: 1.55, marginTop: 10 }}>
-                      <b className="font-bold">What&rsquo;s driving it:</b> {String(sc.impact).replace(/^What'?s driving it:?\s*/i, '')}
-                    </p>
-                  )}
-                  {sc.actions && (
-                    <p className="text-[13px]"
-                      style={{ lineHeight: 1.55, marginTop: 14, borderLeft: '4px solid #DEE42F', paddingLeft: 12 }}>
-                      <b className="font-bold">To improve:</b> {String(sc.actions).replace(/^To improve( the score)?:?\s*/i, '')}
-                    </p>
-                  )}
-                  {sc.opportunity && (
-                    <p className="text-[12px] svc-link" style={{ marginTop: 12 }}>{sc.opportunity}</p>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Occupies the empty cell left by eight attributes in a
-                three-column grid. Flows to its own row at narrower widths. */}
-            {campaignAffected.length > 0 && campaignStage && (
-              <div className="bg-white" style={{ padding: 24 }}>
-                <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>Score adjustment</h4>
-                <p className="text-[12px] text-[#68655B]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DCDAD3' }}>
-                  Attribute scores judge the quality of the work. Campaign coherence is scored
-                  separately and applied here, so the two are never counted twice.
-                </p>
-                <div className="grid items-baseline dc-kicker-sm"
-                  style={{ gridTemplateColumns: '1fr 34px 30px 34px', gap: 10, textAlign: 'right',
-                    paddingBottom: 8, marginTop: 4 }}>
-                  <span />
-                  <span>Base</span>
-                  <span>Adj</span>
-                  <span>Final</span>
-                </div>
-                <div>
-                  {campaignAffected.map(attr => {
-                    const adj = campaignAdjustment(attr.id);
-                    return (
-                      <div key={attr.id} className="flex items-center justify-between"
-                        style={{ padding: '9px 0', borderBottom: '1px solid #E4E2DC' }}>
-                        <span className="text-[13px] font-bold truncate">{attr.name}</span>
-                        <span className="dc-adj-row grid items-baseline flex-shrink-0 tabular-nums"
-                          style={{ gridTemplateColumns: '34px 30px 34px', gap: 10, textAlign: 'right' }}>
-                          <span className="text-[12px] text-[#68655B]">
-                            {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
-                          </span>
-                          <span className="text-[12px] font-bold" style={{ color: adj > 0 ? SCORE_GREEN : SCORE_RED }}>
-                            {adj > 0 ? '+' : ''}{adj}
-                          </span>
-                          <span className="text-[15px] font-bold" style={{ color: scoreColor(scores[attr.id]?.score) }}>
-                            {scores[attr.id]?.score}
-                          </span>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="dc-kicker-sm" style={{ marginTop: 14 }}>
-                  Level {campaignStage.level}: {CAMPAIGN_MODIFIERS[campaignStage.level].primary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].primary} primary,{' '}
-                  {CAMPAIGN_MODIFIERS[campaignStage.level].secondary > 0 ? '+' : ''}{CAMPAIGN_MODIFIERS[campaignStage.level].secondary} secondary
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        <ReportAttributeSection scores={scores} benchmark={benchmark}
+          campaignAdjustment={campaignAdjustment} campaignAffected={campaignAffected}
+          campaignStage={campaignStage} open={expandedSections.attributes} showInternal />
       </div>
-
-      {showClientLink && (
-        <ClientLinkModal
-          brandName={project.brandName}
-          buildPayload={buildClientPayload}
-          onClose={() => setShowClientLink(false)}
-          profile={profile}
-        />
-      )}
 
       {/* Brand Footprint - Collapsible. Hidden entirely on assessments
           scored before presence levels existed, rather than rendering an
@@ -8107,121 +8251,15 @@ ${content.slice(0, 8000)}`;
           </div>
         </div>
       )}
-      {benchmark && (
-        <div className="dc-reveal" style={{ marginTop: 80 }}>
-          <SectionHead label="Benchmark comparison" open={expandedSections.benchmark}
+      <div className="dc-reveal" style={{ marginTop: 80 }}>
+        <SectionHead label="Benchmark comparison" open={expandedSections.benchmark}
           onToggle={() => toggleSection('benchmark')} />
-          {expandedSections.benchmark && (
-            <div className="animate-fade-in">
-              {/* Overall position */}
-              <div className="bg-white" style={{ marginTop: 24, padding: '28px 32px' }} ref={benchmarkPositionRef}>
-                <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Overall Position</h4>
-                <p className="text-[13px] text-[#68655B] mt-1">
-                  Where {project.brandName} sits against {benchmark.cohortLabel.toLowerCase()}.
-                </p>
-
-                <div className="relative" style={{ padding: '56px 0 8px' }}>
-                  <div className="absolute flex flex-col items-center gap-1.5"
-                    style={{ left: `${overall}%`, top: 8, transform: 'translateX(-50%)' }}>
-                    {/* The pill is absolutely positioned at the score, so a long
-                        brand name overflows the track on a phone. The name drops
-                        below 640px; the score always stays. */}
-                    <div style={{ background: '#0B0B0B', color: '#FFFFFF', fontSize: 11, fontWeight: 700, letterSpacing: '.02em', padding: '5px 9px', whiteSpace: 'nowrap' }}>
-                      <span className="dc-pill-brand">{project.brandName} </span>{overall}
-                    </div>
-                    <div style={{ width: 2, height: 14, background: '#0B0B0B' }} />
-                  </div>
-
-                  <PositionBands stageName={stage.name} />
-
-                  <div className="absolute flex flex-col items-center gap-1"
-                    style={{ left: `${benchmark.avgScore}%`, top: 70, transform: 'translateX(-50%)' }}>
-                    <div style={{ width: 2, height: 14, background: '#68655B' }} />
-                    <div className="text-[11px] font-bold text-[#68655B]" style={{ whiteSpace: 'nowrap' }}>
-                      sector {benchmark.avgScore}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between text-[10px] font-semibold text-[#B3B0A8]" style={{ marginTop: 48 }}>
-                    {[0, 25, 50, 75, 100].map(v => <span key={v}>{v}</span>)}
-                  </div>
-                </div>
-
-                <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
-                  {[
-                    [`${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`, 'vs sector average'],
-                    [benchmark.rank ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
-                    [benchmark.percentile != null ? ordinalSuffix(benchmark.percentile) : '—', 'percentile'],
-                  ].map(([v, l]) => (
-                    <div key={l} style={{ paddingRight: 20 }}>
-                      <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>{v}</div>
-                      <div className="dc-kicker-sm" style={{ marginTop: 6 }}>{l}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Spread and profile side by side */}
-              <div className="dc-split grid gap-[2px] items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 2 }}>
-                <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkSpreadRef}>
-                  <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
-                  <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
-                    The band is the range across those brands, the line is their average, the dot is {project.brandName}.
-                  </p>
-                  <div style={{ marginTop: 24, borderTop: '1px solid #DCDAD3' }} ref={spreadRef}>
-                    {ATTRIBUTES.map((attr, ri) => {
-                      const v = scores[attr.id]?.score || 0;
-                      const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
-                      const rng = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
-                      const d = v - avg;
-                      return (
-                        <div key={attr.id} className="dc-ledger-row grid gap-4 items-center"
-                          style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0', borderBottom: '1px solid #DCDAD3' }}>
-                          <div className="text-[13px] font-bold">{attr.name}</div>
-                          <div className="dc-ledger-track relative" style={{ height: 22 }}>
-                            <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
-                            <div className="absolute origin-left" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3',
-                              transform: `scaleX(${spreadIn ? 1 : 0})`,
-                              transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: `${ri * 70}ms` }} />
-                            <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#68655B',
-                              opacity: spreadIn ? 1 : 0, transition: 'opacity 400ms ease', transitionDelay: `${ri * 70 + 260}ms` }} />
-                            <div className="absolute" style={{ left: `${spreadIn ? v : rng.min}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF',
-                              opacity: spreadIn ? 1 : 0,
-                              transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease', transitionDelay: `${ri * 70 + 120}ms` }} />
-                          </div>
-                          <div className="dc-ledger-value text-right">
-                            <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
-                            <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B', background: d > 0 ? '#DEE42F' : 'transparent', border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
-                              {d > 0 ? '+' : ''}{d}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkRadarRef}>
-                  <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
-                  <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
-                    {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
-                  </p>
-                  <div style={{ marginTop: 20 }}>
-                    <ComparisonSpiderChart
-                      brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall,
-                        scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores[a.id]?.score || 0; return acc; }, {}) }]}
-                      size={380}
-                      industryAvg={benchmarkAvgScores}
-                      avgLabel={`${benchmark.cohortLabel} avg`}
-                      animateOnScroll
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        <ReportBenchmarkSection project={project} scores={scores} overall={overall} stage={stage}
+          benchmark={benchmark} benchmarkAvgScores={benchmarkAvgScores}
+          benchmarkPositionRef={benchmarkPositionRef} benchmarkSpreadRef={benchmarkSpreadRef}
+          benchmarkRadarRef={benchmarkRadarRef} spreadRef={spreadRef} spreadIn={spreadIn}
+          open={expandedSections.benchmark} />
+      </div>
 
       {/* Recommendations - Collapsible */}
       <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
@@ -11471,6 +11509,14 @@ function ClientReportView({ payload }) {
 
   useSectionReveal([payload]);
 
+  // The shared sections expect these; the client had its own equivalents under
+  // different names, which is exactly the kind of drift the shared components
+  // are meant to end.
+  const sortedAttrs = [...ATTRIBUTES]
+    .map(a => ({ ...a, score: scores?.[a.id]?.score || 0 }))
+    .sort((x, y) => x.score - y.score);
+  const [spreadRef, spreadIn] = useInView(0.15);
+
   // Client-facing sections only. Recommendations, services, justification,
   // readouts and the score adjustment panel are intentionally absent.
   const clientSections = [
@@ -11526,66 +11572,13 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        {/* Structurally identical to the internal report: the keep-white class
-            sits on the section alongside the head, not on a bare wrapper
-            inside it. On a wrapper it painted the whole block white, which is
-            why this section looked boxed and the main report did not. */}
         <section className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
           <SectionHead label="Results at a glance" />
-          <div className="dc-split grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
-            <div>
-              <div className="flex gap-6 items-start">
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-center"
-                    style={{ width: 96, height: 96, background: '#0B0B0B', color: '#DEE42F',
-                      fontSize: 44, fontWeight: 700, letterSpacing: '-.03em' }}>
-                    {overall}
-                  </div>
-                  <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#68655B] text-center mt-2">out of 100</div>
-                </div>
-                <div className="min-w-0">
-                  <h3 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.025em', lineHeight: 1.05 }}>{stage.name}</h3>
-                  <p className="text-[15px] leading-relaxed text-[#4A4840] mt-2.5" style={{ maxWidth: '44ch' }}>{stage.description}</p>
-                </div>
-              </div>
-
-              {scores?.headline && (
-                <blockquote style={{ margin: '36px 0 0', borderLeft: '6px solid #DEE42F', padding: '2px 0 2px 22px',
-                  fontSize: 'clamp(21px,2.1vw,27px)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.25 }}>
-                  &ldquo;{scores.headline}&rdquo;
-                </blockquote>
-              )}
-
-              <div style={{ height: 1, background: '#DCDAD3', margin: '36px 0 26px' }} />
-
-              <p className="text-[16px]" style={{ maxWidth: '52ch', lineHeight: 1.75 }}>
-                <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
-                <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
-                  {strengths.map(a => a.name).join(' and ')}
-                </span>, with opportunities to grow in{' '}
-                <span className="font-bold" style={{ borderBottom: '2px dotted #68655B' }}>
-                  {growth.map(a => a.name).join(' and ')}
-                </span>.
-              </p>
-            </div>
-
-            <div className="bg-white" style={{ padding: 14 }}>
-              <SpiderChart scores={scores} size={420} />
-            </div>
-          </div>
+          <ReportGlanceSection project={project} scores={scores} overall={overall}
+            stage={stage} sortedAttrs={sortedAttrs} />
         </section>
 
-        {/* ── Attribute scores ────────────────────────────────── */}
-        <div className="dc-tiles dc-keep-white grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
-          {ATTRIBUTES.map(a => (
-            <div key={a.id} className="dc-tile" style={{ gap: 6, padding: '16px 14px' }}>
-              <div className="dc-kicker-sm leading-tight break-words">{a.name}</div>
-              <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: scoreColor(scores?.[a.id]?.score) }}>
-                {scores?.[a.id]?.score || 0}
-              </div>
-            </div>
-          ))}
-        </div>
+        <ReportScoreTiles scores={scores} />
 
         {/* ── Maturity ────────────────────────────────────────── */}
         <SectionHead label="Brand maturity" />
@@ -11608,53 +11601,14 @@ function ClientReportView({ payload }) {
           </div>
         </div>
 
-        {/* ── Attribute analysis, no recommendations ──────────── */}
-        <div className="dc-reveal dc-keep-white">
-        <SectionHead label="Attribute analysis" />
-        <div className="dc-keep-white grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
-          {ATTRIBUTES.map(a => {
-            const sc = scores?.[a.id] || {};
-            const avg = benchmark?.attrAvgs?.[a.id];
-            const delta = avg != null ? (sc.score || 0) - avg : null;
-            return (
-              <div key={a.id} className="card dc-attr-card">
-                <div className="flex items-start gap-4" style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14 }}>
-                  <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9,
-                    color: scoreColor(sc.score) }}>{sc.score || 0}</div>
-                  <div className="flex-1 min-w-0">
-                    <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{a.name}</h4>
-                    <p className="text-[11px] font-semibold text-[#68655B] mt-0.5" style={{ letterSpacing: '.04em' }}>{a.fullName}</p>
-                  </div>
-                  {delta != null && (
-                    /* Same delta chip as the internal report. The client already
-                       sees the benchmark section, so the sector comparison is
-                       consistent rather than newly disclosed. */
-                    <div className={delta > 0 ? 'dc-pill' : 'dc-pill-o'}>
-                      {delta > 0 ? '+' : ''}{delta}
-                    </div>
-                  )}
-                </div>
-
-                {/* Sector average only. The campaign coherence adjustment is
-                    deliberately absent from the client report. */}
-                <div style={{ marginTop: 14, minHeight: 14 }}>
-                  {avg != null && <p className="dc-kicker-sm">Sector average {avg}</p>}
-                </div>
-
-                {sc.findings && (
-                  <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.55, marginTop: 12 }}>{sc.findings}</p>
-                )}
-                {sc.impact && (
-                  <p className="text-[13px]" style={{ lineHeight: 1.55, marginTop: 10 }}>
-                    <span className="font-bold">What&rsquo;s driving it: </span>
-                    {String(sc.impact).replace(/^What'?s driving it:?\s*/i, '')}
-                  </p>
-                )}
-                {/* Recommendations and gaps are intentionally not rendered. */}
-              </div>
-            );
-          })}
-        </div>
+        {/* ── Attribute analysis ─────────────────────────────── */}
+        <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
+          <SectionHead label="Attribute analysis" />
+          {/* showInternal false hides the campaign adjustment, the improve
+              line and the service mapping. Same component, same formatting. */}
+          <ReportAttributeSection scores={scores} benchmark={benchmark}
+            campaignAdjustment={() => 0} campaignAffected={[]} campaignStage={null}
+            open showInternal={false} />
         </div>
 
         {/* ── Brand footprint ─────────────────────────────────── */}
@@ -11716,123 +11670,11 @@ function ClientReportView({ payload }) {
 
         {/* ── Benchmark comparison ────────────────────────────── */}
         {benchmark && benchmarkAvg && (
-          <div className="dc-reveal">
-          <SectionHead label="Benchmark comparison" />
-
-          {/* Overall Position, identical to the internal report. It was absent
-              from the client entirely, so rank and percentile never appeared. */}
-          <div className="bg-white" style={{ marginTop: 24, padding: '28px 32px' }}>
-            <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Overall Position</h4>
-            <p className="text-[13px] text-[#68655B] mt-1">
-              Where {project.brandName} sits against {benchmark.cohortLabel.toLowerCase()}.
-            </p>
-
-            <div className="relative" style={{ padding: '56px 0 8px' }}>
-              <div className="absolute flex flex-col items-center gap-1.5"
-                style={{ left: `${overall}%`, top: 8, transform: 'translateX(-50%)' }}>
-                <div style={{ background: '#0B0B0B', color: '#FFFFFF', fontSize: 11, fontWeight: 700,
-                  letterSpacing: '.02em', padding: '5px 9px', whiteSpace: 'nowrap' }}>
-                  <span className="dc-pill-brand">{project.brandName} </span>{overall}
-                </div>
-                <div style={{ width: 2, height: 14, background: '#0B0B0B' }} />
-              </div>
-
-              <PositionBands stageName={stage.name} />
-
-              {benchmark.avgScore != null && (
-                <div className="absolute flex flex-col items-center gap-1"
-                  style={{ left: `${benchmark.avgScore}%`, top: 70, transform: 'translateX(-50%)' }}>
-                  <div style={{ width: 2, height: 14, background: '#68655B' }} />
-                  <div className="text-[11px] font-bold text-[#68655B]" style={{ whiteSpace: 'nowrap' }}>
-                    sector {benchmark.avgScore}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-between text-[10px] font-semibold text-[#B3B0A8]" style={{ marginTop: 48 }}>
-                {[0, 25, 50, 75, 100].map(v => <span key={v}>{v}</span>)}
-              </div>
-            </div>
-
-            <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
-              borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
-              {[
-                [`${overall - (benchmark.avgScore || 0) > 0 ? '+' : ''}${overall - (benchmark.avgScore || 0)}`, 'vs sector average'],
-                [benchmark.rank ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
-                [benchmark.percentile != null ? ordinalSuffix(benchmark.percentile) : '—', 'percentile'],
-              ].map(([v, l]) => (
-                <div key={l} style={{ paddingRight: 20 }}>
-                  <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>{v}</div>
-                  <div className="dc-kicker-sm" style={{ marginTop: 6 }}>{l}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="dc-split grid gap-[2px] items-start"
-            style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 2 }}>
-            {/* Spread, matching the internal report's ledger. Guarded on
-                attrRanges because links issued before this shipped lack it. */}
-            <div className="bg-white" style={{ padding: '28px 32px' }}>
-              <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
-              <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
-                The band is the range across those brands, the line is their average, the dot is {project.brandName}.
-              </p>
-              {benchmark.attrRanges ? (
-                <div style={{ marginTop: 24, borderTop: '1px solid #DCDAD3' }}>
-                  {ATTRIBUTES.map(attr => {
-                    const v = scores?.[attr.id]?.score || 0;
-                    const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
-                    const rng = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
-                    const d = v - avg;
-                    return (
-                      <div key={attr.id} className="dc-ledger-row grid gap-4 items-center"
-                        style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0',
-                          borderBottom: '1px solid #DCDAD3' }}>
-                        <div className="text-[13px] font-bold">{attr.name}</div>
-                        <div className="dc-ledger-track relative" style={{ height: 22 }}>
-                          <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
-                          <div className="absolute" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3' }} />
-                          <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#68655B' }} />
-                          <div className="absolute" style={{ left: `${v}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF' }} />
-                        </div>
-                        <div className="dc-ledger-value text-right">
-                            <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
-                          <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B',
-                            background: d > 0 ? '#DEE42F' : 'transparent',
-                            border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px',
-                            marginLeft: 'auto', width: 'fit-content' }}>
-                            {d > 0 ? '+' : ''}{d}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-[13px] text-[#68655B]" style={{ marginTop: 20 }}>
-                  Range data is not available for this link. Reissue it to include the spread.
-                </p>
-              )}
-            </div>
-
-            <div className="bg-white" style={{ padding: '28px 32px' }}>
-              <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
-              <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
-                {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
-              </p>
-              <div style={{ marginTop: 20 }}>
-                <ComparisonSpiderChart
-                  brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall,
-                    scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores?.[a.id]?.score || 0; return acc; }, {}) }]}
-                  size={380}
-                  industryAvg={benchmarkAvg}
-                  avgLabel={`${benchmark.cohortLabel} avg`}
-                  animateOnScroll
-                />
-              </div>
-            </div>
-          </div>
+          <div className="dc-reveal" style={{ marginTop: 80 }}>
+            <SectionHead label="Benchmark comparison" />
+            <ReportBenchmarkSection project={project} scores={scores} overall={overall}
+              stage={stage} benchmark={benchmark} benchmarkAvgScores={benchmarkAvg}
+              spreadRef={spreadRef} spreadIn={spreadIn} open />
           </div>
         )}
 
