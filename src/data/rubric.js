@@ -445,7 +445,7 @@ export const TRUST_LENSES = [
     weights: { INTENTIONAL: 35, AWAKE: 20, COGENT: 15, AWARE: 15, SENTIENT: 10, ATTENTIVE: 5 } },
   // Aware still leads, but Cogent now carries real weight: audiences decide
   // whether to believe on evidence, not only on being understood.
-  { id: 'trust', name: 'Trust', def: 'Whether audiences believe it',
+  { id: 'trust', name: 'Trust', def: 'Whether audiences believe in you',
     weights: { AWARE: 35, INTENTIONAL: 20, COGENT: 15, ATTENTIVE: 15, REFLECTIVE: 10, AWAKE: 5 } },
   // Awake still leads. Cogent, Sentient and Reflective contribute lightly:
   // keeping a promise well is judged partly on evidence, on how the work

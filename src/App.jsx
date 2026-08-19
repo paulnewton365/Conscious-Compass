@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.26.0';
+const APP_VERSION = '3.26.4';
 import { 
   supabase, 
   signUp, 
@@ -1334,7 +1334,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   };
 
   // Eight columns of bars, shared by the reach panel and every lens row.
-  const BarRow = ({ items, trackH = 64, dark = false, caption }) => (
+  const BarRow = ({ items, trackH = 64, dark = false, caption, rowInView = true }) => (
     <div className="dc-lens-bars flex-1" style={{ display: 'flex', gap: 2, minWidth: 0 }}>
       {items.map(it => (
         <button key={it.id} onClick={() => toggle(it.id)} type="button"
@@ -1345,7 +1345,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
           <div style={{ height: trackH, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
             <div style={{
               width: '100%',
-              height: `${inView ? Math.max(it.pct, it.value ? 4 : 2) : 0}%`,
+              height: `${rowInView ? Math.max(it.pct, it.value ? 4 : 2) : 0}%`,
               background: it.fill,
               transition: 'height 600ms cubic-bezier(0.22,1,0.36,1)',
             }} />
@@ -1378,7 +1378,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const RMID = Math.round((RLO + RHI) / 2);
 
   // Ruler: a dot for the lens score, a lime tick for the compass overall.
-  const Ruler = ({ score, dark = false }) => {
+  const Ruler = ({ score, dark = false, rowInView = true }) => {
     const at = (v) => Math.max(0, Math.min(100, ((v - RLO) / (RHI - RLO)) * 100));
     return (
       <div style={{ marginTop: 18, maxWidth: 320 }}>
@@ -1388,7 +1388,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
             <div style={{ position: 'absolute', left: `${at(overall)}%`, top: 2, width: 3, height: 16, background: LIME }} />
           )}
           <div style={{
-            position: 'absolute', left: `${inView ? at(score) : 0}%`, top: 3,
+            position: 'absolute', left: `${rowInView ? at(score) : 0}%`, top: 3,
             width: 14, height: 14, borderRadius: 0, background: dark ? '#FFFFFF' : INK,
             transform: 'translateX(-50%)', transition: 'left 700ms cubic-bezier(0.22,1,0.36,1)',
           }} />
@@ -1404,8 +1404,8 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
     );
   };
 
-  const LensScore = ({ row, dark }) => {
-    const shown = useCountUp(row.score, inView);
+  const LensScore = ({ row, dark, rowInView }) => {
+    const shown = useCountUp(row.score, rowInView);
     return (
       <div style={{ fontSize: 60, fontWeight: 700, letterSpacing: '-.04em', lineHeight: .9,
         color: dark ? LIME : scoreColor(row.score) }}>{shown}</div>
@@ -1413,6 +1413,10 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   };
 
   const LensRow = ({ row, dark = false }) => {
+    // Per-row observer. Threshold 0.4 so the row is properly on screen before
+    // it starts, otherwise the count finishes while it is still half below
+    // the fold.
+    const [rowRef, rowInView] = useInView(0.4);
     const items = row.contributions.map(c => ({
       id: c.id, code: c.code, value: c.weight,
       label: c.weight ? `${c.weight}%` : '0',
@@ -1424,11 +1428,12 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
           ? LIME : (dark ? '#8A8A84' : INK),
     }));
     return (
-      <div style={{ background: dark ? INK : CARD, color: dark ? '#FFFFFF' : INK, padding: '32px 40px', marginBottom: 2 }}>
+      <div ref={rowRef}
+        style={{ background: dark ? INK : CARD, color: dark ? '#FFFFFF' : INK, padding: '32px 40px', marginBottom: 2 }}>
         {dark && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', color: LIME, marginBottom: 14 }}>FOUNDATION</div>}
         <div className="dc-lens-row" style={{ display: 'flex', gap: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ width: 280, minWidth: 240, flex: '0 1 280px' }}>
-            <LensScore row={row} dark={dark} />
+            <LensScore row={row} dark={dark} rowInView={rowInView} />
             <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-.02em', marginTop: 10 }}>{row.name}</div>
             <div style={{ fontSize: 13, color: dark ? '#9A9A94' : MUTED, marginTop: 2 }}>{row.def}</div>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase',
@@ -1440,9 +1445,9 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
                 {row.findingsCount} finding{row.findingsCount === 1 ? '' : 's'} below bear on this
               </div>
             )}
-            <Ruler score={row.score} dark={dark} />
+            <Ruler score={row.score} dark={dark} rowInView={rowInView} />
           </div>
-          <BarRow items={items} dark={dark} />
+          <BarRow items={items} dark={dark} rowInView={rowInView} />
         </div>
       </div>
     );
@@ -8136,10 +8141,13 @@ ${content.slice(0, 8000)}`;
             <div className="dc-maturity-labels grid gap-[2px]" style={{
               gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), marginTop: 10 }}>
               {MATURITY_STAGES.map(st => (
-                <div key={st.id} className="text-[11px]"
+                <div key={st.id} className="text-[11px] flex justify-between gap-2"
                   style={{ fontWeight: st.name === stage.name ? 700 : 600,
                     color: st.name === stage.name ? '#0B0B0B' : '#68655B' }}>
-                  {st.name}
+                  <span>{st.name}</span>
+                  <span className="dc-band-range" style={{ color: '#B3B0A8', fontWeight: 600 }}>
+                    {st.min}&ndash;{st.max}
+                  </span>
                 </div>
               ))}
             </div>
@@ -11369,6 +11377,14 @@ function makeClientPayload({ project, scores, benchmark }) {
           attrAvgs: benchmark.attrAvgs,
           attrRanges: benchmark.attrRanges,
           scope: benchmark.scope,
+          // Overall Position needs these. Without them the client report
+          // rendered NaN for the sector delta and dashes for rank and
+          // percentile, because the section was added after this payload was
+          // written. All are cohort aggregates, no other brand is named.
+          avgScore: benchmark.avgScore,
+          rank: benchmark.rank,
+          count: benchmark.count,
+          percentile: benchmark.percentile,
           // The spread chart reads the brand's own dots from here rather than
           // from scores, so it travels with the benchmark block.
           brandScores: ATTRIBUTES.reduce((acc, a) => {
@@ -11630,9 +11646,14 @@ function ClientReportView({ payload }) {
             <div className="dc-maturity-labels grid gap-[2px]" style={{
               gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), marginTop: 10 }}>
               {MATURITY_STAGES.map(st => (
-                <div key={st.id} className="text-[11px]"
+                <div key={st.id} className="text-[11px] flex justify-between gap-2"
                   style={{ fontWeight: st.name === stage.name ? 700 : 600,
-                    color: st.name === stage.name ? '#0B0B0B' : '#68655B' }}>{st.name}</div>
+                    color: st.name === stage.name ? '#0B0B0B' : '#68655B' }}>
+                  <span>{st.name}</span>
+                  <span className="dc-band-range" style={{ color: '#B3B0A8', fontWeight: 600 }}>
+                    {st.min}&ndash;{st.max}
+                  </span>
+                </div>
               ))}
             </div>
           </div>
@@ -11775,19 +11796,22 @@ function ClientReportGate({ token }) {
 
   return (
     <div className="min-h-screen bg-[#F2F0EA] flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md mb-7">
+      {/* Wider than the password card so the doubled tagline has room to
+          breathe rather than wrapping to five lines. */}
+      <div className="w-full mb-8" style={{ maxWidth: 620 }}>
         <img
           src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
           alt="Antenna Group"
-          className="h-6 mb-6"
+          className="h-7 mb-7"
           style={{ filter: 'brightness(0)' }}
         />
-        <p style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1.05, maxWidth: '16ch' }}>
+        <p style={{ fontSize: 'clamp(40px,7vw,60px)', fontWeight: 700, letterSpacing: '-.035em',
+          lineHeight: .98, maxWidth: '15ch' }}>
           Consequential brands are conscious brands
         </p>
       </div>
 
-      <div className="card max-w-md w-full">
+      <div className="card w-full" style={{ maxWidth: 620 }}>
         {status === 'loading' && (
           <div className="text-center">
             <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#B23A3A]" />

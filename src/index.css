@@ -522,16 +522,22 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
    the narrow bands cannot hold their names on a phone. Below 640px the row
    drops the proportional alignment and becomes a plain two-column legend,
    which stays readable. The bar above still carries the proportions. */
-@media (max-width: 640px) {
+@media (max-width: 760px) {
+  /* One column, in order. Two columns read as two unrelated lists: the eye
+     goes down the first column and gets Pre-Foundational, Establishing,
+     Leading, which is every other stage rather than the sequence. */
   .dc-maturity-labels {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 4px 14px !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0 !important;
     margin-top: 14px !important;
   }
-  .dc-maturity-labels > div { font-size: 11px; line-height: 1.35; }
-}
-@media (max-width: 380px) {
-  .dc-maturity-labels { grid-template-columns: minmax(0, 1fr) !important; }
+  .dc-maturity-labels > div {
+    font-size: 12px;
+    line-height: 1.3;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--antenna-rule);
+  }
+  .dc-maturity-labels > div:last-child { border-bottom: 0; }
 }
 
 /* Overall Position pill: absolutely positioned at the score, so a long brand
@@ -585,3 +591,8 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
    disappeared whenever the card and the section behind it resolved to the
    same colour. */
 .dc-attr-card { border: 1px solid var(--antenna-rule); }
+
+/* Band ranges only appear once the labels stack: at full width each label
+   already sits beneath its own segment of the bar. */
+.dc-band-range { display: none; }
+@media (max-width: 760px) { .dc-band-range { display: inline; } }
