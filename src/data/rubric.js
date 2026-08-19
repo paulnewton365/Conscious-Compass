@@ -430,18 +430,32 @@ export function summariseFootprint(footprint) {
 // foundation the others rest on rather than a peer to compare against them.
 // ─────────────────────────────────────────────────────────────
 
+// Three-letter codes used by the lens panel, so all eight attributes can be
+// shown against every lens without the row becoming unreadable.
+export const ATTRIBUTE_CODES = {
+  AWAKE: 'AWK', AWARE: 'AWR', REFLECTIVE: 'RFL', ATTENTIVE: 'ATN',
+  COGENT: 'COG', SENTIENT: 'SNT', VISIONARY: 'VIS', INTENTIONAL: 'INT',
+};
+
 export const TRUST_LENSES = [
+  // Cogent carries real weight in credibility: evidence and data fluency are
+  // what make a promise believable. Attentive contributes lightly, since a
+  // broken experience quietly undermines the claim.
   { id: 'credibility', name: 'Credibility', def: 'Whether the promise is believable',
-    weights: { INTENTIONAL: 40, AWAKE: 25, AWARE: 20, SENTIENT: 15 } },
+    weights: { INTENTIONAL: 35, AWAKE: 20, COGENT: 15, AWARE: 15, SENTIENT: 10, ATTENTIVE: 5 } },
+  // Aware still leads. Awake and Cogent contribute lightly: visible narrative
+  // and demonstrable rigour both help audiences decide whether to believe.
   { id: 'trust', name: 'Trust', def: 'Whether audiences believe it',
-    weights: { AWARE: 45, INTENTIONAL: 20, ATTENTIVE: 20, REFLECTIVE: 15 } },
+    weights: { AWARE: 40, INTENTIONAL: 20, ATTENTIVE: 20, REFLECTIVE: 10, AWAKE: 5, COGENT: 5 } },
   { id: 'reputation', name: 'Reputation', def: 'Whether the promise is kept',
     weights: { AWAKE: 40, ATTENTIVE: 20, AWARE: 20, INTENTIONAL: 20 } },
 ];
 
 export const TRUST_FOUNDATION = {
   id: 'authenticity', name: 'Authenticity', def: 'Internal culture, externally expressed',
-  weights: { REFLECTIVE: 50, SENTIENT: 20, AWARE: 15, VISIONARY: 15 },
+  // Intentional contributes lightly: credible, substantive presentation is
+  // part of how an internal culture reads as genuine from outside.
+  weights: { REFLECTIVE: 45, SENTIENT: 20, AWARE: 15, VISIONARY: 15, INTENTIONAL: 5 },
 };
 
 const lensScore = (weights, scores) => {
@@ -465,10 +479,16 @@ export function computeTrustLenses(scores, findings = []) {
       score,
       leadName: lead ? lead.name : leadAttr,
       leadPct,
-      contributions: entries.map(([attr, w]) => {
-        const a = ATTRIBUTES.find(x => x.id === attr);
-        return { id: attr, name: a ? a.name : attr, weight: w, score: Number(scores?.[attr]?.score) || 0 };
-      }),
+      // Every attribute appears against every lens, carrying either its weight
+      // or a zero. Showing only the contributors hid the fact that Cogent
+      // feeds nothing, which is one of the more interesting readings here.
+      contributions: ATTRIBUTES.map(a => ({
+        id: a.id,
+        name: a.name,
+        code: ATTRIBUTE_CODES[a.id] || a.name.slice(0, 3).toUpperCase(),
+        weight: lens.weights[a.id] || 0,
+        score: Number(scores?.[a.id]?.score) || 0,
+      })),
       findingsCount: findings.filter(f => Array.isArray(f.tags) && f.tags.includes(lens.id)).length,
     };
   };
@@ -478,12 +498,25 @@ export function computeTrustLenses(scores, findings = []) {
 
   // How many lenses each attribute carries. Some carry every lens, some none,
   // which is worth showing: it explains why the lenses move together.
-  const reach = ATTRIBUTES.map(a => {
-    const inLenses = [...TRUST_LENSES, TRUST_FOUNDATION].filter(l => l.weights[a.id] !== undefined);
-    return { id: a.id, name: a.name, score: Number(scores?.[a.id]?.score) || 0, count: inLenses.length };
-  });
+  const all = [...TRUST_LENSES, TRUST_FOUNDATION];
+  const reach = ATTRIBUTES.map(a => ({
+    id: a.id,
+    name: a.name,
+    code: ATTRIBUTE_CODES[a.id] || a.name.slice(0, 3).toUpperCase(),
+    score: Number(scores?.[a.id]?.score) || 0,
+    count: all.filter(l => l.weights[a.id] !== undefined).length,
+    total: all.length,
+  }));
 
-  return { rows, foundation, reach, findings };
+  // The reach note states the two extremes, which is the point of the block.
+  const every = reach.filter(r => r.count === all.length).map(r => r.name);
+  const none = reach.filter(r => r.count === 0).map(r => r.name);
+  const bits = [];
+  if (every.length) bits.push(`${every.join(' and ')} feed${every.length === 1 ? 's' : ''} every lens.`);
+  if (none.length) bits.push(`${none.join(' and ')} feed${none.length === 1 ? 's' : ''} none of them.`);
+  const reachNote = bits.join(' ');
+
+  return { rows, foundation, reach, reachNote, findings };
 }
 
 export const SERVICE_RECOMMENDATIONS = {

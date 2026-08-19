@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.19.0';
+const APP_VERSION = '3.21.0';
 import { 
   supabase, 
   signUp, 
@@ -1285,7 +1285,7 @@ const FP_MUTED = '#8A877D';
 // A different read on scores already given. Every figure is computed in code
 // from fixed weights, so no model call and no added latency: the only thing
 // the scoring pass supplies is the findings list.
-function TrustLensPanel({ scores, findings = [], overall }) {
+function TrustLensPanel({ scores, findings = [], overall, showFindings = true }) {
   const data = computeTrustLenses(scores, findings);
   const [ref, inView] = useInView(0.15);
   if (!data) return null;
@@ -1296,92 +1296,111 @@ function TrustLensPanel({ scores, findings = [], overall }) {
   const LO = 30, HI = 50;
   const pos = (v) => Math.max(0, Math.min(100, ((v - LO) / (HI - LO)) * 100));
 
+  // Every attribute against every lens: its weight, or a zero.
+  const Weights = ({ contributions }) => (
+    <div className="dc-lens-grid grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(8, minmax(0,1fr))', marginTop: 16 }}>
+      {contributions.map(c => (
+        <div key={c.id} style={{ background: c.weight ? '#F2F0EA' : 'transparent', padding: '8px 4px', textAlign: 'center' }}>
+          <div className="text-[9px] font-bold" style={{ letterSpacing: '.1em', color: c.weight ? '#0B0B0B' : '#B3B0A8' }}>
+            {c.code}
+          </div>
+          <div className="text-[11px] font-bold" style={{ marginTop: 3, color: c.weight ? '#0B0B0B' : '#B3B0A8' }}>
+            {c.weight ? `${c.weight}%` : '0'}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   const Row = ({ row, foundation = false, delay = 0 }) => (
-    <div style={{ background: foundation ? '#F2F0EA' : '#FFFFFF', padding: '20px 22px', marginBottom: 2 }}>
-      <div className="flex items-start justify-between gap-5 flex-wrap">
+    <div style={{ background: '#FFFFFF', padding: '22px 24px', marginBottom: 2 }}>
+      <div className="flex items-start justify-between gap-6 flex-wrap">
         <div className="flex items-baseline gap-4 min-w-0">
-          <span style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, color: scoreColor(row.score) }}>
+          <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, color: scoreColor(row.score) }}>
             {row.score}
           </span>
           <div className="min-w-0">
-            <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{row.name}</div>
-            <div className="text-[12px] text-[#8A877D]">{row.def}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>{row.name}</div>
+            <div className="text-[12px] text-[#8A877D]" style={{ maxWidth: '24ch' }}>{row.def}</div>
           </div>
         </div>
-        <div className="text-right text-[11px] text-[#8A877D]" style={{ minWidth: 150 }}>
-          <div>Led by {row.leadName}, {row.leadPct}%</div>
+        <div className="text-right" style={{ minWidth: 170 }}>
+          <div className="dc-kicker-sm">Led by {row.leadName}, {row.leadPct}%</div>
           {row.findingsCount > 0 && (
-            <div style={{ marginTop: 2 }}>{row.findingsCount} finding{row.findingsCount === 1 ? '' : 's'} below bear on this</div>
+            <div className="text-[11px] text-[#8A877D]" style={{ marginTop: 4 }}>
+              {row.findingsCount} finding{row.findingsCount === 1 ? '' : 's'} below bear on this
+            </div>
           )}
         </div>
       </div>
 
-      {/* Scale */}
-      <div className="relative" style={{ marginTop: 18, height: 30 }}>
-        <div style={{ position: 'absolute', left: 0, right: 0, top: 12, height: 6, background: '#E4E2DC' }} />
+      <div className="relative" style={{ marginTop: 20, height: 32 }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 10, height: 8, background: '#E4E2DC' }} />
         <div style={{
-          position: 'absolute', left: 0, top: 12, height: 6, background: foundation ? '#8A877D' : '#0B0B0B',
+          position: 'absolute', left: 0, top: 10, height: 8, background: '#0B0B0B',
           width: `${inView ? pos(row.score) : 0}%`,
           transition: 'width 700ms cubic-bezier(0.22,1,0.36,1)', transitionDelay: `${delay}ms`,
         }} />
         {Number.isFinite(overall) && (
-          <div style={{ position: 'absolute', left: `${pos(overall)}%`, top: 6, width: 3, height: 18, background: '#DEE42F' }} />
+          <div style={{ position: 'absolute', left: `${pos(overall)}%`, top: 4, width: 3, height: 20, background: '#DEE42F' }} />
         )}
         {[30, 40, 50].map(t => (
           <span key={t} className="text-[9px] text-[#B3B0A8]"
             style={{ position: 'absolute', left: `${pos(t)}%`, top: 22, transform: 'translateX(-50%)' }}>{t}</span>
         ))}
       </div>
-
-      {/* Weights, shown openly */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1" style={{ marginTop: 16 }}>
-        {row.contributions.map(c => (
-          <span key={c.id} className="text-[10px]" style={{ color: '#8A877D' }}>
-            <b style={{ color: '#0B0B0B', fontWeight: 700 }}>{c.name}</b> {c.weight}%
-          </span>
-        ))}
+      <div className="text-[10px] text-[#8A877D]" style={{ marginTop: 6 }}>
+        30&ndash;50 scale · <span style={{ color: '#0B0B0B', fontWeight: 700 }}>lime</span> = compass overall {overall}
       </div>
+
+      <Weights contributions={row.contributions} />
     </div>
   );
 
   return (
     <div ref={ref}>
-      <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '84ch', marginBottom: 24 }}>
-        Each lens reweights the same eight attribute scores already on this report. None is a new
-        measurement. Some attributes carry every lens, some carry none. Authenticity is set apart at
-        the base because the model treats it as the foundation the other three rest on, not a peer.
+      <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '86ch', marginBottom: 24 }}>
+        Each lens below reweights the same eight attribute scores already on this report. None is a new
+        measurement. Some attributes carry every lens; some carry none. Authenticity is set apart at the
+        base because the model treats it as the foundation the other three rest on, not a peer to compare
+        against them.
       </p>
 
-      {data.rows.map((row, i) => <Row key={row.id} row={row} delay={i * 90} />)}
-
-      <div className="dc-kicker" style={{ marginTop: 22, marginBottom: 10 }}>
-        Authenticity is the foundation the three above rest on
-      </div>
-      <Row row={data.foundation} foundation delay={280} />
-
-      {/* Attribute reach */}
-      <div style={{ background: '#FFFFFF', padding: '18px 22px', marginTop: 2 }}>
-        <div className="dc-kicker-sm" style={{ marginBottom: 12 }}>Attribute reach</div>
-        <div className="flex flex-wrap gap-x-5 gap-y-2">
+      {/* Attribute reach leads: it explains why the lenses move together. */}
+      <div style={{ background: '#FFFFFF', padding: '20px 24px', marginBottom: 2 }}>
+        <div className="dc-kicker-sm">Attribute reach</div>
+        <p className="text-[13px]" style={{ marginTop: 6, marginBottom: 14, fontWeight: 600 }}>{data.reachNote}</p>
+        <div className="dc-lens-grid grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(8, minmax(0,1fr))' }}>
           {data.reach.map(a => (
-            <span key={a.id} className="text-[11px]" style={{ color: a.count ? '#0B0B0B' : '#B3B0A8' }}>
-              <b style={{ fontWeight: 700 }}>{a.name}</b>{' '}
-              {a.count === 0 ? 'carries none' : `carries ${a.count} of 4`}
-            </span>
+            <div key={a.id} style={{ background: a.count ? '#F2F0EA' : 'transparent', padding: '10px 4px', textAlign: 'center' }}>
+              <div className="text-[9px] font-bold" style={{ letterSpacing: '.1em', color: a.count ? '#0B0B0B' : '#B3B0A8' }}>
+                {a.code}
+              </div>
+              <div className="text-[13px] font-bold" style={{ marginTop: 4, color: a.count ? '#0B0B0B' : '#B3B0A8' }}>
+                {a.count}/{a.total}
+              </div>
+            </div>
           ))}
         </div>
       </div>
 
-      {/* Findings */}
-      {findings.length > 0 && (
-        <div style={{ marginTop: 28, borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
+      {data.rows.map((row, i) => <Row key={row.id} row={row} delay={i * 90} />)}
+
+      <div className="dc-kicker" style={{ marginTop: 26, marginBottom: 10 }}>
+        Authenticity is the foundation the three above rest on
+      </div>
+      <div className="dc-kicker-sm" style={{ marginBottom: 8 }}>Foundation</div>
+      <Row row={data.foundation} foundation delay={280} />
+
+      {showFindings && findings.length > 0 && (
+        <div style={{ marginTop: 30, borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
           <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>What sits behind these scores</h4>
-          <p className="text-[12px] text-[#8A877D]" style={{ marginTop: 4, marginBottom: 14, maxWidth: '84ch' }}>
+          <p className="text-[12px] text-[#8A877D]" style={{ marginTop: 4, marginBottom: 14, maxWidth: '86ch' }}>
             Publicly observable findings, tagged to the lenses they bear on. These explain the scores; they do not change them.
           </p>
           {findings.map((f, i) => (
             <div key={i} className="grid items-center gap-3.5"
-              style={{ gridTemplateColumns: '12px minmax(0,1fr) auto', padding: '11px 0', borderBottom: '1px solid #DCDAD3' }}>
+              style={{ gridTemplateColumns: '12px minmax(0,1fr) auto', padding: '12px 0', borderBottom: '1px solid #DCDAD3' }}>
               <span style={{ width: 10, height: 10, background: f.supports ? '#DEE42F' : '#0B0B0B' }} />
               <span className="text-[13px]">{f.text}</span>
               <span className="flex flex-wrap gap-1 justify-end">
@@ -1395,8 +1414,12 @@ function TrustLensPanel({ scores, findings = [], overall }) {
           <div className="flex flex-wrap gap-6 text-[11px] text-[#8A877D]" style={{ marginTop: 14 }}>
             <span className="flex items-center gap-2"><span style={{ width: 10, height: 10, background: '#DEE42F' }} /> Supports the score</span>
             <span className="flex items-center gap-2"><span style={{ width: 10, height: 10, background: '#0B0B0B' }} /> Works against it</span>
-            <span>Weights are fixed in code, not judged by the model, so the same scores always give the same lenses.</span>
           </div>
+          <p className="text-[11px] text-[#8A877D]" style={{ marginTop: 14, maxWidth: '90ch' }}>
+            <b style={{ color: '#0B0B0B' }}>Weights are fixed in code, not judged by the model</b>, so the same attribute
+            scores always produce the same lens scores and two assessors cannot disagree. They sum to 100 per lens and
+            are shown openly above.
+          </p>
         </div>
       )}
     </div>
@@ -5524,7 +5547,6 @@ function ReportPage({ project, setProject, scores, setScores, assessments, apiKe
   const [expandedSections, setExpandedSections] = useState({
     attributes: true,
     recommendations: true,
-    services: true,
     conclusions: true,
     justification: false,
     trust: true,
@@ -5544,7 +5566,7 @@ function ReportPage({ project, setProject, scores, setScores, assessments, apiKe
   // Declared here, above every early return, so the hook count never changes
   // between the pre-scoring and scored renders.
   const [spreadRef, spreadIn] = useInView(0.15);
-  useSectionReveal([scores]);
+  useSectionReveal([scores, expandedSections]);
   const chartRef = useRef(null);
   const benchmarkSpreadRef = useRef(null);
   const benchmarkPositionRef = useRef(null);
@@ -6035,7 +6057,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
           )}
         </div>
 
-        <div className="flex justify-between">
+        <div className="flex justify-between" style={{ marginTop: 24 }}>
           <button onClick={onPrev} className="btn-secondary flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> {isReadonly ? 'Back' : 'Back to Earned Media'}
           </button>
@@ -6448,20 +6470,6 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
     });
 
     // AG Services
-    const forceInclude = getForceIncludeServicesFromAIReputation(assessments?.aiReputation?.content, assessments);
-    const serviceRecs = getAllRecommendations(scores, { forceIncludeServices: forceInclude });
-    const topServices = serviceRecs.slice(0, 6);
-    if (topServices.length > 0) {
-      text += `\n${div}\nRECOMMENDED ANTENNA GROUP SERVICES\n${div}\n`;
-      topServices.forEach((rec, i) => {
-        const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
-        text += `\n${i + 1}. ${rec.service.name} (${rec.service.category})\n`;
-        text += `${rec.rationale}\n`;
-        text += `Improves: ${attr?.name} (currently ${rec.attributeScore}) · ${formatBudget(rec.service)}\n`;
-      });
-    }
-
-    // Conclusions
     text += `\n${div}\nCONCLUSIONS\n${div}\n`;
     text += `${scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}\n`;
 
@@ -6834,48 +6842,6 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         pdf.text(`Impacts: ${r.attributes.join(', ')}`, margin, y);
         y += 8;
       });
-
-      // ========== RECOMMENDED ANTENNA GROUP SERVICES ==========
-      const forceInclude = getForceIncludeServicesFromAIReputation(assessments?.aiReputation?.content, assessments);
-      const serviceRecs = getAllRecommendations(scores, { forceIncludeServices: forceInclude });
-      const topServices = serviceRecs.slice(0, 6);
-      
-      if (topServices.length > 0) {
-        addSection('RECOMMENDED ANTENNA GROUP SERVICES');
-        
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(100, 100, 100);
-        pdf.text('Based on the assessment, these services would have the greatest impact:', margin, y);
-        y += 8;
-
-        topServices.forEach((rec, i) => {
-          checkPage();
-          const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
-
-          pdf.setFontSize(11);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(0, 0, 0);
-          pdf.text(`${i + 1}. ${rec.service.name}`, margin, y);
-          y += 5;
-
-          pdf.setFontSize(8);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(100, 100, 100);
-          pdf.text(`${rec.service.category} | Improves ${attr?.name || 'brand'} | ${formatBudget(rec.service)}`, margin, y);
-          y += 5;
-
-          const rationaleLines = pdf.splitTextToSize(rec.rationale, contentWidth);
-          pdf.setFontSize(9);
-          pdf.setTextColor(50, 50, 50);
-          rationaleLines.forEach(line => {
-            checkPage();
-            pdf.text(line, margin, y);
-            y += 4;
-          });
-          y += 4;
-        });
-      }
 
       // ========== CONCLUSIONS ==========
       addSection('CONCLUSIONS');
@@ -7626,7 +7592,6 @@ ${content.slice(0, 8000)}`;
     'Trust and credibility',
     'Benchmark comparison',
     'Recommendations',
-    'Recommended services',
     'Conclusions',
     'Score justification',
     'What we evaluated',
@@ -8166,7 +8131,7 @@ ${content.slice(0, 8000)}`;
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
             {/* Ledger rows: ordinal, title and description, attribute chip. */}
             {recommendations.map((r, i) => (
-              <div key={i} className="dc-rec-row grid gap-6 items-baseline"
+              <div key={i} className="dc-rec-row dc-reveal grid gap-6 items-baseline"
                 style={{ gridTemplateColumns: '56px minmax(0,1fr) 150px', padding: '22px 0',
                   borderBottom: '1px solid #DCDAD3' }}>
                 <div className="dc-rec-ord" style={{ fontSize: 22, fontWeight: 700, color: '#B3B0A8', letterSpacing: '-.02em' }}>
@@ -8195,61 +8160,6 @@ ${content.slice(0, 8000)}`;
           </div>
         )}
       </div>
-
-      {/* Antenna Group Services - Collapsible */}
-      {(() => {
-        const forceIncludeUI = getForceIncludeServicesFromAIReputation(assessments?.aiReputation?.content, assessments);
-        const serviceRecs = getAllRecommendations(scores, { forceIncludeServices: forceIncludeUI });
-        const topServices = serviceRecs.slice(0, 6);
-        if (topServices.length === 0) return null;
-        
-        return (
-          <div className="dc-reveal" style={{ marginTop: 80 }}>
-            <SectionHead label="Recommended services" open={expandedSections.services}
-              onToggle={() => toggleSection('services')} />
-            {expandedSections.services && (
-              <div className="animate-fade-in" style={{ marginTop: 32 }}>
-                <p className="text-[13px] text-[#8A877D]" style={{ maxWidth: '70ch', marginBottom: 24 }}>
-                  Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness.
-                </p>
-                <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))' }}>
-                  {topServices.map((rec, i) => {
-                    const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
-                    return (
-                      <div key={i} className="bg-white flex flex-col" style={{ padding: 24 }}>
-                        <div className="flex items-start justify-between gap-4"
-                          style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14, marginBottom: 14 }}>
-                          <div className="min-w-0">
-                            <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{rec.service.name}</h4>
-                            <p className="text-[11px] font-semibold text-[#8A877D] mt-0.5" style={{ letterSpacing: '.04em' }}>{rec.service.category}</p>
-                          </div>
-                          <span className={`text-[10px] font-bold uppercase whitespace-nowrap ${
-                            rec.priorityLevel === 'critical' ? 'dc-pill' : 'dc-pill-o'
-                          }`} style={{ letterSpacing: '.12em' }}>
-                            {rec.priorityLevel === 'critical' ? 'High Priority' : 
-                             rec.priorityLevel === 'moderate' ? 'Recommended' : 'Opportunity'}
-                          </span>
-                        </div>
-                        <p className="text-xs md:text-sm text-[#4A4840] mb-3">{rec.rationale}</p>
-                        <div className="flex items-center justify-between text-xs text-[#8A877D]">
-                          <span className="flex items-center gap-1">
-                            <span className="w-3 h-3" style={{ backgroundColor: attr?.color || '#E53935' }}></span>
-                            Improves {attr?.name} (currently {rec.attributeScore})
-                          </span>
-                          <span className="font-medium">{formatBudget(rec.service)}</span>
-                        </div>
-                        {rec.service.note && (
-                          <p className="text-xs text-[#B3B0A8] mt-2 italic">{rec.service.note}</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       {/* Conclusions - Collapsible */}
       <div className="dc-reveal" style={{ marginTop: 80 }}>
@@ -11299,7 +11209,6 @@ function makeClientPayload({ project, scores, benchmark }) {
         }
       : null,
     footprint: scores?.footprint || null,
-    trustFindings: scores?.trustFindings || [],
     conclusion: String(scores?.conclusion || scores?.justification || '').replace(/[\u2014\u2013]/g, '-'),
     generatedAt: new Date().toISOString(),
   };
@@ -11674,7 +11583,7 @@ function ClientReportView({ payload }) {
         {/* ── Trust and credibility ───────────────────────────── */}
         <SectionHead label="Trust and credibility" />
         <div style={{ marginTop: 32, marginBottom: 8 }}>
-          <TrustLensPanel scores={scores} findings={payload.trustFindings || []} overall={overall} />
+          <TrustLensPanel scores={scores} overall={overall} showFindings={false} />
         </div>
 
         {/* ── Benchmark comparison ────────────────────────────── */}
@@ -12216,40 +12125,6 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Antenna Group Services */}
-        {(() => {
-          const forceInclude = report.assessmentSummary?.forceIncludeServices || [];
-          const serviceRecs = getAllRecommendations(scores, { forceIncludeServices: forceInclude });
-          const topServices = serviceRecs.slice(0, 6);
-          if (topServices.length === 0) return null;
-          
-          return (
-            <>
-              <h3 className="text-xl font-semibold text-[#0B0B0B] mb-4">RECOMMENDED ANTENNA GROUP SERVICES</h3>
-              <p className="text-[#8A877D] mb-4">Based on the lowest scoring attributes, these services would have the greatest impact on improving brand consciousness:</p>
-              <div className="grid md:grid-cols-2 gap-4 mb-8">
-                {topServices.map((rec, i) => {
-                  const attr = ATTRIBUTES.find(a => a.id === rec.attributeId);
-                  const attrScore = scores[rec.attributeId]?.score || 0;
-                  const budgetStr = rec.service.budget 
-                    ? `$${(rec.service.budget.low / 1000).toFixed(0)}K - $${(rec.service.budget.high / 1000).toFixed(0)}K`
-                    : 'Contact for pricing';
-                  
-                  return (
-                    <div key={i} className="card border-l-4" style={{ borderLeftColor: attr?.color || '#E53935' }}>
-                      <h4 className="font-semibold text-[#0B0B0B] mb-2">{rec.service.name}</h4>
-                      <p className="text-xs text-[#8A877D] mb-2">{rec.service.category}</p>
-                      <p className="text-sm text-[#4A4840] mb-2">
-                        Improves <span style={{ color: attr?.color }}>{attr?.name}</span> (currently {attrScore})
-                      </p>
-                      <p className="text-sm font-medium text-[#059669]">{budgetStr}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          );
-        })()}
-
         {/* Conclusions */}
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <h3 className="dc-kicker text-[#0B0B0B] mb-4">CONCLUSIONS</h3>

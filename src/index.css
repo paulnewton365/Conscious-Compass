@@ -536,3 +536,9 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
 @media (max-width: 640px) {
   .dc-pill-brand { display: none; }
 }
+
+/* Trust lens: the weight and reach rows are eight columns of code-plus-number.
+   Below 640px eight columns give each about 34px, so they wrap to four. */
+@media (max-width: 640px) {
+  .dc-lens-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+}

@@ -4,7 +4,7 @@
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-3.12.0-blue)
+![Version](https://img.shields.io/badge/version-3.20.0-blue)
 ![Rubric](https://img.shields.io/badge/rubric-v2.9-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
 
@@ -50,7 +50,9 @@ Query up to five engines and paste responses: **Claude, Gemini, ChatGPT, Perplex
 Press coverage, podcast appearances, keynotes, awards — last 3 months.
 
 ### 6. Report Generation
-Twelve numbered sections: results at a glance, brand maturity, attribute analysis, brand footprint, campaign coherence, benchmark comparison, recommendations, recommended services, conclusions, score justification, assessment readouts, and what we evaluated. Exports as DOCX or copied text.
+Twelve numbered sections: results at a glance, brand maturity, attribute analysis, brand footprint, campaign coherence, trust and credibility, benchmark comparison, recommendations, conclusions, score justification, what we evaluated, and assessment readouts. Exports as DOCX or copied text.
+
+The client-facing report carries the same treatment as the internal one but omits recommendations, services, score justification, readouts and the campaign score adjustment.
 
 ---
 
@@ -62,9 +64,20 @@ Judges whether marketing is held together by a strategy and a creative idea, or 
 The model scores the eight attributes on their merits and reports campaign coherence separately; the modifier is then applied **in code**, so the adjustment is deterministic and auditable. COGENT and SENTIENT take the primary adjustment, AWAKE, AWARE, REFLECTIVE and INTENTIONAL a smaller one. The report shows base score, adjustment and final score openly.
 
 ### Brand Footprint
-Where the brand actually shows up, across eight fixed channels: earned, social, third-party discussion, owned, AI/LLM answers, paid, podcasts/video and analyst research. Descriptive only — it never adjusts attribute scores.
+Where the brand shows up, across eight fixed channels: earned, social, third-party discussion, owned, AI/LLM answers, paid, podcasts/video and analyst coverage. Descriptive only — it never adjusts attribute scores.
 
-Reports **signals** (the count of distinct evidence items observed) rather than reach. Audience reach is not publicly observable and the prompt forbids estimating it. A voice split shows how much of the footprint the brand controls versus how much the market generates. Channel shares persist to `compass_results` for future sector benchmarking.
+Each channel is scored 0 to 10 on **how consciously the brand shows up there**, anchored in four bands: 0 absent, 1–3 present but incidental, 4–6 deliberate and maintained, 7–10 conscious and shaping the conversation. This judges the quality of the presence, not how much evidence an assessor gathered. An earlier version counted evidence items, which measured assessment thoroughness rather than the brand, and was replaced for that reason.
+
+Rendered as a **presence map**: the brand at the centre, channels as nodes sized by level, and lime curves where one channel demonstrably carries something from another — AI answers citing the owned research, earned coverage quoting the brand's data. Presence in two channels is not connection, and the prompt says so. An unconnected footprint is a real finding, and the map states it.
+
+Channel levels persist to `compass_results` as `footprintLevels`, which are comparable between brands and assessors in a way counts never were. The section is hidden entirely on assessments scored before presence levels existed, rather than rendering an empty ring that would read as genuine absence.
+
+### Trust & Credibility Lens
+A different read on scores already given, never a new measurement. Four lenses — credibility, trust, reputation and authenticity — are weighted blends of the same eight attributes, computed **in code** from fixed weights that sum to 100 per lens and are shown openly on the panel. The same attribute scores always produce the same lens scores, so two assessors cannot disagree.
+
+Authenticity is held apart at the base: the model treats it as the foundation the other three rest on, not a peer to compare against them.
+
+Beneath the lenses sit publicly observable findings, tagged to the lenses they bear on and marked as supporting or working against. These **explain** the scores; they never change them. The findings list is the only part the scoring pass generates, which keeps the added cost to roughly 160 tokens.
 
 ### Benchmarking
 Every saved report freezes a benchmark snapshot at save time, so a report sent to a client still shows the same numbers months later. Sector benchmarks require a minimum of five assessed brands; below that it falls back to all brands and says so. The subject brand is always excluded from its own cohort, and the pool is filtered to 2.x rubric versions. Sample size, date range and framework mix print under every chart.
@@ -140,6 +153,32 @@ Applied in code after scoring, never by the model. Values are deliberately hedge
 
 `applyCampaignModifiers` preserves `baseScore` and always recalculates from it, so rescoring never compounds.
 
+### Footprint Presence Scale
+
+| Range | Band | Test |
+|-------|------|------|
+| 0 | Absent | Nothing observable |
+| 1–3 | Present | Appears, no intent. Dormant accounts, incidental mentions |
+| 4–6 | Deliberate | Maintained, on-message, consistent with the rest |
+| 7–10 | Conscious | Cited, quoted, imitated, or the conversation uses its framing |
+
+A brand talking well about itself tops out at 6 however polished. Level 7 and above requires evidence the presence does something.
+
+### Trust Lens Weights
+
+Fixed in code, summing to 100 per lens.
+
+| Lens | Weights |
+|------|---------|
+| Credibility | Intentional 35, Awake 20, Cogent 15, Aware 15, Sentient 10, Attentive 5 |
+| Trust | Aware 40, Intentional 20, Attentive 20, Reflective 10, Awake 5, Cogent 5 |
+| Reputation | Awake 40, Attentive 20, Aware 20, Intentional 20 |
+| Authenticity | Reflective 45, Sentient 20, Aware 15, Visionary 15, Intentional 5 |
+
+Aware and Intentional feed all four lenses, so a brand weak in either reads weak across every lens. Every attribute now feeds at least one. The reach note on the panel is generated from these weights rather than written, so it stays true if they change.
+
+The client-facing report shows the lenses but not the findings beneath them; `trustFindings` is excluded from the cleansed payload rather than merely hidden.
+
 ### Score Bands
 
 Attribute figures are coloured by performance rather than attribute identity.
@@ -189,6 +228,10 @@ Browser → /api/claude (Vercel serverless) → Anthropic API
                 ↑
          API key lives here only
 ```
+
+### Function Timeouts
+
+`vercel.json` sets `maxDuration: 300` on `api/claude.js` and the cron endpoints. The scoring prompt runs to roughly 6,000 tokens and asks for about 3,400 back; on Vercel's default timeout the function is killed mid-response and the report never returns. **300 seconds requires a Pro plan** — on Hobby the ceiling is 60, which is usually still enough.
 
 ### Cron Jobs (Vercel — every Sunday)
 
@@ -291,7 +334,19 @@ Three rules worth knowing before editing:
 
 - **No border radius anywhere.** Blocks are separated by 2px of ground, not by outlines.
 - **Lime is a marker colour, not a text colour.** It fails contrast as text on paper. Use it for fills, chips and underlines.
-- **Base element styles must stay inside `@layer base`.** Unlayered CSS beats Tailwind utilities regardless of specificity, so an unlayered `h2 { color }` will silently override `text-white`.
+- **Base element styles must stay inside `@layer base`.** Unlayered CSS beats Tailwind utilities regardless of specificity, so an unlayered `h2 { color }` will silently override `text-white`. `:where()` does not fix this: it lowers specificity, but layer order still wins.
+- **Lime backgrounds always take ink text.** White on lime is 1.2:1. The one place a filled chip needs white is on green or red, where `onScoreColor` handles it.
+- **Report sections space from the top**, 80px above every section head, 32px between a head and its content. A section using only a bottom margin will collapse against its neighbour.
+
+### Mobile
+
+Three breakpoints, defined against semantic classes in `index.css` rather than inline at each grid:
+
+| Width | Behaviour |
+|-------|-----------|
+| 900px | Two-column splits stack (`dc-split`) |
+| 640px | Ledger rows restructure so the track spans full width (`dc-ledger-row`); results ledger drops secondary columns; maturity labels become a two-column legend |
+| 520px | Score tiles hold at two across |
 
 ---
 
@@ -315,6 +370,11 @@ Three rules worth knowing before editing:
 
 | Version | Key Changes |
 |---------|-------------|
+| **3.20** | Recommended services removed from report and all exports; recommendation rows reveal on scroll |
+| **3.19** | Trust & Credibility lens: four weighted reads on the same eight scores, computed in code, with tagged observable findings |
+| **3.17–3.18** | Footprint switched from evidence counts to a 0–10 presence scale; hub shows the brand; mobile breakpoints across both reports |
+| **3.15–3.16** | Brand footprint rebuilt as a presence map with corroboration links between channels |
+| **3.13–3.14** | Client report brought onto the report treatment; score bands by performance; assessment page palettes and contrast swept to zero failures |
 | **3.12** | Compare rebuilt from the design: score tiles with delta against the selection average, brand selection as checkbox ledger rows, panel headings at 15px |
 | **3.11** | Score adjustment panel moved into the attribute grid; conclusions, justification and what we evaluated unified on one treatment; client report brought onto the current report styling |
 | **3.10** | Score bands by performance (green / orange / red) with WCAG-checked values; scroll animations restored to the benchmark charts; section-level fade-in across both reports |
