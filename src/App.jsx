@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, getPresenceLevel, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
+import { FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, getPresenceLevel, hasFootprintData, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.17.1';
+const APP_VERSION = '3.17.2';
 import { 
   supabase, 
   signUp, 
@@ -5709,7 +5709,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
               console.warn('Scoring pass returned no campaignCoherence object. Attribute scores stand unadjusted.');
             }
             if (!parsed.footprint) {
-              console.warn('Scoring pass returned no footprint object. The Brand Footprint section will show an empty state.');
+              console.warn('Scoring pass returned no footprint object. The Brand Footprint section will be hidden for this assessment.');
             }
             const level = parsed.campaignCoherence?.level;
             const adjusted = applyCampaignModifiers(parsed, level);
@@ -7755,25 +7755,10 @@ ${content.slice(0, 8000)}`;
         />
       )}
 
-      {/* Brand Footprint - Collapsible */}
-      {!scores?.footprint && (
-        <div className="dc-reveal" style={{ marginTop: 80 }}>
-          <SectionHead label="Brand footprint" />
-          <div className="bg-white" style={{ padding: 24, marginTop: 32, borderLeft: '6px solid #DEE42F' }}>
-            <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
-              These scores were produced before the brand footprint existed, or the scoring pass
-              did not return it. Regenerate the report to map where the brand shows up.
-            </p>
-            <button
-              onClick={() => { setScores(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className="btn-secondary flex items-center gap-1.5 mt-4"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Regenerate report
-            </button>
-          </div>
-        </div>
-      )}
-      {scores?.footprint && (
+      {/* Brand Footprint - Collapsible. Hidden entirely on assessments
+          scored before presence levels existed, rather than rendering an
+          empty ring that would read as genuine absence. */}
+      {hasFootprintData(scores?.footprint) && (
         <div className="dc-reveal" style={{ marginTop: 80 }}>
           <SectionHead label="Brand footprint" open={expandedSections.footprint}
           onToggle={() => toggleSection('footprint')} />
@@ -11309,7 +11294,7 @@ function ClientReportView({ payload }) {
     'Results at a glance',
     'Brand maturity',
     'Attribute analysis',
-    ...(payload.footprint ? ['Brand footprint'] : []),
+    ...(hasFootprintData(payload.footprint) ? ['Brand footprint'] : []),
     ...(campaignStage ? ['Campaign coherence'] : []),
     ...(benchmark ? ['Benchmark comparison'] : []),
     ...(payload.conclusion ? ['Conclusions'] : []),
@@ -11462,7 +11447,7 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Brand footprint ─────────────────────────────────── */}
-        {payload.footprint && (
+        {hasFootprintData(payload.footprint) && (
           <>
             <SectionHead label="Brand footprint" />
             <div className="mb-6 overflow-hidden">

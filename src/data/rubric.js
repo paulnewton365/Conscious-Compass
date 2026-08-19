@@ -334,6 +334,22 @@ export const FOOTPRINT_PRESENCE_MAX = 10;
 export const FOOTPRINT_PRESENCE_DEFINITION =
   'Each channel is scored 0 to 10 on how consciously the brand shows up there: 0 absent, 1-3 present but incidental, 4-6 deliberate and maintained, 7-10 conscious and shaping the conversation. This judges the quality of the presence, not how much evidence was gathered.';
 
+// True only for footprint data on the current presence-level shape.
+//
+// Three states have to be told apart: no footprint at all (assessed before the
+// feature existed), footprint on the earlier share/signals shape (assessed
+// between its introduction and the switch to levels), and current data. The
+// first two must not render: an old-shape footprint would draw every channel
+// at level 0, which reads as "this brand is absent everywhere" rather than
+// "this was never measured".
+export function hasFootprintData(footprint) {
+  if (!footprint || !footprint.channels) return false;
+  return FOOTPRINT_CHANNELS.some(c => {
+    const v = footprint.channels[c.id];
+    return v && v.level !== undefined && v.level !== null && Number.isFinite(Number(v.level));
+  });
+}
+
 export function getPresenceLevel(level) {
   const n = Number.isFinite(Number(level)) ? Math.max(0, Math.min(FOOTPRINT_PRESENCE_MAX, Math.round(Number(level)))) : 0;
   return FOOTPRINT_PRESENCE_BANDS.find(b => n >= b.min && n <= b.max) || FOOTPRINT_PRESENCE_BANDS[0];
