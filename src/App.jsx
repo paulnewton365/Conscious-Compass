@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.26.4';
+const APP_VERSION = '3.26.5';
 import { 
   supabase, 
   signUp, 
@@ -5895,8 +5895,13 @@ function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, be
 
                     <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
                       {[
-                        [`${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`, 'vs sector average'],
-                        [benchmark.rank ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
+                        /* Guarded: a client link issued before these fields
+                           were added to the payload has no avgScore, and an
+                           unguarded subtraction rendered NaN, not a dash. */
+                        [Number.isFinite(Number(benchmark.avgScore))
+                          ? `${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`
+                          : '—', 'vs sector average'],
+                        [benchmark.rank && benchmark.count ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
                         [benchmark.percentile != null ? ordinalSuffix(benchmark.percentile) : '—', 'percentile'],
                       ].map(([v, l]) => (
                         <div key={l} style={{ paddingRight: 20 }}>
@@ -11536,7 +11541,22 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile }) {
 // and the conclusion. Nothing else. No navigation, no export controls.
 // ─────────────────────────────────────────────────────────────
 function ClientReportView({ payload }) {
-  const { project, scores, benchmark } = payload;
+  const { project, scores } = payload;
+
+  // Links issued before avgScore, rank and percentile were added to the
+  // payload have neither. The sector average is recoverable from the per
+  // attribute averages already stored, so Overall Position still reads
+  // correctly on an old link; rank and percentile cannot be derived and show
+  // a dash until the link is reissued.
+  const benchmark = (() => {
+    const b = payload.benchmark;
+    if (!b) return b;
+    if (Number.isFinite(Number(b.avgScore))) return b;
+    const vals = ATTRIBUTES.map(a => Number(b.attrAvgs?.[a.id])).filter(Number.isFinite);
+    return vals.length
+      ? { ...b, avgScore: Math.round(vals.reduce((t, v) => t + v, 0) / vals.length) }
+      : b;
+  })();
 
   const overall = Math.round(
     ATTRIBUTES.reduce((t, a) => t + (scores?.[a.id]?.score || 0), 0) / ATTRIBUTES.length
