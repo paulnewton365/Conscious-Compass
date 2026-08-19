@@ -308,11 +308,36 @@ export function applyCampaignModifiers(scores, campaignLevel) {
 // brands and can be benchmarked by sector later.
 // ─────────────────────────────────────────────────────────────
 
-// A SIGNAL is one distinct piece of publicly observable evidence: a named
-// article, a named account, a specific citation, a specific thread. It is a
-// count of things actually found, never an estimate of reach or volume.
-export const FOOTPRINT_SIGNAL_DEFINITION =
-  'A signal is one distinct piece of publicly observable evidence: a named article, a named account, a specific citation or a specific thread. Signals count what was found, never estimated reach or audience size.';
+// Each channel is judged on HOW CONSCIOUSLY the brand shows up there, not on
+// how much evidence an assessor happened to gather.
+//
+// Counting evidence items measured assessment thoroughness: a brand assessed
+// from a fuller paste scored higher without being better. A level judged
+// against the framework travels between brands and between assessors.
+// A 0 to 10 scale, anchored in four named bands. The bands keep the judgement
+// consistent between brands; the finer number lets a channel sit high or low
+// within its band. An unanchored ten-point scale would just invite arbitrary
+// numbers.
+export const FOOTPRINT_PRESENCE_BANDS = [
+  { min: 0,  max: 0,  name: 'Absent',     short: 'No evidence the brand is there.',
+    test: 'Nothing observable on this channel.' },
+  { min: 1,  max: 3,  name: 'Present',    short: 'It appears, but incidentally.',
+    test: 'The brand shows up, but nothing indicates intent. Dormant accounts, passing mentions, listings maintained by someone else. 1 is a trace, 3 is presence that is real but unattended.' },
+  { min: 4,  max: 6,  name: 'Deliberate', short: 'Evidence of intent.',
+    test: 'Maintained, on-message and consistent with how the brand presents elsewhere. Someone is clearly tending this channel. 4 is competent upkeep, 6 is a channel run with genuine craft.' },
+  { min: 7,  max: 10, name: 'Conscious',  short: 'The presence does work.',
+    test: 'It shapes the conversation or others carry it: the brand is cited, quoted, imitated or discussed on terms it set. 7 is beginning to travel, 10 is a channel the category looks to.' },
+];
+
+export const FOOTPRINT_PRESENCE_MAX = 10;
+
+export const FOOTPRINT_PRESENCE_DEFINITION =
+  'Each channel is scored 0 to 10 on how consciously the brand shows up there: 0 absent, 1-3 present but incidental, 4-6 deliberate and maintained, 7-10 conscious and shaping the conversation. This judges the quality of the presence, not how much evidence was gathered.';
+
+export function getPresenceLevel(level) {
+  const n = Number.isFinite(Number(level)) ? Math.max(0, Math.min(FOOTPRINT_PRESENCE_MAX, Math.round(Number(level)))) : 0;
+  return FOOTPRINT_PRESENCE_BANDS.find(b => n >= b.min && n <= b.max) || FOOTPRINT_PRESENCE_BANDS[0];
+}
 
 export const FOOTPRINT_CHANNELS = [
   { id: 'earned',     name: 'Earned media',          hint: 'Trade and national press. Articles, bylines and quotes the brand did not pay for.' },
@@ -335,33 +360,38 @@ export const FOOTPRINT_VOICE = {
 
 export function summariseFootprint(footprint) {
   if (!footprint || !footprint.channels) return null;
-  const rows = FOOTPRINT_CHANNELS.map(c => ({
-    ...c,
-    ...(footprint.channels[c.id] || {}),
-    share: Number(footprint.channels[c.id]?.share) || 0,
-    signals: Number(footprint.channels[c.id]?.signals) || 0,
-  }));
-  const present = rows.filter(r => r.share > 0 || r.signals > 0);
-  const total = present.reduce((t, r) => t + r.signals, 0);
-  // Shares are asked to sum to 100 but a model can return something else.
-  // Normalising here means the voice bar can never overflow its container.
-  const shareTotal = present.reduce((t, r) => t + r.share, 0) || 1;
-  const shareOf = (ids) => Math.round(
-    (present.filter(r => ids.includes(r.id)).reduce((t, r) => t + r.share, 0) / shareTotal) * 100
-  );
-  const brandVoice = present.length ? shareOf(FOOTPRINT_VOICE.brand) : 0;
+  const rows = FOOTPRINT_CHANNELS.map(c => {
+    const raw = footprint.channels[c.id] || {};
+    const level = Number.isFinite(Number(raw.level)) ? Math.max(0, Math.min(FOOTPRINT_PRESENCE_MAX, Math.round(Number(raw.level)))) : 0;
+    return { ...c, ...raw, level, levelName: getPresenceLevel(level).name };
+  });
+  const present = rows.filter(r => r.level > 0);
+  const conscious = rows.filter(r => r.level >= 7);
+  const deliberate = rows.filter(r => r.level >= 4);
+
+  const avgOf = (ids) => {
+    const set = rows.filter(r => ids.includes(r.id));
+    return set.length ? set.reduce((t, r) => t + r.level, 0) / set.length : 0;
+  };
+  const brandAvg = avgOf(FOOTPRINT_VOICE.brand);
+  const marketAvg = avgOf(FOOTPRINT_VOICE.market);
+  const totalAvg = brandAvg + marketAvg;
 
   return {
     rows,
     present,
-    channelsWithEvidence: present.length,
+    channelsPresent: present.length,
+    channelsConscious: conscious.length,
+    channelsDeliberate: deliberate.length,
     channelCount: FOOTPRINT_CHANNELS.length,
-    totalSignals: total,
-    // Largest share, so the mosaic can scale rows against the leader rather
-    // than against 100. A 33% leader should fill the row, not a quarter of it.
-    maxShare: present.reduce((m, r) => Math.max(m, r.share), 0),
-    brandVoice,
-    marketVoice: present.length ? 100 - brandVoice : 0,
+    // Mean presence level across every channel, including the absent ones,
+    // so a brand cannot score well by being strong in one place only.
+    overallLevel: rows.length ? rows.reduce((t, r) => t + r.level, 0) / rows.length : 0,
+    maxLevel: FOOTPRINT_PRESENCE_MAX,
+    // Where the consciousness sits: in what the brand controls, or in what the
+    // market generates. Split by weight of presence, not by count of channels.
+    brandVoice: totalAvg ? Math.round((brandAvg / totalAvg) * 100) : 0,
+    marketVoice: totalAvg ? 100 - Math.round((brandAvg / totalAvg) * 100) : 0,
   };
 }
 

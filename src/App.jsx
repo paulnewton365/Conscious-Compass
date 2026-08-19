@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_SIGNAL_DEFINITION, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
+import { FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, getPresenceLevel, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.16.2';
+const APP_VERSION = '3.17.1';
 import { 
   supabase, 
   signUp, 
@@ -1279,10 +1279,7 @@ const FP_INK   = '#0B0B0B';
 const FP_LIME  = '#DEE42F';
 const FP_EMPTY = '#E4E2DC';
 const FP_MUTED = '#8A877D';
-const FP_TILES = 13;
 
-// Ranked rows step from lime through olive to ink.
-const FP_RAMP = ['#DFF01F', '#D3E81C', '#BFDA18', '#A5C214', '#8AA810', '#3A3A36', '#0B0B0B', '#0B0B0B'];
 
 // ── Presence map ─────────────────────────────────────────────
 // Brand at the centre, channels as nodes sized by the evidence found, and
@@ -1299,7 +1296,6 @@ function FootprintMap({ footprint, brandName }) {
   const W = 940, H = 560, cx = W / 2, cy = H / 2 - 6;
   const R = 186;
   const rows = summary.rows;
-  const maxSignals = Math.max(1, ...rows.map(r => r.signals));
 
   // Fixed positions keep the map comparable between brands: a channel always
   // sits in the same place, so two footprints can be read against each other.
@@ -1310,8 +1306,11 @@ function FootprintMap({ footprint, brandName }) {
   });
 
   const isBrandVoice = (id) => FOOTPRINT_VOICE.brand.includes(id);
-  const nodeR = (r) => (r.signals > 0 || r.share > 0)
-    ? 15 + Math.sqrt(r.signals / maxSignals) * 22
+  // Radius scales linearly with presence level. Square root compressed the low
+  // end badly: a 1 rendered nearly as large as a 10, which is the opposite of
+  // what an ordinal scale should show.
+  const nodeR = (r) => r.level > 0
+    ? 12 + (r.level / FOOTPRINT_PRESENCE_MAX) * 27
     : 11;
 
   const links = Array.isArray(footprint.links) ? footprint.links.filter(l => pos[l.from] && pos[l.to]) : [];
@@ -1335,18 +1334,18 @@ function FootprintMap({ footprint, brandName }) {
         <div className="flex gap-8 flex-shrink-0">
           <div className="text-right">
             <div className="text-[9px] font-bold uppercase" style={{ letterSpacing: '.14em', color: FP_MUTED, marginBottom: 4 }}>
-              Total signals
+              Conscious channels
             </div>
             <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: FP_INK }}>
-              {summary.totalSignals}
+              {summary.channelsConscious} of {summary.channelCount}
             </div>
           </div>
           <div className="text-right" style={{ borderLeft: `1px solid ${FP_EMPTY}`, paddingLeft: 32 }}>
             <div className="text-[9px] font-bold uppercase" style={{ letterSpacing: '.14em', color: FP_MUTED, marginBottom: 4 }}>
-              Channels with evidence
+              Present at all
             </div>
             <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: FP_INK }}>
-              {summary.channelsWithEvidence} of {summary.channelCount}
+              {summary.channelsPresent} of {summary.channelCount}
             </div>
           </div>
         </div>
@@ -1356,7 +1355,7 @@ function FootprintMap({ footprint, brandName }) {
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
         {/* Spokes: presence. Faint where a channel has no evidence. */}
         {rows.map((r) => {
-          const p = pos[r.id]; const has = r.signals > 0 || r.share > 0;
+          const p = pos[r.id]; const has = r.level > 0;
           return (
             <line key={'s' + r.id} x1={cx} y1={cy} x2={p.x} y2={p.y}
               stroke={has ? '#C9C6BE' : '#E4E2DC'} strokeWidth={has ? 1.5 : 1}
@@ -1391,15 +1390,15 @@ function FootprintMap({ footprint, brandName }) {
           style={{ transform: inView ? 'scale(1)' : 'scale(0.6)', transformOrigin: `${cx}px ${cy}px`,
             transition: 'transform 600ms cubic-bezier(0.22,1,0.36,1)' }} />
         <text x={cx} y={cy - 3} textAnchor="middle" style={{ fontSize: 22, fontWeight: 700, fill: FP_LIME, letterSpacing: '-.03em' }}>
-          {summary.totalSignals}
+          {summary.overallLevel.toFixed(1)}
         </text>
         <text x={cx} y={cy + 15} textAnchor="middle" style={{ fontSize: 9, fontWeight: 700, fill: '#B3B0A8', letterSpacing: '.14em' }}>
-          SIGNALS
+          OF {FOOTPRINT_PRESENCE_MAX}
         </text>
 
         {/* Channel nodes */}
         {rows.map((r, i) => {
-          const p = pos[r.id]; const has = r.signals > 0 || r.share > 0;
+          const p = pos[r.id]; const has = r.level > 0;
           const rad = nodeR(r);
           const brandVoice = isBrandVoice(r.id);
           const outward = Math.cos(p.a) > 0.25 ? 'start' : Math.cos(p.a) < -0.25 ? 'end' : 'middle';
@@ -1417,12 +1416,12 @@ function FootprintMap({ footprint, brandName }) {
                 stroke={has ? 'none' : '#C9C6BE'} strokeWidth={1.5} strokeDasharray={has ? '' : '3 4'}>
                 {/* The evidence moved off the canvas; it lives here instead,
                     alongside what the channel means. */}
-                <title>{`${r.name} — ${r.hint}\n\n${has ? `${r.signals} signal${r.signals === 1 ? '' : 's'}: ${r.evidence}` : 'No evidence found'}`}</title>
+                <title>{`${r.name} — ${r.hint}\n\nLevel ${r.level} ${r.levelName}: ${getPresenceLevel(r.level).short}\n${has ? r.evidence : 'No evidence found'}`}</title>
               </circle>
               {has && (
                 <text x={p.x} y={p.y + 5} textAnchor="middle"
                   style={{ fontSize: 14, fontWeight: 700, fill: brandVoice ? '#FFFFFF' : FP_INK }}>
-                  {r.signals}
+                  {r.level}
                 </text>
               )}
               <text x={lx} y={ly + 4} textAnchor={outward}
@@ -1445,158 +1444,18 @@ function FootprintMap({ footprint, brandName }) {
         <span className="flex items-center gap-2 text-[11px]" style={{ color: FP_MUTED }}>
           <span style={{ width: 18, height: 4, background: FP_LIME, display: 'inline-block' }} /> Corroborated between channels
         </span>
-        <span className="text-[11px]" style={{ color: FP_MUTED }}>Node size = signals found</span>
+        <span className="text-[11px]" style={{ color: FP_MUTED }}>Node size = presence level</span>
       </div>
 
       <p className="text-[11px]" style={{ color: FP_MUTED, maxWidth: '86ch', marginTop: -8, paddingBottom: 14 }}>
-        {FOOTPRINT_SIGNAL_DEFINITION} Hover a channel for what it covers and what was found.
+        {FOOTPRINT_PRESENCE_DEFINITION} Hover a channel for what it covers and what was found.
       </p>
 
       <p className="text-[13px] font-medium" style={{ color: FP_INK, paddingBottom: 20, maxWidth: '78ch' }}>
         {links.length === 0
-          ? `Nothing carries between channels. ${brandName} appears in ${summary.channelsWithEvidence} places, but nothing found in one is picked up in another.`
+          ? `Nothing carries between channels. ${brandName} is present in ${summary.channelsPresent} of ${summary.channelCount}, but nothing in one is picked up in another.`
           : `${links.length} connection${links.length === 1 ? '' : 's'} between channels: ${links.map(l => l.note).filter(Boolean).join('; ')}.`}
       </p>
-    </div>
-  );
-}
-
-function FootprintMosaic({ footprint, brandName, compact = false }) {
-  const summary = summariseFootprint(footprint);
-  const [ref, inView] = useInView(0.15);
-  if (!summary) return null;
-
-  // Ranked by share, but every channel is shown. An empty channel is a finding,
-  // so the zeros stay on the page rather than being filtered out.
-  const rows = [...summary.rows].sort((a, b) => (b.share - a.share) || (b.signals - a.signals));
-
-  return (
-    <div ref={ref} style={{ backgroundColor: FP_PAPER }} className="p-6 sm:p-8">
-      {/* Masthead */}
-      <div className="flex flex-wrap items-start justify-between gap-6 mb-5">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="inline-block w-2.5 h-2.5" style={{ backgroundColor: FP_LIME }} />
-            <span className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: FP_INK }}>
-              Brand Footprint
-            </span>
-          </div>
-          <h3 className="font-bold tracking-tight leading-[0.95]"
-            style={{ color: FP_INK, fontSize: compact ? '1.9rem' : '2.6rem' }}>
-            Where the brand shows up.
-          </h3>
-        </div>
-        <div className="flex gap-8 flex-shrink-0">
-          <div className="text-right">
-            <div className="text-[9px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: FP_MUTED }}>
-              Total signals
-            </div>
-            <div className="font-bold tracking-tight" style={{ color: FP_INK, fontSize: compact ? '1.5rem' : '2rem' }}>
-              {summary.totalSignals.toLocaleString()}
-            </div>
-          </div>
-          <div className="text-right border-l pl-8" style={{ borderColor: FP_EMPTY }}>
-            <div className="text-[9px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: FP_MUTED }}>
-              Channels with evidence
-            </div>
-            <div className="font-bold tracking-tight" style={{ color: FP_INK, fontSize: compact ? '1.5rem' : '2rem' }}>
-              {summary.channelsWithEvidence} of {summary.channelCount}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ height: 2, backgroundColor: FP_INK }} className="mb-4" />
-
-      {/* Column headers */}
-      <div className="grid items-end gap-4 pb-2 text-[9px] font-bold uppercase tracking-[0.14em]"
-        style={{ gridTemplateColumns: '1.6fr 3fr 0.6fr 0.6fr 0.8fr', color: FP_MUTED }}>
-        <div>Channel</div>
-        <div className="hidden sm:block">Presence</div>
-        <div className="text-right">Share</div>
-        <div className="text-right">Signals</div>
-        <div className="text-right">Sentiment</div>
-      </div>
-
-      {/* Ledger */}
-      {rows.map((row, i) => {
-        const has = row.share > 0 || row.signals > 0;
-        // Scaled against the leading channel, not against 100. Otherwise a
-        // brand whose best channel is 33% never fills a single row and the
-        // mosaic reads as uniformly weak.
-        const filled = has
-          ? Math.max(1, Math.min(FP_TILES, Math.ceil((row.share / (summary.maxShare || 100)) * FP_TILES)))
-          : 0;
-        const tone = FP_RAMP[Math.min(i, FP_RAMP.length - 1)];
-        return (
-          <div key={row.id}
-            className="grid items-center gap-4 py-3 border-t"
-            style={{ gridTemplateColumns: '1.6fr 3fr 0.6fr 0.6fr 0.8fr', borderColor: FP_EMPTY }}>
-            <div className="min-w-0">
-              <div className="font-bold text-[15px] leading-tight truncate"
-                style={{ color: has ? FP_INK : FP_MUTED }}>{row.name}</div>
-              <div className="text-[11px] mt-0.5 truncate" style={{ color: FP_MUTED }}>
-                {row.evidence || 'No evidence found'}
-              </div>
-            </div>
-
-            <div className="hidden sm:flex gap-[3px]">
-              {Array.from({ length: FP_TILES }).map((_, t) => (
-                <div key={t} className="flex-1"
-                  style={{
-                    height: 26,
-                    backgroundColor: t < filled ? tone : FP_EMPTY,
-                    opacity: inView ? 1 : 0,
-                    transform: inView ? 'scaleY(1)' : 'scaleY(0.3)',
-                    transition: 'opacity 260ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
-                    transitionDelay: `${i * 60 + t * 22}ms`,
-                  }} />
-              ))}
-            </div>
-
-            <div className="text-right font-bold text-[17px] tabular-nums"
-              style={{ color: has ? FP_INK : FP_MUTED }}>
-              {has ? `${row.share}%` : '—'}
-            </div>
-            <div className="text-right text-[13px] tabular-nums" style={{ color: has ? FP_INK : FP_MUTED }}>
-              {has ? row.signals : '—'}
-            </div>
-            <div className="text-right text-[13px] tabular-nums" style={{ color: has ? FP_INK : FP_MUTED }}>
-              {row.sentiment == null ? '—' : `${row.sentiment > 0 ? '+' : ''}${row.sentiment}`}
-            </div>
-          </div>
-        );
-      })}
-
-      <div style={{ height: 2, backgroundColor: FP_INK }} className="mt-4 mb-4" />
-
-      {/* Voice split: the question the footprint exists to answer */}
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-        <div className="flex-1 min-w-[240px]">
-          <div className="text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: FP_MUTED }}>
-            Who is doing the talking
-          </div>
-          <div className="flex h-6 overflow-hidden">
-            <div style={{
-              width: `${inView ? summary.brandVoice : 0}%`, backgroundColor: FP_INK,
-              transition: 'width 900ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: '400ms',
-            }} />
-            <div style={{
-              width: `${inView ? summary.marketVoice : 0}%`, backgroundColor: FP_LIME,
-              transition: 'width 900ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: '520ms',
-            }} />
-          </div>
-          <div className="flex justify-between mt-2 text-[11px]" style={{ color: FP_INK }}>
-            <span><span className="font-bold">{summary.brandVoice}%</span> the brand</span>
-            <span><span className="font-bold">{summary.marketVoice}%</span> the market</span>
-          </div>
-        </div>
-        {footprint.verdict && (
-          <p className="flex-1 min-w-[240px] text-[13px] font-medium leading-snug" style={{ color: FP_INK }}>
-            {footprint.verdict}
-          </p>
-        )}
-      </div>
     </div>
   );
 }
@@ -5736,16 +5595,52 @@ BRAND FOOTPRINT:
 
 Map where ${project.brandName} actually shows up across every surface a person could encounter it. This is DESCRIPTIVE ONLY. It does not change any attribute score. Do not adjust your scoring because of it.
 
+For each of these eight channels, judge HOW CONSCIOUSLY the brand shows up there:
+
+${FOOTPRINT_CHANNELS.map(c => `- ${c.id}: ${c.name}. ${c.hint}`).join('\n')}
+
+THE PRESENCE SCALE. Score each channel 0 to 10, using these bands as anchors:
+
+${FOOTPRINT_PRESENCE_BANDS.map(b => `${b.min === b.max ? b.min : `${b.min}-${b.max}`} — ${b.name}: ${b.short}\n${b.test}`).join('\n\n')}
+
+RULES, and the first matters most:
+- YOU ARE JUDGING QUALITY OF PRESENCE, NOT QUANTITY OF EVIDENCE. Do not reward a channel simply because more material was gathered about it. Three thoughtful posts on a maintained channel sits in the 4-6 band; forty automated ones does not reach 7.
+- The 7-10 band requires evidence that the presence DOES something: the brand is cited, quoted, imitated, or the conversation uses its framing. A brand talking well about itself tops out at 6, however polished.
+- The 1-3 band is presence without intent: dormant accounts, incidental mentions, listings maintained by someone else.
+- A channel with nothing observable is 0 with evidence "No evidence found". Do not invent presence to fill the map. An absent channel is a finding.
+- "evidence" is what you actually observed, max 6 words. Name sources where you can.
+- "sentiment" runs -100 to 100, only where others are speaking about the brand. Use null for owned and paid.
+- Be sceptical. Most channels for most brands land in the 1-5 range. Anything at 7 or above should be rare and earned, and 9-10 exceptional.
+
+CONNECTIONS BETWEEN FOOTPRINT CHANNELS:
+
+In "links", record where one channel demonstrably carries something from another. This is what turns a list of channels into a picture of how a brand travels.
+
+Only record a link you can actually evidence:
+- AI answers citing or paraphrasing the brand's owned research → owned to ai
+- Earned coverage quoting the brand's own data or naming its research → owned to earned
+- Third-party discussion referencing the brand's campaign, framing or terminology → social to thirdParty, or earned to thirdParty
+- Podcast or analyst work drawing on the brand's published material → owned to podcast, owned to analyst
+- Paid creative carrying the same idea as the organic work → social to paid
+
+Rules:
+- "strong" means the connection is explicit: named, quoted or cited. "weak" means the same subject appears in both but the link is inferred.
+- Do NOT link two channels merely because both mention the brand. Presence in both is not connection.
+- If nothing genuinely connects, return an empty array. An unconnected footprint is a real and important finding: it means the brand is present in several places but nothing carries between them.
+- Maximum six links. Report the strongest.
+
+BRAND FOOTPRINT:
+
+Map where ${project.brandName} actually shows up across every surface a person could encounter it. This is DESCRIPTIVE ONLY. It does not change any attribute score. Do not adjust your scoring because of it.
+
 For each of these eight channels, report what you can actually observe in the evidence above:
 
 ${FOOTPRINT_CHANNELS.map(c => `- ${c.id}: ${c.name}. ${c.hint}`).join('\n')}
 
 RULES, and the first one matters most:
-- COUNT ONLY WHAT YOU CAN SEE. ${FOOTPRINT_SIGNAL_DEFINITION} If you observed three articles, that is 3, not an estimate of total coverage.
 - ANALYST COVERAGE means third parties analysing the brand: industry analysts, investment or equity research, institutional reports that cite it. The brand's own research belongs in owned, never here.
 - NEVER estimate audience reach, impressions or total mention volume. Those are not publicly observable and a fabricated number would discredit the whole report. There is no reach field for this reason.
 - A channel with no observable evidence gets share 0, signals 0 and evidence "No evidence found". Do not invent presence to fill the table. An empty channel is a finding.
-- "share" is that channel's percentage of the brand's total observed footprint. Shares across all channels must sum to 100. Channels with no evidence get 0.
 - "sentiment" runs -100 to 100 and is only for channels where others are speaking about the brand. Use null for owned and paid, where the brand controls the message.
 - "evidence" is a short factual descriptor of what was found, max 6 words. For example "National trade, 3 tier-one titles" or "LinkedIn-led, founder account".
 
@@ -5770,7 +5665,7 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
       { "from": "channel id", "to": "channel id", "strength": "strong|weak", "note": "What actually connects them. Max 8 words." }
     ],
     "channels": {
-${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "share": 0-100, "signals": 0, "evidence": "max 6 words, or 'No evidence found'", "sentiment": -100 to 100 or null }`).join(',\n')}
+${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "max 6 words, or 'No evidence found'", "sentiment": -100 to 100 or null }`).join(',\n')}
     }
   },
   "campaignCoherence": {
@@ -13229,8 +13124,11 @@ function AppContent() {
           campaignLevel: scores.campaignCoherence?.level ?? null,
           // Channel shares only. Enough to build sector footprint averages
           // later without carrying the prose evidence into the results table.
-          footprintShares: scores.footprint?.channels
-            ? Object.fromEntries(FOOTPRINT_CHANNELS.map(c => [c.id, Number(scores.footprint.channels[c.id]?.share) || 0]))
+          // Presence levels rather than evidence counts: these are comparable
+          // between brands and between assessors, so a sector average means
+          // something. Counts measured assessor thoroughness.
+          footprintLevels: scores.footprint?.channels
+            ? Object.fromEntries(FOOTPRINT_CHANNELS.map(c => [c.id, Number(scores.footprint.channels[c.id]?.level) || 0]))
             : null,
           isManual: false,
           assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
