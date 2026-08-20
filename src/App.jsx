@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.26.9';
+const APP_VERSION = '3.27.0';
 import { 
   supabase, 
   signUp, 
@@ -11661,6 +11661,14 @@ function ClientReportView({ payload }) {
           </h1>
           <p className="text-[14px] font-semibold text-[#68655B] mt-5" style={{ letterSpacing: '.04em' }}>
             Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
+          </p>
+
+          {/* Client-facing only. Sets expectations that this is a summary of a
+              wider study, so the absence of working detail reads as scope
+              rather than as omission. */}
+          <p className="text-[15px] text-[#4A4840] mt-6" style={{ lineHeight: 1.6, maxWidth: '62ch' }}>
+            This is a report summary. It represents a more detailed brand study spanning owned,
+            earned, social, paid and GEO.
           </p>
         </div>
 
