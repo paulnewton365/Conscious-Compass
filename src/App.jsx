@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.26.6';
+const APP_VERSION = '3.26.7';
 import { 
   supabase, 
   signUp, 
@@ -5895,15 +5895,21 @@ function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, be
 
                     <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
                       {[
-                        /* Guarded: a client link issued before these fields
-                           were added to the payload has no avgScore, and an
-                           unguarded subtraction rendered NaN, not a dash. */
-                        [Number.isFinite(Number(benchmark.avgScore))
-                          ? `${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`
-                          : '—', 'vs sector average'],
-                        [benchmark.rank && benchmark.count ? `${ordinalSuffix(benchmark.rank)} of ${benchmark.count}` : '—', 'rank in sector'],
-                        [benchmark.percentile != null ? ordinalSuffix(benchmark.percentile) : '—', 'percentile'],
-                      ].map(([v, l]) => (
+                        /* Rank and percentile need the whole cohort, so a link
+                           issued before they were added to the payload cannot
+                           recover them. Drop the tiles rather than showing
+                           dashes: an empty stat reads as a fault, a missing
+                           one reads as deliberate. */
+                        Number.isFinite(Number(benchmark.avgScore))
+                          ? [`${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`, 'vs sector average']
+                          : null,
+                        benchmark.rank && benchmark.count
+                          ? [`${ordinalSuffix(benchmark.rank)} of ${benchmark.count}`, 'rank in sector']
+                          : null,
+                        benchmark.percentile != null
+                          ? [ordinalSuffix(benchmark.percentile), 'percentile']
+                          : null,
+                      ].filter(Boolean).map(([v, l]) => (
                         <div key={l} style={{ paddingRight: 20 }}>
                           <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>{v}</div>
                           <div className="dc-kicker-sm" style={{ marginTop: 6 }}>{l}</div>
