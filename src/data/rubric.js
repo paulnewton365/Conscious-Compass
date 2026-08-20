@@ -456,9 +456,10 @@ export const TRUST_LENSES = [
 
 export const TRUST_FOUNDATION = {
   id: 'authenticity', name: 'Authenticity', def: 'Internal culture, externally expressed',
-  // Intentional contributes lightly: credible, substantive presentation is
-  // part of how an internal culture reads as genuine from outside.
-  weights: { REFLECTIVE: 45, SENTIENT: 20, AWARE: 15, VISIONARY: 15, INTENTIONAL: 5 },
+  // Reflective still leads, but the base is broadened: how genuine a culture
+  // reads from outside draws on how the brand presents itself, what it says it
+  // is for, how the work lands, and whether it can evidence any of it.
+  weights: { REFLECTIVE: 40, AWARE: 20, SENTIENT: 10, VISIONARY: 10, INTENTIONAL: 10, COGENT: 10 },
 };
 
 const lensScore = (weights, scores) => {
@@ -514,9 +515,14 @@ export function computeTrustLenses(scores, findings = []) {
   // The reach note states the two extremes, which is the point of the block.
   const every = reach.filter(r => r.count === all.length).map(r => r.name);
   const none = reach.filter(r => r.count === 0).map(r => r.name);
+  // Oxford-style join: "A and B" reads fine, "A and B and C" does not.
+  const list = (arr) => arr.length < 3
+    ? arr.join(' and ')
+    : `${arr.slice(0, -1).join(', ')} and ${arr[arr.length - 1]}`;
+
   const bits = [];
-  if (every.length) bits.push(`${every.join(' and ')} feed${every.length === 1 ? 's' : ''} every lens.`);
-  if (none.length) bits.push(`${none.join(' and ')} feed${none.length === 1 ? 's' : ''} none of them.`);
+  if (every.length) bits.push(`${list(every)} feed${every.length === 1 ? 's' : ''} every lens.`);
+  if (none.length) bits.push(`${list(none)} feed${none.length === 1 ? 's' : ''} none of them.`);
   const reachNote = bits.join(' ');
 
   return { rows, foundation, reach, reachNote, findings };
