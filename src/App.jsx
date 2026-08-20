@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.26.7';
+const APP_VERSION = '3.26.8';
 import { 
   supabase, 
   signUp, 
@@ -8125,7 +8125,8 @@ ${content.slice(0, 8000)}`;
       <section className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
         <SectionHead label="Results at a glance" />
         <ReportGlanceSection project={project} scores={scores} overall={overall}
-          stage={stage} sortedAttrs={sortedAttrs} chartRef={chartRef} />
+          stage={stage} sortedAttrs={sortedAttrs} chartRef={chartRef}
+          animatedScore={animatedScore} />
       </section>
 
       <ReportScoreTiles scores={scores} />
@@ -8557,6 +8558,18 @@ ${content.slice(0, 8000)}`;
       <div className="flex items-center justify-start pt-6 border-t border-[#DCDAD3]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
       </div>
+
+      {/* Client link modal. This was lost when the attribute section was
+          extracted into a shared component: the button still set the state,
+          but nothing rendered on it. */}
+      {showClientLink && (
+        <ClientLinkModal
+          brandName={project.brandName}
+          buildPayload={buildClientPayload}
+          onClose={() => setShowClientLink(false)}
+          profile={profile}
+        />
+      )}
     </div>
   );
 }
