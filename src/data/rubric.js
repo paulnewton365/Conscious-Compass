@@ -40,7 +40,7 @@ export const ATTRIBUTES = [
     color: '#F97316',
     signals: {
       strong: ['Active community with visible two-way dialogue', 'Customer advisory boards or feedback panels', 'Content addressing specific persona pain points by name', 'Testimonials citing trust, reliability, or understanding', 'Responsive social engagement within hours', 'Evidence of listening informing product or content'],
-      moderate: ['Segmented content for different audiences', 'Customer success stories with quotes', 'Social listening evidence', 'Newsletter with personalisation', 'FAQ addressing real customer questions'],
+      moderate: ['Segmented content for different audiences', 'Customer success stories with quotes', 'Social listening evidence', 'Newsletter with personalization', 'FAQ addressing real customer questions'],
       weak: ['Generic messaging for all audiences', 'One-way broadcast communication only', 'No visible feedback mechanisms', 'Testimonials without specifics', 'Slow or no social response'],
     },
   },
@@ -65,8 +65,8 @@ export const ATTRIBUTES = [
     description: 'Attentive brands deliver quality that signals competence and care. Every touchpoint demonstrates attention to detail, accessibility, and user experience that respects audience time and needs. Evidence includes: website that is fast, accessible, and well-designed, attention to detail in every piece of content, mobile experience as good as desktop, and WCAG 2.1 AA accessibility compliance.',
     color: '#34D399',
     signals: {
-      strong: ['PageSpeed scores above 90 across all pages', 'WCAG 2.1 AA compliance verified', 'Zero broken links or missing images', 'Mobile-first design executed flawlessly', 'Content formatting optimised for scannability', 'Forms and CTAs that work perfectly'],
-      moderate: ['PageSpeed scores 70-89', 'Most accessibility basics in place', 'Generally consistent experience', 'Some mobile optimisation', 'Occasional minor errors'],
+      strong: ['PageSpeed scores above 90 across all pages', 'WCAG 2.1 AA compliance verified', 'Zero broken links or missing images', 'Mobile-first design executed flawlessly', 'Content formatting optimized for scannability', 'Forms and CTAs that work perfectly'],
+      moderate: ['PageSpeed scores 70-89', 'Most accessibility basics in place', 'Generally consistent experience', 'Some mobile optimization', 'Occasional minor errors'],
       weak: ['Slow load times affecting user experience', 'Accessibility barriers present', 'Broken functionality or links', 'Inconsistent quality across pages', 'Obvious errors or amateur execution'],
     },
   },
@@ -78,7 +78,7 @@ export const ATTRIBUTES = [
     description: 'Cogent brands demonstrate sophisticated, evidence-based marketing strategy. They understand how people find them, measure what works, and make decisions grounded in data rather than intuition. Evidence includes: strong SEO fundamentals, data-informed content strategy, measurement culture, case studies with actual metrics, and clear targeting in paid media.',
     color: '#22D3EE',
     signals: {
-      strong: ['Ranking for strategic keywords with clear intent alignment', 'Sophisticated tracking and attribution in place', 'Case studies with specific metrics and outcomes', 'Evidence of A/B testing and optimisation', 'Paid media with clear audience targeting', 'AI search and GEO optimised for reputation and description', 'Channel choices show evidence of deliberate audience and budget logic'],
+      strong: ['Ranking for strategic keywords with clear intent alignment', 'Sophisticated tracking and attribution in place', 'Case studies with specific metrics and outcomes', 'Evidence of A/B testing and optimization', 'Paid media with clear audience targeting', 'AI search and GEO optimized for reputation and description', 'Channel choices show evidence of deliberate audience and budget logic'],
       moderate: ['Basic SEO fundamentals in place', 'AI accuracy without verified reputation signals', 'Some analytics implementation', 'General results referenced in marketing', 'Some paid media presence', 'Content addresses search intent partially'],
       weak: ['No apparent SEO strategy', 'Analytics either missing or unused', 'No measurement of marketing effectiveness', 'Paid media absent or poorly targeted', 'Content created without data input'],
     },
@@ -91,7 +91,7 @@ export const ATTRIBUTES = [
     description: 'Sentient brands create genuine emotional connection through creative excellence that moves audiences. They develop distinctive creative approaches that capture attention and inspire action through feeling, not just information. Evidence includes: creative work that makes you feel something, distinctive visual and verbal identity, storytelling that connects human to human, and brand personality that is genuine and ownable.',
     color: '#818CF8',
     signals: {
-      strong: ['Distinctive creative identity recognisable without logo', 'Emotional storytelling that drives sharing', 'Community passion and advocacy visible', 'Content that audiences seek out', 'Creative that breaks category conventions', 'Craft holds at the same high standard in every channel it appears in'],
+      strong: ['Distinctive creative identity recognizable without logo', 'Emotional storytelling that drives sharing', 'Community passion and advocacy visible', 'Content that audiences seek out', 'Creative that breaks category conventions', 'Craft holds at the same high standard in every channel it appears in'],
       moderate: ['Some distinctive creative elements', 'Occasional emotional resonance', 'Competent but not memorable execution', 'Content that is consumed but not shared', 'Brand personality present but not ownable', 'Craft varies noticeably between channels'],
       weak: ['Generic stock imagery and corporate copy', 'No emotional resonance in content', 'Forgettable creative execution', 'Interchangeable with competitors', 'No evidence of audience passion', 'Execution quality collapses outside the primary channel'],
     },
@@ -127,7 +127,7 @@ export const ATTRIBUTES = [
 // ─────────────────────────────────────────────────────────────
 // CAMPAIGN COHERENCE (v2.9)
 //
-// Division of labour, deliberately enforced to avoid double scoring:
+// Division of labor, deliberately enforced to avoid double scoring:
 //
 //   BASE ATTRIBUTE SCORES judge how good the work is. SENTIENT reads
 //   creative quality, craft, distinctiveness and how well execution holds
@@ -148,7 +148,7 @@ export const CAMPAIGN_LADDER = [
     level: 0,
     name: 'Ad hoc',
     summary: 'Activity exists. No connective tissue.',
-    description: 'Marketing output is a stream of unrelated posts, pages and announcements. Nothing recurs, nothing references anything else, and no organising thought is visible.',
+    description: 'Marketing output is a stream of unrelated posts, pages and announcements. Nothing recurs, nothing references anything else, and no organizing thought is visible.',
     signals: [
       'Posts and pages have no shared subject, device or look',
       'No named campaign or recurring property anywhere',
@@ -172,7 +172,7 @@ export const CAMPAIGN_LADDER = [
     level: 2,
     name: 'Packaged',
     summary: 'A name and a look, living in one or two channels.',
-    description: 'A recognisable campaign exists. It has been named and given a visual treatment, but it is confined to where it launched and does not adapt to other channels.',
+    description: 'A recognizable campaign exists. It has been named and given a visual treatment, but it is confined to where it launched and does not adapt to other channels.',
     signals: [
       'A named campaign with its own lockup, key visual or hashtag',
       'Present in one or two channels only',
@@ -197,10 +197,10 @@ export const CAMPAIGN_LADDER = [
     level: 4,
     name: 'Platform',
     summary: 'The idea recurs and sustains. Ownable device that travels across time.',
-    description: 'The campaign has become a property the brand owns and returns to. It survives beyond a single burst, gains new expressions, and is recognisable as the brand\'s territory.',
+    description: 'The campaign has become a property the brand owns and returns to. It survives beyond a single burst, gains new expressions, and is recognizable as the brand\'s territory.',
     signals: [
       'The campaign has run in multiple waves or across multiple years',
-      'The device is ownable and would be recognised without the logo',
+      'The device is ownable and would be recognized without the logo',
       'New chapters or extensions have been built on the original idea',
       'Partners, sponsors or spokespeople have been recruited into it',
       'The idea shapes the brand\'s wider communications, not just the campaign',
@@ -314,7 +314,7 @@ export function applyCampaignModifiers(scores, campaignLevel) {
 // Counting evidence items measured assessment thoroughness: a brand assessed
 // from a fuller paste scored higher without being better. A level judged
 // against the framework travels between brands and between assessors.
-// A 0 to 10 scale, anchored in four named bands. The bands keep the judgement
+// A 0 to 10 scale, anchored in four named bands. The bands keep the judgment
 // consistent between brands; the finer number lets a channel sit high or low
 // within its band. An unanchored ten-point scale would just invite arbitrary
 // numbers.
