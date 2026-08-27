@@ -11600,28 +11600,38 @@ function ClientLinksModal({ assessments, profile, onClose }) {
             const canManage = mine || profile?.is_admin;
             return (
               <div key={link.token} className="py-3 border-b border-[#DCDAD3] last:border-0">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-sm text-[#0B0B0B]">{link.brand_name}</div>
-                    <div className="text-[11px] text-[#68655B] mt-0.5">
+                {/* Stacked on a phone, single line from sm up. The old row was
+                    flex-wrap with a non-shrinking button group, so one long
+                    label tipped the whole group onto its own line and rows
+                    with and without "(not yours)" laid out differently. */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="min-w-0 sm:flex-1">
+                    <div className="font-semibold text-sm text-[#0B0B0B] truncate">{link.brand_name}</div>
+                    <div className="text-[11px] text-[#68655B] mt-0.5 truncate">
                       Issued by {link.created_by_name || 'unknown'}
                       {link.created_at ? ` on ${new Date(link.created_at).toLocaleDateString()}` : ''}
                       {mine ? '' : ' (not yours)'}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <button onClick={() => copy(link.token)}
-                      className="btn-secondary !text-[10px] !px-3 !py-2 flex items-center gap-1">
+                      title="Copy the client link"
+                      className="btn-secondary !text-[10px] !px-2.5 !py-0 flex items-center justify-center gap-1 whitespace-nowrap"
+                      style={{ minWidth: 84, height: 28 }}>
                       {copied === link.token ? <><Check className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
                     </button>
                     {canManage && (
                       <>
                         <button onClick={() => { setResetting(resetting === link.token ? null : link.token); setNewPassword(''); setError(null); }}
-                          className="btn-secondary !text-[10px] !px-3 !py-2">
-                          Refresh &amp; reset password
+                          title="Rebuild the report and set a new password. The URL does not change."
+                          className="btn-secondary !text-[10px] !px-2.5 !py-0 whitespace-nowrap"
+                          style={{ height: 28 }}>
+                          Reset password
                         </button>
                         <button onClick={() => revoke(link)} disabled={busy === link.token}
-                          className="btn-secondary !text-[10px] !px-3 !py-2 text-[#B23A3A]">
+                          title="Revoke this link"
+                          className="btn-secondary !text-[10px] !px-2.5 !py-0 text-[#B23A3A] whitespace-nowrap flex items-center justify-center"
+                          style={{ minWidth: 54, height: 28 }}>
                           {busy === link.token ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Revoke'}
                         </button>
                       </>
@@ -11728,6 +11738,20 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
   const hasFilters = search || filterStage || filterIndustry;
   const [showClientLinks, setShowClientLinks] = useState(false);
+  const [deletingKey, setDeletingKey] = useState(null);
+
+  // Deleting hits the network and then refetches the whole list, so it is
+  // never instant. The row reports what it is doing rather than sitting there
+  // looking broken.
+  const handleDeleteClick = async (assessment, key) => {
+    if (deletingKey !== null) return;
+    setDeletingKey(key);
+    try {
+      await onDelete(assessment);
+    } finally {
+      setDeletingKey(null);
+    }
+  };
 
   return (
     <div className="dc-wrap dc-page pt-8 animate-fade-in">
@@ -11887,9 +11911,12 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                         Load
                       </button>
                       {!isReadonly && (
-                        <button onClick={() => onDelete(i)} title="Delete"
-                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#68655B] hover:text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
-                          <Trash2 className="w-3.5 h-3.5" />
+                        <button onClick={() => handleDeleteClick(a, i)} title="Delete"
+                          disabled={deletingKey !== null}
+                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#68655B] hover:text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors disabled:opacity-40">
+                          {deletingKey === i
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Trash2 className="w-3.5 h-3.5" />}
                         </button>
                       )}
                     </div>
@@ -11909,9 +11936,12 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                         className="px-3 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
                         Rescore
                       </button>
-                      <button onClick={() => onDelete(i)} title="Delete"
-                        className="w-8 h-8 flex items-center justify-center text-[#68655B] hover:text-[#B23A3A] transition-colors ml-auto">
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <button onClick={() => handleDeleteClick(a, i)} title="Delete"
+                        disabled={deletingKey !== null}
+                        className="w-8 h-8 flex items-center justify-center text-[#68655B] hover:text-[#B23A3A] transition-colors ml-auto disabled:opacity-40">
+                        {deletingKey === i
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Trash2 className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                   )}
@@ -14292,12 +14322,27 @@ function AppContent() {
   };
 
   const handleDelete = async (assessment) => {
-    if (confirm(`Delete assessment for "${assessment.project?.brandName || 'this brand'}"?`)) {
-      if (assessment.id) {
-        await deleteAssessment(assessment.id);
-        await loadDataFromSupabase();
-      }
+    if (!assessment || typeof assessment !== 'object') {
+      console.error('handleDelete called without an assessment object:', assessment);
+      alert('Could not delete: the assessment reference was missing. Please refresh and try again.');
+      return;
     }
+    if (!confirm(`Delete assessment for "${assessment.project?.brandName || 'this brand'}"?`)) return;
+
+    if (!assessment.id) {
+      // Never saved to Supabase, so there is nothing server-side to remove.
+      // Saying so beats a dialog that closes and changes nothing.
+      alert('This assessment has no saved record to delete. It may not have finished saving yet.');
+      return;
+    }
+
+    const { error } = await deleteAssessment(assessment.id);
+    if (error) {
+      console.error('Delete failed:', error);
+      alert(`Delete failed: ${error.message || 'unknown error'}`);
+      return;
+    }
+    await loadDataFromSupabase();
   };
 
   const handleExport = (assessment) => {

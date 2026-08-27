@@ -4,7 +4,7 @@
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-3.20.0-blue)
+![Version](https://img.shields.io/badge/version-3.28.0-blue)
 ![Rubric](https://img.shields.io/badge/rubric-v2.9-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
 
@@ -37,17 +37,26 @@ Name, website URL, business model (B2B / B2C / B2B2C), industry.
 ### 2. Website Assessment
 - Auto-Assess via AI analysis of screenshots
 - SEO visibility analysis
-- Technical audit (PageSpeed scores)
+- Technical audit (PageSpeed scores, auto-fetched or entered by hand)
 - Recognition & credentials
+- Website content, required before proceeding. **Scrape with Jina** opens `https://r.jina.ai/{url}` for the primary site, which returns clean text to paste back. The same prefix works on any URL.
 
 ### 3. Social Media Assessment
 A structured Health Check populates the channel fields automatically; auto-checked content and assessor notes are held in separate fields so a re-run never overwrites typed input. Channel coverage is gated by business model rather than a fixed platform list. Campaign and paid signals are captured in one block, which feeds Campaign Coherence. **Run Everything** chains the health check, trademark search and analysis in one pass.
 
+Auto-checked findings can be wrong, so each panel has a **Correct** toggle that edits the finding in place. A corrected field is badged as such, and a re-run of the health check asks before overwriting it.
+
+**No social presence** is a declared finding, not a skipped step. Ticking it requires a note recording which platforms were searched and what was found, and it releases the screenshot, channel-coverage and campaign gates. WIPO and the analysis are still required. The declaration flows into the health check (verify, do not invent), the analysis prompt (treat as confirmed, assess the consequences) and the scoring prompt, where absence is scored as a gap in AWARE, SENTIENT and COGENT rather than left as missing data. Where absence is a defensible strategic choice for the business model, that is reflected in INTENTIONAL instead.
+
 ### 4. AI Reputation
-Query up to five engines and paste responses: **Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot**. Wikipedia presence and Reddit community perception are captured here as AI training signals. A synthesis is generated from all inputs.
+Query up to five engines and paste responses: **Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot**. Wikipedia presence and Reddit community perception are captured here as AI training signals. A synthesis is generated from all inputs. **Copy prompt & open Reddit** copies the Reddit Answers prompt and opens the tab in one action.
 
 ### 5. Earned Media
 Press coverage, podcast appearances, keynotes, awards — last 3 months.
+
+**Auto-Assess** is a web-searched analysis across ten dimensions: outlet calibre and tiering (mainstream, business, trade, specialist, aggregator, pay-to-play), announcement-driven versus third-party earned, reach, sentiment, share of voice, audience relevance, thought leadership and executive visibility, narrative influence, contradictions in message or purpose, and credibility built through earned. It runs through `/api/claude` with `useWebSearch` enabled, because share of voice and outlet analysis are worthless on model knowledge alone. Coverage that cannot be found is reported as a finding rather than filled in.
+
+Two of these carry the most diagnostic weight. The **announcement-driven versus third-party** split separates coverage the brand caused from coverage it earned; a brand whose coverage collapses between announcements has media relations, not media standing. **Credibility built** is judged separately from visibility, because a brand can be highly visible and hold no credibility at all.
 
 ### 6. Report Generation
 Twelve numbered sections: results at a glance, brand maturity, attribute analysis, brand footprint, campaign coherence, trust and credibility, benchmark comparison, recommendations, conclusions, score justification, what we evaluated, and assessment readouts. Exports as DOCX or copied text.
@@ -57,6 +66,28 @@ The client-facing report carries the same treatment as the internal one but omit
 ---
 
 ## Key Features
+
+### Challenge
+Additional context an assessor can put to a scored report, from the **Challenge** button. Five fields: Business Context, Website, Social Media, AI Reputation, Earned Media.
+
+Only the sections actually filled in are revised. Filling Website alone revises that one readout and then rescores; filling all five runs five revision passes plus scoring. The revision is a revision, not a regeneration, so everything in the existing readout that still holds is kept. Scoring then runs against the revised readouts, which keeps the Assessment Readouts section and the scores consistent with each other.
+
+**Context is weighed as evidence, never followed as instruction.** The prompts state that scores may go up, down, or not move at all, and that leaving a score unchanged is the correct outcome when the evidence picture has not changed. A bare assertion moves nothing. Any instruction to reach a target score is ignored.
+
+Every field except Business Context asks for a publicly checkable source: a URL, a publication, a date, a named source. Claims without one are discounted and flagged as unverified in the findings. This is deliberate — the framework scores publicly observable evidence, and a challenge field is otherwise an open door to private client information that would quietly change what the score means. Business Context is treated as background informing interpretation, not as evidence of performance in its own right.
+
+Challenges persist on the assessment and are carried into every subsequent rescore, including the Rescore button on Saved Assessments. A **Challenge history** block under Score justification records who submitted what, which readouts were revised, the overall score before and after, and the per-attribute deltas. It is excluded from the client payload.
+
+Because a challenge revises rather than regenerates, it cannot recover something never captured at assessment time. If a whole channel was missed, re-run that assessment step instead.
+
+### Language
+Wording and tone, from the **Language** button. Three inputs: word substitutions, a free-text terminology and phrasing field, and three tone dials (directness, warmth, technicality) at five notches each, centred on the current voice.
+
+**It is structurally incapable of changing a result.** Only narrative text is sent to the model, and the response is merged back through an allowlist of text keys applied in code: `findings`, `impact`, `actions`, `opportunity`, `gaps`, the headline, conclusion, justification, campaign verdict and rationale, and the footprint verdict. Scores, confidence values, campaign level and every other number are never read from the response. A model that tried to raise a score could not. `gaps` cannot grow beyond its original length.
+
+The house voice in `VOICE_GUIDANCE` is passed as a floor rather than a starting point, so the dials move within it. Two steps softer still produces no hedging, filler or motivational closers.
+
+The pre-language original is preserved for **Revert language**, and running the pass twice does not overwrite the true original with an already-rewritten version. A stored directive is reapplied automatically after any rescore, including a challenge rescore, since it is a standing preference rather than a one-off.
 
 ### Campaign Coherence
 Judges whether marketing is held together by a strategy and a creative idea, or is isolated tactical activity. Six levels, 0 (Ad hoc) to 5 (Consequential), where level 0 is the absence of a campaign rather than a rung on the ladder.
@@ -85,7 +116,9 @@ Every saved report freezes a benchmark snapshot at save time, so a report sent t
 ### Client Links
 Share a cleansed, password-protected report with a client who has no account. The payload is encrypted **in the browser** (PBKDF2, 250k iterations, AES-GCM 256) before it is stored, so Supabase only ever holds ciphertext and the password is not recoverable by anyone.
 
-The client sees scores, maturity, attribute analysis, footprint, campaign coherence, the benchmark profile and the conclusion. They do not see recommendations, channel assessments or internal notes. Manage, reset and revoke links from the Client Links button on Saved Assessments. A reset rebuilds the report from the saved assessment and re-encrypts it, keeping the same URL.
+The client sees scores, maturity, attribute analysis, footprint, campaign coherence, the benchmark profile and the conclusion. They do not see recommendations, channel assessments, internal notes, challenge history or trust findings. Manage, reset and revoke links from the Client Links button on Saved Assessments. A reset rebuilds the report from the saved assessment and re-encrypts it, keeping the same URL.
+
+An optional **note to the client** can be written when the link is created, with a live preview of how it will render. It appears under Results at a glance, above the score tiles, attributed by name and date and set apart from the analysis so it reads as commentary from a person rather than framework output. The note is fixed when the link is created; changing it means issuing a new link. It is carried through a password reset so a reissue does not silently drop it.
 
 ### Assessment & Results
 - **Compass Results** — Sortable, filterable dashboard of all assessments with CSV export
@@ -193,6 +226,22 @@ The octagon keeps attribute colours, since colour there distinguishes axes rathe
 
 ---
 
+## Integrity Rules
+
+Four places where the model is deliberately not trusted with the result. Each is enforced in code, not asked for in a prompt. Read this before refactoring any of them, because each looks like redundant plumbing and none of it is.
+
+**1. Campaign modifiers are arithmetic, not judgement.** The model scores the eight attributes and reports campaign coherence separately. `applyCampaignModifiers` does the adjustment from a fixed table and always recalculates from `baseScore`, so rescoring never compounds. Never let the model do the maths.
+
+**2. Trust lens scores are computed from fixed weights.** Four weighted blends of the same eight attributes, summing to 100 per lens, shown openly on the panel. The same attribute scores always produce the same lens scores, so two assessors cannot disagree. The weights are not user-adjustable by design.
+
+**3. The language pass merges through an allowlist.** `mergeLanguageText` spreads the original object first, then overwrites only known text keys. Scores, confidence, campaign level and channel figures are never read from the model response. The guarantee comes from the merge, not from the prompt asking nicely — so a "simplification" that spreads the response over the original would silently remove it.
+
+**4. Challenges are evidence, not instruction.** Scores may go up, down, or not move. Unsourced claims are discounted and flagged. Any instruction to reach a target score is ignored. Every challenge is recorded with before and after scores so a rescore is never invisible.
+
+The client payload is a fifth, related case: `makeClientPayload` is an allowlist that names each field it copies. Anything internal is absent because it is never added, not because it is hidden. Adding a field to `scores` does not leak it; adding a line to that function would.
+
+---
+
 ## Quick Start
 
 ```bash
@@ -220,6 +269,14 @@ The Anthropic API key is stored server-side only via Vercel serverless functions
 | `VITE_SUPABASE_URL` | Required — auth and data |
 | `VITE_SUPABASE_ANON_KEY` | Required — client-side auth |
 | `SUPABASE_SERVICE_ROLE_KEY` | Required — serverless functions write to cache tables |
+| `SUPABASE_URL` | Required — server-side equivalent used by the cron endpoints |
+| `GOOGLE_PAGESPEED_API_KEY` | Optional — without it PageSpeed is IP rate-limited and will 429 |
+| `GOOGLE_YOUTUBE_API_KEY` | Optional — verified YouTube channel metrics in the social health check |
+| `GOOGLE_KNOWLEDGE_GRAPH_API_KEY` | Optional — Knowledge Graph presence lookup |
+| `GOOGLE_SEARCH_API_KEY` | Optional — search snapshot in AI Reputation |
+| `GOOGLE_SEARCH_ENGINE_ID` | Optional — paired with the search key |
+
+Features backed by an optional key degrade rather than fail: the section still renders and the assessor can fill it by hand.
 
 4. Deploy
 
@@ -231,7 +288,20 @@ Browser → /api/claude (Vercel serverless) → Anthropic API
 
 ### Function Timeouts
 
-`vercel.json` sets `maxDuration: 300` on `api/claude.js` and the cron endpoints. The scoring prompt runs to roughly 6,000 tokens and asks for about 3,400 back; on Vercel's default timeout the function is killed mid-response and the report never returns. **300 seconds requires a Pro plan** — on Hobby the ceiling is 60, which is usually still enough.
+`vercel.json` sets `maxDuration` per function:
+
+| Function | Seconds | Why |
+|----------|---------|-----|
+| `api/claude.js` | 300 | The scoring prompt runs to roughly 6,000 tokens and asks for about 3,400 back |
+| `api/pagespeed.js` | 300 | A four-category desktop Lighthouse run regularly takes 30 to 90 seconds |
+| `api/search.js` | 120 | Web search round trip |
+| All four cron endpoints | 300 | Weekly AI composition |
+
+**300 seconds requires a Pro plan** — on Hobby the ceiling is 60, which is usually still enough.
+
+**Any long-running route must be listed here.** A function left on the default timeout is killed mid-response and Vercel returns an HTML error page, which then fails `response.json()` on the client and surfaces as a misleading network error. This is exactly how PageSpeed auto-fetch broke: the route existed and worked, but was missing from `vercel.json`. Both `api/pagespeed.js` and its caller now read the body as text and parse defensively so the real status is never hidden behind a parse error.
+
+`GOOGLE_PAGESPEED_API_KEY` is optional but strongly recommended; without it the PageSpeed API is IP rate-limited and will start returning 429.
 
 ### Cron Jobs (Vercel — every Sunday)
 
@@ -290,7 +360,7 @@ conscious-compass/
 │   ├── list-users.js                       # Admin: list all users
 │   └── delete-user.js                      # Admin: delete user
 ├── src/
-│   ├── App.jsx             # Main application (~13,000 lines)
+│   ├── App.jsx             # Main application (~14,700 lines)
 │   ├── data/
 │   │   ├── rubric.js       # Framework v2.9 — attributes, campaign ladder, footprint channels
 │   │   └── serviceMapping.js  # Service recommendations mapped to attributes
@@ -370,6 +440,8 @@ Three breakpoints, defined against semantic classes in `index.css` rather than i
 
 | Version | Key Changes |
 |---------|-------------|
+| **3.28** | Challenge loop: additional context weighed as evidence, revising only the sections filled in, then rescoring, with full challenge history. Language pass: substitutions, phrasing and bounded tone dials, merged back through a code allowlist so results cannot move. Assessor note on client links, attributed and previewed. No-social-presence declaration scored as an absence. Auto-checked social findings correctable in place. Website content now a hard gate, with a Jina scrape helper. Earned media auto-assess rebuilt to ten web-searched dimensions. Fixed: PageSpeed auto-fetch (missing `vercel.json` entry) and three-digit score clipping; saved-assessment delete passing an array index instead of the assessment; client links modal wrapping |
+| **3.21–3.27** | Not recorded here |
 | **3.20** | Recommended services removed from report and all exports; recommendation rows reveal on scroll |
 | **3.19** | Trust & Credibility lens: four weighted reads on the same eight scores, computed in code, with tagged observable findings |
 | **3.17–3.18** | Footprint switched from evidence counts to a 0–10 presence scale; hub shows the brand; mobile breakpoints across both reports |
