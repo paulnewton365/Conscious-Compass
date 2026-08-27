@@ -1,3 +1,17 @@
+-- ⚠️  SUPERSEDED — DO NOT RUN THIS FILE
+--
+-- Use docs/SUPABASE_SETUP.sql instead. It is a single idempotent script that
+-- creates everything this file creates PLUS the four weekly cache tables,
+-- client_reports, and the assessor_name, rubric_version and last_login
+-- columns, all of which are only commented-out instructions below.
+--
+-- Running this file on a fresh project produces a database the app cannot
+-- use: the cache tables never get created, so Stay Conscious, Landscape and
+-- Insights all fail, and saving a compass result fails on the missing
+-- assessor_name column.
+--
+-- Kept for reference only. Verify any database with docs/SUPABASE_VERIFY.sql.
+
 -- Conscious Compass Database Schema
 -- Run this in your Supabase SQL Editor (Database → SQL Editor)
 

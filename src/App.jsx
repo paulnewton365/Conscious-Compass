@@ -6252,6 +6252,7 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
     recommendations: true,
     conclusions: true,
     justification: false,
+    challenges: false,
     trust: true,
     footprint: true,
     campaign: true,
@@ -7393,6 +7394,37 @@ ${assessments.earnedMedia.autoAssessContent}
 ${assessments.earnedMedia.content}
 `;
       }
+    }
+
+    // Challenge history. Internal copy only; the client payload excludes it.
+    if (scores.challenges?.length) {
+      reportText += `
+${divider}
+CHALLENGE HISTORY
+${divider}
+This assessment was rescored after additional context was put to it.
+`;
+      scores.challenges.forEach((c, i) => {
+        const when = (() => { const d = new Date(c.date); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }); })();
+        const delta = (c.afterOverall ?? 0) - (c.beforeOverall ?? 0);
+        const moved = ATTRIBUTES
+          .map(a => { const d = c.attributeDeltas?.[a.id];
+            return d && d.before != null && d.after != null && d.before !== d.after
+              ? `${a.name} ${d.before} to ${d.after}` : null; })
+          .filter(Boolean);
+        reportText += `
+${subDivider}
+Challenge ${i + 1}${c.author ? ` — ${c.author}` : ''}${when ? `, ${when}` : ''}
+${subDivider}
+Overall: ${c.beforeOverall} to ${c.afterOverall}${delta === 0 ? ' (no change)' : ` (${delta > 0 ? '+' : ''}${delta})`}
+${moved.length ? `Attributes moved: ${moved.join('; ')}` : 'No individual attribute changed'}
+${c.sectionsRevised?.length ? `Readouts revised: ${c.sectionsRevised.join(', ')}` : ''}
+`;
+        [['Business context', c.businessContext], ['Website', c.website], ['Social media', c.social],
+         ['AI reputation', c.aiReputation], ['Earned media', c.earnedMedia]]
+          .filter(([, v]) => v && v.trim())
+          .forEach(([label, v]) => { reportText += `\n[${label}]\n${v.trim()}\n`; });
+      });
     }
 
     reportText += `
@@ -8557,6 +8589,38 @@ ${content.slice(0, 8000)}`;
             h2('Conclusion'),
             body(clean(scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building a more conscious brand presence. By focusing on the recommendations outlined above, the brand can elevate its market position and create deeper connections with its audience.`), 200),
 
+            // ── CHALLENGE HISTORY ────────────────────────────────
+            // Internal document only. A rescored report must not leave the
+            // building without the record of what moved it.
+            ...(scores.challenges?.length ? [
+              h2('Challenge History'),
+              body(`This assessment was rescored after additional context was put to it. Each challenge below records what was submitted, which readouts were revised, and how the scores moved.`, 160),
+              ...scores.challenges.flatMap((c, i) => {
+                const when = (() => { const d = new Date(c.date); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }); })();
+                const delta = (c.afterOverall ?? 0) - (c.beforeOverall ?? 0);
+                const moved = ATTRIBUTES
+                  .map(a => { const d = c.attributeDeltas?.[a.id];
+                    return d && d.before != null && d.after != null && d.before !== d.after
+                      ? `${a.name} ${d.before} to ${d.after}` : null; })
+                  .filter(Boolean);
+                const fields = [
+                  ['Business context', c.businessContext], ['Website', c.website],
+                  ['Social media', c.social], ['AI reputation', c.aiReputation],
+                  ['Earned media', c.earnedMedia],
+                ].filter(([, v]) => v && v.trim());
+                return [
+                  new Paragraph({ spacing: { before: 200, after: 60 }, children: [
+                    new TextRun({ text: `Challenge ${i + 1}${c.author ? ` — ${clean(c.author)}` : ''}${when ? `, ${when}` : ''}`, bold: true, size: 22, font: 'Inter' })]}),
+                  body(`Overall score ${c.beforeOverall} to ${c.afterOverall}${delta === 0 ? ' (no change)' : ` (${delta > 0 ? '+' : ''}${delta})`}.${moved.length ? ` Attributes moved: ${moved.join('; ')}.` : ' No individual attribute changed.'}${c.sectionsRevised?.length ? ` Readouts revised: ${c.sectionsRevised.join(', ')}.` : ''}`, 60),
+                  ...fields.flatMap(([label, v]) => [
+                    new Paragraph({ spacing: { before: 100, after: 40 }, children: [
+                      new TextRun({ text: label, bold: true, size: 20, font: 'Inter' })]}),
+                    body(clean(v), 40),
+                  ]),
+                ];
+              }),
+            ] : []),
+
           ],
         }],
       });
@@ -8586,6 +8650,7 @@ ${content.slice(0, 8000)}`;
     'Recommendations',
     'Conclusions',
     'Score justification',
+    ...(scores?.challenges?.length ? ['Challenge history'] : []),
     'What we evaluated',
     'Assessment readouts',
   ];
@@ -8646,6 +8711,19 @@ ${content.slice(0, 8000)}`;
         <p className="text-[14px] font-semibold text-[#68655B] mt-5" style={{ letterSpacing: '.04em' }}>
           Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
         </p>
+
+        {scores?.challenges?.length > 0 && (
+          <button
+            onClick={() => { setExpandedSections(prev => ({ ...prev, challenges: true }));
+              setTimeout(() => document.getElementById('dc-challenge-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); }}
+            title="This report has been rescored after a challenge. Jump to the history."
+            className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 text-[11px] font-bold hover:opacity-80 transition-opacity"
+            style={{ background: '#DEE42F', color: '#0B0B0B', letterSpacing: '.06em' }}>
+            <MessageSquareWarning className="w-3 h-3" />
+            RESCORED AFTER CHALLENGE
+            {scores.challenges.length > 1 ? ` ×${scores.challenges.length}` : ''}
+          </button>
+        )}
 
       </header>
 
@@ -8901,6 +8979,20 @@ ${content.slice(0, 8000)}`;
               <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
                 {scores.justification}
               </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Challenge history. Its own section rather than a block inside Score
+          justification, which was gated on justification text existing: with no
+          justification the audit trail vanished even though the data was there. */}
+      {scores.challenges?.length > 0 && (
+        <div className="dc-reveal" id="dc-challenge-history" style={{ marginTop: 80 }}>
+          <SectionHead label="Challenge history" open={expandedSections.challenges}
+            onToggle={() => toggleSection('challenges')} />
+          {expandedSections.challenges && (
+            <div className="animate-fade-in" style={{ marginTop: 32 }}>
               <ChallengeHistory challenges={scores.challenges} />
             </div>
           )}
@@ -9206,7 +9298,8 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
     
     const headers = ['Brand Name', 'Business Model', 'Industry', 'Total Score', 'Maturity Level', 
       'AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL',
-      'Assessor', 'Date', 'Rubric Version', 'Manual Entry'];
+      'Assessor', 'Date', 'Rubric Version', 'Manual Entry',
+      'Challenges', 'Challenge Net Delta', 'Campaign Level'];
     
     const rows = results.map(r => [
       r.brandName,
@@ -9226,6 +9319,9 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       r.savedAt ? new Date(r.savedAt).toLocaleDateString() : '',
       r.rubricVersion || '2.3',
       r.isManual ? 'Yes' : 'No',
+      r.scores?.challenge?.count ?? 0,
+      r.scores?.challenge?.count ? (r.scores.challenge.netDelta ?? 0) : '',
+      r.scores?.campaignLevel ?? '',
     ]);
     
     const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
@@ -9425,6 +9521,13 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       <div className="text-[11px] text-[#B3B0A8] mt-0.5">
                         {r.businessModel?.toUpperCase()} · v{r.rubricVersion || '2.3'}
                         {r.isManual ? ' · Manual' : ''}
+                        {r.scores?.challenge?.count ? (
+                          <span style={{ color: '#68655B', fontWeight: 700 }}>
+                            {' · '}Challenged{r.scores.challenge.count > 1 ? ` ×${r.scores.challenge.count}` : ''}
+                            {Number.isFinite(r.scores.challenge.netDelta) && r.scores.challenge.netDelta !== 0
+                              ? ` (${r.scores.challenge.netDelta > 0 ? '+' : ''}${r.scores.challenge.netDelta})` : ''}
+                          </span>
+                        ) : ''}
                       </div>
                     </div>
                     <div className="dc-col-hide text-[13px] text-[#4A4840] truncate">{r.industry}</div>
@@ -11712,7 +11815,8 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
     const industryName = a.project.industry && a.project.industry !== 'other'
       ? INDUSTRIES.find(ind => ind.id === a.project.industry)?.name || a.project.industry
       : null;
-    return { a, i, overallScore, maturity, industryName };
+    const challengeCount = a.scores?.challenges?.length || 0;
+    return { a, i, overallScore, maturity, industryName, challengeCount };
   });
 
   // Unique industries and stages for filter dropdowns
@@ -11867,12 +11971,22 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             </div>
           ) : (
             <div className="space-y-2">
-              {filtered.map(({ a, i, overallScore, maturity, industryName }) => (
+              {filtered.map(({ a, i, overallScore, maturity, industryName, challengeCount }) => (
                 <div key={i} className="dc-listrow">
                   <div className="flex items-center gap-6 flex-1 min-w-0">
                     {/* Brand info */}
                     <div className="flex-1 min-w-0">
-                      <div className="dc-listrow-t truncate">{a.project.brandName}</div>
+                      <div className="dc-listrow-t truncate flex items-center gap-2">
+                        <span className="truncate">{a.project.brandName}</span>
+                        {challengeCount > 0 && (
+                          <span title={`Rescored after ${challengeCount} challenge${challengeCount > 1 ? 's' : ''}`}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold flex-shrink-0"
+                            style={{ background: '#DEE42F', color: '#0B0B0B', letterSpacing: '.06em' }}>
+                            <MessageSquareWarning className="w-2.5 h-2.5" />
+                            CHALLENGED{challengeCount > 1 ? ` ×${challengeCount}` : ''}
+                          </span>
+                        )}
+                      </div>
                       <div className="dc-listrow-m">
                         {[industryName, maturity?.name, a.project.date ? `saved ${a.project.date}` : null]
                           .filter(Boolean).join(' · ') || '—'}
@@ -14260,19 +14374,31 @@ function AppContent() {
             SENTIENT: scores.SENTIENT?.score || 0,
             VISIONARY: scores.VISIONARY?.score || 0,
             INTENTIONAL: scores.INTENTIONAL?.score || 0,
+            // These three ride INSIDE the scores blob, which is the only JSONB
+            // column saveCompassResult copies. Sitting alongside it, as campaign
+            // level and footprint levels previously did, they were silently
+            // dropped before reaching Supabase: the object is rebuilt field by
+            // field there, not spread.
+            campaignLevel: scores.campaignCoherence?.level ?? null,
+            // Presence levels rather than evidence counts: these are comparable
+            // between brands and between assessors, so a sector average means
+            // something. Counts measured assessor thoroughness.
+            footprintLevels: scores.footprint?.channels
+              ? Object.fromEntries(FOOTPRINT_CHANNELS.map(c => [c.id, Number(scores.footprint.channels[c.id]?.level) || 0]))
+              : null,
+            // Enough to ask, across the portfolio, how often challenges move a
+            // score and in which direction. The submitted text stays out: it is
+            // often client-confidential and has no place in a results table.
+            challenge: scores.challenges?.length
+              ? {
+                  count: scores.challenges.length,
+                  netDelta: (scores.challenges[scores.challenges.length - 1].afterOverall ?? 0)
+                    - (scores.challenges[0].beforeOverall ?? 0),
+                  lastAt: scores.challenges[scores.challenges.length - 1].date || null,
+                }
+              : null,
           },
           servicesRecommended: serviceRecs.slice(0, 6).map(r => r.service?.name || '').filter(Boolean),
-          // Campaign level rides inside scores so it persists without a schema
-          // change and becomes benchmarkable once enough assessments carry it.
-          campaignLevel: scores.campaignCoherence?.level ?? null,
-          // Channel shares only. Enough to build sector footprint averages
-          // later without carrying the prose evidence into the results table.
-          // Presence levels rather than evidence counts: these are comparable
-          // between brands and between assessors, so a sector average means
-          // something. Counts measured assessor thoroughness.
-          footprintLevels: scores.footprint?.channels
-            ? Object.fromEntries(FOOTPRINT_CHANNELS.map(c => [c.id, Number(scores.footprint.channels[c.id]?.level) || 0]))
-            : null,
           isManual: false,
           assessorName: profile?.full_name || user?.email?.split('@')[0] || 'Unknown',
           rubricVersion: FRAMEWORK_VERSION,

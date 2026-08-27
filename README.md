@@ -59,7 +59,7 @@ Press coverage, podcast appearances, keynotes, awards — last 3 months.
 Two of these carry the most diagnostic weight. The **announcement-driven versus third-party** split separates coverage the brand caused from coverage it earned; a brand whose coverage collapses between announcements has media relations, not media standing. **Credibility built** is judged separately from visibility, because a brand can be highly visible and hold no credibility at all.
 
 ### 6. Report Generation
-Twelve numbered sections: results at a glance, brand maturity, attribute analysis, brand footprint, campaign coherence, trust and credibility, benchmark comparison, recommendations, conclusions, score justification, what we evaluated, and assessment readouts. Exports as DOCX or copied text.
+Twelve numbered sections: results at a glance, brand maturity, attribute analysis, brand footprint, campaign coherence, trust and credibility, benchmark comparison, recommendations, conclusions, score justification, what we evaluated, and assessment readouts. A thirteenth, **challenge history**, appears at position 11 only when the report has been challenged. Exports as DOCX or copied text.
 
 The client-facing report carries the same treatment as the internal one but omits recommendations, services, score justification, readouts and the campaign score adjustment.
 
@@ -76,7 +76,20 @@ Only the sections actually filled in are revised. Filling Website alone revises 
 
 Every field except Business Context asks for a publicly checkable source: a URL, a publication, a date, a named source. Claims without one are discounted and flagged as unverified in the findings. This is deliberate — the framework scores publicly observable evidence, and a challenge field is otherwise an open door to private client information that would quietly change what the score means. Business Context is treated as background informing interpretation, not as evidence of performance in its own right.
 
-Challenges persist on the assessment and are carried into every subsequent rescore, including the Rescore button on Saved Assessments. A **Challenge history** block under Score justification records who submitted what, which readouts were revised, the overall score before and after, and the per-attribute deltas. It is excluded from the client payload.
+Challenges persist on the assessment and are carried into every subsequent rescore, including the Rescore button on Saved Assessments.
+
+**Where the record lives.** A challenged report is marked in four places, so the trail cannot be missed:
+
+| Where | What it shows |
+|-------|---------------|
+| Report masthead | A lime **Rescored after challenge** marker with the count. Clicking it jumps to the history |
+| Report section 11 | **Challenge history** — who, when, the full submitted text, readouts revised, overall before and after, per-attribute deltas |
+| DOCX and Copy Full Report | The same history, internal exports only |
+| Saved Assessments and Compass Results | A **Challenged** badge per row, with net delta on the results ledger |
+
+Portfolio-level, `compass_results` stores a summary inside the `scores` blob: `{ count, netDelta, lastAt }`, plus the same for `campaignLevel` and `footprintLevels`. The submitted text is deliberately excluded — it is often client-confidential and has no place in a results table. Challenge count and net delta are also columns in the CSV export, which is where a calibration question ("do challenges systematically raise scores?") would start once enough assessments carry the data.
+
+The client payload excludes challenge history entirely.
 
 Because a challenge revises rather than regenerates, it cannot recover something never captured at assessment time. If a whole channel was missed, re-run that assessment step instead.
 
@@ -318,7 +331,13 @@ All cron endpoints also accept POST for admin-triggered force refresh. Schedules
 
 ## Database (Supabase)
 
-Schema is in `supabase-schema.sql`. Run the full file in Supabase SQL Editor on first setup, then apply the migration blocks at the bottom for subsequent deploys.
+Run **`docs/SUPABASE_SETUP.sql`** in the Supabase SQL Editor. One file, everything: tables, columns, indexes, RLS policies, the signup trigger and a profile backfill.
+
+It is idempotent and safe on a live database. Every statement uses `IF NOT EXISTS` or drops and recreates, so running it twice changes nothing the second time. It creates no data and drops none. It also upgrades an older database in place, adding the cache tables, `client_reports`, and the `assessor_name`, `rubric_version` and `last_login` columns.
+
+Then run **`docs/SUPABASE_VERIFY.sql`** to confirm. It reads only and reports PASS or the specific problem for 49 checks: tables, columns, RLS enabled, policies present, the signup trigger, cascade delete, at least one admin, orphaned auth users, and duplicate brand names that would break saving.
+
+`supabase-schema.sql` and the two files in `docs/CLIENT_REPORTS_MIGRATION*.sql` are superseded and kept for reference. Do not run them: the original left the cache tables and several columns as commented-out instructions, so a fresh deploy from it produced a database the app could not use.
 
 ### Tables
 
@@ -331,9 +350,9 @@ Schema is in `supabase-schema.sql`. Run the full file in Supabase SQL Editor on 
 | `landscape_analysis_cache` | Weekly AI landscape analysis with generated headline (single row, id=1) |
 | `insights_analysis_cache` | Weekly story opportunities (single row, id=1) |
 | `stay_conscious_newsletter` | Composed weekly newsletter (single row, id=1) |
-| `client_reports` | Gated client links. Stores ciphertext only; see `docs/CLIENT_REPORTS_MIGRATION.sql` |
+| `client_reports` | Gated client links. Stores ciphertext only |
 
-Benchmark snapshots and campaign levels are stored inside existing JSON blobs rather than new columns, so they needed no migration. `client_reports` is the one table added since v2.x — run both migration files in `docs/` in order.
+Benchmark snapshots, campaign levels, footprint levels and the challenge summary are all stored inside existing JSON blobs rather than new columns, so they need no migration as the framework grows.
 
 All cache tables use RLS with a read-only policy for authenticated users. Serverless functions write using the service role key, which bypasses RLS.
 
@@ -370,9 +389,11 @@ conscious-compass/
 │   ├── index.css           # Global styles and design tokens
 │   └── main.jsx            # Entry point
 ├── docs/
+│   ├── SUPABASE_SETUP.sql              # Run this: complete idempotent setup
+│   ├── SUPABASE_VERIFY.sql             # Run after: 49 checks, reads only
 │   ├── WHAT_IS_A_CONSCIOUS_BRAND.md
-│   ├── CLIENT_REPORTS_MIGRATION.sql    # Run first: client_reports table and RLS
-│   └── CLIENT_REPORTS_MIGRATION_2.sql  # Run second: issuer name and update policy
+│   ├── CLIENT_REPORTS_MIGRATION.sql    # Superseded, reference only
+│   └── CLIENT_REPORTS_MIGRATION_2.sql  # Superseded, reference only
 ├── public/
 │   └── fully-conscious-badge.png
 ├── scripts/
@@ -440,7 +461,7 @@ Three breakpoints, defined against semantic classes in `index.css` rather than i
 
 | Version | Key Changes |
 |---------|-------------|
-| **3.28** | Challenge loop: additional context weighed as evidence, revising only the sections filled in, then rescoring, with full challenge history. Language pass: substitutions, phrasing and bounded tone dials, merged back through a code allowlist so results cannot move. Assessor note on client links, attributed and previewed. No-social-presence declaration scored as an absence. Auto-checked social findings correctable in place. Website content now a hard gate, with a Jina scrape helper. Earned media auto-assess rebuilt to ten web-searched dimensions. Fixed: PageSpeed auto-fetch (missing `vercel.json` entry) and three-digit score clipping; saved-assessment delete passing an array index instead of the assessment; client links modal wrapping |
+| **3.28** | Challenge audit trail surfaced: own numbered report section, masthead marker, DOCX and copy-text export, badges on Saved Assessments and Compass Results, and a summary persisted to `compass_results` for portfolio calibration. Fixed a pre-existing bug silently dropping `campaignLevel` and `footprintLevels` before they reached Supabase. Challenge loop: additional context weighed as evidence, revising only the sections filled in, then rescoring, with full challenge history. Language pass: substitutions, phrasing and bounded tone dials, merged back through a code allowlist so results cannot move. Assessor note on client links, attributed and previewed. No-social-presence declaration scored as an absence. Auto-checked social findings correctable in place. Website content now a hard gate, with a Jina scrape helper. Earned media auto-assess rebuilt to ten web-searched dimensions. Fixed: PageSpeed auto-fetch (missing `vercel.json` entry) and three-digit score clipping; saved-assessment delete passing an array index instead of the assessment; client links modal wrapping |
 | **3.21–3.27** | Not recorded here |
 | **3.20** | Recommended services removed from report and all exports; recommendation rows reveal on scroll |
 | **3.19** | Trust & Credibility lens: four weighted reads on the same eight scores, computed in code, with tagged observable findings |
