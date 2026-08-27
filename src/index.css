@@ -604,3 +604,35 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
    already sits beneath its own segment of the bar. */
 .dc-band-range { display: none; }
 @media (max-width: 760px) { .dc-band-range { display: inline; } }
+
+/* ── Loading skeletons ──────────────────────────────────────
+   Shown while saved work is being fetched. An empty list and a not yet
+   loaded list look identical, and on a page of saved assessments that reads
+   as data loss, so the wait is made visible instead.
+   Square, on the paper palette, no radius: same rules as everything else. */
+.dc-skel {
+  background: linear-gradient(90deg,
+    var(--antenna-rule-light) 0%,
+    #EEECE6 40%,
+    var(--antenna-rule-light) 80%);
+  background-size: 300% 100%;
+  animation: dc-skel-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes dc-skel-shimmer {
+  0%   { background-position: 120% 0; }
+  100% { background-position: -40% 0; }
+}
+
+/* A pulsing placeholder is exactly the kind of motion this setting is for. */
+@media (prefers-reduced-motion: reduce) {
+  .dc-skel { animation: none; background: var(--antenna-rule-light); }
+}
+
+/* Visually hidden, still read aloud. The skeleton means nothing to a screen
+   reader without it. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}

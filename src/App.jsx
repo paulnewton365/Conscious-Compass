@@ -9226,7 +9226,7 @@ ${content.slice(0, 8000)}`;
 }
 
 // Compass Results Page - Summary grid of all assessments
-function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateResults, profile, user }) {
+function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateResults, profile, user, loading = false, loadError = null, onRetry }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [expandedRows, setExpandedRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -9473,7 +9473,11 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
           </div>
         )}
 
-        {results.length === 0 ? (
+        {loading && results.length === 0 ? (
+          <SkeletonRows count={6} />
+        ) : loadError && results.length === 0 ? (
+          <LoadFailed message={loadError} onRetry={onRetry} />
+        ) : results.length === 0 ? (
           <div className="card text-center">
             <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results Yet</h3>
@@ -10975,7 +10979,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 }
 
 // Brand Comparison Page
-function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyDeepLink }) {
+function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyDeepLink, loading = false, loadError = null, onRetry }) {
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [filterIndustry, setFilterIndustry] = useState('all');
   const [filterBusinessModel, setFilterBusinessModel] = useState('all');
@@ -11123,7 +11127,11 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
           </button>
         </div>
 
-        {results.length === 0 ? (
+        {loading && results.length === 0 ? (
+          <SkeletonRows count={5} />
+        ) : loadError && results.length === 0 ? (
+          <LoadFailed message={loadError} onRetry={onRetry} />
+        ) : results.length === 0 ? (
           <div className="bg-white" style={{ padding: 22 }}>
             <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results to Compare</h3>
@@ -11776,7 +11784,66 @@ function ClientLinksModal({ assessments, profile, onClose }) {
   ), document.body);
 }
 
-function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore, profile }) {
+// ── Loading and failure states for data-backed lists ───────────
+// An empty list and a not-yet-loaded list look identical, and on a page of
+// saved work that reads as data loss. These make the difference explicit.
+function SkeletonRows({ count = 4, variant = 'list' }) {
+  const Bar = ({ w, h = 12, mt = 0 }) => (
+    <div className="dc-skel" style={{ width: w, height: h, marginTop: mt }} />
+  );
+  return (
+    <div className="space-y-2" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading saved work</span>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="bg-white flex items-center justify-between gap-6"
+          style={{ padding: variant === 'card' ? '20px 24px' : '18px 20px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Bar w={`${38 + ((i * 13) % 26)}%`} h={15} />
+            <Bar w={`${52 + ((i * 7) % 18)}%`} h={11} mt={9} />
+          </div>
+          <Bar w={44} h={28} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RefreshFailedBanner({ onRetry }) {
+  return (
+    <div className="bg-white flex items-center justify-between gap-4 mb-2"
+      style={{ padding: '12px 16px', borderLeft: '4px solid #C2680C' }}>
+      <p className="text-xs text-[#4A4840]">
+        Could not refresh from the server. The list below may be out of date.
+      </p>
+      {onRetry && (
+        <button onClick={onRetry} className="text-xs font-semibold text-[#0B0B0B] underline flex-shrink-0">
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
+function LoadFailed({ message, onRetry }) {
+  return (
+    <div className="bg-white" style={{ padding: 32, textAlign: 'center' }}>
+      <AlertCircle className="w-8 h-8 mx-auto mb-3" style={{ color: '#B23A3A' }} />
+      <h3 className="dc-kicker text-[#0B0B0B] mb-2">Could not load your saved work</h3>
+      <p className="text-sm text-[#68655B] mb-1" style={{ maxWidth: '52ch', margin: '0 auto' }}>
+        Nothing has been lost. The list could not be fetched, which is usually a
+        connection problem.
+      </p>
+      {message && <p className="text-xs text-[#B3B0A8] mt-2">{message}</p>}
+      {onRetry && (
+        <button onClick={onRetry} className="btn-secondary text-sm px-4 py-2 mt-4 inline-flex items-center gap-2">
+          <RefreshCw className="w-3.5 h-3.5" /> Try again
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore, profile, loading = false, loadError = null, onRetry }) {
   const fileInputRef = useRef(null);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
   const [search, setSearch] = useState('');
@@ -11902,7 +11969,13 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
         </div>
       )}
 
-      {assessments.length === 0 ? (
+      {loadError && assessments.length > 0 && <RefreshFailedBanner onRetry={onRetry} />}
+
+      {loading && assessments.length === 0 ? (
+        <SkeletonRows count={5} />
+      ) : loadError && assessments.length === 0 ? (
+        <LoadFailed message={loadError} onRetry={onRetry} />
+      ) : assessments.length === 0 ? (
         <div className="card text-center">
           <FileText className="w-12 h-12 text-[#DCDAD3] mx-auto mb-4" />
           <h3 className="dc-kicker text-[#0B0B0B] mb-2">No Saved Assessments</h3>
@@ -14095,6 +14168,11 @@ function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [savedAssessments, setSavedAssessments] = useState([]);
   const [compassResults, setCompassResults] = useState([]);
+  // Starts true: the first fetch is kicked off on mount, so an empty list on
+  // the first render means "not loaded yet", not "nothing saved". Showing the
+  // empty state during that window reads as data loss.
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState(null);
   const [sharedReport, setSharedReport] = useState(null);
   const [lastAutoSave, setLastAutoSave] = useState(null);
   const [draftRestoreOffer, setDraftRestoreOffer] = useState(null); // { project, assessments, scores, currentStep, savedAt }
@@ -14165,7 +14243,12 @@ function AppContent() {
           setUser(session.user);
           setProfile(profileData);
           loadDataFromSupabase();
+        } else {
+          setDataLoading(false);
         }
+      } else {
+        // No session: the auth page renders instead, and nothing is loading.
+        setDataLoading(false);
       }
       setAuthLoading(false);
     };
@@ -14182,6 +14265,8 @@ function AppContent() {
   }, []);
 
   const loadDataFromSupabase = async () => {
+    setDataLoading(true);
+    setDataError(null);
     try {
       const { data: resultsData } = await fetchCompassResults();
       if (resultsData) {
@@ -14216,6 +14301,11 @@ function AppContent() {
       }
     } catch (err) {
       console.error('Error loading data:', err);
+      // A failed fetch previously left the lists empty, which is
+      // indistinguishable from having nothing saved. Say so instead.
+      setDataError(err?.message || 'Could not reach the server.');
+    } finally {
+      setDataLoading(false);
     }
 
     if (!localStorage.getItem('conscious-compass-onboarded')) {
@@ -14617,6 +14707,9 @@ function AppContent() {
           profile={profile}
           initialTab={compareInitialTab}
           copyDeepLink={copyDeepLink}
+          loading={dataLoading}
+          loadError={dataError}
+          onRetry={loadDataFromSupabase}
         />
       </div>
     );
@@ -14646,6 +14739,9 @@ function AppContent() {
           onUpdateResults={async (val) => { if (val === null) await loadDataFromSupabase(); else setCompassResults(val); }}
           profile={profile}
           user={user}
+          loading={dataLoading}
+          loadError={dataError}
+          onRetry={loadDataFromSupabase}
         />
       </div>
     );
@@ -14679,6 +14775,9 @@ function AppContent() {
           onShare={handleShare}
           onRescore={handleRescore}
           profile={profile}
+          loading={dataLoading}
+          loadError={dataError}
+          onRetry={loadDataFromSupabase}
         />
       </div>
     );
