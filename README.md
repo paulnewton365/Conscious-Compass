@@ -39,7 +39,7 @@ Name, website URL, business model (B2B / B2C / B2B2C), industry.
 - SEO visibility analysis
 - Technical audit (PageSpeed scores, auto-fetched or entered by hand)
 - Recognition & credentials
-- Website content, required before proceeding. **Scrape with Jina** opens `https://r.jina.ai/{url}` for the primary site, which returns clean text to paste back. The same prefix works on any URL.
+- Website content, required before proceeding. **Scrape with Jina** opens `https://r.jina.ai/{url}` for the primary site homepage only, which returns clean text to paste back. The same prefix works on any URL, so subpages can be pulled by hand.
 
 ### 3. Social Media Assessment
 A structured Health Check populates the channel fields automatically; auto-checked content and assessor notes are held in separate fields so a re-run never overwrites typed input. Channel coverage is gated by business model rather than a fixed platform list. Campaign and paid signals are captured in one block, which feeds Campaign Coherence. **Run Everything** chains the health check, trademark search and analysis in one pass.

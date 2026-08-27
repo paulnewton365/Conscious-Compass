@@ -3778,7 +3778,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         <p className="text-xs text-[#68655B] mb-3">
           To pull clean text from any page, put{' '}
           <a href="https://r.jina.ai/" target="_blank" rel="noopener noreferrer" className="text-[#0B0B0B] underline">https://r.jina.ai/</a>
-          {' '}in front of its URL. The button above does this for the primary site.
+          {' '}in front of its URL. The button above does this for the primary site homepage only.
         </p>
         <textarea 
           value={websiteContent} 
