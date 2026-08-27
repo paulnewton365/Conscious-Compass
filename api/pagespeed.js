@@ -28,16 +28,55 @@ export default async function handler(req, res) {
     if (apiKey) {
       apiUrl += `&key=${apiKey}`;
     }
-    
-    const response = await fetch(apiUrl);
-    const data = await response.json();
+
+    // A four-category desktop Lighthouse run can take well over a minute.
+    // Abort a little short of the function ceiling so we can return a useful
+    // error instead of letting the platform kill us with an HTML 504.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 240000);
+
+    let response;
+    try {
+      response = await fetch(apiUrl, { signal: controller.signal });
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return res.status(504).json({
+          error: 'Google took too long to analyse this site. Large or slow pages sometimes time out, try again or use the Manual button.'
+        });
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    // Google does not always return JSON on failure. Parsing blind turns a
+    // readable upstream error into an unreadable syntax error.
+    const rawBody = await response.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      return res.status(502).json({
+        error: `PageSpeed returned an unreadable response (HTTP ${response.status}). Try again shortly.`
+      });
+    }
 
     // Check for API errors
     if (data.error) {
       console.error('PageSpeed API error:', data.error);
-      return res.status(response.status).json({ 
-        error: data.error.message || 'PageSpeed API error',
-        code: data.error.code
+      const code = data.error.code;
+      let message = data.error.message || 'PageSpeed API error';
+      if (code === 429 || /quota|rate limit|RESOURCE_EXHAUSTED/i.test(message)) {
+        message = 'PageSpeed rate limit reached. Wait a minute and try again.';
+      } else if (code === 403) {
+        message = 'PageSpeed rejected the request. The API key may be missing, invalid, or not enabled for the PageSpeed Insights API.';
+      }
+      return res.status(response.status || 500).json({ error: message, code });
+    }
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: `PageSpeed request failed (HTTP ${response.status}).`
       });
     }
 

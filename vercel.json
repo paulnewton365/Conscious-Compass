@@ -9,6 +9,9 @@
     "api/search.js": {
       "maxDuration": 120
     },
+    "api/pagespeed.js": {
+      "maxDuration": 300
+    },
     "api/refresh-stay-conscious.js": {
       "maxDuration": 300
     },

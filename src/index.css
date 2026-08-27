@@ -179,6 +179,14 @@ body {
     border: 1px solid var(--antenna-rule);
     color: var(--antenna-ink);
   }
+
+  /* Number spinners eat horizontal space inside the tight score inputs,
+     which is what clipped three-digit PageSpeed scores. */
+  :where(input[type='number'])::-webkit-outer-spin-button,
+  :where(input[type='number'])::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 /* App-wide heading scale from the redesign */
