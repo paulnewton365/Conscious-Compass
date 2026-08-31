@@ -284,6 +284,7 @@ The Anthropic API key is stored server-side only via Vercel serverless functions
 | `SUPABASE_SERVICE_ROLE_KEY` | Required — serverless functions write to cache tables |
 | `SUPABASE_URL` | Required — server-side equivalent used by the cron endpoints |
 | `GOOGLE_PAGESPEED_API_KEY` | Optional — without it PageSpeed is IP rate-limited and will 429 |
+| `JINA_API_KEY` | Optional — raises the rate limit on homepage scraping for property consistency |
 | `GOOGLE_YOUTUBE_API_KEY` | Optional — verified YouTube channel metrics in the social health check |
 | `GOOGLE_KNOWLEDGE_GRAPH_API_KEY` | Optional — Knowledge Graph presence lookup |
 | `GOOGLE_SEARCH_API_KEY` | Optional — search snapshot in AI Reputation |
@@ -307,6 +308,7 @@ Browser → /api/claude (Vercel serverless) → Anthropic API
 |----------|---------|-----|
 | `api/claude.js` | 300 | The scoring prompt runs to roughly 6,000 tokens and asks for about 3,400 back |
 | `api/pagespeed.js` | 300 | A four-category desktop Lighthouse run regularly takes 30 to 90 seconds |
+| `api/scrape.js` | 60 | Jina Reader fetch for property homepage text |
 | `api/search.js` | 120 | Web search round trip |
 | All four cron endpoints | 300 | Weekly AI composition |
 
@@ -366,6 +368,7 @@ conscious-compass/
 │   ├── claude.js                            # Anthropic API proxy
 │   ├── knowledge-graph.js                   # Google Knowledge Graph lookup
 │   ├── pagespeed.js                         # PageSpeed Insights proxy
+│   ├── scrape.js                            # Jina Reader proxy for homepage text
 │   ├── youtube.js                           # YouTube Data API proxy
 │   ├── search.js                            # Web search proxy
 │   ├── stay-conscious.js                    # GET brand intelligence cache
@@ -461,7 +464,7 @@ Three breakpoints, defined against semantic classes in `index.css` rather than i
 
 | Version | Key Changes |
 |---------|-------------|
-| **3.28** | US English enforced across both reports: spellings corrected in all report copy, rubric text and prompts, a US English rule injected into every model call path, and all date formatting moved from en-GB to en-US. Challenge audit trail surfaced: own numbered report section, masthead marker, DOCX and copy-text export, badges on Saved Assessments and Compass Results, and a summary persisted to `compass_results` for portfolio calibration. Fixed a pre-existing bug silently dropping `campaignLevel` and `footprintLevels` before they reached Supabase. Challenge loop: additional context weighed as evidence, revising only the sections filled in, then rescoring, with full challenge history. Language pass: substitutions, phrasing and bounded tone dials, merged back through a code allowlist so results cannot move. Assessor note on client links, attributed and previewed. No-social-presence declaration scored as an absence. Auto-checked social findings correctable in place. Website content now a hard gate, with a Jina scrape helper. Earned media auto-assess rebuilt to ten web-searched dimensions. Fixed: PageSpeed auto-fetch (missing `vercel.json` entry) and three-digit score clipping; saved-assessment delete passing an array index instead of the assessment; client links modal wrapping |
+| **3.28** | Website assessment refined: the headline stat row now mirrors the technical audit exactly (it previously showed a different subset and could disagree with it), and property consistency analysis now scrapes and translates each property's homepage to compare real proposition, claims and tone instead of listing generic risks. Fixed the underlying cause: every `setAssessmentData` call spread a stale snapshot, so whichever handler finished last silently reverted the others. US English enforced across both reports: spellings corrected in all report copy, rubric text and prompts, a US English rule injected into every model call path, and all date formatting moved from en-GB to en-US. Challenge audit trail surfaced: own numbered report section, masthead marker, DOCX and copy-text export, badges on Saved Assessments and Compass Results, and a summary persisted to `compass_results` for portfolio calibration. Fixed a pre-existing bug silently dropping `campaignLevel` and `footprintLevels` before they reached Supabase. Challenge loop: additional context weighed as evidence, revising only the sections filled in, then rescoring, with full challenge history. Language pass: substitutions, phrasing and bounded tone dials, merged back through a code allowlist so results cannot move. Assessor note on client links, attributed and previewed. No-social-presence declaration scored as an absence. Auto-checked social findings correctable in place. Website content now a hard gate, with a Jina scrape helper. Earned media auto-assess rebuilt to ten web-searched dimensions. Fixed: PageSpeed auto-fetch (missing `vercel.json` entry) and three-digit score clipping; saved-assessment delete passing an array index instead of the assessment; client links modal wrapping |
 | **3.21–3.27** | Not recorded here |
 | **3.20** | Recommended services removed from report and all exports; recommendation rows reveal on scroll |
 | **3.19** | Trust & Credibility lens: four weighted reads on the same eight scores, computed in code, with tagged observable findings |

@@ -12,6 +12,9 @@
     "api/pagespeed.js": {
       "maxDuration": 300
     },
+    "api/scrape.js": {
+      "maxDuration": 60
+    },
     "api/refresh-stay-conscious.js": {
       "maxDuration": 300
     },

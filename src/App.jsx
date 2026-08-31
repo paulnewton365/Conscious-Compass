@@ -2733,6 +2733,7 @@ function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, 
   const [propertyData, setPropertyData] = useState(assessmentData.propertyData || {});
   const [isRunning, setIsRunning] = useState(false);
   const [isAnalysing, setIsAnalysing] = useState(false);
+  const [progress, setProgress] = useState('');
   const [error, setError] = useState(null);
 
   if (additionalProperties.length === 0) return null;
@@ -2753,25 +2754,46 @@ function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, 
     ...additionalProperties,
   ];
 
+  // How many properties we actually have readable text for. The analysis is
+  // gated on this: with no content it can only restate generic risk.
+  const scrapedCount = allProperties.filter(p => propertyData[p.url]?.content).length;
+
   const runPropertyChecks = async () => {
     setIsRunning(true);
     setError(null);
 
-    // Start with existing data + primary scores from techAudit
     const results = {
       ...propertyData,
       [project.websiteUrl]: { ...primaryScores },
     };
 
-    // Only fetch additional properties — primary comes from TechnicalAuditSection
+    // The consistency analysis is only as good as what it can actually read.
+    // Scoring numbers alone produce generic "here is what to look for" advice,
+    // so every property's homepage text is pulled here too.
+    const scrape = async (u) => {
+      try {
+        const r = await fetch(`/api/scrape?url=${encodeURIComponent(u)}&maxChars=9000`);
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || d.error) return { content: null, contentError: d.error || `HTTP ${r.status}` };
+        return { content: d.text, contentChars: d.chars, contentTruncated: !!d.truncated, contentError: null };
+      } catch (e) {
+        return { content: null, contentError: e.message || 'Could not read the page.' };
+      }
+    };
+
+    // Primary homepage: PageSpeed comes from the technical audit, but the text
+    // has to be fetched here because nothing else has it.
+    setProgress('Reading the primary site...');
+    results[project.websiteUrl] = { ...results[project.websiteUrl], ...(await scrape(project.websiteUrl)) };
+
     for (const prop of additionalProperties) {
       if (!prop.url) continue;
+      setProgress(`Checking ${prop.label || prop.url}...`);
       try {
         const psRes = await fetch(`/api/pagespeed?url=${encodeURIComponent(prop.url)}`);
         if (!psRes.ok) throw new Error(`PageSpeed returned ${psRes.status}`);
         const psData = await psRes.json();
         if (psData.error) throw new Error(psData.error);
-        // Proxy returns pre-processed { scores: { performance, accessibility, seo, bestPractices } }
         const s = psData.scores || {};
         results[prop.url] = {
           ...results[prop.url],
@@ -2784,11 +2806,14 @@ function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, 
         results[prop.url] = { ...results[prop.url], fetched: false, error: true, errorMsg: e.message };
         setError(`Failed to fetch scores for ${prop.url}: ${e.message}`);
       }
+      // Scrape regardless of whether PageSpeed succeeded. A slow site can still
+      // be read, and the content comparison is the more useful half.
+      results[prop.url] = { ...results[prop.url], ...(await scrape(prop.url)) };
     }
 
-    // Update both state and assessmentData with the same object to avoid stale closure
+    setProgress('');
     setPropertyData(results);
-    setAssessmentData({ ...assessmentData, propertyData: results });
+    setAssessmentData({ propertyData: results });
     setIsRunning(false);
   };
 
@@ -2798,32 +2823,45 @@ function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, 
 
     const propSummary = allProperties.map(p => {
       const d = propertyData[p.url] || {};
-      return `${p.label || p.type} (${p.url}): type=${p.type}${p.language ? ', language='+p.language : ''}, performance=${d.performance ?? 'n/a'}, seo=${d.seo ?? 'n/a'}`;
+      return `${p.label || p.type} (${p.url}): type=${p.type}${p.language ? ', language='+p.language : ''}, performance=${d.performance ?? 'n/a'}, seo=${d.seo ?? 'n/a'}, accessibility=${d.accessibility ?? 'n/a'}`;
     }).join('\n');
 
-    const prompt = `You are a senior brand strategist assessing the digital estate consistency of ${project.brandName}.
+    const others = allProperties.filter(p => p.url !== project.websiteUrl);
+
+    const contentBlocks = allProperties.map(p => {
+      const d = propertyData[p.url] || {};
+      const head = `--- ${p.label || p.type} | ${p.url}${p.language ? ` | stated language: ${p.language}` : ''}${p.url === project.websiteUrl ? ' | THIS IS THE REFERENCE PROPERTY' : ''} ---`;
+      if (!d.content) return `${head}\n[No readable content. ${d.contentError || 'Not scraped.'} Do not infer this property's content.]`;
+      return `${head}\n${d.content}${d.contentTruncated ? '\n[truncated]' : ''}`;
+    }).join('\n\n');
+
+    const prompt = `You are a senior brand strategist assessing the digital estate of ${project.brandName}.
 
 The brand has ${allProperties.length} digital properties:
 ${propSummary}
 
-Primary site PageSpeed scores:
-Performance: ${propertyData[project.websiteUrl]?.performance ?? 'n/a'}
-SEO: ${propertyData[project.websiteUrl]?.seo ?? 'n/a'}
-Accessibility: ${propertyData[project.websiteUrl]?.accessibility ?? 'n/a'}
+Below is the actual homepage text scraped from each property. Where a property is in another language, translate it into English yourself before comparing, then compare the substance. Work from what is on the pages, not from what is usually true of multi-market websites.
 
-Analyze cross-property consistency across four dimensions. Write in plain prose, no bullet points, no em dashes. Write in US English throughout, using American spelling and date conventions.
+${contentBlocks}
+
+Compare every other property against the reference property and report what you actually find. Write in plain prose, no bullet points, no em dashes. Write in US English throughout, using American spelling and date conventions.
+
+PROPOSITION AND POSITIONING
+State the reference site's core proposition in one sentence, in its own words. Then, for each other property, state that property's proposition in one sentence, translated into English where needed. Say plainly whether it is the same proposition, a narrower or broader one, or a different one. Quote the specific headline or phrase that shows the difference, giving the original wording and your translation. Where a market is being sold something materially different, that is the finding: name it.
+
+MESSAGE AND CLAIMS
+Compare the substantive claims each property makes: what the brand says it does, who it says it serves, the proof points, the numbers, the certifications, the guarantees. Identify claims present on the reference site and missing elsewhere, claims made elsewhere that the reference site does not make, and any claim that has changed in strength or meaning in translation. Contradictions between markets are the highest value finding here, so look for them specifically.
+
+BRAND AND TONE
+Compare naming, terminology, and voice. Is the brand described with the same language across properties, or has each market invented its own? Are product and service names consistent, translated, or replaced? Is the tone the same register, or is one market notably more formal, more promotional, or more cautious than the reference? Judge whether a reader moving between these properties would recognize one brand.
+
+LOCALIZATION QUALITY
+${others.some(p => p.type === 'translated') ? 'For each translated property, judge whether this reads as originally written in that language or as translated English. Point to specific evidence: literal renderings that a native speaker would not use, English terms left untranslated, idioms carried across, formatting or date conventions from the source language. Say whether the translation preserves the brand voice or flattens it.' : 'No property is marked as translated. Assess whether the regional or sub-brand properties nevertheless read as genuinely distinct or as copies of the reference site.'}
 
 TECHNICAL CONSISTENCY
-How consistent are performance, SEO, and accessibility scores across properties? Flag significant deviations.
+Compare performance, SEO, and accessibility across properties. Flag deviations large enough to matter for the markets they serve, and say which property is worst served.
 
-BRAND CONSISTENCY
-Based on the property types and any translated versions, what risks exist for brand, visual, and tone-of-voice inconsistency? What should the assessor look for?
-
-MESSAGE CONSISTENCY
-What risks exist for inconsistent positioning, claims, or CTA language across properties? Especially flag translated sites.
-
-LOCALISATION QUALITY
-${additionalProperties.some(p => p.type === 'translated') ? 'For translated properties: what specific checks should the assessor conduct to verify translation quality, brand voice preservation, and local SEO?' : 'No translated properties identified. Note any regional properties and what consistency checks apply.'}
+Every finding must point to something in the text above. Where a property could not be read, say so and exclude it rather than guessing. Do not pad any section with generic advice about what an assessor should check: report what these properties actually say.
 
 End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining why.`;
 
@@ -2832,21 +2870,21 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
       const useProxy = !storedKey || storedKey === 'PROXY';
       let text = '';
       if (useProxy) {
-        const res = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, max_tokens: 1200, temperature: 0 }) });
+        const res = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, max_tokens: 4000, temperature: 0 }) });
         const d = await res.json();
         text = d.text || d.content?.[0]?.text || '';
       } else {
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': storedKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1200, temperature: 0, messages: [{ role: 'user', content: prompt }] }),
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, temperature: 0, messages: [{ role: 'user', content: prompt }] }),
         });
         const d = await res.json();
         text = d.content?.[0]?.text || '';
       }
       const updated = { ...propertyData, consistencyAnalysis: text };
       setPropertyData(updated);
-      setAssessmentData({ ...assessmentData, propertyData: updated });
+      setAssessmentData({ propertyData: updated });
     } catch (e) {
       setError('Analysis failed: ' + e.message);
     }
@@ -2949,7 +2987,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
       </div>
 
       <p className="text-[10px] text-[#999] mb-3">
-        Primary site scores are read from the Technical Performance Audit above — run that first. Fetch All Scores only queries additional properties.
+        Primary site scores are read from the Technical Performance Audit above, so run that first. Fetch reads every property's homepage text as well, which is what the consistency analysis compares.
       </p>
 
       <div className="flex gap-2 flex-wrap">
@@ -2958,16 +2996,29 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
           disabled={isRunning}
           className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
         >
-          {isRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> Fetching scores...</> : <><RefreshCw className="w-4 h-4" /> Fetch All Scores</>}
+          {isRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> {progress || 'Fetching...'}</> : <><RefreshCw className="w-4 h-4" /> Fetch Scores &amp; Content</>}
         </button>
         <button
           onClick={runConsistencyAnalysis}
-          disabled={isAnalysing}
+          disabled={isAnalysing || scrapedCount === 0}
+          title={scrapedCount === 0 ? 'Run Fetch Scores & Content first so there is page content to compare' : undefined}
           className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
         >
-          {isAnalysing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Sparkles className="w-4 h-4" /> Consistency Analysis</>}
+          {isAnalysing ? <><Loader2 className="w-4 h-4 animate-spin" /> Comparing properties...</> : <><Sparkles className="w-4 h-4" /> Consistency Analysis</>}
         </button>
       </div>
+
+      {scrapedCount > 0 && (
+        <p className="text-xs text-[#68655B] mt-2">
+          Homepage content read from {scrapedCount} of {allProperties.length} properties.
+          {scrapedCount < allProperties.length && ' Properties that could not be read are excluded from the comparison rather than guessed at.'}
+        </p>
+      )}
+      {scrapedCount === 0 && !isRunning && (
+        <p className="text-xs text-[#68655B] mt-2">
+          Fetch scores and content first. Without the page text the analysis can only describe risks in general terms.
+        </p>
+      )}
 
       {error && <p className="text-xs text-[#B23A3A] mt-2">{error}</p>}
 
@@ -3018,7 +3069,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
     
     // Only save to assessment if at least one score is entered
     const hasScores = Object.values(updated.scores).some(s => s !== '' && s !== undefined);
-    setAssessmentData({ ...assessmentData, techAudit: hasScores ? updated : null });
+    setAssessmentData({ techAudit: hasScores ? updated : null });
   };
 
   const fetchPageSpeedScores = async () => {
@@ -3064,7 +3115,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
         };
         
         setTechAudit(updated);
-        setAssessmentData({ ...assessmentData, techAudit: updated });
+        setAssessmentData({ techAudit: updated });
       } else {
         throw new Error('Could not analyze this website');
       }
@@ -3219,7 +3270,7 @@ Format your response as a concise bulleted list grouped by category. Include dat
 
       const result = await callClaude(prompt, apiKey);
       setCredentialsContent(result);
-      setAssessmentData({ ...assessmentData, credentialsContent: result });
+      setAssessmentData({ credentialsContent: result });
     } catch (e) { 
       setError('Failed to search credentials: ' + e.message); 
     }
@@ -3306,7 +3357,7 @@ When assessing brand authenticity (REFLECTIVE) and experience excellence (ATTENT
 Conclude with an Overall Website Brand Score (1 to 10), a 2 to 3 sentence executive summary of the site's brand effectiveness, and the single most important improvement priority that would have the greatest impact on brand strength and audience experience.`;
 
       const result = await callClaude(prompt, apiKey);
-      setAssessmentData({ ...assessmentData, autoAssessContent: result });
+      setAssessmentData({ autoAssessContent: result });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -3369,7 +3420,7 @@ Keep the assessment concise but insightful. Focus on qualitative analysis since 
 
       const result = await callClaude(prompt, apiKey);
       setSeoAssessment(result);
-      setAssessmentData({ ...assessmentData, seoAssessment: result });
+      setAssessmentData({ seoAssessment: result });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -3404,7 +3455,7 @@ Keep the assessment concise but insightful. Focus on qualitative analysis since 
     })).then(newImages => {
       const updatedImages = [...images, ...newImages].slice(0, 4);
       setImages(updatedImages);
-      setAssessmentData({ ...assessmentData, images: updatedImages });
+      setAssessmentData({ images: updatedImages });
       setIsCompressing(false);
     });
   };
@@ -3412,7 +3463,7 @@ Keep the assessment concise but insightful. Focus on qualitative analysis since 
   const removeImage = (index) => {
     const updatedImages = images.filter((_, i) => i !== index);
     setImages(updatedImages);
-    setAssessmentData({ ...assessmentData, images: updatedImages });
+    setAssessmentData({ images: updatedImages });
   };
 
   const runAnalysis = async () => {
@@ -3560,9 +3611,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 - 3-5 PRIORITY IMPROVEMENTS (specific, actionable recommendations including brand architecture if unclear)`;
 
       const result = await callClaude(prompt, apiKey, images[0], images.slice(1));
-      setAssessmentData({ 
-        ...assessmentData, 
-        status: 'complete', 
+      setAssessmentData({ status: 'complete', 
         content: result, 
         images, 
         pagesReviewed, 
@@ -3635,11 +3684,15 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       <CompletionIndicator items={completionItems} />
 
       {/* Headline technical stats, per the design: the numbers that decide
-          Attentive and Cogent, surfaced at the top rather than buried. */}
-      <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', marginBottom: 2 }}>
-        <StatBlock value={assessmentData.techAudit?.scores?.performance} label="PageSpeed performance" />
+          Attentive and Cogent, surfaced at the top rather than buried.
+          These mirror the Technical Performance Audit below exactly, same four
+          metrics under the same labels. They previously showed a different
+          subset, which read as two sections disagreeing about the same site. */}
+      <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', marginBottom: 2 }}>
+        <StatBlock value={assessmentData.techAudit?.scores?.performance} label="Performance" />
         <StatBlock value={assessmentData.techAudit?.scores?.accessibility} label="Accessibility" />
-        <StatBlock value={assessmentData.techAudit?.scores?.seo} label="Technical SEO" />
+        <StatBlock value={assessmentData.techAudit?.scores?.bestPractices} label="Best practices" />
+        <StatBlock value={assessmentData.techAudit?.scores?.seo} label="SEO" />
         <StatBlock value={seoVisibilityScore} label="SEO visibility" />
       </div>
 
@@ -3684,7 +3737,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         <input 
           type="text" 
           value={pagesReviewed} 
-          onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ ...assessmentData, pagesReviewed: e.target.value }); }}
+          onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ pagesReviewed: e.target.value }); }}
           placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact"
           className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]"
         />
@@ -3709,7 +3762,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         <p className="text-sm text-[#68655B] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
         <textarea 
           value={credentialsContent} 
-          onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ ...assessmentData, credentialsContent: e.target.value }); }}
+          onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ credentialsContent: e.target.value }); }}
           placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor..."
           className={`w-full h-24 px-4 py-3 border border-[#DCDAD3]  bg-white resize-none ${credentialsContent ? 'bg-[#E4E2DC]' : ''}`}
         />
@@ -3783,7 +3836,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         </p>
         <textarea 
           value={websiteContent} 
-          onChange={(e) => { setWebsiteContent(e.target.value); setAssessmentData({ ...assessmentData, websiteContent: e.target.value }); }}
+          onChange={(e) => { setWebsiteContent(e.target.value); setAssessmentData({ websiteContent: e.target.value }); }}
           placeholder="Paste key website copy here...
 
 Example:
@@ -3871,7 +3924,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
         <p className="text-sm text-[#68655B] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
+        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
           placeholder="Add your observations about:
 - Brand alignment issues
 - Storytelling strengths/weaknesses  
@@ -4047,7 +4100,7 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
 
   const updateInput = (key, value) => {
     setInputs(prev => ({ ...prev, [key]: value }));
-    setAssessmentData({ ...assessmentData, [key]: value });
+    setAssessmentData({ [key]: value });
   };
 
   // Corrections to auto-checked findings are written back to the same field,
@@ -4057,7 +4110,7 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     const edited = { ...autoEdited, [key]: true };
     setInputs(prev => ({ ...prev, [key]: value }));
     setAutoEdited(edited);
-    setAssessmentData({ ...assessmentData, [key]: value, socialAutoEdited: edited });
+    setAssessmentData({ [key]: value, socialAutoEdited: edited });
   };
 
   // ── Social Media Health Check ──────────────────────────────
@@ -4155,7 +4208,7 @@ Return ONLY valid JSON, no prose before or after, no markdown fences. Where some
       // losing the work entirely. The assessor still gets something to read.
       if (!parsed) {
         setSocialHealthCheck(raw);
-        setAssessmentData({ ...assessmentData, socialHealthCheck: raw, socialHealthCheckStructured: null });
+        setAssessmentData({ socialHealthCheck: raw, socialHealthCheckStructured: null });
         if (!silent) setError('Health check returned unstructured results. The findings are shown below but could not be filed into the channel fields automatically.');
         return;
       }
@@ -4209,9 +4262,7 @@ Return ONLY valid JSON, no prose before or after, no markdown fences. Where some
       setInputs(prev => ({ ...prev, ...autoFields }));
       setAutoEdited({});
       setEditingAuto({});
-      setAssessmentData({
-        ...assessmentData,
-        ...autoFields,
+      setAssessmentData({ ...autoFields,
         socialHealthCheck: readable,
         socialHealthCheckStructured: parsed,
         socialAutoEdited: {},
@@ -4353,7 +4404,7 @@ Format as a concise summary. If no trademark registrations are found, state that
     })).then(newImages => {
       const updatedImages = [...instagramImages, ...newImages];
       setInstagramImages(updatedImages);
-      setAssessmentData({ ...assessmentData, instagramImages: updatedImages });
+      setAssessmentData({ instagramImages: updatedImages });
       setIsCompressing(false);
     });
   };
@@ -4361,7 +4412,7 @@ Format as a concise summary. If no trademark registrations are found, state that
   const removeInstagramImage = (index) => {
     const updatedImages = instagramImages.filter((_, i) => i !== index);
     setInstagramImages(updatedImages);
-    setAssessmentData({ ...assessmentData, instagramImages: updatedImages });
+    setAssessmentData({ instagramImages: updatedImages });
   };
 
   const handleImageUpload = (e) => {
@@ -4391,7 +4442,7 @@ Format as a concise summary. If no trademark registrations are found, state that
     })).then(newImages => {
       const updatedImages = [...images, ...newImages].slice(0, SOCIAL_SCREENSHOT_MAX);
       setImages(updatedImages);
-      setAssessmentData({ ...assessmentData, socialImages: updatedImages });
+      setAssessmentData({ socialImages: updatedImages });
       setIsCompressing(false);
     });
   };
@@ -4399,7 +4450,7 @@ Format as a concise summary. If no trademark registrations are found, state that
   const removeImage = (index) => {
     const updatedImages = images.filter((_, i) => i !== index);
     setImages(updatedImages);
-    setAssessmentData({ ...assessmentData, socialImages: updatedImages });
+    setAssessmentData({ socialImages: updatedImages });
   };
 
   const runAnalysis = async ({ silent = false } = {}) => {
@@ -4514,7 +4565,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       const allImages = [...images, ...instagramImages];
       const result = await callClaude(prompt, apiKey, allImages[0], allImages.slice(1));
-      setAssessmentData({ ...assessmentData, status: 'complete', content: result, ...inputs, socialImages: images, instagramImages, noSocialPresence, noSocialNote, socialAutoEdited: autoEdited });
+      setAssessmentData({ status: 'complete', content: result, ...inputs, socialImages: images, instagramImages, noSocialPresence, noSocialNote, socialAutoEdited: autoEdited });
     } catch (err) {
       setError(err.message);
       if (silent) throw err;
@@ -4690,7 +4741,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             onChange={(e) => {
               const checked = e.target.checked;
               setNoSocialPresence(checked);
-              setAssessmentData({ ...assessmentData, noSocialPresence: checked, noSocialNote });
+              setAssessmentData({ noSocialPresence: checked, noSocialNote });
             }}
             className="mt-1 w-4 h-4 flex-shrink-0"
           />
@@ -4711,7 +4762,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               value={noSocialNote}
               onChange={(e) => {
                 setNoSocialNote(e.target.value);
-                setAssessmentData({ ...assessmentData, noSocialPresence: true, noSocialNote: e.target.value });
+                setAssessmentData({ noSocialPresence: true, noSocialNote: e.target.value });
               }}
               placeholder={`Record which platforms you searched for ${project.brandName} and what you found. Note any dormant, abandoned or unofficial accounts, employee or founder accounts standing in for the brand, and anything that suggests a presence exists but could not be verified.`}
               className="w-full h-24 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
@@ -5103,7 +5154,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {/* Observations - Simplified */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Notes</div>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
+        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
           placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
       </div>
 
@@ -5334,9 +5385,7 @@ ${reputationFlags ? `7. Reputation Risks — How do the identified flags (${repu
 Write in flowing prose. Refer to the AI engines collectively. Do not state or imply a specific number of them, and never write phrases like "the four AI systems" or "all four engines". Treat the search, news, review, Wikipedia, and community signals as part of the same review, not as afterthoughts. If reputation flags were provided, they must be woven throughout the analysis, not confined to a single section.`;
 
       const result = await callClaude(prompt, apiKey);
-      setAssessmentData({
-        ...assessmentData,
-        status: 'complete',
+      setAssessmentData({ status: 'complete',
         content: result,
         claudeManual: manualInput.claude,
         geminiManual: manualInput.gemini,
@@ -5437,7 +5486,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               onChange={(e) => {
                 const val = e.target.value;
                 setManualInput(m => ({ ...m, [engine.key]: val }));
-                setAssessmentData({ ...assessmentData, [`${engine.key}Manual`]: val });
+                setAssessmentData({ [`${engine.key}Manual`]: val });
               }}
               placeholder={`Paste ${engine.name}'s response here...`}
               className={`w-full h-24 px-3 py-2 border border-[#DCDAD3]  text-sm ${manualInput[engine.key] ? 'bg-[#E4E2DC]' : 'bg-white'}`}
@@ -5462,7 +5511,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
             </div>
             <textarea
               value={wikipediaContent}
-              onChange={(e) => { setWikipediaContent(e.target.value); setAssessmentData({ ...assessmentData, wikipediaContent: e.target.value }); }}
+              onChange={(e) => { setWikipediaContent(e.target.value); setAssessmentData({ wikipediaContent: e.target.value }); }}
               placeholder={`Does ${project.brandName} have a Wikipedia page? Record what it says — or note its absence.`}
               className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
             />
@@ -5482,7 +5531,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
             </div>
             <textarea
               value={redditContent}
-              onChange={(e) => { setRedditContent(e.target.value); setAssessmentData({ ...assessmentData, redditAnswersContent: e.target.value }); }}
+              onChange={(e) => { setRedditContent(e.target.value); setAssessmentData({ redditAnswersContent: e.target.value }); }}
               placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation and community perception...`}
               className="w-full h-24 px-3 py-2 border border-[#DCDAD3] bg-[#F2F0EA] resize-none text-sm"
             />
@@ -5513,7 +5562,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               </div>
               <textarea
                 value={row.value}
-                onChange={(e) => { row.setter(e.target.value); setAssessmentData({ ...assessmentData, [row.field]: e.target.value }); }}
+                onChange={(e) => { row.setter(e.target.value); setAssessmentData({ [row.field]: e.target.value }); }}
                 placeholder={row.placeholder}
                 className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
               />
@@ -5526,7 +5575,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
         <p className="text-sm text-[#68655B] mb-3">Your observations will be included in the synthesis.</p>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
+        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
           placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
       </div>
 
@@ -5670,7 +5719,7 @@ Do not use em-dashes anywhere in your response.`;
         throw new Error('Auto-assess returned an empty response. Try again.');
       }
 
-      setAssessmentData({ ...assessmentData, autoAssessContent: result });
+      setAssessmentData({ autoAssessContent: result });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -5711,7 +5760,7 @@ Provide a comprehensive earned media assessment:
 Write in flowing prose with specific examples. End with priority recommendations.`;
 
       const result = await callClaude(prompt, apiKey);
-      setAssessmentData({ ...assessmentData, status: 'complete', content: result, coveragePaste });
+      setAssessmentData({ status: 'complete', content: result, coveragePaste });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -5825,7 +5874,7 @@ Example:
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
         <p className="text-sm text-[#68655B] mb-3">Your observations will be included in the analysis and final report.</p>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ ...assessmentData, observations: e.target.value })}
+        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
           placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
       </div>
 
