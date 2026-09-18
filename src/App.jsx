@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, computeTrustLenses, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, getPresenceLevel, hasFootprintData, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
-import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type } from 'lucide-react';
+import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
@@ -9,7 +9,8 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.28.0';
+const APP_VERSION = '3.29.0';
+import { TEASER_SOURCES, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
   supabase, 
   signUp, 
@@ -28,7 +29,11 @@ import {
   makeAdmin,
   removeAdmin,
   setReadonly,
-  deleteUser
+  deleteUser,
+  fetchTeasers,
+  fetchTeaser,
+  saveTeaser,
+  deleteTeaser
 } from './lib/supabase';
 
 // Use 'PROXY' to route through serverless function (secure, API key on server)
@@ -2162,7 +2167,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
 }
 
 // Header
-function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResults, onComparison, onStayConscious, activePage, lastAutoSave, user, profile, onLogout, onAdmin }) {
+function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResults, onComparison, onStayConscious, onTeaser, activePage, lastAutoSave, user, profile, onLogout, onAdmin }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
@@ -2205,6 +2210,12 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
           <button onClick={onSavedAssessments} className={navBtnClass('saved')}>
             <FileText className="w-4 h-4" /> Saved
           </button>
+          {/* Teaser is admin only. RLS enforces the same rule at the database. */}
+          {profile?.is_admin && onTeaser && (
+            <button onClick={onTeaser} className={navBtnClass('teaser')}>
+              <Zap className="w-4 h-4" /> Teaser
+            </button>
+          )}
           {!isReadonly && (
             <button onClick={onNewAssessment} className="flex items-center gap-2 bg-[#DEE42F] text-[#0B0B0B] hover:bg-[#CBD11F] px-4 py-2.5 ml-2 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors">
               <Plus className="w-4 h-4" /> New
@@ -2259,6 +2270,11 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
           <button onClick={() => { onSavedAssessments(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('saved')}>
             <FileText className="w-5 h-5" /> Saved Assessments
           </button>
+          {profile?.is_admin && onTeaser && (
+            <button onClick={() => { onTeaser(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('teaser')}>
+              <Zap className="w-5 h-5" /> Teaser
+            </button>
+          )}
           {!isReadonly && (
             <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#DEE42F] text-[#0B0B0B] transition-colors">
               <Plus className="w-5 h-5" /> New Assessment
@@ -14128,6 +14144,566 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
 }
 
 // Main App
+// ═════════════════════════════════════════════════════════════
+// TEASER (v3.29) — admin-only quick indicative reads for prospects.
+// Pipeline, prompts and every calculation live in src/lib/teaser.js.
+// ═════════════════════════════════════════════════════════════
+
+const TEASER_STAGE_LABEL = { running: 'Gathering', ok: 'Done', failed: 'Failed', pending: 'Waiting' };
+
+// Web-searched evidence call through the proxy. Returns the model's text only.
+async function teaserSearchCall(prompt, { searchUses = 5, maxTokens = 3000 } = {}) {
+  const response = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, useWebSearch: true, searchUses, max_tokens: maxTokens }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Search failed (HTTP ${response.status}).`);
+  }
+  const data = await response.json();
+  return data.content?.filter(b => b.type === 'text').map(b => b.text).join('\n') || data.text || '';
+}
+
+function ConfidencePill({ level }) {
+  const l = level || 'low';
+  return (
+    <span className="dc-meta" style={{
+      whiteSpace: 'nowrap',
+      background: l === 'high' ? '#0B0B0B' : 'transparent',
+      color: l === 'high' ? '#FFFFFF' : l === 'low' ? '#B3B0A8' : '#68655B',
+      borderColor: l === 'high' ? '#0B0B0B' : '#DCDAD3',
+      borderStyle: l === 'low' ? 'dashed' : 'solid',
+    }}>
+      {l} confidence
+    </span>
+  );
+}
+
+// The prospect-facing view. Renders ONLY from makeTeaserClientPayload output,
+// so context, evidence text and authorship cannot appear here.
+function TeaserClientView({ payload, chartRef = null }) {
+  if (!payload) return null;
+  const { scores } = payload;
+  const date = payload.scoredAt ? new Date(payload.scoredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  const lensStats = [
+    ['Credibility', payload.lensScores?.credibility],
+    ['Trust', payload.lensScores?.trust],
+    ['Reputation', payload.lensScores?.reputation],
+    ['Authenticity', payload.lensScores?.authenticity],
+  ];
+
+  return (
+    <div data-teaser-client-view="true">
+      <div className="dc-kicker" style={{ marginBottom: 10 }}>Indicative Compass read{date ? ` · ${date}` : ''}</div>
+      <h1 className="dc-h2" style={{ marginBottom: 6 }}>{payload.brandName}</h1>
+      <div className="text-sm text-[#68655B]" style={{ marginBottom: 28 }}>{payload.websiteUrl}</div>
+
+      {payload.thinRecord && (
+        <div className="dc-block" style={{ marginBottom: 2, borderLeft: '6px solid #DEE42F' }}>
+          <div className="dc-kicker-sm" style={{ marginBottom: 6 }}>Thin public record</div>
+          <p className="text-sm text-[#4A4840]">Several scores rest on limited public evidence. That is a finding in itself: if this read found little, so will a prospect, a journalist or an AI engine.</p>
+        </div>
+      )}
+
+      <div className="dc-block" style={{ marginBottom: 2 }}>
+        {payload.headline && <p style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.01em', lineHeight: 1.3, marginBottom: 12 }}>{payload.headline}</p>}
+        {payload.summary && <p className="dc-lead" style={{ maxWidth: '72ch', fontSize: 16 }}>{payload.summary}</p>}
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2 }}>
+        <div className="bg-[#0B0B0B]" style={{ flex: '1 1 200px', minWidth: 0, padding: '20px 22px' }}>
+          <div style={{ fontSize: 44, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, color: '#DEE42F' }}>
+            {payload.overall}<span style={{ fontSize: 16, fontWeight: 500, color: '#9A9A94' }}>/100</span>
+          </div>
+          <div className="dc-kicker-sm" style={{ marginTop: 8, color: '#9A9A94' }}>Overall · {payload.stage}</div>
+        </div>
+        {lensStats.map(([label, v]) => <StatBlock key={label} value={v} label={label} />)}
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2 }}>
+        <div className="bg-white" ref={chartRef} style={{ flex: '1 1 340px', minWidth: 0, padding: 20, display: 'flex', justifyContent: 'center' }}>
+          <SpiderChart scores={scores} size={340} animate={false} />
+        </div>
+        <div className="dc-stack" style={{ flex: '2 1 420px', minWidth: 0 }}>
+          {ATTRIBUTES.map(attr => (
+            <div key={attr.id} className="dc-block" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 18px' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, minWidth: 44, color: scoreColor(scores[attr.id]?.score) }}>
+                {scores[attr.id]?.score}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontWeight: 700 }}>{attr.name}</span>
+                    <span className="text-xs text-[#68655B]" style={{ marginLeft: 8 }}>{attr.fullName}</span>
+                  </div>
+                  <ConfidencePill level={scores[attr.id]?.confidence} />
+                </div>
+                {scores[attr.id]?.rationale && <p className="text-sm text-[#4A4840]" style={{ marginTop: 6, lineHeight: 1.5 }}>{scores[attr.id].rationale}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <section style={{ marginTop: 40 }}>
+        <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={payload.overall} />
+      </section>
+
+      {payload.fullAssessmentWouldResolve?.length > 0 && (
+        <section style={{ marginTop: 40 }}>
+          <div className="dc-kicker" style={{ marginBottom: 14 }}>What a full assessment would settle</div>
+          <div className="dc-stack">
+            {payload.fullAssessmentWouldResolve.map((q, i) => (
+              <div key={i} className="dc-block" style={{ display: 'flex', gap: 14 }}>
+                <span style={{ fontWeight: 700, color: '#68655B' }}>{String(i + 1).padStart(2, '0')}</span>
+                <span>{q}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section style={{ marginTop: 40 }}>
+        <div className="dc-block text-sm text-[#68655B]" style={{ lineHeight: 1.6 }}>
+          <div className="dc-kicker-sm" style={{ marginBottom: 6 }}>How this read was made</div>
+          An indicative read against the Conscious Compass framework v{payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the same rubric as the full assessment. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// One-page-plus PDF for the prospect, built from the client payload only.
+// download:false returns the document instead of saving it (used by tests).
+async function exportTeaserPdf(payload, chartEl, { download = true } = {}) {
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 16;
+  const contentW = pageW - margin * 2;
+  let y = margin;
+  const ensure = (h) => { if (y + h > pageH - 16) { pdf.addPage(); y = margin; } };
+  const para = (text, size = 10, style = 'normal', color = [74, 72, 64], gap = 2) => {
+    pdf.setFont('helvetica', style); pdf.setFontSize(size); pdf.setTextColor(...color);
+    const lines = pdf.splitTextToSize(String(text || ''), contentW);
+    lines.forEach(line => { ensure(size * 0.45); pdf.text(line, margin, y); y += size * 0.45; });
+    y += gap;
+  };
+  const kicker = (text) => { ensure(10); y += 3; para(text.toUpperCase(), 8, 'bold', [104, 101, 91], 1); };
+  const rgb = (n) => (n >= 70 ? [15, 122, 79] : n >= 45 ? [194, 104, 12] : [212, 37, 40]);
+  const date = payload.scoredAt ? new Date(payload.scoredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+  kicker(`Indicative Compass read${date ? ` - ${date}` : ''}`);
+  para(payload.brandName, 22, 'bold', [11, 11, 11], 1);
+  para(payload.websiteUrl, 9, 'normal', [104, 101, 91], 4);
+
+  // Score strip: overall on ink, then the four lenses.
+  ensure(24);
+  const cells = [['Overall', payload.overall], ['Credibility', payload.lensScores.credibility], ['Trust', payload.lensScores.trust], ['Reputation', payload.lensScores.reputation], ['Authenticity', payload.lensScores.authenticity]];
+  const cw = (contentW - 4 * 1) / 5;
+  cells.forEach(([label, v], i) => {
+    const x = margin + i * (cw + 1);
+    if (i === 0) { pdf.setFillColor(11, 11, 11); } else { pdf.setFillColor(242, 240, 234); }
+    pdf.rect(x, y, cw, 22, 'F');
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(20);
+    if (i === 0) pdf.setTextColor(222, 228, 47); else pdf.setTextColor(...rgb(v));
+    pdf.text(String(v ?? '-'), x + 4, y + 11);
+    pdf.setFontSize(7); pdf.setTextColor(i === 0 ? 180 : 104, i === 0 ? 180 : 101, i === 0 ? 175 : 91);
+    pdf.text((i === 0 ? `${label} - ${payload.stage || ''}` : label).toUpperCase(), x + 4, y + 18);
+  });
+  y += 28;
+
+  if (payload.thinRecord) para('Thin public record: several scores rest on limited public evidence. If this read found little, so will a prospect, a journalist or an AI engine.', 9, 'italic', [104, 101, 91], 3);
+  if (payload.headline) para(payload.headline, 13, 'bold', [11, 11, 11], 2);
+  if (payload.summary) para(payload.summary, 10, 'normal', [74, 72, 64], 4);
+
+  if (chartEl) {
+    try {
+      const canvas = await html2canvas(chartEl, { scale: 2, backgroundColor: '#ffffff', logging: false });
+      const w = 80; const h = (canvas.height * w) / canvas.width;
+      ensure(h + 4);
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin + (contentW - w) / 2, y, w, h);
+      y += h + 4;
+    } catch (err) {
+      console.warn('Could not capture teaser chart:', err);
+    }
+  }
+
+  kicker('The eight attributes');
+  ATTRIBUTES.forEach(attr => {
+    const e = payload.scores[attr.id] || {};
+    ensure(14);
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(...rgb(e.score));
+    pdf.text(String(e.score), margin, y);
+    pdf.setTextColor(11, 11, 11);
+    pdf.text(attr.name, margin + 12, y);
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(104, 101, 91);
+    pdf.text(`${attr.fullName} - ${e.confidence || 'low'} confidence`, margin + 12 + pdf.getTextWidth(attr.name) * (8 / 11) + 14, y);
+    y += 5;
+    if (e.rationale) {
+      pdf.setFontSize(9); pdf.setTextColor(74, 72, 64);
+      pdf.splitTextToSize(e.rationale, contentW - 12).forEach(line => { ensure(4.2); pdf.text(line, margin + 12, y); y += 4.2; });
+    }
+    y += 2.5;
+  });
+
+  const findings = payload.scores.trustFindings || [];
+  if (findings.length) {
+    kicker('Trust, credibility, reputation and authenticity: the evidence');
+    findings.forEach(f => para(`${f.supports ? '+' : '-'}  ${f.text}  [${f.tags.join(', ')}]`, 9, 'normal', [74, 72, 64], 1));
+  }
+
+  if (payload.fullAssessmentWouldResolve?.length) {
+    kicker('What a full assessment would settle');
+    payload.fullAssessmentWouldResolve.forEach((q, i) => para(`${String(i + 1).padStart(2, '0')}  ${q}`, 10, 'normal', [11, 11, 11], 1.5));
+  }
+
+  kicker('How this read was made');
+  para(`An indicative read against the Conscious Compass framework v${payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the same rubric as the full assessment. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.`, 8, 'normal', [104, 101, 91], 0);
+
+  const pages = pdf.internal.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    pdf.setPage(i);
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(150, 150, 150);
+    pdf.text(`Antenna Group - Conscious Compass - Indicative read`, margin, pageH - 8);
+    pdf.text(`${i} / ${pages}`, pageW - margin, pageH - 8, { align: 'right' });
+  }
+
+  const safe = String(payload.brandName || 'brand').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+  const filename = `${safe}-Compass-Teaser.pdf`;
+  if (download) pdf.save(filename);
+  return { pdf, filename };
+}
+
+function TeaserProgress({ statuses, scoring, elapsed }) {
+  return (
+    <div className="dc-block" style={{ marginTop: 2 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div className="dc-kicker">Running teaser</div>
+        <div className="dc-kicker-sm">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</div>
+      </div>
+      <div className="dc-stack">
+        {TEASER_SOURCES.map(src => {
+          const st = statuses[src.id] || 'pending';
+          return (
+            <div key={src.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #EEECE6' }}>
+              {st === 'running' && <Loader2 className="w-4 h-4 animate-spin" />}
+              {st === 'ok' && <Check className="w-4 h-4 text-[#0F7A4F]" />}
+              {st === 'failed' && <X className="w-4 h-4 text-[#D42528]" />}
+              {st === 'pending' && <span style={{ width: 16 }} />}
+              <span style={{ flex: 1, fontWeight: 600 }}>{src.label}</span>
+              <span className="dc-kicker-sm">{TEASER_STAGE_LABEL[st]}</span>
+            </div>
+          );
+        })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+          {scoring === 'running' ? <Loader2 className="w-4 h-4 animate-spin" /> : scoring === 'ok' ? <Check className="w-4 h-4 text-[#0F7A4F]" /> : <span style={{ width: 16 }} />}
+          <span style={{ flex: 1, fontWeight: 600 }}>Scoring all eight attributes</span>
+          <span className="dc-kicker-sm">{scoring === 'running' ? 'Scoring' : scoring === 'ok' ? 'Done' : 'Waiting'}</span>
+        </div>
+      </div>
+      <p className="text-xs text-[#68655B]" style={{ marginTop: 10 }}>Sources run in parallel. Expect two to three minutes. A failed source is recorded and the read carries on without it.</p>
+    </div>
+  );
+}
+
+function TeaserReport({ record, busy, progress, error, onBack, onRescore, onRefresh, onConvert, onDelete }) {
+  const chartRef = useRef(null);
+  const payload = makeTeaserClientPayload(record);
+  const [exporting, setExporting] = useState(false);
+  const cov = evidenceCoverage(record.evidence);
+  const sources = record.evidence?.sources || {};
+  const industryName = INDUSTRIES.find(i => i.id === record.industry)?.name;
+
+  const handleExport = async () => {
+    setExporting(true);
+    try { await exportTeaserPdf(payload, chartRef.current); }
+    catch (e) { alert(`PDF export failed: ${e.message}`); }
+    finally { setExporting(false); }
+  };
+
+  return (
+    <div className="dc-wrap dc-page animate-fade-in">
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+        <button onClick={onBack} className="btn-secondary flex items-center gap-2" disabled={busy}><ArrowLeft className="w-4 h-4" /> All teasers</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {payload && <button onClick={handleExport} disabled={busy || exporting} className="btn-secondary flex items-center gap-2">{exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF</button>}
+          <button onClick={onRescore} disabled={busy || !cov.canScore} className="btn-secondary flex items-center gap-2" title="Score the stored evidence again, without new searches"><RefreshCw className="w-4 h-4" /> {payload ? 'Rescore' : 'Score'}</button>
+          <button onClick={onRefresh} disabled={busy} className="btn-secondary flex items-center gap-2" title="Gather fresh evidence, then score it"><Search className="w-4 h-4" /> Refresh evidence</button>
+          <button onClick={onConvert} disabled={busy} className="btn-primary flex items-center gap-2"><ArrowRight className="w-4 h-4" /> Full assessment</button>
+          <button onClick={onDelete} disabled={busy} className="btn-secondary flex items-center gap-2" title="Delete teaser"><Trash2 className="w-4 h-4" /></button>
+        </div>
+      </div>
+
+      {/* Internal only. Never part of the client payload or the PDF. */}
+      <div className="dc-block" style={{ marginBottom: 24, background: '#FAF9F5', border: '1px dashed #DCDAD3' }}>
+        <div className="dc-kicker-sm" style={{ marginBottom: 10 }}>Internal · not shown to the prospect</div>
+        <div className="text-sm text-[#4A4840]" style={{ display: 'grid', gap: 6 }}>
+          <div>{String(record.business_model || '').toUpperCase()}{industryName ? ` · ${industryName}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? new Date(record.evidence.gatheredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'never'}{record.converted_at ? ` · converted to full assessment ${new Date(record.converted_at).toLocaleDateString('en-US')}` : ''}</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {TEASER_SOURCES.map(src => (
+              <span key={src.id} className="dc-meta" title={sources[src.id]?.error || ''}
+                style={{ color: sources[src.id]?.status === 'ok' ? '#0F7A4F' : '#D42528', borderColor: sources[src.id]?.status === 'ok' ? '#DCDAD3' : '#D42528' }}>
+                {src.label}: {sources[src.id]?.status === 'ok' ? (src.id === 'website' ? `${sources.website.pages.length} page${sources.website.pages.length === 1 ? '' : 's'}` : 'ok') : 'failed'}
+              </span>
+            ))}
+          </div>
+          {record.context && <div><span className="font-semibold">Context:</span> {record.context}</div>}
+          {record.result?.history?.length > 0 && (
+            <div>Previous scores: {record.result.history.map(h => `${h.overall} (${new Date(h.scoredAt).toLocaleDateString('en-US')})`).join(', ')}</div>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="dc-block text-sm" style={{ marginBottom: 16, color: '#D42528', borderLeft: '4px solid #D42528' }}>{error}</div>}
+      {busy && progress}
+
+      {payload ? (
+        <TeaserClientView payload={payload} chartRef={chartRef} />
+      ) : !busy && (
+        <div className="dc-block text-[#4A4840]">Evidence is stored but this teaser has not been scored yet. {cov.canScore ? 'Use Score to run it.' : 'Too few sources returned evidence to score. Use Refresh evidence.'}</div>
+      )}
+    </div>
+  );
+}
+
+function TeaserPage({ user, profile, apiKey, onConvert }) {
+  const blank = { brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', context: '' };
+  const [list, setList] = useState([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState(null);
+  const [form, setForm] = useState(blank);
+  const [open, setOpen] = useState(null);           // full record being viewed
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [statuses, setStatuses] = useState({});
+  const [scoring, setScoring] = useState('pending');
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef(null);
+
+  const load = async () => {
+    setListLoading(true); setListError(null);
+    const { data, error: e } = await fetchTeasers();
+    if (e) setListError(e.message); else setList(data || []);
+    setListLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const startClock = () => {
+    setElapsed(0);
+    const t0 = Date.now();
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+  };
+  const stopClock = () => clearInterval(timerRef.current);
+  useEffect(() => () => clearInterval(timerRef.current), []);
+
+  const inputFrom = (rec) => ({
+    brandName: rec.brand_name,
+    websiteUrl: rec.website_url,
+    businessModel: rec.business_model,
+    industryName: INDUSTRIES.find(i => i.id === rec.industry && i.id !== 'other')?.name || '',
+    context: rec.context || '',
+  });
+
+  const callScoring = (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 8000);
+
+  // Scores whatever evidence the record holds and saves. Previous results are
+  // kept as a short history on the record so a rescore is never invisible.
+  const scoreAndSave = async (rec) => {
+    setScoring('running');
+    const result = await scoreTeaser(inputFrom(rec), rec.evidence, { callScoring });
+    setScoring('ok');
+    const prev = rec.result;
+    const history = prev ? [...(prev.history || []), { overall: prev.overall, scoredAt: prev.scoredAt, evidenceGatheredAt: rec.evidence?.gatheredAt || null }].slice(-10) : [];
+    const { data, error: e } = await saveTeaser({ ...rec, result: { ...result, history } });
+    if (e) throw new Error(`Scored, but the save failed: ${e.message}`);
+    return data;
+  };
+
+  const gather = async (rec) => {
+    setStatuses({});
+    return gatherEvidence(inputFrom(rec), {
+      fetchImpl: (url, opts) => fetch(url, opts),
+      callSearch: teaserSearchCall,
+      onProgress: (id, st) => setStatuses(prev => ({ ...prev, [id]: st })),
+    });
+  };
+
+  const runNew = async () => {
+    const errs = validateTeaserInput(form);
+    if (errs.length) { setError(errs.join(' ')); return; }
+    setBusy(true); setError(null); setScoring('pending'); startClock();
+    let saved = null;
+    try {
+      const base = {
+        brand_name: form.brandName.trim(),
+        website_url: normaliseUrl(form.websiteUrl),
+        business_model: form.businessModel,
+        industry: form.industry,
+        context: form.context.trim(),
+        created_by: user?.id,
+        created_by_name: profile?.full_name || user?.email || '',
+      };
+      const evidence = await gather(base);
+      // Save the evidence before scoring, so a failed scoring pass never
+      // throws away two minutes of gathering.
+      const first = await saveTeaser({ ...base, evidence, result: null });
+      if (first.error) throw new Error(`Evidence gathered but could not be saved: ${first.error.message}`);
+      saved = first.data;
+      setOpen(saved);
+      saved = await scoreAndSave(saved);
+      setOpen(saved);
+      setForm(blank);
+      load();
+    } catch (e) {
+      setError(e.message);
+      if (saved) { setOpen(saved); load(); }
+    } finally {
+      setBusy(false); stopClock();
+    }
+  };
+
+  const openRecord = async (id) => {
+    setError(null);
+    const { data, error: e } = await fetchTeaser(id);
+    if (e) { setError(e.message); return; }
+    setOpen(data);
+  };
+
+  const rescore = async () => {
+    setBusy(true); setError(null); setStatuses(Object.fromEntries(TEASER_SOURCES.map(s => [s.id, open.evidence?.sources?.[s.id]?.status === 'ok' ? 'ok' : 'failed'])));
+    startClock();
+    try { setOpen(await scoreAndSave(open)); load(); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); stopClock(); }
+  };
+
+  const refresh = async () => {
+    if (!confirm('Gather fresh evidence and rescore? Search results change over time, so scores may move. The current score is kept in the history.')) return;
+    setBusy(true); setError(null); setScoring('pending'); startClock();
+    try {
+      const evidence = await gather(open);
+      const withEvidence = { ...open, evidence };
+      const { data, error: e } = await saveTeaser(withEvidence);
+      if (e) throw new Error(`Evidence gathered but could not be saved: ${e.message}`);
+      setOpen(data);
+      setOpen(await scoreAndSave(data));
+      load();
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); stopClock(); }
+  };
+
+  const remove = async () => {
+    if (!confirm(`Delete the teaser for ${open.brand_name}? This cannot be undone.`)) return;
+    const { error: e } = await deleteTeaser(open.id);
+    if (e) { setError(e.message); return; }
+    setOpen(null); load();
+  };
+
+  // AppContent confirms, stamps converted_at and navigates to Setup.
+  const convert = () => onConvert(open);
+
+  const progress = <TeaserProgress statuses={statuses} scoring={scoring} elapsed={elapsed} />;
+
+  if (open) {
+    return (
+      <TeaserReport record={open} busy={busy} progress={progress} error={error}
+        onBack={() => { setOpen(null); setError(null); }}
+        onRescore={rescore} onRefresh={refresh} onConvert={convert} onDelete={remove} />
+    );
+  }
+
+  const inputCls = 'w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]';
+  return (
+    <div className="dc-wrap dc-page animate-fade-in">
+      <div className="dc-pagehead">
+        <div>
+          <h1 className="dc-h2">Teaser</h1>
+          <div className="dc-standfirst">Indicative Compass reads for new business · Admin only</div>
+        </div>
+      </div>
+
+      <div className="dc-block">
+        <div className="dc-kicker" style={{ marginBottom: 16 }}>New teaser</div>
+        <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+          <div>
+            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Brand name *</label>
+            <input className={inputCls} value={form.brandName} disabled={busy} onChange={e => setForm({ ...form, brandName: e.target.value })} placeholder="e.g., Antenna Group" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Website URL *</label>
+            <input className={inputCls} value={form.websiteUrl} disabled={busy} onChange={e => setForm({ ...form, websiteUrl: e.target.value })} placeholder="https://www.example.com" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Business model *</label>
+            <select className={inputCls} value={form.businessModel} disabled={busy} onChange={e => setForm({ ...form, businessModel: e.target.value })}>
+              {BUSINESS_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Industry</label>
+            <select className={inputCls} value={form.industry} disabled={busy} onChange={e => setForm({ ...form, industry: e.target.value })}>
+              {INDUSTRIES.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Context</label>
+          <textarea className="w-full px-4 py-3 border border-[#DCDAD3] bg-white text-sm leading-relaxed resize-y" rows={4} disabled={busy}
+            value={form.context} onChange={e => setForm({ ...form, context: e.target.value })}
+            placeholder="What we know about the prospect: what they want to achieve, the brief, key competitors, live issues." />
+          <p className="text-xs text-[#68655B] mt-1">Background only. It shapes how evidence is read, never counts as evidence, and never appears in the output.</p>
+        </div>
+        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={runNew} disabled={busy} className="btn-primary flex items-center gap-2">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} Run teaser
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="dc-block text-sm" style={{ marginTop: 2, color: '#D42528', borderLeft: '4px solid #D42528' }}>{error}</div>}
+      {busy && progress}
+
+      <section style={{ marginTop: 40 }}>
+        <div className="dc-kicker" style={{ marginBottom: 14 }}>Previous teasers</div>
+        {listLoading ? <SkeletonRows count={3} /> : listError ? <LoadFailed message={listError} onRetry={load} /> : list.length === 0 ? (
+          <div className="dc-block text-[#68655B]">No teasers yet.</div>
+        ) : (
+          <div className="dc-stack">
+            {list.map(t => (
+              <button key={t.id} onClick={() => openRecord(t.id)} disabled={busy} className="dc-block text-left hover:bg-[#FAF9F5]"
+                style={{ display: 'flex', alignItems: 'center', gap: 18, width: '100%' }}>
+                <div style={{ fontSize: 28, fontWeight: 700, minWidth: 48, letterSpacing: '-.03em', color: t.result ? scoreColor(t.result.overall) : '#B3B0A8' }}>
+                  {t.result ? t.result.overall : '—'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700 }}>{t.brand_name}</div>
+                  <div className="text-xs text-[#68655B] truncate">{t.website_url} · {t.created_by_name || 'unknown'} · {new Date(t.updated_at).toLocaleDateString('en-US')}</div>
+                </div>
+                {t.result && (
+                  <div className="hidden md:flex" style={{ gap: 14 }}>
+                    {[['CRD', t.result.lensScores?.credibility], ['TRS', t.result.lensScores?.trust], ['REP', t.result.lensScores?.reputation], ['AUT', t.result.lensScores?.authenticity]].map(([k, v]) => (
+                      <div key={k} style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 700, color: scoreColor(v) }}>{v}</div>
+                        <div className="dc-kicker-sm">{k}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {t.converted_at && <span className="dc-meta">Converted</span>}
+                {!t.result && <span className="dc-meta">Not scored</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function AppContent() {
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -14151,18 +14727,21 @@ function AppContent() {
   const [showResultsPage, setShowResultsPage] = useState(false);
   const [showComparisonPage, setShowComparisonPage] = useState(false);
   const [showStayConsciousPage, setShowStayConsciousPage] = useState(false);
+  const [showTeaserPage, setShowTeaserPage] = useState(false);
   const [compareInitialTab, setCompareInitialTab] = useState('brands');
   // Guards against the sync effect wiping an inbound hash before the parse effect reads it on mount
   const initialHashHandled = useRef(false);
 
   // Hash-based deep link routing
   const HASH_ROUTES = {
-    'newsletter':        () => { setShowStayConsciousPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
-    'compare':           () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); },
-    'compare/landscape': () => { setShowComparisonPage(true); setCompareInitialTab('landscape'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); },
-    'compare/insights':  () => { setShowComparisonPage(true); setCompareInitialTab('insights'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); },
-    'results':           () => { setShowResultsPage(true); setShowComparisonPage(false); setShowStayConsciousPage(false); setShowSavedPage(false); },
-    'saved':             () => { setShowSavedPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowStayConsciousPage(false); },
+    'newsletter':        () => { setShowStayConsciousPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
+    'compare':           () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
+    'compare/landscape': () => { setShowComparisonPage(true); setCompareInitialTab('landscape'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
+    'compare/insights':  () => { setShowComparisonPage(true); setCompareInitialTab('insights'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
+    'results':           () => { setShowResultsPage(true); setShowComparisonPage(false); setShowStayConsciousPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
+    'saved':             () => { setShowSavedPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowStayConsciousPage(false); setShowTeaserPage(false); },
+    // Admin only: the render gate below checks is_admin before showing it.
+    'teaser':            () => { setShowTeaserPage(true); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
   };
 
   const navigateTo = (route) => {
@@ -14178,6 +14757,7 @@ function AppContent() {
     setShowComparisonPage(false);
     setShowResultsPage(false);
     setShowSavedPage(false);
+    setShowTeaserPage(false);
     setCurrentStep(0);
     window.history.pushState(null, '', window.location.pathname + window.location.search);
   };
@@ -14200,11 +14780,12 @@ function AppContent() {
     else if (showComparisonPage) hash = compareInitialTab === 'landscape' ? 'compare/landscape' : compareInitialTab === 'insights' ? 'compare/insights' : 'compare';
     else if (showResultsPage) hash = 'results';
     else if (showSavedPage) hash = 'saved';
+    else if (showTeaserPage) hash = 'teaser';
     const current = window.location.hash.replace('#', '');
     if (hash !== current) {
       window.history.replaceState(null, '', hash ? `#${hash}` : window.location.pathname + window.location.search);
     }
-  }, [showStayConsciousPage, showComparisonPage, showResultsPage, showSavedPage, compareInitialTab]);
+  }, [showStayConsciousPage, showComparisonPage, showResultsPage, showSavedPage, showTeaserPage, compareInitialTab]);
 
   // Parse hash on mount and on popstate
   useEffect(() => {
@@ -14425,6 +15006,7 @@ function AppContent() {
       clearDraft();
       setCurrentStep(0);
       setShowSavedPage(false);
+      setShowTeaserPage(false);
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '', additionalProperties: [], primaryLanguage: '' });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
@@ -14438,6 +15020,45 @@ function AppContent() {
 
   const handleGoHome = () => {
     clearNav();
+  };
+
+  const goTeaser = () => HASH_ROUTES.teaser();
+
+  // Teaser → full assessment. Carries the brand details and context into
+  // Setup and prefills website content with the scraped homepage. Social, AI
+  // reputation and earned media are NOT prefilled: those steps run deeper
+  // checks of their own and the teaser's single-pass notes would short-cut them.
+  const handleConvertTeaser = async (record) => {
+    if (project.brandName && currentStep > 0 &&
+        !confirm(`Start a full assessment for ${record.brand_name}? The assessment currently in progress (${project.brandName}) will be lost unless saved.`)) {
+      return false;
+    }
+    const { error } = await saveTeaser({ ...record, converted_at: new Date().toISOString() });
+    if (error) console.warn('Could not stamp teaser as converted:', error.message);
+    const home = record.evidence?.sources?.website?.status === 'ok' ? record.evidence.sources.website.pages[0] : null;
+    clearDraft();
+    setProject({
+      brandName: record.brand_name,
+      websiteUrl: record.website_url,
+      businessModel: record.business_model || 'b2b',
+      industry: record.industry || 'other',
+      date: new Date().toISOString().split('T')[0],
+      assessorContext: record.context || '',
+      additionalProperties: [],
+      primaryLanguage: '',
+    });
+    setAssessments({
+      website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: home ? `[Scraped from ${home.url} during the teaser, ${new Date(record.evidence.gatheredAt).toLocaleDateString('en-US')}. Check it is current.]\n\n${home.text}` : '', credentialsContent: '', seoAssessment: '', techAudit: null },
+      social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', campaignContent: '', linkedinAuto: '', xAuto: '', instagramAuto: '', youtubeAuto: '', otherPlatformsAuto: '', glassdoorAuto: '', campaignAuto: '', thirdPartyAuto: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [], noSocialPresence: false, noSocialNote: '', socialAutoEdited: {} },
+      aiReputation: { status: 'pending', content: '', observations: '', responses: {} },
+      earnedMedia: { status: 'pending', content: '', observations: '', coveragePaste: '' },
+    });
+    setScores(null);
+    setShowTeaserPage(false);
+    setShowSavedPage(false);
+    setCurrentStep(1);
+    window.history.pushState(null, '', window.location.pathname + window.location.search);
+    return true;
   };
 
   const handleSave = async () => {
@@ -14708,6 +15329,31 @@ function AppContent() {
     return <AdminPage currentUser={user} onBack={() => setShowAdminPage(false)} />;
   }
 
+  // Teaser page. Admin only: a non-admin who lands on #teaser sees the normal
+  // shell, and RLS refuses the table to them regardless.
+  if (showTeaserPage && profile?.is_admin) {
+    return (
+      <div className="min-h-screen bg-[#F2F0EA]">
+        <Header
+          onNewAssessment={handleNewAssessment}
+          onGoHome={handleGoHome}
+          onSavedAssessments={() => HASH_ROUTES.saved()}
+          onCompassResults={() => HASH_ROUTES.results()}
+          onComparison={() => HASH_ROUTES.compare()}
+          onStayConscious={() => HASH_ROUTES.newsletter()}
+          onTeaser={() => setShowTeaserPage(false)}
+          activePage="teaser"
+          lastAutoSave={lastAutoSave}
+          user={user}
+          profile={profile}
+          onLogout={handleLogout}
+          onAdmin={() => setShowAdminPage(true)}
+        />
+        <TeaserPage user={user} profile={profile} apiKey={apiKey} onConvert={handleConvertTeaser} />
+      </div>
+    );
+  }
+
   // Show Stay Conscious page
   if (showStayConsciousPage) {
     return (
@@ -14719,6 +15365,7 @@ function AppContent() {
           onCompassResults={() => { setShowStayConsciousPage(false); setShowResultsPage(true); }}
           onComparison={() => { setShowStayConsciousPage(false); setShowComparisonPage(true); }}
           onStayConscious={() => setShowStayConsciousPage(false)}
+          onTeaser={goTeaser}
           activePage="stay-conscious"
           lastAutoSave={lastAutoSave}
           user={user}
@@ -14746,6 +15393,7 @@ function AppContent() {
           onCompassResults={() => { setShowComparisonPage(false); setShowResultsPage(true); }}
           onComparison={() => setShowComparisonPage(false)}
           onStayConscious={() => { setShowComparisonPage(false); setShowStayConsciousPage(true); }}
+          onTeaser={goTeaser}
           activePage="compare"
           lastAutoSave={lastAutoSave}
           user={user}
@@ -14778,6 +15426,7 @@ function AppContent() {
           onCompassResults={() => setShowResultsPage(false)}
           onComparison={() => { setShowResultsPage(false); setShowComparisonPage(true); }}
           onStayConscious={() => { setShowResultsPage(false); setShowStayConsciousPage(true); }}
+          onTeaser={goTeaser}
           activePage="results"
           lastAutoSave={lastAutoSave}
           user={user}
@@ -14810,6 +15459,7 @@ function AppContent() {
           onCompassResults={() => { setShowSavedPage(false); setShowResultsPage(true); }}
           onComparison={() => { setShowSavedPage(false); setShowComparisonPage(true); }}
           onStayConscious={() => { setShowSavedPage(false); setShowStayConsciousPage(true); }}
+          onTeaser={goTeaser}
           activePage="saved"
           lastAutoSave={lastAutoSave}
           user={user}
@@ -14852,6 +15502,7 @@ function AppContent() {
         onCompassResults={() => setShowResultsPage(true)}
         onComparison={() => setShowComparisonPage(true)}
         onStayConscious={() => setShowStayConsciousPage(true)}
+        onTeaser={goTeaser}
         activePage={null}
         lastAutoSave={lastAutoSave}
         user={user}

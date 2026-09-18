@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, model, max_tokens, temperature, system, prompt, useWebSearch } = req.body;
+    const { messages, model, max_tokens, temperature, system, prompt, useWebSearch, searchUses } = req.body;
 
     // Support simple prompt syntax (converts to messages format)
     const finalMessages = messages || [{ role: 'user', content: prompt }];
@@ -35,7 +35,9 @@ export default async function handler(req, res) {
         {
           type: 'web_search_20250305',
           name: 'web_search',
-          max_uses: 5
+          // Callers may ask for more searches on broad research passes. Clamped
+          // so no request can run an unbounded number of searches.
+          max_uses: Math.max(1, Math.min(10, Number(searchUses) || 5))
         }
       ];
     }

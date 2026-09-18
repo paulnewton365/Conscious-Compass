@@ -495,3 +495,22 @@ Three breakpoints, defined against semantic classes in `index.css` rather than i
 ---
 
 © 2025–2026 Antenna Group. All rights reserved.
+
+## Teaser (v3.29, admin only)
+
+Quick indicative Compass reads for new business prospects. Enter brand name, URL, business model, industry and optional context. In two to three minutes it returns an overall score, all eight attribute scores with evidence confidence, credibility, trust, reputation and authenticity lens scores, a topline summary, and the questions a full assessment would settle. No recommendations: those belong to the full assessment.
+
+Evidence is gathered automatically and in parallel: website pages, a social scan, an AI perception read (one engine with web search), review and search signals, an earned media scan, and a Knowledge Graph lookup. The website is required, and at least three of the five main sources must return evidence before scoring runs. The model scores; code calculates overall, maturity stage, campaign modifier and lens scores, identically to the full assessment.
+
+**Separate from full assessment results.** Teasers live only in `teaser_assessments`. They never write to `compass_results` or `saved_assessments`, so they never appear in Results, Saved, Compare, Landscape, Insights or any benchmark. Converting a teaser to a full assessment starts a clean assessment with brand details, context and the scraped homepage carried into Setup; no teaser score is carried. This is enforced three ways: database policies, source structure tests, and interaction tests.
+
+**Admin only**, in the UI and at the database: every teaser policy checks `is_admin`. `SUPABASE_VERIFY.sql` check 10 fails if any teaser policy stops doing so.
+
+**Deploying:** re-run `docs/SUPABASE_SETUP.sql` (idempotent), then `docs/SUPABASE_VERIFY.sql`. Every row should say PASS.
+
+## Tests
+
+```
+npm test                                   # teaser logic, rendering, separation (38 tests)
+PGHOST=... PGUSER=postgres tests/sql/run.sh  # setup idempotency, admin-only RLS, table separation (needs Postgres)
+```

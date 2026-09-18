@@ -148,6 +148,60 @@ export const deleteAssessment = async (id) => {
   return { error };
 };
 
+// Teaser assessments (admin only; enforced by RLS, not just the UI).
+// List view pulls summary columns only: evidence packs are large and are
+// loaded when a single teaser is opened.
+export const fetchTeasers = async () => {
+  const { data, error } = await supabase
+    .from('teaser_assessments')
+    .select('id, brand_name, website_url, business_model, industry, result, created_by_name, created_at, updated_at, converted_at')
+    .order('updated_at', { ascending: false });
+  return { data, error };
+};
+
+export const fetchTeaser = async (id) => {
+  const { data, error } = await supabase
+    .from('teaser_assessments')
+    .select('*')
+    .eq('id', id)
+    .single();
+  return { data, error };
+};
+
+export const saveTeaser = async (teaser) => {
+  const row = {
+    brand_name: teaser.brand_name,
+    website_url: teaser.website_url,
+    business_model: teaser.business_model,
+    industry: teaser.industry,
+    context: teaser.context || '',
+    evidence: teaser.evidence,
+    result: teaser.result,
+    updated_at: new Date().toISOString(),
+    ...(teaser.converted_at ? { converted_at: teaser.converted_at } : {}),
+  };
+  if (teaser.id) {
+    const { data, error } = await supabase
+      .from('teaser_assessments').update(row).eq('id', teaser.id).select().single();
+    return { data, error };
+  }
+  const { data, error } = await supabase
+    .from('teaser_assessments')
+    .insert({ ...row, created_by: teaser.created_by, created_by_name: teaser.created_by_name })
+    .select().single();
+  return { data, error };
+};
+
+// RLS turns a refused delete into zero rows affected with no error, so ask for
+// the deleted rows back and treat none as a failure.
+export const deleteTeaser = async (id) => {
+  const { data, error } = await supabase
+    .from('teaser_assessments').delete().eq('id', id).select('id');
+  if (error) return { error };
+  if (!data || data.length === 0) return { error: { message: 'Nothing was deleted. You may not have permission to delete this teaser.' } };
+  return { error: null };
+};
+
 // Admin functions
 export const fetchAllProfiles = async () => {
   const { data, error } = await supabase

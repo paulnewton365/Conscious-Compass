@@ -136,6 +136,35 @@ create index if not exists client_reports_created_by_idx
 
 
 -- ═══════════════════════════════════════════════════════════════
+-- 4b. TEASER_ASSESSMENTS — quick indicative reads for prospects (v3.29)
+-- ═══════════════════════════════════════════════════════════════
+--
+-- Admin only, at the database, not just in the UI. Kept in its own table so
+-- teaser scores can never reach Results, Compare, Landscape or the benchmark
+-- corpus, which all read compass_results. The evidence pack is stored so a
+-- rescore scores the same evidence rather than a fresh set of search results.
+
+create table if not exists public.teaser_assessments (
+  id              uuid primary key default gen_random_uuid(),
+  brand_name      text not null,
+  website_url     text not null,
+  business_model  text,
+  industry        text,
+  context         text,
+  evidence        jsonb,
+  result          jsonb,
+  created_by      uuid references auth.users(id) on delete set null,
+  created_by_name text,
+  converted_at    timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists teaser_assessments_updated_idx
+  on public.teaser_assessments (updated_at desc);
+
+
+-- ═══════════════════════════════════════════════════════════════
 -- 5. WEEKLY CACHE TABLES — written by cron, read by everyone
 -- ═══════════════════════════════════════════════════════════════
 --
@@ -179,6 +208,7 @@ alter table public.stay_conscious_cache      enable row level security;
 alter table public.landscape_analysis_cache  enable row level security;
 alter table public.insights_analysis_cache   enable row level security;
 alter table public.stay_conscious_newsletter enable row level security;
+alter table public.teaser_assessments        enable row level security;
 
 
 -- ── Profiles ──────────────────────────────────────────────────
@@ -278,6 +308,30 @@ drop policy if exists "client_reports_delete" on public.client_reports;
 create policy "client_reports_delete"
   on public.client_reports for delete to authenticated
   using (auth.uid() = created_by or public.is_admin(auth.uid()));
+
+
+-- ── Teaser assessments: admins only, every operation ──────────
+
+do $$
+declare op text;
+begin
+  foreach op in array array['select', 'insert', 'update', 'delete'] loop
+    execute format('drop policy if exists %I on public.teaser_assessments', 'teaser_assessments_' || op);
+    if op = 'insert' then
+      execute format(
+        'create policy %I on public.teaser_assessments for insert to authenticated with check (public.is_admin(auth.uid()))',
+        'teaser_assessments_' || op);
+    elsif op = 'update' then
+      execute format(
+        'create policy %I on public.teaser_assessments for update to authenticated using (public.is_admin(auth.uid())) with check (public.is_admin(auth.uid()))',
+        'teaser_assessments_' || op);
+    else
+      execute format(
+        'create policy %I on public.teaser_assessments for %s to authenticated using (public.is_admin(auth.uid()))',
+        'teaser_assessments_' || op, op);
+    end if;
+  end loop;
+end $$;
 
 
 -- ── Cache tables: read-only to users, written by the service role ──

@@ -1,14 +1,15 @@
 {
   "name": "conscious-compass",
   "private": true,
-  "version": "3.28.0",
+  "version": "3.29.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "prebuild": "node scripts/bump-version.cjs"
+    "prebuild": "node scripts/bump-version.cjs",
+    "test": "node tests/support/build-render-bundle.mjs && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
@@ -32,6 +33,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "jsdom": "^24.1.3",
     "vite": "^7.2.4"
   }
 }

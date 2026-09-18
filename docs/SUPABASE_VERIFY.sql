@@ -9,7 +9,8 @@ with
 required_tables (t) as (values
   ('profiles'), ('compass_results'), ('saved_assessments'), ('client_reports'),
   ('stay_conscious_cache'), ('landscape_analysis_cache'),
-  ('insights_analysis_cache'), ('stay_conscious_newsletter')
+  ('insights_analysis_cache'), ('stay_conscious_newsletter'),
+  ('teaser_assessments')
 ),
 required_columns (t, c) as (values
   ('profiles','is_readonly'), ('profiles','last_login'), ('profiles','full_name'),
@@ -22,7 +23,9 @@ required_columns (t, c) as (values
   ('stay_conscious_cache','items'),
   ('landscape_analysis_cache','analysis'),
   ('insights_analysis_cache','stories'),
-  ('stay_conscious_newsletter','newsletter')
+  ('stay_conscious_newsletter','newsletter'),
+  ('teaser_assessments','evidence'), ('teaser_assessments','result'),
+  ('teaser_assessments','context'), ('teaser_assessments','converted_at')
 )
 
 -- 1. Tables exist
@@ -121,6 +124,24 @@ select
          group by brand_name having count(*) > 1) d) = 0
        then 'PASS'
        else 'DUPLICATES — saving will fail for those brands, see query below' end
+
+union all
+
+-- 10. Teaser assessments are admin only. Every policy must gate on is_admin,
+-- and all four operations must be covered, or a non-admin can reach them.
+select
+  '10. admin-only', 'teaser_assessments',
+  case
+    when (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'teaser_assessments') < 4
+      then 'INCOMPLETE — expected 4 policies, re-run SUPABASE_SETUP.sql'
+    when exists (select 1 from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'teaser_assessments'
+            and coalesce(p.qual, '') not like '%is_admin%'
+            and coalesce(p.with_check, '') not like '%is_admin%')
+      then 'OPEN — a teaser policy does not check is_admin'
+    else 'PASS'
+  end
 
 order by 1, 2;
 
