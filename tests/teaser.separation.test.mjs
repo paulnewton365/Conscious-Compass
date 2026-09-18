@@ -78,3 +78,48 @@ test('the teaser table is not in the benchmark, results or saved queries', () =>
   const benchmarkish = sb.slice(0, sb.indexOf('// Teaser assessments'));
   assert.ok(!benchmarkish.includes('teaser_assessments'));
 });
+
+// ── Campaigns (v3.30) ──
+
+const fnBody = (src, name) => {
+  const start = src.indexOf(`export const ${name} =`);
+  assert.ok(start >= 0, `${name} exists`);
+  return src.slice(start, src.indexOf('\n};', start));
+};
+
+test('campaign functions touch only teaser_campaigns', () => {
+  const sb = read('src/lib/supabase.js');
+  for (const fn of ['fetchCampaigns', 'createCampaign', 'renameCampaign', 'deleteCampaign']) {
+    const tables = [...fnBody(sb, fn).matchAll(/\.from\('([^']+)'\)/g)].map(m => m[1]);
+    assert.deepEqual([...new Set(tables)], ['teaser_campaigns'], `${fn} touches ${tables}`);
+  }
+});
+
+test('the campaign download reads teasers only, and never selects context, evidence or author', () => {
+  const body = fnBody(read('src/lib/supabase.js'), 'fetchCampaignScores');
+  const tables = [...body.matchAll(/\.from\('([^']+)'\)/g)].map(m => m[1]);
+  assert.deepEqual(tables, ['teaser_assessments']);
+  const select = body.match(/\.select\('([^']+)'\)/)[1];
+  for (const col of ['context', 'evidence', 'created_by', '*']) assert.ok(!select.split(/,\s*/).includes(col), `download selects ${col}`);
+});
+
+test('the export module has no database access and no full-result references', () => {
+  const src = read('src/lib/teaserExport.js');
+  assert.ok(!/supabase/i.test(src));
+  FULL.forEach(term => assert.ok(!src.includes(term), `export references ${term}`));
+});
+
+test('converting a teaser does not carry its campaign into the full assessment', () => {
+  const start = app.indexOf('const handleConvertTeaser = async');
+  const body = app.slice(start, app.indexOf('\n  };\n', start));
+  // "campaignContent"/"campaignAuto" are the full assessment's own fields for a
+  // brand's marketing campaigns; the Antenna campaign is campaign_id.
+  assert.ok(!/campaign_id|record\.campaign|teaser_campaigns/.test(body), 'teaser campaign referenced during conversion');
+  assert.ok(/saveTeaser\(\{ \.\.\.record, converted_at/.test(body), 'only the teaser row is updated');
+});
+
+test('campaign names never reach the prospect-facing payload', () => {
+  const lib = read('src/lib/teaser.js');
+  const start = lib.indexOf('export function makeTeaserClientPayload');
+  assert.ok(!/campaign/i.test(lib.slice(start)));
+});

@@ -146,6 +146,10 @@ function mountPage(props = {}) {
 }
 const flush = () => new Promise(r => setTimeout(r, 0));
 const click = async (el) => { await act(async () => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); }); };
+const selectValue = async (el, value) => {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+  await act(async () => { setter.call(el, value); el.dispatchEvent(new window.Event('change', { bubbles: true })); });
+};
 const typeInto = async (el, value) => {
   const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
   await act(async () => { setter.call(el, value); el.dispatchEvent(new window.Event('input', { bubbles: true })); });
@@ -182,6 +186,7 @@ test('empty form is rejected before any network call', async () => {
   await act(async () => { root.render(h(App.TeaserPage, props)); }); await act(flush);
   const run = [...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser'));
   await click(run);
+  assert.ok(container.textContent.includes('Choose a campaign.'));
   assert.ok(container.textContent.includes('Brand name is required.'));
   assert.equal(log.length, 0);
   await act(async () => root.unmount());
@@ -190,11 +195,12 @@ test('empty form is rejected before any network call', async () => {
 test('full run: evidence saved before scoring, then scored result saved and shown, with web search used for evidence only', async () => {
   stub.state.teasers = []; stub.calls.length = 0; stub.state.saveResult = null;
   const log = installFetch(await scoringJson());
+  stub.state.campaigns = [{ id: 'c-1', name: 'SENTINEL_CAMPAIGN Climate Week' }];
   const { container, root, props } = mountPage();
   await act(async () => { root.render(h(App.TeaserPage, props)); }); await act(flush);
-  const inputs = container.querySelectorAll('input');
-  await typeInto(inputs[0], 'Acme');
-  await typeInto(inputs[1], 'acme.com');
+  await selectValue(container.querySelector('[data-field="campaign"]'), 'c-1');
+  await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
+  await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
   await typeInto(container.querySelector('textarea'), 'SENTINEL_CONTEXT brief');
   const run = [...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser'));
   await click(run);
@@ -208,6 +214,7 @@ test('full run: evidence saved before scoring, then scored result saved and show
   assert.equal(saves[0].context, 'SENTINEL_CONTEXT brief');
   assert.equal(saves[0].created_by, 'u1');
   assert.equal(saves[0].created_by_name, 'Paul Newton');
+  assert.equal(saves[0].campaign_id, 'c-1', 'teaser saved into the chosen campaign');
   const expected = logic.finaliseTeaser(logic.parseTeaserScoring(await scoringJson()));
   assert.equal(saves[1].result.overall, expected.overall, 'saved overall is the code-computed overall');
   assert.deepEqual(saves[1].result.lensScores, expected.lensScores);
@@ -222,17 +229,20 @@ test('full run: evidence saved before scoring, then scored result saved and show
   assert.ok(scoringPrompt.includes('Do NOT use em-dashes'), 'house formatting rules applied to the scoring call');
   assert.ok(container.querySelector('[data-teaser-client-view]'), 'report is shown after the run');
   assert.ok(!container.querySelector('[data-teaser-client-view]').innerHTML.includes('SENTINEL_CONTEXT'));
+  assert.ok(!container.querySelector('[data-teaser-client-view]').innerHTML.includes('SENTINEL_CAMPAIGN'), 'campaign name is internal');
+  assert.ok(container.innerHTML.includes('SENTINEL_CAMPAIGN'), 'campaign shown to the admin in the internal strip');
   await act(async () => root.unmount());
 });
 
 test('a failed scoring pass keeps the gathered evidence and says so', async () => {
   stub.state.teasers = []; stub.calls.length = 0;
   installFetch(await scoringJson('VISIONARY'));
+  stub.state.campaigns = [{ id: 'c-1', name: 'SENTINEL_CAMPAIGN Climate Week' }];
   const { container, root, props } = mountPage();
   await act(async () => { root.render(h(App.TeaserPage, props)); }); await act(flush);
-  const inputs = container.querySelectorAll('input');
-  await typeInto(inputs[0], 'Acme');
-  await typeInto(inputs[1], 'acme.com');
+  await selectValue(container.querySelector('[data-field="campaign"]'), 'c-1');
+  await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
+  await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
   await click([...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser')));
   for (let i = 0; i < 20; i++) await act(flush);
   const saves = stub.calls.filter(c => c[0] === 'saveTeaser');
@@ -244,8 +254,8 @@ test('a failed scoring pass keeps the gathered evidence and says so', async () =
 });
 
 test('rescore and delete touch only the teaser table', async () => {
-  const rec = await makeRecord();
-  stub.state.teasers = [rec]; stub.calls.length = 0; stub.state.saveResult = null;
+  const rec = { ...(await makeRecord()), campaign_id: 'c-1' };
+  stub.state.teasers = [rec]; stub.state.campaigns = [{ id: 'c-1', name: 'Pitches' }]; stub.calls.length = 0; stub.state.saveResult = null;
   installFetch(await scoringJson());
   const { container, root, props } = mountPage();
   await act(async () => { root.render(h(App.TeaserPage, props)); }); await act(flush);
@@ -259,6 +269,108 @@ test('rescore and delete touch only the teaser table', async () => {
   await act(flush);
   const names = stub.calls.map(c => c[0]);
   assert.ok(names.includes('deleteTeaser'));
-  assert.deepEqual(names.filter(n => !['fetchTeasers', 'fetchTeaser', 'saveTeaser', 'deleteTeaser'].includes(n)), [], `unexpected calls: ${names}`);
+  assert.deepEqual(names.filter(n => !['fetchTeasers', 'fetchCampaigns', 'fetchTeaser', 'saveTeaser', 'deleteTeaser'].includes(n)), [], `unexpected calls: ${names}`);
+  await act(async () => root.unmount());
+});
+
+// ── Campaigns ──
+
+async function mountWith({ campaigns = [], teasers = [] } = {}) {
+  stub.state.campaigns = campaigns.map(c => ({ ...c }));
+  stub.state.teasers = teasers;
+  stub.calls.length = 0;
+  const m = mountPage();
+  await act(async () => { m.root.render(h(App.TeaserPage, m.props)); }); await act(flush);
+  return m;
+}
+const btn = (container, pred) => [...container.querySelectorAll('button')].find(pred);
+
+test('a campaign can be created inline and is selected for the next teaser; duplicates are refused', async () => {
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'Climate Week' }] });
+  await selectValue(container.querySelector('[data-field="campaign"]'), '__new');
+  await typeInto(container.querySelector('[data-field="new-campaign"]'), '  climate week ');
+  await click(btn(container, b => b.textContent === 'Create'));
+  assert.ok(container.textContent.includes('already exists'), 'case and spacing do not make a new campaign');
+  await typeInto(container.querySelector('[data-field="new-campaign"]'), 'Q4 Energy pitches');
+  await click(btn(container, b => b.textContent === 'Create'));
+  await act(flush);
+  const select = container.querySelector('[data-field="campaign"]');
+  assert.ok(select, 'back to the picker');
+  assert.equal(select.value, 'c-2', 'new campaign selected');
+  await act(async () => root.unmount());
+});
+
+test('teasers are grouped by campaign with counts and averages; legacy teasers sit in Unassigned', async () => {
+  const a = { ...(await makeRecord()), id: 'a', brand_name: 'Alpha', campaign_id: 'c-1' };
+  const b = { ...(await makeRecord()), id: 'b', brand_name: 'Bravo', campaign_id: 'c-1', result: null };
+  const legacy = { ...(await makeRecord()), id: 'l', brand_name: 'Legacy', campaign_id: null };
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'Climate Week' }, { id: 'c-2', name: 'Empty one' }], teasers: [a, b, legacy] });
+  const g1 = container.querySelector('[data-campaign="c-1"]');
+  assert.ok(g1.textContent.includes('Alpha') && g1.textContent.includes('Bravo'));
+  assert.ok(!g1.textContent.includes('Legacy'));
+  assert.ok(g1.textContent.includes('2 brands'));
+  assert.ok(g1.textContent.includes(`average ${a.result.overall}`), 'average uses scored brands only');
+  assert.ok(g1.textContent.includes('1 not scored'));
+  assert.ok(container.querySelector('[data-campaign="c-2"]').textContent.includes('No teasers in this campaign yet'));
+  const un = container.querySelector('[data-campaign="unassigned"]');
+  assert.ok(un && un.textContent.includes('Legacy'));
+  await selectValue(container.querySelector('[data-field="filter"]'), 'c-2');
+  assert.ok(!container.querySelector('[data-campaign="c-1"]'), 'filter hides other campaigns');
+  assert.ok(!container.querySelector('[data-campaign="unassigned"]'));
+  await act(async () => root.unmount());
+});
+
+test('a campaign with teasers cannot be deleted; an empty one can', async () => {
+  const a = { ...(await makeRecord()), id: 'a', campaign_id: 'c-1' };
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'Full' }, { id: 'c-2', name: 'Empty' }], teasers: [a] });
+  const del = (id) => container.querySelector(`[data-campaign="${id}"]`).querySelector('button[title*="elete"], button[title*="empty"]');
+  await click(del('c-1'));
+  assert.equal(stub.calls.filter(c => c[0] === 'deleteCampaign').length, 0, 'never asked the database to delete a non-empty campaign');
+  assert.ok(container.textContent.includes('still has 1 teaser'));
+  await click(del('c-2'));
+  assert.deepEqual(stub.calls.filter(c => c[0] === 'deleteCampaign').map(c => c[1]), ['c-2']);
+  await act(async () => root.unmount());
+});
+
+test('a teaser can be moved to another campaign from its report', async () => {
+  const a = { ...(await makeRecord()), id: 'a', brand_name: 'Alpha', campaign_id: 'c-1' };
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }, { id: 'c-2', name: 'Two' }], teasers: [a] });
+  await click(btn(container, b => b.textContent.includes('Alpha')));
+  await act(flush);
+  await selectValue(container.querySelector('[data-field="move-campaign"]'), 'c-2');
+  await act(flush);
+  const save = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
+  assert.equal(save.campaign_id, 'c-2');
+  assert.equal(save.result.overall, a.result.overall, 'moving never touches the scores');
+  await act(async () => root.unmount());
+});
+
+test('Download scores fetches only that campaign and saves a real xlsx', async () => {
+  const a = { ...(await makeRecord()), id: 'a', brand_name: 'Alpha', campaign_id: 'c-1' };
+  stub.state.campaignScores = [{ id: 'a', brand_name: 'Alpha', website_url: 'https://alpha.com', result: a.result }];
+  const saved = [];
+  window.URL.createObjectURL = globalThis.URL.createObjectURL = (blob) => { saved.push(blob); return 'blob:test'; };
+  window.URL.revokeObjectURL = globalThis.URL.revokeObjectURL = () => {};
+  // file-saver triggers the download by dispatching a click on an <a download>.
+  const origDispatch = window.HTMLAnchorElement.prototype.dispatchEvent;
+  window.HTMLAnchorElement.prototype.dispatchEvent = function (ev) { if (ev.type === 'click' && this.download) { saved.push(this.download); return true; } return origDispatch.call(this, ev); };
+  // It also schedules a 40 second URL cleanup; run it now so the suite does not wait.
+  const origTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = window.setTimeout = (fn, ms, ...rest) => origTimeout(fn, ms > 5000 ? 0 : ms, ...rest);
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'Climate Week' }], teasers: [a] });
+  await click(btn(container.querySelector('[data-campaign="c-1"]'), b => b.textContent.includes('Download scores')));
+  for (let i = 0; i < 10; i++) await act(flush);
+  assert.deepEqual(stub.calls.filter(c => c[0] === 'fetchCampaignScores').map(c => c[1]), ['c-1']);
+  const blob = saved.find(x => x && typeof x === 'object');
+  const name = saved.find(x => typeof x === 'string');
+  assert.ok(blob, 'a file was produced');
+  assert.match(name, /^Climate-Week-Teaser-Scores-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(Buffer.from(await blob.arrayBuffer()));
+  const sheet = await zip.file('xl/worksheets/sheet1.xml').async('string');
+  assert.ok(sheet.includes('Alpha'));
+  assert.ok(!container.textContent.includes('Download failed'));
+  globalThis.setTimeout = window.setTimeout = origTimeout;
+  window.HTMLAnchorElement.prototype.dispatchEvent = origDispatch;
   await act(async () => root.unmount());
 });

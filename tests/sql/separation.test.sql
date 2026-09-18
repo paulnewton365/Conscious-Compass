@@ -54,4 +54,69 @@ with d as (delete from public.teaser_assessments returning 1) insert into outcom
 insert into outcome select 'deleting a teaser leaves full results alone', (select count(*) from public.compass_results) = 1 and (select count(*) from public.saved_assessments) = 1;
 reset role;
 
+-- ── Campaigns (v3.30) ──
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+insert into public.teaser_campaigns (id, name, created_by) values
+  ('00000000-0000-0000-0000-0000000000c1', 'Climate Week', '00000000-0000-0000-0000-00000000000a'),
+  ('00000000-0000-0000-0000-0000000000c2', 'Q4 Energy',    '00000000-0000-0000-0000-00000000000a');
+insert into public.teaser_assessments (brand_name, website_url, campaign_id, result)
+  values ('Acme', 'https://acme.com', '00000000-0000-0000-0000-0000000000c1', '{"overall":49}');
+insert into outcome select 'admin can create and read campaigns', (select count(*) from public.teaser_campaigns) = 2;
+
+do $$ begin
+  begin
+    insert into public.teaser_campaigns (name) values ('  climate WEEK ');
+    insert into outcome values ('duplicate name (case and spaces) refused', false);
+  exception when unique_violation then
+    insert into outcome values ('duplicate name (case and spaces) refused', true);
+  end;
+  begin
+    insert into public.teaser_campaigns (name) values ('   ');
+    insert into outcome values ('blank campaign name refused', false);
+  exception when check_violation then
+    insert into outcome values ('blank campaign name refused', true);
+  end;
+  begin
+    delete from public.teaser_campaigns where id = '00000000-0000-0000-0000-0000000000c1';
+    insert into outcome values ('campaign with teasers cannot be deleted', false);
+  exception when foreign_key_violation then
+    insert into outcome values ('campaign with teasers cannot be deleted', true);
+  end;
+end $$;
+
+update public.teaser_campaigns set name = 'Climate Week 2026' where id = '00000000-0000-0000-0000-0000000000c1';
+insert into outcome select 'rename carries its teasers',
+  (select c.name from public.teaser_assessments t join public.teaser_campaigns c on c.id = t.campaign_id where t.brand_name = 'Acme') = 'Climate Week 2026';
+
+with d as (delete from public.teaser_campaigns where id = '00000000-0000-0000-0000-0000000000c2' returning 1)
+  insert into outcome select 'empty campaign can be deleted', (select count(*) from d) = 1;
+
+update public.teaser_assessments set campaign_id = null where brand_name = 'Acme';
+with d as (delete from public.teaser_campaigns where id = '00000000-0000-0000-0000-0000000000c1' returning 1)
+  insert into outcome select 'campaign deletable once emptied', (select count(*) from d) = 1;
+insert into outcome select 'emptied teaser survives its campaign', (select count(*) from public.teaser_assessments where brand_name = 'Acme') = 1;
+
+insert into public.teaser_campaigns (id, name) values ('00000000-0000-0000-0000-0000000000c3', 'Staff probe');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
+insert into outcome select 'non-admin sees no campaigns', (select count(*) from public.teaser_campaigns) = 0;
+with u as (update public.teaser_campaigns set name = 'x' returning 1) insert into outcome select 'non-admin cannot rename campaigns', (select count(*) from u) = 0;
+with d as (delete from public.teaser_campaigns returning 1) insert into outcome select 'non-admin cannot delete campaigns', (select count(*) from d) = 0;
+do $$ begin
+  begin
+    insert into public.teaser_campaigns (name) values ('Sneaky');
+    insert into outcome values ('non-admin cannot create campaigns', false);
+  exception when insufficient_privilege then
+    insert into outcome values ('non-admin cannot create campaigns', true);
+  end;
+end $$;
+reset role; set role anon;
+select set_config('request.jwt.claim.sub', '', false);
+insert into outcome select 'anonymous sees no campaigns', (select count(*) from public.teaser_campaigns) = 0;
+reset role;
+insert into outcome select 'campaigns left full results untouched',
+  (select count(*) from public.compass_results) = 1 and (select count(*) from public.saved_assessments) = 1
+  and (select total_score from public.compass_results where brand_name = 'FullBrand') = 61;
+
 select (case when pass then 'PASS' else 'FAIL' end) || '  ' || check_name as result from outcome;

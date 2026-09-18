@@ -154,7 +154,7 @@ export const deleteAssessment = async (id) => {
 export const fetchTeasers = async () => {
   const { data, error } = await supabase
     .from('teaser_assessments')
-    .select('id, brand_name, website_url, business_model, industry, result, created_by_name, created_at, updated_at, converted_at')
+    .select('id, campaign_id, brand_name, website_url, business_model, industry, result, created_by_name, created_at, updated_at, converted_at')
     .order('updated_at', { ascending: false });
   return { data, error };
 };
@@ -175,6 +175,7 @@ export const saveTeaser = async (teaser) => {
     business_model: teaser.business_model,
     industry: teaser.industry,
     context: teaser.context || '',
+    campaign_id: teaser.campaign_id || null,
     evidence: teaser.evidence,
     result: teaser.result,
     updated_at: new Date().toISOString(),
@@ -200,6 +201,57 @@ export const deleteTeaser = async (id) => {
   if (error) return { error };
   if (!data || data.length === 0) return { error: { message: 'Nothing was deleted. You may not have permission to delete this teaser.' } };
   return { error: null };
+};
+
+// Teaser campaigns (admin only, enforced by RLS). Names are unique ignoring
+// case and spaces; a campaign with teasers in it cannot be deleted.
+const campaignError = (error) => {
+  if (!error) return null;
+  if (error.code === '23505') return { message: 'A campaign with that name already exists.' };
+  if (error.code === '23503') return { message: 'This campaign still has teasers in it. Move or delete them first.' };
+  if (error.code === '23514') return { message: 'Give the campaign a name.' };
+  return error;
+};
+
+export const fetchCampaigns = async () => {
+  const { data, error } = await supabase
+    .from('teaser_campaigns').select('id, name, created_by_name, created_at, updated_at')
+    .order('name', { ascending: true });
+  return { data, error };
+};
+
+export const createCampaign = async ({ name, created_by, created_by_name }) => {
+  const { data, error } = await supabase
+    .from('teaser_campaigns')
+    .insert({ name: String(name || '').trim(), created_by, created_by_name })
+    .select().single();
+  return { data, error: campaignError(error) };
+};
+
+export const renameCampaign = async (id, name) => {
+  const { data, error } = await supabase
+    .from('teaser_campaigns')
+    .update({ name: String(name || '').trim(), updated_at: new Date().toISOString() })
+    .eq('id', id).select().single();
+  return { data, error: campaignError(error) };
+};
+
+export const deleteCampaign = async (id) => {
+  const { data, error } = await supabase
+    .from('teaser_campaigns').delete().eq('id', id).select('id');
+  if (error) return { error: campaignError(error) };
+  if (!data || data.length === 0) return { error: { message: 'Nothing was deleted. You may not have permission to delete this campaign.' } };
+  return { error: null };
+};
+
+// Everything the campaign download needs and nothing it should not carry:
+// no context, no evidence, no author.
+export const fetchCampaignScores = async (campaignId) => {
+  const { data, error } = await supabase
+    .from('teaser_assessments')
+    .select('id, brand_name, website_url, result')
+    .eq('campaign_id', campaignId);
+  return { data, error };
 };
 
 // Admin functions

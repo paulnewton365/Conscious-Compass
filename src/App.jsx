@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.29.0';
+const APP_VERSION = '3.30.0';
 import { TEASER_SOURCES, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
   supabase, 
@@ -33,8 +33,14 @@ import {
   fetchTeasers,
   fetchTeaser,
   saveTeaser,
-  deleteTeaser
+  deleteTeaser,
+  fetchCampaigns,
+  createCampaign,
+  renameCampaign,
+  deleteCampaign,
+  fetchCampaignScores
 } from './lib/supabase';
+import { buildCampaignWorkbook, buildCampaignRows, campaignSummary } from './lib/teaserExport';
 
 // Use 'PROXY' to route through serverless function (secure, API key on server)
 // Or set VITE_ANTHROPIC_API_KEY for local development with direct API calls
@@ -14409,7 +14415,7 @@ function TeaserProgress({ statuses, scoring, elapsed }) {
   );
 }
 
-function TeaserReport({ record, busy, progress, error, onBack, onRescore, onRefresh, onConvert, onDelete }) {
+function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, onBack, onRescore, onRefresh, onConvert, onDelete }) {
   const chartRef = useRef(null);
   const payload = makeTeaserClientPayload(record);
   const [exporting, setExporting] = useState(false);
@@ -14441,6 +14447,14 @@ function TeaserReport({ record, busy, progress, error, onBack, onRescore, onRefr
       <div className="dc-block" style={{ marginBottom: 24, background: '#FAF9F5', border: '1px dashed #DCDAD3' }}>
         <div className="dc-kicker-sm" style={{ marginBottom: 10 }}>Internal · not shown to the prospect</div>
         <div className="text-sm text-[#4A4840]" style={{ display: 'grid', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span className="font-semibold">Campaign:</span>
+            <select value={record.campaign_id || ''} disabled={busy} data-field="move-campaign"
+              onChange={e => onMove(e.target.value)} className="px-2 py-1 border border-[#DCDAD3] bg-white text-sm">
+              {!record.campaign_id && <option value="">Unassigned, choose a campaign</option>}
+              {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
           <div>{String(record.business_model || '').toUpperCase()}{industryName ? ` · ${industryName}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? new Date(record.evidence.gatheredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'never'}{record.converted_at ? ` · converted to full assessment ${new Date(record.converted_at).toLocaleDateString('en-US')}` : ''}</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {TEASER_SOURCES.map(src => (
@@ -14470,14 +14484,18 @@ function TeaserReport({ record, busy, progress, error, onBack, onRescore, onRefr
 }
 
 function TeaserPage({ user, profile, apiKey, onConvert }) {
-  const blank = { brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', context: '' };
+  const blank = { brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', context: '', campaignId: '' };
   const [list, setList] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
+  const [filter, setFilter] = useState('all');        // 'all' | campaign id | 'unassigned'
   const [form, setForm] = useState(blank);
-  const [open, setOpen] = useState(null);           // full record being viewed
+  const [newCampaign, setNewCampaign] = useState(null); // null = picking; string = typing a new name
+  const [open, setOpen] = useState(null);             // full record being viewed
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [campaignBusy, setCampaignBusy] = useState(null); // campaign id with an action in flight
   const [statuses, setStatuses] = useState({});
   const [scoring, setScoring] = useState('pending');
   const [elapsed, setElapsed] = useState(0);
@@ -14485,8 +14503,9 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
 
   const load = async () => {
     setListLoading(true); setListError(null);
-    const { data, error: e } = await fetchTeasers();
-    if (e) setListError(e.message); else setList(data || []);
+    const [t, c] = await Promise.all([fetchTeasers(), fetchCampaigns()]);
+    if (t.error || c.error) setListError((t.error || c.error).message);
+    else { setList(t.data || []); setCampaigns(c.data || []); }
     setListLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -14532,6 +14551,17 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     });
   };
 
+  const addCampaign = async () => {
+    const name = String(newCampaign || '').trim();
+    if (!name) { setError('Give the campaign a name.'); return; }
+    setError(null);
+    const { data, error: e } = await createCampaign({ name, created_by: user?.id, created_by_name: profile?.full_name || user?.email || '' });
+    if (e) { setError(e.message); return; }
+    setCampaigns(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setForm(f => ({ ...f, campaignId: data.id }));
+    setNewCampaign(null);
+  };
+
   const runNew = async () => {
     const errs = validateTeaserInput(form);
     if (errs.length) { setError(errs.join(' ')); return; }
@@ -14539,6 +14569,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     let saved = null;
     try {
       const base = {
+        campaign_id: form.campaignId,
         brand_name: form.brandName.trim(),
         website_url: normaliseUrl(form.websiteUrl),
         business_model: form.businessModel,
@@ -14556,7 +14587,8 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       setOpen(saved);
       saved = await scoreAndSave(saved);
       setOpen(saved);
-      setForm(blank);
+      // Keep the campaign selected: teasers usually come in batches.
+      setForm({ ...blank, campaignId: form.campaignId });
       load();
     } catch (e) {
       setError(e.message);
@@ -14596,6 +14628,14 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     finally { setBusy(false); stopClock(); }
   };
 
+  const moveTo = async (campaignId) => {
+    if (!campaignId || campaignId === open.campaign_id) return;
+    setError(null);
+    const { data, error: e } = await saveTeaser({ ...open, campaign_id: campaignId });
+    if (e) { setError(e.message); return; }
+    setOpen(data); load();
+  };
+
   const remove = async () => {
     if (!confirm(`Delete the teaser for ${open.brand_name}? This cannot be undone.`)) return;
     const { error: e } = await deleteTeaser(open.id);
@@ -14603,7 +14643,43 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     setOpen(null); load();
   };
 
-  // AppContent confirms, stamps converted_at and navigates to Setup.
+  const rename = async (c) => {
+    const name = prompt('Rename campaign', c.name);
+    if (name === null || name.trim() === c.name) return;
+    setCampaignBusy(c.id); setError(null);
+    const { error: e } = await renameCampaign(c.id, name);
+    setCampaignBusy(null);
+    if (e) { setError(e.message); return; }
+    load();
+  };
+
+  const removeCampaign = async (c, count) => {
+    // The database refuses this too; the check here just explains why.
+    if (count > 0) { setError(`${c.name} still has ${count} teaser${count === 1 ? '' : 's'}. Move or delete them first.`); return; }
+    if (!confirm(`Delete the campaign ${c.name}?`)) return;
+    setCampaignBusy(c.id); setError(null);
+    const { error: e } = await deleteCampaign(c.id);
+    setCampaignBusy(null);
+    if (e) { setError(e.message); return; }
+    if (filter === c.id) setFilter('all');
+    load();
+  };
+
+  const download = async (c) => {
+    setCampaignBusy(c.id); setError(null);
+    try {
+      const { data, error: e } = await fetchCampaignScores(c.id);
+      if (e) throw new Error(e.message);
+      const { zip, filename } = await buildCampaignWorkbook(c.name, data || []);
+      const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, filename);
+    } catch (e) {
+      setError(`Download failed: ${e.message}`);
+    } finally {
+      setCampaignBusy(null);
+    }
+  };
+
   const convert = () => onConvert(open);
 
   const progress = <TeaserProgress statuses={statuses} scoring={scoring} elapsed={elapsed} />;
@@ -14611,12 +14687,49 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   if (open) {
     return (
       <TeaserReport record={open} busy={busy} progress={progress} error={error}
+        campaigns={campaigns} onMove={moveTo}
         onBack={() => { setOpen(null); setError(null); }}
         onRescore={rescore} onRefresh={refresh} onConvert={convert} onDelete={remove} />
     );
   }
 
+  // Group teasers under their campaigns. Teasers run before campaigns existed
+  // sit in Unassigned until someone moves them.
+  const byCampaign = new Map(campaigns.map(c => [c.id, []]));
+  const unassigned = [];
+  list.forEach(t => (t.campaign_id && byCampaign.has(t.campaign_id) ? byCampaign.get(t.campaign_id) : unassigned).push(t));
+  const groups = campaigns
+    .filter(c => filter === 'all' || filter === c.id)
+    .map(c => ({ campaign: c, teasers: byCampaign.get(c.id) }));
+  const showUnassigned = unassigned.length > 0 && (filter === 'all' || filter === 'unassigned');
+
   const inputCls = 'w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]';
+
+  const TeaserRow = ({ t }) => (
+    <button onClick={() => openRecord(t.id)} disabled={busy} className="dc-block text-left hover:bg-[#FAF9F5]"
+      style={{ display: 'flex', alignItems: 'center', gap: 18, width: '100%' }}>
+      <div style={{ fontSize: 28, fontWeight: 700, minWidth: 48, letterSpacing: '-.03em', color: t.result ? scoreColor(t.result.overall) : '#B3B0A8' }}>
+        {t.result ? t.result.overall : '—'}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700 }}>{t.brand_name}</div>
+        <div className="text-xs text-[#68655B] truncate">{t.website_url} · {t.created_by_name || 'unknown'} · {new Date(t.updated_at).toLocaleDateString('en-US')}</div>
+      </div>
+      {t.result && (
+        <div className="hidden md:flex" style={{ gap: 14 }}>
+          {[['CRD', t.result.lensScores?.credibility], ['TRS', t.result.lensScores?.trust], ['REP', t.result.lensScores?.reputation], ['AUT', t.result.lensScores?.authenticity]].map(([k, v]) => (
+            <div key={k} style={{ textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, color: scoreColor(v) }}>{v}</div>
+              <div className="dc-kicker-sm">{k}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {t.converted_at && <span className="dc-meta">Converted</span>}
+      {!t.result && <span className="dc-meta">Not scored</span>}
+    </button>
+  );
+
   return (
     <div className="dc-wrap dc-page animate-fade-in">
       <div className="dc-pagehead">
@@ -14628,14 +14741,33 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
 
       <div className="dc-block">
         <div className="dc-kicker" style={{ marginBottom: 16 }}>New teaser</div>
+        <div style={{ marginBottom: 16 }}>
+          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Campaign *</label>
+          {newCampaign === null ? (
+            <select className={inputCls} value={form.campaignId} disabled={busy} data-field="campaign"
+              onChange={e => { if (e.target.value === '__new') { setNewCampaign(''); } else { setForm({ ...form, campaignId: e.target.value }); } }}>
+              <option value="">Choose a campaign</option>
+              {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value="__new">+ New campaign</option>
+            </select>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input className={inputCls} autoFocus value={newCampaign} data-field="new-campaign"
+                onChange={e => setNewCampaign(e.target.value)} placeholder="e.g., Climate Week 2026 outreach"
+                onKeyDown={e => { if (e.key === 'Enter') addCampaign(); if (e.key === 'Escape') setNewCampaign(null); }} />
+              <button onClick={addCampaign} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>Create</button>
+              <button onClick={() => setNewCampaign(null)} className="btn-secondary">Cancel</button>
+            </div>
+          )}
+        </div>
         <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
           <div>
             <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Brand name *</label>
-            <input className={inputCls} value={form.brandName} disabled={busy} onChange={e => setForm({ ...form, brandName: e.target.value })} placeholder="e.g., Antenna Group" />
+            <input className={inputCls} value={form.brandName} disabled={busy} data-field="brand" onChange={e => setForm({ ...form, brandName: e.target.value })} placeholder="e.g., Antenna Group" />
           </div>
           <div>
             <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Website URL *</label>
-            <input className={inputCls} value={form.websiteUrl} disabled={busy} onChange={e => setForm({ ...form, websiteUrl: e.target.value })} placeholder="https://www.example.com" />
+            <input className={inputCls} value={form.websiteUrl} disabled={busy} data-field="url" onChange={e => setForm({ ...form, websiteUrl: e.target.value })} placeholder="https://www.example.com" />
           </div>
           <div>
             <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Business model *</label>
@@ -14668,35 +14800,59 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       {busy && progress}
 
       <section style={{ marginTop: 40 }}>
-        <div className="dc-kicker" style={{ marginBottom: 14 }}>Previous teasers</div>
-        {listLoading ? <SkeletonRows count={3} /> : listError ? <LoadFailed message={listError} onRetry={load} /> : list.length === 0 ? (
-          <div className="dc-block text-[#68655B]">No teasers yet.</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div className="dc-kicker">Campaigns</div>
+          {campaigns.length > 0 && (
+            <select value={filter} onChange={e => setFilter(e.target.value)} className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm" data-field="filter">
+              <option value="all">All campaigns</option>
+              {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {unassigned.length > 0 && <option value="unassigned">Unassigned</option>}
+            </select>
+          )}
+        </div>
+        {listLoading ? <SkeletonRows count={3} /> : listError ? <LoadFailed message={listError} onRetry={load} /> : (campaigns.length === 0 && unassigned.length === 0) ? (
+          <div className="dc-block text-[#68655B]">No campaigns yet. Create one when you run your first teaser.</div>
         ) : (
-          <div className="dc-stack">
-            {list.map(t => (
-              <button key={t.id} onClick={() => openRecord(t.id)} disabled={busy} className="dc-block text-left hover:bg-[#FAF9F5]"
-                style={{ display: 'flex', alignItems: 'center', gap: 18, width: '100%' }}>
-                <div style={{ fontSize: 28, fontWeight: 700, minWidth: 48, letterSpacing: '-.03em', color: t.result ? scoreColor(t.result.overall) : '#B3B0A8' }}>
-                  {t.result ? t.result.overall : '—'}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700 }}>{t.brand_name}</div>
-                  <div className="text-xs text-[#68655B] truncate">{t.website_url} · {t.created_by_name || 'unknown'} · {new Date(t.updated_at).toLocaleDateString('en-US')}</div>
-                </div>
-                {t.result && (
-                  <div className="hidden md:flex" style={{ gap: 14 }}>
-                    {[['CRD', t.result.lensScores?.credibility], ['TRS', t.result.lensScores?.trust], ['REP', t.result.lensScores?.reputation], ['AUT', t.result.lensScores?.authenticity]].map(([k, v]) => (
-                      <div key={k} style={{ textAlign: 'center' }}>
-                        <div style={{ fontWeight: 700, color: scoreColor(v) }}>{v}</div>
-                        <div className="dc-kicker-sm">{k}</div>
+          <div style={{ display: 'grid', gap: 28 }}>
+            {groups.map(({ campaign: c, teasers }) => {
+              const sum = campaignSummary(buildCampaignRows(teasers));
+              return (
+                <div key={c.id} data-campaign={c.id}>
+                  <div className="bg-[#0B0B0B] text-white" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 17 }}>{c.name}</div>
+                      <div className="dc-kicker-sm" style={{ color: '#9A9A94', marginTop: 4 }}>
+                        {sum.brands} brand{sum.brands === 1 ? '' : 's'}{sum.averageOverall !== null ? ` · average ${sum.averageOverall}` : ''}{sum.scored < sum.brands ? ` · ${sum.brands - sum.scored} not scored` : ''}
                       </div>
-                    ))}
+                    </div>
+                    <button onClick={() => download(c)} disabled={busy || campaignBusy === c.id || teasers.length === 0}
+                      className="flex items-center gap-2 bg-[#DEE42F] text-[#0B0B0B] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] disabled:opacity-40">
+                      {campaignBusy === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download scores
+                    </button>
+                    <button onClick={() => rename(c)} disabled={busy || campaignBusy === c.id} title="Rename campaign" className="p-2 text-white hover:text-[#DEE42F]"><Pencil className="w-4 h-4" /></button>
+                    <button onClick={() => removeCampaign(c, teasers.length)} disabled={busy || campaignBusy === c.id}
+                      title={teasers.length ? 'Only an empty campaign can be deleted' : 'Delete campaign'}
+                      className="p-2 text-white hover:text-[#DEE42F]" style={{ opacity: teasers.length ? 0.35 : 1 }}><Trash2 className="w-4 h-4" /></button>
                   </div>
-                )}
-                {t.converted_at && <span className="dc-meta">Converted</span>}
-                {!t.result && <span className="dc-meta">Not scored</span>}
-              </button>
-            ))}
+                  <div className="dc-stack" style={{ marginTop: 2 }}>
+                    {teasers.length === 0
+                      ? <div className="dc-block text-[#68655B] text-sm">No teasers in this campaign yet.</div>
+                      : [...teasers].sort((a, b) => (b.result?.overall ?? -1) - (a.result?.overall ?? -1)).map(t => <TeaserRow key={t.id} t={t} />)}
+                  </div>
+                </div>
+              );
+            })}
+            {showUnassigned && (
+              <div data-campaign="unassigned">
+                <div className="bg-white" style={{ padding: '14px 18px', borderLeft: '6px solid #DEE42F' }}>
+                  <div style={{ fontWeight: 700, fontSize: 17 }}>Unassigned</div>
+                  <div className="text-xs text-[#68655B]" style={{ marginTop: 4 }}>Run before campaigns existed. Open each one and move it to a campaign.</div>
+                </div>
+                <div className="dc-stack" style={{ marginTop: 2 }}>
+                  {unassigned.map(t => <TeaserRow key={t.id} t={t} />)}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>

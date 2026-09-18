@@ -20,3 +20,18 @@ export const deleteTeaser = async (id) => { calls.push(['deleteTeaser', id]); re
 // Full-assessment writers. A teaser must never call these.
 export const saveCompassResult = async (r) => { calls.push(['saveCompassResult', r]); return ok(r); };
 export const saveAssessment = async (a) => { calls.push(['saveAssessment', a]); return ok(a); };
+
+// Campaigns
+state.campaigns = [];
+state.campaignScores = [];
+export const fetchCampaigns = async () => { calls.push(['fetchCampaigns']); return ok(state.campaigns); };
+export const createCampaign = async (c) => {
+  calls.push(['createCampaign', c]);
+  if (state.campaigns.some(x => x.name.trim().toLowerCase() === c.name.trim().toLowerCase())) return { data: null, error: { message: 'A campaign with that name already exists.' } };
+  const row = { id: `c-${state.campaigns.length + 1}`, name: c.name.trim() };
+  state.campaigns.push(row);
+  return ok(row);
+};
+export const renameCampaign = async (id, name) => { calls.push(['renameCampaign', id, name]); return ok({ id, name }); };
+export const deleteCampaign = async (id) => { calls.push(['deleteCampaign', id]); return { error: null }; };
+export const fetchCampaignScores = async (id) => { calls.push(['fetchCampaignScores', id]); return ok(state.campaignScores); };

@@ -64,6 +64,7 @@ export function normaliseUrl(raw) {
 
 export function validateTeaserInput(input) {
   const errors = [];
+  if (!input?.campaignId) errors.push('Choose a campaign.');
   if (!String(input?.brandName || '').trim()) errors.push('Brand name is required.');
   if (!normaliseUrl(input?.websiteUrl)) errors.push('A valid website URL is required.');
   if (!['b2b', 'b2c', 'b2b2c'].includes(input?.businessModel)) errors.push('Choose a business model.');

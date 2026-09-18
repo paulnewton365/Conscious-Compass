@@ -10,7 +10,7 @@ required_tables (t) as (values
   ('profiles'), ('compass_results'), ('saved_assessments'), ('client_reports'),
   ('stay_conscious_cache'), ('landscape_analysis_cache'),
   ('insights_analysis_cache'), ('stay_conscious_newsletter'),
-  ('teaser_assessments')
+  ('teaser_assessments'), ('teaser_campaigns')
 ),
 required_columns (t, c) as (values
   ('profiles','is_readonly'), ('profiles','last_login'), ('profiles','full_name'),
@@ -25,7 +25,8 @@ required_columns (t, c) as (values
   ('insights_analysis_cache','stories'),
   ('stay_conscious_newsletter','newsletter'),
   ('teaser_assessments','evidence'), ('teaser_assessments','result'),
-  ('teaser_assessments','context'), ('teaser_assessments','converted_at')
+  ('teaser_assessments','context'), ('teaser_assessments','converted_at'),
+  ('teaser_assessments','campaign_id'), ('teaser_campaigns','name')
 )
 
 -- 1. Tables exist
@@ -127,21 +128,36 @@ select
 
 union all
 
--- 10. Teaser assessments are admin only. Every policy must gate on is_admin,
--- and all four operations must be covered, or a non-admin can reach them.
+-- 10. Teasers and campaigns are admin only. Every policy must gate on
+-- is_admin, and all four operations must be covered, or a non-admin can
+-- reach them.
 select
-  '10. admin-only', 'teaser_assessments',
+  '10. admin-only', tt.t,
   case
     when (select count(*) from pg_policies p
-          where p.schemaname = 'public' and p.tablename = 'teaser_assessments') < 4
+          where p.schemaname = 'public' and p.tablename = tt.t) < 4
       then 'INCOMPLETE — expected 4 policies, re-run SUPABASE_SETUP.sql'
     when exists (select 1 from pg_policies p
-          where p.schemaname = 'public' and p.tablename = 'teaser_assessments'
+          where p.schemaname = 'public' and p.tablename = tt.t
             and coalesce(p.qual, '') not like '%is_admin%'
             and coalesce(p.with_check, '') not like '%is_admin%')
-      then 'OPEN — a teaser policy does not check is_admin'
+      then 'OPEN — a policy does not check is_admin'
     else 'PASS'
   end
+from (values ('teaser_assessments'), ('teaser_campaigns')) tt (t)
+
+union all
+
+-- 11. A campaign with teasers in it cannot be deleted.
+select
+  '11. campaigns', 'delete only when empty',
+  case when exists (
+    select 1 from information_schema.referential_constraints rc
+    join information_schema.key_column_usage k
+      on k.constraint_name = rc.constraint_name and k.table_schema = 'public'
+    where k.table_name = 'teaser_assessments' and k.column_name = 'campaign_id'
+      and rc.delete_rule = 'RESTRICT'
+  ) then 'PASS' else 'NOT ENFORCED — re-run SUPABASE_SETUP.sql' end
 
 order by 1, 2;
 

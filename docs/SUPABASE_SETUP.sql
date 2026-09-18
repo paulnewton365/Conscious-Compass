@@ -163,6 +163,52 @@ create table if not exists public.teaser_assessments (
 create index if not exists teaser_assessments_updated_idx
   on public.teaser_assessments (updated_at desc);
 
+-- ── Teaser campaigns (v3.30) ──────────────────────────────────
+-- Groups teasers under an Antenna Group campaign. Names are unique ignoring
+-- case and surrounding spaces, so "Climate Week" and "climate week " cannot
+-- become two campaigns. A campaign can only be deleted once it is empty: the
+-- foreign key restricts it, so the rule holds even outside the app.
+-- campaign_id is nullable only for teasers run before campaigns existed;
+-- the app requires a campaign for every new teaser.
+
+create table if not exists public.teaser_campaigns (
+  id              uuid primary key default gen_random_uuid(),
+  name            text not null check (length(btrim(name)) > 0),
+  created_by      uuid references auth.users(id) on delete set null,
+  created_by_name text,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create unique index if not exists teaser_campaigns_name_key
+  on public.teaser_campaigns (lower(btrim(name)));
+
+alter table public.teaser_assessments
+  add column if not exists campaign_id uuid references public.teaser_campaigns(id) on delete restrict;
+
+-- ADD COLUMN IF NOT EXISTS skips an existing column, so it cannot repair a
+-- foreign key whose delete rule has drifted. Check the rule and rebuild the
+-- constraint if it is anything other than RESTRICT.
+do $$
+declare fk text;
+begin
+  select c.conname into fk
+  from pg_constraint c
+  where c.conrelid = 'public.teaser_assessments'::regclass and c.contype = 'f'
+    and c.confrelid = 'public.teaser_campaigns'::regclass;
+  if fk is null or (select confdeltype from pg_constraint where conname = fk and conrelid = 'public.teaser_assessments'::regclass) <> 'r' then
+    if fk is not null then
+      execute format('alter table public.teaser_assessments drop constraint %I', fk);
+    end if;
+    alter table public.teaser_assessments
+      add constraint teaser_assessments_campaign_id_fkey
+      foreign key (campaign_id) references public.teaser_campaigns(id) on delete restrict;
+  end if;
+end $$;
+
+create index if not exists teaser_assessments_campaign_idx
+  on public.teaser_assessments (campaign_id);
+
 
 -- ═══════════════════════════════════════════════════════════════
 -- 5. WEEKLY CACHE TABLES — written by cron, read by everyone
@@ -209,6 +255,7 @@ alter table public.landscape_analysis_cache  enable row level security;
 alter table public.insights_analysis_cache   enable row level security;
 alter table public.stay_conscious_newsletter enable row level security;
 alter table public.teaser_assessments        enable row level security;
+alter table public.teaser_campaigns          enable row level security;
 
 
 -- ── Profiles ──────────────────────────────────────────────────
@@ -310,26 +357,30 @@ create policy "client_reports_delete"
   using (auth.uid() = created_by or public.is_admin(auth.uid()));
 
 
--- ── Teaser assessments: admins only, every operation ──────────
+-- ── Teaser assessments and campaigns: admins only, every operation ──
 
 do $$
-declare op text;
+declare
+  t text;
+  op text;
 begin
-  foreach op in array array['select', 'insert', 'update', 'delete'] loop
-    execute format('drop policy if exists %I on public.teaser_assessments', 'teaser_assessments_' || op);
-    if op = 'insert' then
-      execute format(
-        'create policy %I on public.teaser_assessments for insert to authenticated with check (public.is_admin(auth.uid()))',
-        'teaser_assessments_' || op);
-    elsif op = 'update' then
-      execute format(
-        'create policy %I on public.teaser_assessments for update to authenticated using (public.is_admin(auth.uid())) with check (public.is_admin(auth.uid()))',
-        'teaser_assessments_' || op);
-    else
-      execute format(
-        'create policy %I on public.teaser_assessments for %s to authenticated using (public.is_admin(auth.uid()))',
-        'teaser_assessments_' || op, op);
-    end if;
+  foreach t in array array['teaser_assessments', 'teaser_campaigns'] loop
+    foreach op in array array['select', 'insert', 'update', 'delete'] loop
+      execute format('drop policy if exists %I on public.%I', t || '_' || op, t);
+      if op = 'insert' then
+        execute format(
+          'create policy %I on public.%I for insert to authenticated with check (public.is_admin(auth.uid()))',
+          t || '_' || op, t);
+      elsif op = 'update' then
+        execute format(
+          'create policy %I on public.%I for update to authenticated using (public.is_admin(auth.uid())) with check (public.is_admin(auth.uid()))',
+          t || '_' || op, t);
+      else
+        execute format(
+          'create policy %I on public.%I for %s to authenticated using (public.is_admin(auth.uid()))',
+          t || '_' || op, t, op);
+      end if;
+    end loop;
   end loop;
 end $$;
 

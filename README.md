@@ -506,11 +506,15 @@ Evidence is gathered automatically and in parallel: website pages, a social scan
 
 **Admin only**, in the UI and at the database: every teaser policy checks `is_admin`. `SUPABASE_VERIFY.sql` check 10 fails if any teaser policy stops doing so.
 
+**Campaigns (v3.30).** Every new teaser belongs to an Antenna Group campaign, chosen or created inline on the teaser form. The Teaser page groups teasers by campaign with brand counts and average overall, and can be filtered to one campaign. Campaigns can be renamed; a teaser can be moved between campaigns from its report. Campaign names are unique ignoring case and spacing. A campaign can only be deleted when it is empty, which the database enforces. Teasers run before v3.30 appear under Unassigned until moved. Campaign names are internal: they never appear in the prospect view or PDF, and never carry into a full assessment.
+
+**Download scores.** Each campaign exports a styled Excel file: one row per brand with overall, stage, the four lenses, the eight attributes, low-confidence count, thin-record flag, headline and scored date, in the app's green, orange and red bands. Scored brands are sorted highest first; unscored brands are listed as Not scored. A Notes sheet explains the method. Context, evidence and authorship are never included. Written directly as SpreadsheetML via JSZip, so no spreadsheet library is added.
+
 **Deploying:** re-run `docs/SUPABASE_SETUP.sql` (idempotent), then `docs/SUPABASE_VERIFY.sql`. Every row should say PASS.
 
 ## Tests
 
 ```
-npm test                                   # teaser logic, rendering, separation (38 tests)
-PGHOST=... PGUSER=postgres tests/sql/run.sh  # setup idempotency, admin-only RLS, table separation (needs Postgres)
+npm test                                   # teaser logic, export, rendering, separation
+PGHOST=... PGUSER=postgres tests/sql/run.sh  # setup idempotency, admin-only RLS, campaigns, table separation (needs Postgres)
 ```
