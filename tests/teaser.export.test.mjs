@@ -59,7 +59,9 @@ test('colour bands match the app exactly at every boundary', () => {
 
 test('columns cover everything asked for, in order', () => {
   const labels = EXPORT_COLUMNS.map(c => c.label);
-  assert.deepEqual(labels.slice(0, 8), ['Brand', 'Website', 'Overall', 'Stage', 'Credibility', 'Trust', 'Reputation', 'Authenticity']);
+  assert.deepEqual(labels.slice(0, 4), ['Brand', 'Website', 'Overall', 'Stage']);
+  const c = labels.indexOf('Credibility');
+  assert.deepEqual(labels.slice(c, c + 4), ['Credibility', 'Trust', 'Reputation', 'Authenticity']);
   ATTRIBUTES.forEach(a => assert.ok(labels.includes(a.name), a.name));
   for (const l of ['Headline', 'Scored', 'Thin public record']) assert.ok(labels.includes(l));
 });
@@ -125,4 +127,46 @@ test('JSZip is loaded on demand, not imported at the top of the module', () => {
   const src = readFileSync(new URL('../src/lib/teaserExport.js', import.meta.url), 'utf8');
   assert.ok(!/^import .*jszip/m.test(src), 'static import would add a second JSZip to the main bundle');
   assert.ok(src.includes("await import('jszip')"));
+});
+
+// ── Sector baseline columns (v3.31) ──
+
+const sectorBaseline = { available: true, scope: 'industry', sectorName: 'Energy & Utilities', avgScore: 58, count: 12, basis: 'Sector' };
+
+test('baseline columns sit after Stage, in order', () => {
+  const labels = EXPORT_COLUMNS.map(c => c.label);
+  assert.deepEqual(labels.slice(3, 9), ['Stage', 'Sector', 'Sector baseline', 'Vs baseline', 'Brands in baseline', 'Baseline basis']);
+});
+
+test('baseline row values: difference is overall minus baseline; unscored brands still get their baseline', () => {
+  const rows = buildCampaignRows([teaser('Acme', 61), teaser('Later', null)], { Acme: sectorBaseline, Later: sectorBaseline });
+  assert.deepEqual([rows[0].sector, rows[0].baseline, rows[0].vsBaseline, rows[0].baselineBrands, rows[0].baselineBasis], ['Energy & Utilities', 58, 3, 12, 'Sector']);
+  assert.equal(rows[1].baseline, 58);
+  assert.equal(rows[1].vsBaseline, null, 'no difference without a score');
+});
+
+test('fallback and unavailable baselines are labelled, never shown as a sector figure or a zero', () => {
+  const fallback = { ...sectorBaseline, scope: 'all', avgScore: 55, count: 40, basis: 'All brands (fewer than 5 in sector)' };
+  const [f] = buildCampaignRows([teaser('Acme', 61)], { Acme: fallback });
+  assert.equal(f.baselineBasis, 'All brands (fewer than 5 in sector)');
+  const [u] = buildCampaignRows([teaser('Acme', 61)], { Acme: { available: false, reason: 'x' } });
+  assert.equal(u.baseline, null);
+  assert.match(u.baselineBasis, /Unavailable/);
+  const [none] = buildCampaignRows([teaser('Acme', 61)]);
+  assert.equal(none.baseline, null);
+});
+
+test('Vs baseline is written as a signed number; baseline carries score colours', async () => {
+  const { zip } = await buildCampaignWorkbook('C', [teaser('Up', 61), teaser('Down', 40)], new Date('2026-09-18T12:00:00Z'), { Up: sectorBaseline, Down: sectorBaseline });
+  const files = {};
+  for (const n of ['xl/styles.xml', 'xl/worksheets/sheet1.xml']) files[n] = await zip.file(n).async('string');
+  assert.ok(files['xl/styles.xml'].includes('formatCode="+0;-0;0"'));
+  const sheet = files['xl/worksheets/sheet1.xml'];
+  const cellStyle = (ref) => sheet.match(new RegExp(`<c r="${ref}" s="(\\d+)"`))[1];
+  assert.match(sheet, /<c r="G5" s="11"><v>3<\/v><\/c>/, 'Up: 61 vs 58 is +3');
+  assert.match(sheet, /<c r="G6" s="11"><v>-18<\/v><\/c>/, 'Down: 40 vs 58 is -18');
+  assert.equal(cellStyle('F5'), String(bandStyle(58)), 'baseline banded like any score');
+  assert.ok(sheet.includes('Sector baselines calculated from full assessments on this date'));
+  const parsed = new (new JSDOM('').window.DOMParser)().parseFromString(files['xl/styles.xml'], 'application/xml');
+  assert.equal(parsed.getElementsByTagName('parsererror').length, 0);
 });

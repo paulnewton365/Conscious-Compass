@@ -8,7 +8,7 @@ import {
 } from '../src/lib/teaser.js';
 import { ATTRIBUTES, computeTrustLenses, applyCampaignModifiers, getMaturityStage } from '../src/data/rubric.js';
 
-const input = { campaignId: 'c-1', brandName: 'Acme', websiteUrl: 'acme.com', businessModel: 'b2b', industryName: 'Energy & Utilities', context: '' };
+const input = { campaignId: 'c-1', industry: 'energy', brandName: 'Acme', websiteUrl: 'acme.com', businessModel: 'b2b', industryName: 'Energy & Utilities', context: '' };
 const LONG = 'Substantive evidence text about the brand that is comfortably longer than forty characters.';
 
 // A model response scoring every attribute. `over` overrides per attribute.
@@ -55,6 +55,8 @@ test('normaliseUrl adds a scheme, strips trailing slash, rejects non-web schemes
 test('validateTeaserInput requires a campaign, brand, a real URL and a known business model', () => {
   assert.deepEqual(validateTeaserInput(input), []);
   assert.deepEqual(validateTeaserInput({ ...input, campaignId: '' }), ['Choose a campaign.']);
+  assert.deepEqual(validateTeaserInput({ ...input, industry: '' }), ['Choose a sector.']);
+  assert.deepEqual(validateTeaserInput({ ...input, industry: 'other' }), [], 'Other is a valid choice');
   assert.equal(validateTeaserInput({ ...input, brandName: ' ' }).length, 1);
   assert.equal(validateTeaserInput({ ...input, websiteUrl: 'nope' }).length, 1);
   assert.equal(validateTeaserInput({ ...input, businessModel: 'd2c' }).length, 1);

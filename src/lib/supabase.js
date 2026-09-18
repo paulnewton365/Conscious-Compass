@@ -249,7 +249,7 @@ export const deleteCampaign = async (id) => {
 export const fetchCampaignScores = async (campaignId) => {
   const { data, error } = await supabase
     .from('teaser_assessments')
-    .select('id, brand_name, website_url, result')
+    .select('id, brand_name, website_url, industry, result')
     .eq('campaign_id', campaignId);
   return { data, error };
 };

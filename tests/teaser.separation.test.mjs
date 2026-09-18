@@ -18,8 +18,46 @@ test('the teaser block exists and is the whole teaser UI', () => {
   for (const fn of ['function TeaserPage', 'function TeaserReport', 'function TeaserClientView', 'async function exportTeaserPdf']) assert.ok(teaserBlock.includes(fn), fn);
 });
 
-test('teaser UI never reads or writes full assessment results', () => {
-  FULL.forEach(term => assert.ok(!teaserBlock.includes(term), `teaser UI references ${term}`));
+// v3.31: the teaser may READ full results for the sector baseline, through
+// fetchCompassResults and the shared mapping and benchmark engine. It must
+// never write, and never touch saved assessments or the full-report state.
+const WRITES = ['saved_assessments', 'saveCompassResult', 'saveAssessment', 'deleteCompassResult', 'fetchSavedAssessments', 'savedAssessments', 'setScores', 'setAssessments', 'setCompassResults'];
+const BASELINE_READS = ['fetchCompassResults', 'formatCompassResult', 'teaserSectorBaseline'];
+
+test('teaser UI never writes full results or touches saved assessments', () => {
+  WRITES.forEach(term => assert.ok(!teaserBlock.includes(term), `teaser UI references ${term}`));
+  assert.ok(!teaserBlock.includes('compass_results'), 'no direct table access');
+});
+
+test('the only full-result read in the teaser UI is the sector baseline', () => {
+  const reads = [...teaserBlock.matchAll(/fetchCompassResults\(\)/g)].length;
+  assert.equal(reads, 2, 'one read when a teaser opens, one per export');
+  // Every place the fetched rows go is the shared mapping, then the baseline.
+  assert.ok(!/compassResults/.test(teaserBlock), 'teaser never uses the app-wide results state');
+  assert.ok(teaserBlock.includes('.map(formatCompassResult)'));
+  BASELINE_READS.forEach(t => assert.ok(teaserBlock.includes(t), t));
+});
+
+const fnSrc = (name) => {
+  const start = app.indexOf(`function ${name}(`);
+  assert.ok(start >= 0, name);
+  return app.slice(start, app.indexOf('\n}\n', start));
+};
+
+test('the baseline helpers are pure: no network, no writes, no state', () => {
+  for (const fn of ['formatCompassResult', 'teaserSectorBaseline', 'buildBenchmarkSnapshot']) {
+    const body = fnSrc(fn);
+    for (const bad of ['fetch(', 'await ', 'supabase', 'localStorage', '.push(', '.splice(']) {
+      assert.ok(!body.includes(bad), `${fn} contains ${bad}`);
+    }
+    // Calls such as saveX( or setX( would be writes; field names like savedAt are not.
+    assert.ok(!/\b(save|set|delete|insert|update)[A-Z]\w*\(/.test(body), `${fn} calls a writer`);
+  }
+});
+
+test('the full app and the teaser map full results through one shared function', () => {
+  assert.ok(app.includes('resultsData.map(formatCompassResult)'));
+  assert.equal([...app.matchAll(/brandName: r\.brand_name/g)].length, 1, 'no second copy of the mapping');
 });
 
 test('teaser pipeline has no database access at all', () => {
@@ -100,6 +138,7 @@ test('the campaign download reads teasers only, and never selects context, evide
   const tables = [...body.matchAll(/\.from\('([^']+)'\)/g)].map(m => m[1]);
   assert.deepEqual(tables, ['teaser_assessments']);
   const select = body.match(/\.select\('([^']+)'\)/)[1];
+  assert.ok(select.split(/,\s*/).includes('industry'), 'industry needed for the baseline');
   for (const col of ['context', 'evidence', 'created_by', '*']) assert.ok(!select.split(/,\s*/).includes(col), `download selects ${col}`);
 });
 

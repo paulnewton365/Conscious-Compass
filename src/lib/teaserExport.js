@@ -21,6 +21,11 @@ export const EXPORT_COLUMNS = [
   { key: 'website', label: 'Website', width: 30 },
   { key: 'overall', label: 'Overall', width: 10, score: true },
   { key: 'stage', label: 'Stage', width: 17 },
+  { key: 'sector', label: 'Sector', width: 22 },
+  { key: 'baseline', label: 'Sector baseline', width: 11, score: true },
+  { key: 'vsBaseline', label: 'Vs baseline', width: 10, signed: true },
+  { key: 'baselineBrands', label: 'Brands in baseline', width: 11 },
+  { key: 'baselineBasis', label: 'Baseline basis', width: 34 },
   ...LENSES.map(([key, label]) => ({ key, label, width: 13, score: true })),
   ...ATTRIBUTES.map(a => ({ key: a.id, label: a.name, width: 12, score: true })),
   { key: 'lowConfidence', label: 'Low-confidence attributes', width: 14 },
@@ -29,13 +34,29 @@ export const EXPORT_COLUMNS = [
   { key: 'scored', label: 'Scored', width: 14 },
 ];
 
+// Baseline columns for one teaser, from a teaserSectorBaseline() result.
+// Absent or unavailable baselines leave the columns blank and say why.
+function baselineCells(b, overall) {
+  if (!b) return { sector: '', baseline: null, vsBaseline: null, baselineBrands: null, baselineBasis: '' };
+  if (!b.available) return { sector: '', baseline: null, vsBaseline: null, baselineBrands: null, baselineBasis: 'Unavailable: no comparable full assessments' };
+  return {
+    sector: b.sectorName,
+    baseline: b.avgScore,
+    vsBaseline: overall === null ? null : overall - b.avgScore,
+    baselineBrands: b.count,
+    baselineBasis: b.basis,
+  };
+}
+
 // One row per teaser. Scored brands first, highest overall first; unscored
-// brands follow alphabetically so the list is complete.
-export function buildCampaignRows(teasers) {
+// brands follow alphabetically so the list is complete. `baselines` maps a
+// teaser id to its sector baseline, calculated at export time.
+export function buildCampaignRows(teasers, baselines = {}) {
   const rows = (teasers || []).map(t => {
     const r = t.result;
     if (!r) {
       return { brand: t.brand_name, website: t.website_url, overall: null, stage: 'Not scored', scoredAt: null,
+        ...baselineCells(baselines[t.id], null),
         ...Object.fromEntries(LENSES.map(([k]) => [k, null])), ...Object.fromEntries(ATTRIBUTES.map(a => [a.id, null])),
         lowConfidence: null, thinRecord: '', headline: '', scored: '' };
     }
@@ -44,6 +65,7 @@ export function buildCampaignRows(teasers) {
       website: t.website_url,
       overall: r.overall,
       stage: r.stage || '',
+      ...baselineCells(baselines[t.id], r.overall),
       ...Object.fromEntries(LENSES.map(([k]) => [k, r.lensScores?.[k] ?? null])),
       ...Object.fromEntries(ATTRIBUTES.map(a => [a.id, r.scores?.[a.id]?.score ?? null])),
       lowConfidence: r.lowConfidenceCount ?? null,
@@ -76,13 +98,14 @@ const esc = (v) => String(v ?? '')
 const colName = (i) => { let n = i + 1, s = ''; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
 
 // Style indexes into cellXfs below.
-const S = { title: 1, sub: 2, header: 3, text: 4, green: 5, orange: 6, red: 7, wrap: 8, muted: 9, empty: 10 };
+const S = { title: 1, sub: 2, header: 3, text: 4, green: 5, orange: 6, red: 7, wrap: 8, muted: 9, empty: 10, signed: 11 };
 
 // Same bands as the app: green 70+, orange 45 to 69, red under 45.
 export const bandStyle = (n) => (n === null || n === undefined ? S.empty : n >= 70 ? S.green : n >= 45 ? S.orange : S.red);
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="+0;-0;0"/></numFmts>
 <fonts count="7">
 <font><sz val="10"/><name val="Arial"/></font>
 <font><b/><sz val="16"/><color rgb="FF0B0B0B"/><name val="Arial"/></font>
@@ -106,7 +129,7 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <border><left/><right/><top/><bottom style="thin"><color rgb="FFDCDAD3"/></bottom><diagonal/></border>
 </borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="11">
+<cellXfs count="12">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
 <xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
@@ -118,6 +141,7 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
 <xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>
 <xf numFmtId="0" fontId="2" fillId="6" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
@@ -135,7 +159,7 @@ function scoresSheet(campaignName, rows, exportedAt) {
   const lastCol = colName(EXPORT_COLUMNS.length - 1);
   const xml = [];
   xml.push(`<row r="1" ht="24" customHeight="1">${cell('A1', `${campaignName}: teaser scores`, S.title)}</row>`);
-  xml.push(`<row r="2">${cell('A2', `Exported ${date}. ${sum.brands} brand${sum.brands === 1 ? '' : 's'}, ${sum.scored} scored${sum.averageOverall !== null ? `, average overall ${sum.averageOverall}` : ''}. Indicative reads from public evidence; see Notes.`, S.sub)}</row>`);
+  xml.push(`<row r="2">${cell('A2', `Exported ${date}. ${sum.brands} brand${sum.brands === 1 ? '' : 's'}, ${sum.scored} scored${sum.averageOverall !== null ? `, average overall ${sum.averageOverall}` : ''}. Sector baselines calculated from full assessments on this date. Indicative reads; see Notes.`, S.sub)}</row>`);
   xml.push(`<row r="${HEADER_ROW}" ht="42" customHeight="1">${EXPORT_COLUMNS.map((c, i) => cell(`${colName(i)}${HEADER_ROW}`, c.label, S.header)).join('')}</row>`);
   rows.forEach((row, ri) => {
     const r = HEADER_ROW + 1 + ri;
@@ -143,6 +167,7 @@ function scoresSheet(campaignName, rows, exportedAt) {
       const ref = `${colName(ci)}${r}`;
       const v = row[c.key];
       if (c.score) return cell(ref, v, bandStyle(v));
+      if (c.signed) return cell(ref, v, S.signed);
       if (c.key === 'stage' && row.overall === null) return cell(ref, v, S.muted);
       return cell(ref, v, c.wrap ? S.wrap : S.text);
     });
@@ -166,6 +191,9 @@ const NOTES = [
   'Each row is an indicative Conscious Compass read, built from publicly observable evidence gathered in a single automated pass: website, social, AI perception, review and search signals, and earned media.',
   'Scores use the same rubric and the same calculations as the full Conscious Compass assessment. The full assessment goes much deeper and can move these numbers.',
   'Overall is the average of the eight attribute scores. Credibility, Trust, Reputation and Authenticity are fixed weightings of the attribute scores, not separate judgments.',
+  'Sector baseline is the average overall score of full Conscious Compass assessments in the brand\'s sector, recalculated on the export date so every row uses the same figures. The brand\'s own full assessment, if it has one, is never counted in its baseline. Only assessments on the current framework are included.',
+  'Where a sector has fewer than 5 full assessments, the baseline falls back to the average across all assessed brands, and Baseline basis says so. Vs baseline is the brand\'s overall minus the baseline.',
+  'Teaser scores are indicative and baselines come from full assessments, so read Vs baseline as a directional signal, not a like-for-like ranking.',
   'Colour bands: green 70 and above, orange 45 to 69, red below 45.',
   'Low-confidence attributes counts scores resting on thin evidence. Thin public record is flagged when three or more attributes are low confidence.',
   'Not scored means evidence was gathered but the teaser has not been scored yet.',
@@ -190,9 +218,9 @@ export const exportFilename = (campaignName, date = new Date()) => {
 };
 
 // Resolves to a JSZip instance; the caller chooses blob (browser) or buffer (tests).
-export async function buildCampaignWorkbook(campaignName, teasers, exportedAt = new Date()) {
+export async function buildCampaignWorkbook(campaignName, teasers, exportedAt = new Date(), baselines = {}) {
   const { default: JSZip } = await import('jszip');
-  const rows = buildCampaignRows(teasers);
+  const rows = buildCampaignRows(teasers, baselines);
   const zip = new JSZip();
   zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

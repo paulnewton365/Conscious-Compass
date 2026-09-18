@@ -187,6 +187,7 @@ test('empty form is rejected before any network call', async () => {
   const run = [...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser'));
   await click(run);
   assert.ok(container.textContent.includes('Choose a campaign.'));
+  assert.ok(container.textContent.includes('Choose a sector.'));
   assert.ok(container.textContent.includes('Brand name is required.'));
   assert.equal(log.length, 0);
   await act(async () => root.unmount());
@@ -201,6 +202,7 @@ test('full run: evidence saved before scoring, then scored result saved and show
   await selectValue(container.querySelector('[data-field="campaign"]'), 'c-1');
   await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
   await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
+  await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
   await typeInto(container.querySelector('textarea'), 'SENTINEL_CONTEXT brief');
   const run = [...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser'));
   await click(run);
@@ -215,6 +217,7 @@ test('full run: evidence saved before scoring, then scored result saved and show
   assert.equal(saves[0].created_by, 'u1');
   assert.equal(saves[0].created_by_name, 'Paul Newton');
   assert.equal(saves[0].campaign_id, 'c-1', 'teaser saved into the chosen campaign');
+  assert.equal(saves[0].industry, 'energy');
   const expected = logic.finaliseTeaser(logic.parseTeaserScoring(await scoringJson()));
   assert.equal(saves[1].result.overall, expected.overall, 'saved overall is the code-computed overall');
   assert.deepEqual(saves[1].result.lensScores, expected.lensScores);
@@ -243,6 +246,7 @@ test('a failed scoring pass keeps the gathered evidence and says so', async () =
   await selectValue(container.querySelector('[data-field="campaign"]'), 'c-1');
   await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
   await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
+  await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
   await click([...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser')));
   for (let i = 0; i < 20; i++) await act(flush);
   const saves = stub.calls.filter(c => c[0] === 'saveTeaser');
@@ -269,7 +273,7 @@ test('rescore and delete touch only the teaser table', async () => {
   await act(flush);
   const names = stub.calls.map(c => c[0]);
   assert.ok(names.includes('deleteTeaser'));
-  assert.deepEqual(names.filter(n => !['fetchTeasers', 'fetchCampaigns', 'fetchTeaser', 'saveTeaser', 'deleteTeaser'].includes(n)), [], `unexpected calls: ${names}`);
+  assert.deepEqual(names.filter(n => !['fetchTeasers', 'fetchCampaigns', 'fetchTeaser', 'saveTeaser', 'deleteTeaser', 'fetchCompassResults'].includes(n)), [], `unexpected calls: ${names}`);
   await act(async () => root.unmount());
 });
 
@@ -372,5 +376,102 @@ test('Download scores fetches only that campaign and saves a real xlsx', async (
   assert.ok(!container.textContent.includes('Download failed'));
   globalThis.setTimeout = window.setTimeout = origTimeout;
   window.HTMLAnchorElement.prototype.dispatchEvent = origDispatch;
+  await act(async () => root.unmount());
+});
+
+
+// ── Sector baseline (v3.31) ──
+
+const fullRow = (brand, industry, total, version = '2.9') => ({ id: brand, brand_name: brand, industry, total_score: total, scores: { AWAKE: total }, rubric_version: version, created_at: '2026-06-01T00:00:00Z' });
+
+test('report view shows a live sector baseline from full results, excluding the brand itself', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
+  stub.state.compassRows = [
+    fullRow('E1', 'energy', 50), fullRow('E2', 'energy', 60), fullRow('E3', 'energy', 70), fullRow('E4', 'energy', 40), fullRow('E5', 'energy', 80),
+    fullRow('Acme', 'energy', 10),          // the brand's own full assessment: excluded
+    fullRow('Old', 'energy', 5, '1.0'),     // old framework: excluded
+    fullRow('T1', 'technology', 90),
+  ];
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme')));
+  await act(flush);
+  const text = container.querySelector('[data-field="baseline"]').textContent;
+  assert.match(text, /Sector baseline:\s*60/, 'average of the five eligible energy brands');
+  assert.ok(text.includes('Energy & Utilities') && text.includes('5 full assessments'));
+  const diff = rec.result.overall - 60;
+  assert.ok(text.includes(`this teaser ${diff > 0 ? '+' : ''}${diff}`));
+  assert.ok(!container.querySelector('[data-teaser-client-view]').textContent.includes('Sector baseline'), 'baseline stays out of the prospect view');
+  assert.equal(stub.calls.filter(c => ['saveCompassResult', 'saveAssessment'].includes(c[0])).length, 0);
+  await act(async () => root.unmount());
+});
+
+test('a thin sector falls back to all brands and says so; Other means no sector', async () => {
+  stub.state.compassRows = [fullRow('E1', 'energy', 50), fullRow('T1', 'technology', 70), fullRow('T2', 'technology', 90)];
+  const thin = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
+  let m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [thin] });
+  await click(btn(m.container, b => b.textContent.includes('Acme'))); await act(flush);
+  let text = m.container.querySelector('[data-field="baseline"]').textContent;
+  assert.ok(text.includes('70') && text.includes('fewer than 5 in sector') && text.includes('3 full assessments'), text);
+  await act(async () => m.root.unmount());
+  const other = { ...thin, industry: 'other' };
+  m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [other] });
+  await click(btn(m.container, b => b.textContent.includes('Acme'))); await act(flush);
+  text = m.container.querySelector('[data-field="baseline"]').textContent;
+  assert.ok(text.includes('All brands (no sector)'), text);
+  await act(async () => m.root.unmount());
+});
+
+test('no full assessments at all reads as unavailable, not as a zero baseline', async () => {
+  stub.state.compassRows = [];
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme'))); await act(flush);
+  assert.ok(container.querySelector('[data-field="baseline"]').textContent.includes('unavailable'));
+  await act(async () => root.unmount());
+});
+
+test('baselines are recalculated at every export, so two downloads reflect the day they ran', async () => {
+  const a = { ...(await makeRecord()), id: 'a', brand_name: 'Alpha', industry: 'energy', campaign_id: 'c-1' };
+  stub.state.campaignScores = [{ id: 'a', brand_name: 'Alpha', website_url: 'https://alpha.com', industry: 'energy', result: a.result }];
+  const blobs = [];
+  window.URL.createObjectURL = globalThis.URL.createObjectURL = (blob) => { blobs.push(blob); return 'blob:test'; };
+  window.URL.revokeObjectURL = globalThis.URL.revokeObjectURL = () => {};
+  const origDispatch = window.HTMLAnchorElement.prototype.dispatchEvent;
+  window.HTMLAnchorElement.prototype.dispatchEvent = function (ev) { return ev.type === 'click' && this.download ? true : origDispatch.call(this, ev); };
+  const origTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = window.setTimeout = (fn, ms, ...rest) => origTimeout(fn, ms > 5000 ? 0 : ms, ...rest);
+  const JSZip = (await import('jszip')).default;
+  const sheetOf = async (blob) => (await JSZip.loadAsync(Buffer.from(await blob.arrayBuffer()))).file('xl/worksheets/sheet1.xml').async('string');
+
+  stub.state.compassRows = [50, 50, 50, 50, 50].map((v, i) => fullRow(`E${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'Climate Week' }], teasers: [a] });
+  const dl = () => btn(container.querySelector('[data-campaign="c-1"]'), b => b.textContent.includes('Download scores'));
+  await click(dl()); for (let i = 0; i < 10; i++) await act(flush);
+  // A full assessment lands between the two downloads.
+  stub.state.compassRows.push(fullRow('E5', 'energy', 110));
+  await click(dl()); for (let i = 0; i < 10; i++) await act(flush);
+
+  assert.equal(stub.calls.filter(c => c[0] === 'fetchCompassResults').length, 2, 'full results fetched fresh for each export');
+  const [first, second] = [await sheetOf(blobs[0]), await sheetOf(blobs[1])];
+  const baselineCell = (xml) => Number(xml.match(/<c r="F5" s="\d+"><v>(-?\d+)<\/v>/)[1]);
+  assert.equal(baselineCell(first), 50);
+  assert.equal(baselineCell(second), 60, 'new full assessment moves the baseline');
+  assert.ok(first.includes('Energy &amp; Utilities'));
+  assert.equal(stub.calls.filter(c => ['saveCompassResult', 'saveAssessment'].includes(c[0])).length, 0, 'exporting never writes full results');
+  globalThis.setTimeout = window.setTimeout = origTimeout;
+  window.HTMLAnchorElement.prototype.dispatchEvent = origDispatch;
+  await act(async () => root.unmount());
+});
+
+test('a download fails loudly rather than exporting without baselines', async () => {
+  const a = { ...(await makeRecord()), id: 'a', brand_name: 'Alpha', industry: 'energy', campaign_id: 'c-1' };
+  stub.state.campaignScores = [{ id: 'a', brand_name: 'Alpha', website_url: 'https://alpha.com', industry: 'energy', result: a.result }];
+  const orig = stub.state.compassRows;
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'C' }], teasers: [a] });
+  stub.state.compassRows = { map() { throw new Error('boom'); } };
+  await click(btn(container.querySelector('[data-campaign="c-1"]'), b => b.textContent.includes('Download scores')));
+  for (let i = 0; i < 5; i++) await act(flush);
+  assert.ok(container.textContent.includes('Download failed'));
+  stub.state.compassRows = orig;
   await act(async () => root.unmount());
 });

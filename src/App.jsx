@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.30.0';
+const APP_VERSION = '3.31.0';
 import { TEASER_SOURCES, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
   supabase, 
@@ -530,6 +530,50 @@ function ordinal(n) {
  * Builds the frozen benchmark record stored alongside a report.
  * Returns null when there is nothing meaningful to compare against.
  */
+// One mapping from a compass_results row to the shape the benchmark engine
+// reads. Shared by the app's data load and the teaser sector baseline, so the
+// two can never read full results differently.
+function formatCompassResult(r) {
+  return {
+    id: r.id,
+    brandName: r.brand_name,
+    businessModel: r.business_model,
+    industry: r.industry,
+    totalScore: r.total_score,
+    maturityLevel: r.maturity_level,
+    scores: r.scores,
+    servicesRecommended: r.services_recommended || [],
+    savedAt: r.created_at,
+    createdAt: r.created_at,
+    isManual: r.is_manual,
+    assessorName: r.assessor_name,
+    rubricVersion: r.rubric_version || '2.4',
+  };
+}
+
+// Teaser sector baseline (v3.31). The average overall of FULL assessments in
+// the teaser's sector, from the same engine and rules as full reports: same
+// framework only, the brand itself excluded, and a labelled fall back to all
+// assessed brands when the sector has fewer than BENCHMARK_MIN_N. Read-only:
+// full results inform the teaser; nothing flows back. "Other" is not a sector.
+function teaserSectorBaseline(results, { industry, brandName, totalScore }) {
+  const sector = industry && industry !== 'other' ? industry : null;
+  const industryName = sector ? (INDUSTRIES.find(i => i.id === sector)?.name || sector) : null;
+  const snap = buildBenchmarkSnapshot(results, { industry: sector, industryName, brandName, totalScore: Number.isFinite(totalScore) ? totalScore : 0, scores: {} });
+  if (snap.unavailable) return { available: false, reason: snap.reason };
+  return {
+    available: true,
+    scope: snap.scope,                       // 'industry' | 'all'
+    sectorName: industryName || 'No sector',
+    cohortLabel: snap.cohortLabel,
+    avgScore: snap.avgScore,
+    count: snap.count,
+    sectorCount: snap.sectorCount,
+    basis: snap.scope === 'industry' ? 'Sector' : (sector ? `All brands (fewer than ${BENCHMARK_MIN_N} in sector)` : 'All brands (no sector)'),
+    difference: Number.isFinite(totalScore) ? totalScore - snap.avgScore : null,
+  };
+}
+
 function buildBenchmarkSnapshot(results, { industry, industryName, brandName, totalScore, scores }) {
   if (!Array.isArray(results) || results.length === 0) {
     return { unavailable: true, reason: 'No assessed brands are loaded, so there is nothing to benchmark against yet.', totalCount: 0 };
@@ -14415,7 +14459,7 @@ function TeaserProgress({ statuses, scoring, elapsed }) {
   );
 }
 
-function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, onBack, onRescore, onRefresh, onConvert, onDelete }) {
+function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
   const chartRef = useRef(null);
   const payload = makeTeaserClientPayload(record);
   const [exporting, setExporting] = useState(false);
@@ -14464,6 +14508,17 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
               </span>
             ))}
           </div>
+          <div data-field="baseline">
+            <span className="font-semibold">Sector baseline:</span>{' '}
+            {baselineError ? `unavailable (${baselineError})`
+              : !baseline ? 'loading'
+              : !baseline.available ? 'unavailable, no comparable full assessments yet'
+              : <>
+                  <span style={{ fontWeight: 700, color: scoreColor(baseline.avgScore) }}>{baseline.avgScore}</span>
+                  {' '}({baseline.scope === 'industry' ? baseline.sectorName : baseline.basis}, {baseline.count} full assessment{baseline.count === 1 ? '' : 's'})
+                  {baseline.difference !== null && <> · this teaser <strong>{baseline.difference > 0 ? '+' : ''}{baseline.difference}</strong></>}
+                </>}
+          </div>
           {record.context && <div><span className="font-semibold">Context:</span> {record.context}</div>}
           {record.result?.history?.length > 0 && (
             <div>Previous scores: {record.result.history.map(h => `${h.overall} (${new Date(h.scoredAt).toLocaleDateString('en-US')})`).join(', ')}</div>
@@ -14484,7 +14539,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
 }
 
 function TeaserPage({ user, profile, apiKey, onConvert }) {
-  const blank = { brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', context: '', campaignId: '' };
+  const blank = { brandName: '', websiteUrl: '', businessModel: 'b2b', industry: '', context: '', campaignId: '' };
   const [list, setList] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [listLoading, setListLoading] = useState(true);
@@ -14496,6 +14551,10 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [campaignBusy, setCampaignBusy] = useState(null); // campaign id with an action in flight
+  // Full-assessment results for the sector baseline, fetched fresh each time a
+  // teaser is opened. Read-only: nothing here writes to full results.
+  const [benchPool, setBenchPool] = useState(null);
+  const [benchError, setBenchError] = useState(null);
   const [statuses, setStatuses] = useState({});
   const [scoring, setScoring] = useState('pending');
   const [elapsed, setElapsed] = useState(0);
@@ -14585,10 +14644,11 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       if (first.error) throw new Error(`Evidence gathered but could not be saved: ${first.error.message}`);
       saved = first.data;
       setOpen(saved);
+      loadBenchPool();
       saved = await scoreAndSave(saved);
       setOpen(saved);
       // Keep the campaign selected: teasers usually come in batches.
-      setForm({ ...blank, campaignId: form.campaignId });
+      setForm({ ...blank, campaignId: form.campaignId, industry: form.industry });
       load();
     } catch (e) {
       setError(e.message);
@@ -14598,9 +14658,16 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     }
   };
 
+  const loadBenchPool = async () => {
+    setBenchError(null);
+    const { data, error: e } = await fetchCompassResults();
+    if (e) { setBenchPool(null); setBenchError(e.message); return; }
+    setBenchPool((data || []).map(formatCompassResult));
+  };
+
   const openRecord = async (id) => {
     setError(null);
-    const { data, error: e } = await fetchTeaser(id);
+    const [{ data, error: e }] = await Promise.all([fetchTeaser(id), loadBenchPool()]);
     if (e) { setError(e.message); return; }
     setOpen(data);
   };
@@ -14668,9 +14735,15 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   const download = async (c) => {
     setCampaignBusy(c.id); setError(null);
     try {
-      const { data, error: e } = await fetchCampaignScores(c.id);
+      // Baselines are recalculated from full results at every export, so every
+      // row in one file is compared against the same day's figures.
+      const [{ data, error: e }, full] = await Promise.all([fetchCampaignScores(c.id), fetchCompassResults()]);
       if (e) throw new Error(e.message);
-      const { zip, filename } = await buildCampaignWorkbook(c.name, data || []);
+      if (full.error) throw new Error(`Could not load full assessments for the sector baselines: ${full.error.message}`);
+      const pool = (full.data || []).map(formatCompassResult);
+      const baselines = Object.fromEntries((data || []).map(t => [t.id,
+        teaserSectorBaseline(pool, { industry: t.industry, brandName: t.brand_name, totalScore: t.result?.overall })]));
+      const { zip, filename } = await buildCampaignWorkbook(c.name, data || [], new Date(), baselines);
       const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       saveAs(blob, filename);
     } catch (e) {
@@ -14688,6 +14761,8 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     return (
       <TeaserReport record={open} busy={busy} progress={progress} error={error}
         campaigns={campaigns} onMove={moveTo}
+        baseline={benchPool ? teaserSectorBaseline(benchPool, { industry: open.industry, brandName: open.brand_name, totalScore: open.result?.overall }) : null}
+        baselineError={benchError}
         onBack={() => { setOpen(null); setError(null); }}
         onRescore={rescore} onRefresh={refresh} onConvert={convert} onDelete={remove} />
     );
@@ -14776,10 +14851,12 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Industry</label>
-            <select className={inputCls} value={form.industry} disabled={busy} onChange={e => setForm({ ...form, industry: e.target.value })}>
+            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Sector *</label>
+            <select className={inputCls} value={form.industry} disabled={busy} data-field="industry" onChange={e => setForm({ ...form, industry: e.target.value })}>
+              <option value="">Choose a sector</option>
               {INDUSTRIES.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
+            <p className="text-xs text-[#68655B] mt-1">Sets the sector baseline. Other compares against all assessed brands.</p>
           </div>
         </div>
         <div style={{ marginTop: 16 }}>
@@ -15059,21 +15136,7 @@ function AppContent() {
     try {
       const { data: resultsData } = await fetchCompassResults();
       if (resultsData) {
-        const formattedResults = resultsData.map(r => ({
-          id: r.id,
-          brandName: r.brand_name,
-          businessModel: r.business_model,
-          industry: r.industry,
-          totalScore: r.total_score,
-          maturityLevel: r.maturity_level,
-          scores: r.scores,
-          servicesRecommended: r.services_recommended || [],
-          savedAt: r.created_at,
-          createdAt: r.created_at,
-          isManual: r.is_manual,
-          assessorName: r.assessor_name,
-          rubricVersion: r.rubric_version || '2.4',
-        }));
+        const formattedResults = resultsData.map(formatCompassResult);
         setCompassResults(formattedResults);
       }
 

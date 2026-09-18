@@ -68,6 +68,8 @@ export function validateTeaserInput(input) {
   if (!String(input?.brandName || '').trim()) errors.push('Brand name is required.');
   if (!normaliseUrl(input?.websiteUrl)) errors.push('A valid website URL is required.');
   if (!['b2b', 'b2c', 'b2b2c'].includes(input?.businessModel)) errors.push('Choose a business model.');
+  // The sector baseline depends on it. "Other" is allowed and falls back to all brands.
+  if (!input?.industry) errors.push('Choose a sector.');
   return errors;
 }
 

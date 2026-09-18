@@ -6,7 +6,7 @@ const ok = (data) => ({ data, error: null });
 export const supabase = { auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }), getSession: async () => ({ data: { session: null } }) } };
 const noop = async () => ok(null);
 export const signUp = noop, signIn = noop, signOut = noop, getCurrentUser = noop, getProfile = noop,
-  fetchCompassResults = async () => ok([]), deleteCompassResult = noop,
+  deleteCompassResult = noop,
   fetchSavedAssessments = async () => ok([]), deleteAssessment = noop,
   fetchAllProfiles = async () => ok([]), updateProfile = noop, approveUser = noop, revokeUser = noop,
   makeAdmin = noop, removeAdmin = noop, setReadonly = noop, deleteUser = noop,
@@ -35,3 +35,7 @@ export const createCampaign = async (c) => {
 export const renameCampaign = async (id, name) => { calls.push(['renameCampaign', id, name]); return ok({ id, name }); };
 export const deleteCampaign = async (id) => { calls.push(['deleteCampaign', id]); return { error: null }; };
 export const fetchCampaignScores = async (id) => { calls.push(['fetchCampaignScores', id]); return ok(state.campaignScores); };
+
+// Full results, as raw compass_results rows. Read by the teaser baseline only.
+state.compassRows = [];
+export const fetchCompassResults = async () => { calls.push(['fetchCompassResults']); return ok(state.compassRows.map(r => ({ ...r }))); };
