@@ -72,14 +72,15 @@ test('client view shows every attribute, all four lenses, the overall and confid
   assert.ok(html.includes('medium confidence'));
   assert.ok(html.includes('Indicative Compass read'));
   assert.ok(html.includes('What a full assessment would settle'));
-  assert.ok(!html.includes('Thin public record'));
+  assert.ok(!html.includes('Limited evidence in this read'));
 });
 
 test('thin-record banner appears only when the record is flagged', async () => {
   const rec = await makeRecord({ thin: true });
   assert.equal(rec.result.thinRecord, true);
   const html = server.renderToStaticMarkup(h(App.TeaserClientView, { payload: logic.makeTeaserClientPayload(rec) }));
-  assert.ok(html.includes('Thin public record'));
+  assert.ok(html.includes('Limited evidence in this read'));
+  assert.ok(!/so will a prospect/.test(html), 'never blames the brand for the narrowness of the read');
 });
 
 test('internal report: context and sources show internally, never inside the client view', async () => {
@@ -473,5 +474,31 @@ test('a download fails loudly rather than exporting without baselines', async ()
   for (let i = 0; i < 5; i++) await act(flush);
   assert.ok(container.textContent.includes('Download failed'));
   stub.state.compassRows = orig;
+  await act(async () => root.unmount());
+});
+
+
+// ── Scoring method (v3.32) ──
+
+test('an earlier-method teaser is flagged in the list and report; a current one is not', async () => {
+  const cur = { ...(await makeRecord()), id: 'cur', brand_name: 'Current', campaign_id: 'c-1' };
+  const old = { ...(await makeRecord()), id: 'old', brand_name: 'Earlier', campaign_id: 'c-1' };
+  old.result = { ...old.result, teaserVersion: '1.0' };
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [cur, old] });
+  const rowOf = (name) => btn(container, b => b.textContent.includes(name));
+  assert.ok(rowOf('Earlier').textContent.includes('Earlier method'));
+  assert.ok(!rowOf('Current').textContent.includes('Earlier method'));
+  await click(rowOf('Earlier')); await act(flush);
+  assert.ok(container.querySelector('[data-field="method-outdated"]').textContent.includes('Rescore to apply the current method'));
+  await act(async () => root.unmount());
+});
+
+test('what could not be observed is listed internally, outside the prospect view', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', campaign_id: 'c-1' };
+  rec.result = { ...rec.result, scores: { ...rec.result.scores, AWAKE: { ...rec.result.scores.AWAKE, unobserved: 'SENTINEL_UNOBSERVED analyst citations' } } };
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme'))); await act(flush);
+  assert.ok(container.querySelector('[data-field="unobserved"]').textContent.includes('SENTINEL_UNOBSERVED'));
+  assert.ok(!container.querySelector('[data-teaser-client-view]').innerHTML.includes('SENTINEL_UNOBSERVED'));
   await act(async () => root.unmount());
 });

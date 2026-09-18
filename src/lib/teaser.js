@@ -3,14 +3,20 @@
 //
 // A quick, indicative Compass read for new business prospects. Admin only.
 //
-// Same framework, same rubric, same lens weights and the same overall
-// calculation as the full assessment, so a teaser and a full report are
-// comparable. What differs is the depth of evidence: every source here is
-// gathered automatically in one pass, and the report says so.
+// Same framework, rubric, lens weights and overall calculation as the full
+// assessment. What differs is the depth of evidence: every source here is
+// gathered automatically in one pass, so each attribute is judged on the
+// signals that pass can reach, and the report says so.
 //
 // Integrity rules this module enforces:
-// - The model scores. Code does every calculation: campaign modifier, overall,
-//   maturity stage, lens scores. The model never supplies a total.
+// - The model scores. Code does every calculation: overall, maturity stage,
+//   lens scores. The model never supplies a total.
+// - No campaign modifier. Judging campaign coherence needs paid media and
+//   cross-channel creative a teaser cannot see, so applying it would dock
+//   brands for the narrowness of this pass.
+// - Scoring is calibrated to the evidence a teaser can reach: signals it
+//   cannot observe count neither for nor against. No points are added after
+//   scoring; every score is still earned from evidence.
 // - A result missing any attribute score is rejected, never back-filled.
 // - Context is background for interpretation, never evidence, never output.
 // - The evidence pack is stored, so a rescore of the same teaser scores the
@@ -19,11 +25,14 @@
 // ─────────────────────────────────────────────────────────────
 
 import {
-  ATTRIBUTES, CAMPAIGN_LADDER, CAMPAIGN_EVIDENCE_RULE, FRAMEWORK_VERSION,
-  applyCampaignModifiers, computeTrustLenses, getMaturityStage,
+  ATTRIBUTES, FRAMEWORK_VERSION, computeTrustLenses, getMaturityStage,
 } from '../data/rubric.js';
 
-export const TEASER_VERSION = '1.0';
+// 2.0 (v3.32): scoring calibrated to what a teaser can observe, and no
+// campaign modifier. Results carry the version so teasers scored with 1.0
+// are flagged until rescored.
+export const TEASER_VERSION = '2.0';
+export const isCurrentMethod = (result) => !!result && result.teaserVersion === TEASER_VERSION;
 
 // Sources in the order they are shown while a teaser runs. `required` sources
 // must succeed or the run stops: without the website there is nothing owned
@@ -274,10 +283,16 @@ export function buildTeaserScoringPrompt(input, evidence) {
 
   return `You are producing an INDICATIVE teaser read of ${input.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}. ${brandLine(input)}
 
-WHAT A TEASER IS. Read this first, it governs everything below:
-- The evidence was gathered automatically in a single pass: owned website pages, a web-searched social scan, a single-engine AI perception read, third-party review and search signals, and an earned media scan. The full assessment goes much deeper: five AI engines, verified channel data, assessor review, paid media and technical audits.
-- Score on the same rubric and anchors the full assessment uses. Do not inflate or deflate to compensate for depth.
-- Separate "not found in this pass" from "evidence of absence". Where a signal is absent because this pass could not reach it, say so and mark confidence low. Where the evidence genuinely shows a gap, score the gap.
+CALIBRATED TO THIS PASS. Read this first, it governs every score:
+- What this pass can see: the brand's own website pages; a web-searched scan of social accounts, Glassdoor, campaigns and third-party chatter; one AI engine's read with web search; recent news, review platforms, Wikipedia, community discussion and first-page search; and a web-searched earned media scan.
+- What it cannot see: the other AI engines, verified channel analytics, paid media libraries in depth, technical and SEO audits, screenshots, expert review, and any coverage a handful of searches does not surface.
+- Before scoring an attribute, decide which of its strong and moderate signals this pass could reach. Answer the attribute's fundamental question against those signals only.
+- A signal this pass could not reach counts neither for nor against. Never read its absence as weakness.
+- Something a scan looked for directly and did not find IS evidence. The scans report "Not found" for what they searched: no official account on a platform, no Wikipedia page, no coverage in the last three months, no reviews. Weigh those as findings.
+- Use the full range on what was observable. Where the reachable signals are strong, score in the strong band even though unreachable signals remain unknown.
+- Score below 40 only when the observable evidence itself shows weakness: weak signals present, a gap a scan confirmed, contradictions, or reputation flags. Never because strong signals simply did not surface.
+- Where too little was reachable to judge an attribute, score from what is there, mark confidence low, and name in "unobserved" what could not be seen. Do not default low.
+- This corrects for the depth of the pass. It is not generosity: no credit without evidence, and every rationale must cite what supports the score.
 - Confidence is about the evidence, not the brand. "high" means several independent sources agree. "medium" means one solid source or several thin ones. "low" means the score rests on inference from thin or single-source evidence.
 ${context ? `
 BACKGROUND FROM THE ANTENNA TEAM:
@@ -324,10 +339,6 @@ SCORING NOTES:
 - Business model ${String(input.businessModel).toUpperCase()}: ${input.businessModel === 'b2b' ? 'LinkedIn weighs most. Trade press over mainstream. Low TikTok weight.' : input.businessModel === 'b2c' ? 'Consumer social and reviews are critical. Mainstream media over trade press.' : 'Weight LinkedIn for the business audience and consumer channels for the end user. Both trade and mainstream press matter.'}
 - Weight the last three months more heavily.
 
-CAMPAIGN COHERENCE. Judge only whether a campaign idea holds the work together, not craft quality. ${CAMPAIGN_EVIDENCE_RULE}
-${CAMPAIGN_LADDER.map(l => `LEVEL ${l.level}, ${l.name}: ${l.summary}`).join('\n')}
-No observable campaign activity is LEVEL 0. Most brands sit at 1 or 2. If the evidence here cannot support a judgment, give your best level and mark confidence low.
-
 TRUST, CREDIBILITY, REPUTATION AND AUTHENTICITY. These are calculated in code from the attribute scores, so DO NOT score them. In "trustFindings" give 5 to 8 publicly observable findings that explain them, each tagged to every lens it bears on, each marked supports true or false. Include both. Name the source. Max 12 words each.
 
 THIS IS A TEASER, SO:
@@ -341,8 +352,7 @@ Return valid JSON only, no prose before or after, no markdown fences:
   "summary": "Three or four sentences. Verdict first.",
   "fullAssessmentWouldResolve": ["max 3, each under 25 words"],
   "trustFindings": [ { "text": "max 12 words, name the source", "tags": ["trust|credibility|reputation|authenticity"], "supports": true } ],
-  "campaignCoherence": { "level": 0-5, "levelName": "Ad hoc|Themed|Packaged|Integrated|Platform|Consequential", "confidence": "low|medium|high", "verdict": "One sentence." },
-${ATTRIBUTES.map(a => `  "${a.id}": { "score": 0-100, "confidence": "low|medium|high", "rationale": "What drives this score, citing evidence. Under 45 words.", "basis": ["website|social|ai|reviews|earned"] }`).join(',\n')}
+${ATTRIBUTES.map(a => `  "${a.id}": { "score": 0-100, "confidence": "low|medium|high", "rationale": "What drives this score, citing evidence. Under 45 words.", "unobserved": "Signals for this attribute this pass could not reach. Under 20 words, or empty.", "basis": ["website|social|ai|reviews|earned"] }`).join(',\n')}
 }`;
 }
 
@@ -375,12 +385,6 @@ export function parseTeaserScoring(raw) {
       }))
       .filter(f => f.tags.length)
       .slice(0, 9),
-    campaignCoherence: parsed.campaignCoherence && Number.isFinite(Number(parsed.campaignCoherence.level)) ? {
-      level: Math.max(0, Math.min(5, Math.round(Number(parsed.campaignCoherence.level)))),
-      levelName: String(parsed.campaignCoherence.levelName || ''),
-      confidence: CONFIDENCE.includes(parsed.campaignCoherence.confidence) ? parsed.campaignCoherence.confidence : 'low',
-      verdict: String(parsed.campaignCoherence.verdict || ''),
-    } : null,
   };
   ATTRIBUTES.forEach(a => {
     const e = parsed[a.id];
@@ -390,6 +394,8 @@ export function parseTeaserScoring(raw) {
       score: Math.max(0, Math.min(100, Math.round(Number(e.score)))),
       confidence: CONFIDENCE.includes(e.confidence) ? e.confidence : 'low',
       rationale: String(e.rationale || '').trim(),
+      // Internal only: what this pass could not see. Never in the client payload.
+      unobserved: String(e.unobserved || '').trim().slice(0, 240),
       basis: (Array.isArray(e.basis) ? e.basis : []).filter(b => ['website', 'social', 'ai', 'reviews', 'earned'].includes(b)),
     };
   });
@@ -398,11 +404,9 @@ export function parseTeaserScoring(raw) {
 
 // Every number the report shows is derived here, in code.
 export function finaliseTeaser(parsed) {
-  // No campaign read means no modifier. Passing null here would be a bug:
-  // Number(null) is 0, which the modifier reads as "level 0, no campaign"
-  // and penalizes. undefined matches the full assessment's behavior.
-  const level = parsed.campaignCoherence ? parsed.campaignCoherence.level : undefined;
-  const scores = applyCampaignModifiers(parsed, level);
+  // Scores stand exactly as the scoring pass gave them: no campaign modifier
+  // and no adjustment of any kind.
+  const scores = parsed;
   const overall = Math.round(ATTRIBUTES.reduce((t, a) => t + scores[a.id].score, 0) / ATTRIBUTES.length);
   const stage = getMaturityStage(overall);
   const lenses = computeTrustLenses(scores, scores.trustFindings || []);

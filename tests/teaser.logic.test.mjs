@@ -6,7 +6,8 @@ import {
   buildTeaserScoringPrompt, parseTeaserScoring, finaliseTeaser, scoreTeaser,
   makeTeaserClientPayload, TEASER_SOURCES, MIN_SOURCES_TO_SCORE,
 } from '../src/lib/teaser.js';
-import { ATTRIBUTES, computeTrustLenses, applyCampaignModifiers, getMaturityStage } from '../src/data/rubric.js';
+import { ATTRIBUTES, computeTrustLenses, getMaturityStage } from '../src/data/rubric.js';
+import { TEASER_VERSION, isCurrentMethod } from '../src/lib/teaser.js';
 
 const input = { campaignId: 'c-1', industry: 'energy', brandName: 'Acme', websiteUrl: 'acme.com', businessModel: 'b2b', industryName: 'Energy & Utilities', context: '' };
 const LONG = 'Substantive evidence text about the brand that is comfortably longer than forty characters.';
@@ -159,15 +160,34 @@ test('scoreTeaser refuses thin evidence without ever calling the model', async (
 
 // ── Scoring prompt ──
 
-test('scoring prompt carries the full rubric, marks gaps as unknown, and asks for no actions', () => {
+test('scoring prompt carries the full rubric and asks for no actions or totals', () => {
   const p = buildTeaserScoringPrompt(input, fullEvidence({ social: { status: 'failed', error: 'x' } }));
   ATTRIBUTES.forEach(a => assert.ok(p.includes(`${a.id} (${a.fullName})`), a.id));
   assert.match(p, /SOCIAL:\nUNAVAILABLE[^\n]*unknown, not as absent/);
   assert.match(p, /Give no recommendations and no actions/);
   assert.match(p, /DO NOT score them/);
-  assert.match(p, /not found in this pass/i);
   assert.ok(!p.includes('"actions"'), 'schema must not request actions');
   assert.ok(!p.includes('"overall"'), 'the model is never asked for a total');
+});
+
+test('scoring is calibrated to what the pass can reach, without licensing generosity', () => {
+  const p = buildTeaserScoringPrompt(input, fullEvidence());
+  assert.match(p, /CALIBRATED TO THIS PASS/);
+  assert.match(p, /What it cannot see:/);
+  assert.match(p, /could not reach counts neither for nor against/);
+  assert.match(p, /Never read its absence as weakness/);
+  assert.match(p, /looked for directly and did not find IS evidence/, 'searched-and-missing still counts');
+  assert.match(p, /Score below 40 only when the observable evidence itself shows weakness/);
+  assert.match(p, /Do not default low/);
+  assert.match(p, /no credit without evidence/);
+  assert.ok(p.includes('"unobserved"'), 'the model names what it could not see');
+  assert.ok(!/Do not inflate or deflate to compensate for depth/.test(p), 'old uncalibrated instruction removed');
+});
+
+test('campaign coherence is gone from the teaser prompt entirely', () => {
+  const p = buildTeaserScoringPrompt(input, fullEvidence());
+  assert.ok(!p.includes('campaignCoherence'));
+  assert.ok(!/CAMPAIGN COHERENCE|LEVEL 0/.test(p));
 });
 
 test('context is framed as background, never evidence, and is absent from the prompt when blank', () => {
@@ -206,26 +226,49 @@ test('parse tolerates fences, clamps to scale, normalizes confidence and filters
 
 // ── Code does the maths ──
 
-test('overall, stage, campaign modifier and lenses are computed in code; a model-supplied total is ignored', () => {
+test('overall, stage and lenses are computed in code from the scores exactly as given; a model-supplied total is ignored', () => {
   const parsed = parseTeaserScoring(modelJson({}, { overall: 99, lensScores: { trust: 99 } }));
   const r = finaliseTeaser(parsed);
-  const adjusted = applyCampaignModifiers(parsed, 2);
-  const expected = Math.round(ATTRIBUTES.reduce((t, a) => t + adjusted[a.id].score, 0) / 8);
+  ATTRIBUTES.forEach(a => {
+    assert.equal(r.scores[a.id].score, parsed[a.id].score, `${a.id} unchanged`);
+    assert.equal(r.scores[a.id].baseScore, undefined, 'no modifier bookkeeping');
+    assert.equal(r.scores[a.id].campaignModifier, undefined);
+  });
+  const expected = Math.round(ATTRIBUTES.reduce((t, a) => t + parsed[a.id].score, 0) / 8);
   assert.equal(r.overall, expected);
   assert.notEqual(r.overall, 99);
   assert.equal(r.stage, getMaturityStage(expected).name);
-  const lenses = computeTrustLenses(adjusted, adjusted.trustFindings);
+  const lenses = computeTrustLenses(parsed, parsed.trustFindings);
   assert.equal(r.lensScores.trust, lenses.rows.find(x => x.id === 'trust').score);
   assert.equal(r.lensScores.credibility, lenses.rows.find(x => x.id === 'credibility').score);
   assert.equal(r.lensScores.reputation, lenses.rows.find(x => x.id === 'reputation').score);
   assert.equal(r.lensScores.authenticity, lenses.foundation.score);
-  ATTRIBUTES.forEach(a => assert.equal(r.scores[a.id].baseScore, parsed[a.id].score, 'base score preserved for audit'));
 });
 
-test('no campaign read leaves scores unadjusted', () => {
-  const parsed = parseTeaserScoring(modelJson({}, { campaignCoherence: null }));
-  const r = finaliseTeaser(parsed);
-  ATTRIBUTES.forEach(a => assert.equal(r.scores[a.id].score, parsed[a.id].score));
+test('a campaign read returned by the model never moves a score, at any level', () => {
+  for (const level of [0, 1, 5]) {
+    const parsed = parseTeaserScoring(modelJson({}, { campaignCoherence: { level, confidence: 'high' } }));
+    assert.equal(parsed.campaignCoherence, undefined, 'not even carried');
+    const r = finaliseTeaser(parsed);
+    ATTRIBUTES.forEach(a => assert.equal(r.scores[a.id].score, JSON.parse(modelJson())[a.id].score, `${a.id} at level ${level}`));
+  }
+});
+
+test('results carry the method version; earlier results are recognised as outdated', () => {
+  const r = finaliseTeaser(parseTeaserScoring(modelJson()));
+  assert.equal(TEASER_VERSION, '2.0');
+  assert.equal(r.teaserVersion, '2.0');
+  assert.equal(isCurrentMethod(r), true);
+  assert.equal(isCurrentMethod({ ...r, teaserVersion: '1.0' }), false);
+  assert.equal(isCurrentMethod({ overall: 50 }), false, 'no version means the earliest method');
+  assert.equal(isCurrentMethod(null), false);
+});
+
+test('what the pass could not see is kept internally and never reaches the client payload', () => {
+  const parsed = parseTeaserScoring(modelJson({ AWAKE: { unobserved: 'SENTINEL_UNOBSERVED keynotes and analyst citations' } }));
+  assert.match(parsed.AWAKE.unobserved, /SENTINEL_UNOBSERVED/);
+  const rec = { brand_name: 'Acme', website_url: 'https://acme.com', result: finaliseTeaser(parsed) };
+  assert.ok(!JSON.stringify(makeTeaserClientPayload(rec)).includes('SENTINEL_UNOBSERVED'));
 });
 
 test('thin record flag is deterministic: three or more low-confidence attributes', () => {

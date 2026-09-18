@@ -9,8 +9,8 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.31.0';
-import { TEASER_SOURCES, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
+const APP_VERSION = '3.32.0';
+import { TEASER_SOURCES, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
   supabase, 
   signUp, 
@@ -14252,8 +14252,8 @@ function TeaserClientView({ payload, chartRef = null }) {
 
       {payload.thinRecord && (
         <div className="dc-block" style={{ marginBottom: 2, borderLeft: '6px solid #DEE42F' }}>
-          <div className="dc-kicker-sm" style={{ marginBottom: 6 }}>Thin public record</div>
-          <p className="text-sm text-[#4A4840]">Several scores rest on limited public evidence. That is a finding in itself: if this read found little, so will a prospect, a journalist or an AI engine.</p>
+          <div className="dc-kicker-sm" style={{ marginBottom: 6 }}>Limited evidence in this read</div>
+          <p className="text-sm text-[#4A4840]">Several scores rest on the limited evidence a quick read can reach. A full assessment would firm them up.</p>
         </div>
       )}
 
@@ -14318,7 +14318,7 @@ function TeaserClientView({ payload, chartRef = null }) {
       <section style={{ marginTop: 40 }}>
         <div className="dc-block text-sm text-[#68655B]" style={{ lineHeight: 1.6 }}>
           <div className="dc-kicker-sm" style={{ marginBottom: 6 }}>How this read was made</div>
-          An indicative read against the Conscious Compass framework v{payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the same rubric as the full assessment. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.
+          An indicative read against the Conscious Compass framework v{payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the Compass rubric, judged on the evidence this read can reach: signals it could not see count neither for nor against. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.
         </div>
       </section>
     </div>
@@ -14365,7 +14365,7 @@ async function exportTeaserPdf(payload, chartEl, { download = true } = {}) {
   });
   y += 28;
 
-  if (payload.thinRecord) para('Thin public record: several scores rest on limited public evidence. If this read found little, so will a prospect, a journalist or an AI engine.', 9, 'italic', [104, 101, 91], 3);
+  if (payload.thinRecord) para('Limited evidence in this read: several scores rest on the limited evidence a quick read can reach. A full assessment would firm them up.', 9, 'italic', [104, 101, 91], 3);
   if (payload.headline) para(payload.headline, 13, 'bold', [11, 11, 11], 2);
   if (payload.summary) para(payload.summary, 10, 'normal', [74, 72, 64], 4);
 
@@ -14411,7 +14411,7 @@ async function exportTeaserPdf(payload, chartEl, { download = true } = {}) {
   }
 
   kicker('How this read was made');
-  para(`An indicative read against the Conscious Compass framework v${payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the same rubric as the full assessment. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.`, 8, 'normal', [104, 101, 91], 0);
+  para(`An indicative read against the Conscious Compass framework v${payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the Compass rubric, judged on the evidence this read can reach: signals it could not see count neither for nor against. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.`, 8, 'normal', [104, 101, 91], 0);
 
   const pages = pdf.internal.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
@@ -14520,6 +14520,21 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
                 </>}
           </div>
           {record.context && <div><span className="font-semibold">Context:</span> {record.context}</div>}
+          {record.result && !isCurrentMethod(record.result) && (
+            <div data-field="method-outdated" style={{ color: '#C2680C' }}>
+              <span className="font-semibold">Earlier scoring method (v{record.result.teaserVersion || '1.0'}).</span> Scored before calibration and with the campaign modifier. Rescore to apply the current method (v{TEASER_VERSION}); it reuses the stored evidence, no new searches.
+            </div>
+          )}
+          {record.result && isCurrentMethod(record.result) && ATTRIBUTES.some(a => record.result.scores?.[a.id]?.unobserved) && (
+            <details data-field="unobserved">
+              <summary className="font-semibold" style={{ cursor: 'pointer' }}>Not observable in this read</summary>
+              <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+                {ATTRIBUTES.filter(a => record.result.scores?.[a.id]?.unobserved).map(a => (
+                  <div key={a.id}><span className="font-semibold">{a.name}:</span> {record.result.scores[a.id].unobserved}</div>
+                ))}
+              </div>
+            </details>
+          )}
           {record.result?.history?.length > 0 && (
             <div>Previous scores: {record.result.history.map(h => `${h.overall} (${new Date(h.scoredAt).toLocaleDateString('en-US')})`).join(', ')}</div>
           )}
@@ -14802,6 +14817,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       )}
       {t.converted_at && <span className="dc-meta">Converted</span>}
       {!t.result && <span className="dc-meta">Not scored</span>}
+      {t.result && !isCurrentMethod(t.result) && <span className="dc-meta" style={{ color: '#C2680C', borderColor: '#C2680C' }}>Earlier method</span>}
     </button>
   );
 

@@ -162,3 +162,21 @@ test('campaign names never reach the prospect-facing payload', () => {
   const start = lib.indexOf('export function makeTeaserClientPayload');
   assert.ok(!/campaign/i.test(lib.slice(start)));
 });
+
+
+// ── No campaign modifier in teasers (v3.32) ──
+
+test('the teaser pipeline never imports or applies the campaign modifier', () => {
+  const lib = read('src/lib/teaser.js');
+  for (const t of ['applyCampaignModifiers', 'getCampaignModifier', 'CAMPAIGN_MODIFIERS', 'CAMPAIGN_LADDER']) {
+    assert.ok(!lib.includes(t), `teaser.js references ${t}`);
+  }
+  assert.ok(!teaserBlock.includes('applyCampaignModifiers'));
+});
+
+test('no teaser copy blames the brand for the narrowness of the read', () => {
+  for (const src of [teaserBlock, read('src/lib/teaserExport.js'), read('src/lib/teaser.js')]) {
+    assert.ok(!/so will a prospect/i.test(src));
+    assert.ok(!/Thin public record/.test(src));
+  }
+});

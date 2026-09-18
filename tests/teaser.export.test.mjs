@@ -44,7 +44,7 @@ test('rows copy stored scores exactly; nothing is recalculated', () => {
 
 test('summary counts brands and averages scored brands only', () => {
   const s = campaignSummary(buildCampaignRows([teaser('A', 60), teaser('B', 71), teaser('C', null)]));
-  assert.deepEqual(s, { brands: 3, scored: 2, averageOverall: 66 });
+  assert.deepEqual(s, { brands: 3, scored: 2, averageOverall: 66, outdated: 2 }, 'fixtures carry no version, so both count as earlier method');
   assert.equal(campaignSummary([]).averageOverall, null);
 });
 
@@ -63,7 +63,8 @@ test('columns cover everything asked for, in order', () => {
   const c = labels.indexOf('Credibility');
   assert.deepEqual(labels.slice(c, c + 4), ['Credibility', 'Trust', 'Reputation', 'Authenticity']);
   ATTRIBUTES.forEach(a => assert.ok(labels.includes(a.name), a.name));
-  for (const l of ['Headline', 'Scored', 'Thin public record']) assert.ok(labels.includes(l));
+  for (const l of ['Headline', 'Scored', 'Limited evidence', 'Scoring method']) assert.ok(labels.includes(l));
+  assert.ok(!labels.includes('Thin public record'));
 });
 
 async function unpack(campaign, teasers) {
@@ -169,4 +170,21 @@ test('Vs baseline is written as a signed number; baseline carries score colours'
   assert.ok(sheet.includes('Sector baselines calculated from full assessments on this date'));
   const parsed = new (new JSDOM('').window.DOMParser)().parseFromString(files['xl/styles.xml'], 'application/xml');
   assert.equal(parsed.getElementsByTagName('parsererror').length, 0);
+});
+
+
+// ── Scoring method (v3.32) ──
+
+test('each row states its scoring method, and the sheet warns when a campaign mixes methods', async () => {
+  const current = teaser('Now', 60); current.result.teaserVersion = '2.0';
+  const earlier = teaser('Then', 55); earlier.result.teaserVersion = '1.0';
+  const rows = buildCampaignRows([current, earlier, teaser('Pending', null)]);
+  assert.equal(rows.find(r => r.brand === 'Now').method, 'Calibrated v2.0');
+  assert.equal(rows.find(r => r.brand === 'Then').method, 'Earlier v1.0, rescore');
+  assert.equal(rows.find(r => r.brand === 'Pending').method, '');
+  const mixed = await buildCampaignWorkbook('C', [current, earlier]);
+  assert.ok((await mixed.zip.file('xl/worksheets/sheet1.xml').async('string')).includes('1 brand was scored with the earlier method; rescore before comparing'));
+  const clean = await buildCampaignWorkbook('C', [current]);
+  assert.ok(!(await clean.zip.file('xl/worksheets/sheet1.xml').async('string')).includes('earlier method'));
+  assert.ok((await clean.zip.file('xl/worksheets/sheet2.xml').async('string')).includes('no campaign modifier'));
 });

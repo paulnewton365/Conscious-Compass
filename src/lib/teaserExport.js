@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { ATTRIBUTES } from '../data/rubric.js';
+import { TEASER_VERSION, isCurrentMethod } from './teaser.js';
 
 const LENSES = [['credibility', 'Credibility'], ['trust', 'Trust'], ['reputation', 'Reputation'], ['authenticity', 'Authenticity']];
 
@@ -29,9 +30,10 @@ export const EXPORT_COLUMNS = [
   ...LENSES.map(([key, label]) => ({ key, label, width: 13, score: true })),
   ...ATTRIBUTES.map(a => ({ key: a.id, label: a.name, width: 12, score: true })),
   { key: 'lowConfidence', label: 'Low-confidence attributes', width: 14 },
-  { key: 'thinRecord', label: 'Thin public record', width: 12 },
+  { key: 'thinRecord', label: 'Limited evidence', width: 11 },
   { key: 'headline', label: 'Headline', width: 60, wrap: true },
   { key: 'scored', label: 'Scored', width: 14 },
+  { key: 'method', label: 'Scoring method', width: 22 },
 ];
 
 // Baseline columns for one teaser, from a teaserSectorBaseline() result.
@@ -58,7 +60,7 @@ export function buildCampaignRows(teasers, baselines = {}) {
       return { brand: t.brand_name, website: t.website_url, overall: null, stage: 'Not scored', scoredAt: null,
         ...baselineCells(baselines[t.id], null),
         ...Object.fromEntries(LENSES.map(([k]) => [k, null])), ...Object.fromEntries(ATTRIBUTES.map(a => [a.id, null])),
-        lowConfidence: null, thinRecord: '', headline: '', scored: '' };
+        lowConfidence: null, thinRecord: '', headline: '', scored: '', method: '' };
     }
     return {
       brand: t.brand_name,
@@ -73,6 +75,7 @@ export function buildCampaignRows(teasers, baselines = {}) {
       headline: r.scores?.headline || '',
       scored: r.scoredAt ? new Date(r.scoredAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
       scoredAt: r.scoredAt || null,
+      method: isCurrentMethod(r) ? `Calibrated v${TEASER_VERSION}` : `Earlier v${r.teaserVersion || '1.0'}, rescore`,
     };
   });
   const scored = rows.filter(r => r.overall !== null).sort((a, b) => b.overall - a.overall || a.brand.localeCompare(b.brand));
@@ -83,7 +86,8 @@ export function buildCampaignRows(teasers, baselines = {}) {
 export function campaignSummary(rows) {
   const scored = rows.filter(r => r.overall !== null);
   const avg = scored.length ? Math.round(scored.reduce((t, r) => t + r.overall, 0) / scored.length) : null;
-  return { brands: rows.length, scored: scored.length, averageOverall: avg };
+  const outdated = scored.filter(r => r.method && !r.method.startsWith('Calibrated')).length;
+  return { brands: rows.length, scored: scored.length, averageOverall: avg, outdated };
 }
 
 // ── SpreadsheetML ─────────────────────────────────────────────
@@ -159,7 +163,7 @@ function scoresSheet(campaignName, rows, exportedAt) {
   const lastCol = colName(EXPORT_COLUMNS.length - 1);
   const xml = [];
   xml.push(`<row r="1" ht="24" customHeight="1">${cell('A1', `${campaignName}: teaser scores`, S.title)}</row>`);
-  xml.push(`<row r="2">${cell('A2', `Exported ${date}. ${sum.brands} brand${sum.brands === 1 ? '' : 's'}, ${sum.scored} scored${sum.averageOverall !== null ? `, average overall ${sum.averageOverall}` : ''}. Sector baselines calculated from full assessments on this date. Indicative reads; see Notes.`, S.sub)}</row>`);
+  xml.push(`<row r="2">${cell('A2', `Exported ${date}. ${sum.brands} brand${sum.brands === 1 ? '' : 's'}, ${sum.scored} scored${sum.averageOverall !== null ? `, average overall ${sum.averageOverall}` : ''}. Sector baselines calculated from full assessments on this date.${sum.outdated ? ` ${sum.outdated} brand${sum.outdated === 1 ? ' was' : 's were'} scored with the earlier method; rescore before comparing.` : ''} Indicative reads; see Notes.`, S.sub)}</row>`);
   xml.push(`<row r="${HEADER_ROW}" ht="42" customHeight="1">${EXPORT_COLUMNS.map((c, i) => cell(`${colName(i)}${HEADER_ROW}`, c.label, S.header)).join('')}</row>`);
   rows.forEach((row, ri) => {
     const r = HEADER_ROW + 1 + ri;
@@ -195,7 +199,9 @@ const NOTES = [
   'Where a sector has fewer than 5 full assessments, the baseline falls back to the average across all assessed brands, and Baseline basis says so. Vs baseline is the brand\'s overall minus the baseline.',
   'Teaser scores are indicative and baselines come from full assessments, so read Vs baseline as a directional signal, not a like-for-like ranking.',
   'Colour bands: green 70 and above, orange 45 to 69, red below 45.',
-  'Low-confidence attributes counts scores resting on thin evidence. Thin public record is flagged when three or more attributes are low confidence.',
+  'Scores are calibrated to the evidence a quick read can reach. Each attribute is judged on the signals the teaser could observe; signals it could not see count neither for nor against. Nothing is added to scores after the fact, and there is no campaign modifier.',
+  'Low-confidence attributes counts scores resting on thin evidence. Limited evidence is flagged when three or more attributes are low confidence.',
+  'Scoring method shows which version scored each brand. Brands marked Earlier were scored before calibration; rescore them before comparing rows.',
   'Not scored means evidence was gathered but the teaser has not been scored yet.',
 ];
 
