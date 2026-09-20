@@ -215,3 +215,29 @@ test('the scorecard reads a teaser record, never a full assessment', () => {
   assert.ok(src.includes('record?.result') && src.includes('record?.hero_image'));
   assert.ok(!src.includes('compass_results') && !src.includes('saved_assessments'));
 });
+
+// ── Shadowed browser globals (v3.40) ──
+// App.jsx imports icons whose names collide with browser constructors
+// (Image, Search, Filter, Type, Star...). Constructing one of those gives a
+// minified "X is not a constructor" at runtime, which is unreadable. Any
+// browser constructor that shares a name with an import must be reached
+// through window.
+
+test('no icon-shadowed name is ever used as a constructor', () => {
+  const icons = app.match(/import \{([^}]+)\} from 'lucide-react'/)[1]
+    .split(',').map(s => s.trim()).filter(Boolean);
+  assert.ok(icons.includes('Image'), 'Image is one of them');
+  const offenders = [];
+  for (const name of icons) {
+    const re = new RegExp('(\\w+\\.)?\\bnew\\s+' + name + '\\s*\\(', 'g');
+    for (const m of app.matchAll(re)) if (!m[1]) offenders.push('new ' + name + '() near index ' + m.index);
+  }
+  assert.deepEqual(offenders, [], 'use window.<Name> instead');
+});
+
+test('the hero image reader uses the browser constructor', () => {
+  const start = app.indexOf('async function readHeroImage');
+  const body = app.slice(start, app.indexOf('\n}\n', start));
+  assert.ok(body.includes('new window.Image()'));
+  assert.ok(!/new Image\(\)/.test(body));
+});

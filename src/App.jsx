@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.39.0';
+const APP_VERSION = '3.40.0';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -14370,7 +14370,9 @@ async function readHeroImage(file) {
     r.readAsDataURL(file);
   });
   const img = await new Promise((res, rej) => {
-    const i = new Image();
+    // window.Image, not Image: this module imports an icon named Image from
+    // lucide-react, which shadows the browser constructor.
+    const i = new window.Image();
     i.onload = () => res(i);
     i.onerror = () => rej(new Error('That image could not be opened.'));
     i.src = dataUrl;
