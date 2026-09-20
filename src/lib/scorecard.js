@@ -225,6 +225,7 @@ export async function loadScorecardFonts(doc = document) {
 
 // Renders a fragment offscreen at a fixed size and returns a canvas.
 export async function renderToCanvas(html, { width, height, scale = 1, html2canvas }) {
+  if (typeof html2canvas !== 'function') throw new Error('The page-rendering library (html2canvas) did not load. Reload the page and try again.');
   const host = document.createElement('div');
   host.setAttribute('data-scorecard-render', 'true');
   host.style.cssText = `position:fixed;left:-20000px;top:0;width:${width};height:${height};overflow:hidden;background:#171B26;`;
@@ -257,6 +258,8 @@ function bleedWrap(inner) {
 }
 
 export async function exportScorecardPdf(d, { html2canvas, jsPDF, scale = 3, save = true }) {
+  if (typeof html2canvas !== 'function') throw new Error('The page-rendering library (html2canvas) did not load. Reload the page and try again.');
+  if (typeof jsPDF !== 'function') throw new Error('The PDF library (jsPDF) did not load. Reload the page and try again.');
   await loadScorecardFonts();
   const w = TRIM.w + BLEED * 2, h = TRIM.h + BLEED * 2;
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: [w, h] });
@@ -356,6 +359,7 @@ const slideXml = (brand) => `<?xml version="1.0" encoding="UTF-8" standalone="ye
 const dataUrlToBase64 = (u) => String(u).split(',')[1] || '';
 
 export async function buildSlidePptx(d, pngDataUrl, JSZip) {
+  if (typeof JSZip !== 'function') throw new Error('The zip library could not be loaded, so the slide could not be built. Reload the page and try again.');
   const zip = new JSZip();
   Object.entries(PPTX_PARTS).forEach(([path, xml]) => zip.file(path, xml));
   zip.file('ppt/slides/slide1.xml', slideXml(d.brand));
@@ -364,6 +368,9 @@ export async function buildSlidePptx(d, pngDataUrl, JSZip) {
 }
 
 export async function exportScorecardSlide(d, { html2canvas, JSZip, saveAs, scale = 1, save = true }) {
+  if (typeof html2canvas !== 'function') throw new Error('The page-rendering library (html2canvas) did not load. Reload the page and try again.');
+  if (typeof JSZip !== 'function') throw new Error('The zip library could not be loaded, so the slide could not be built. Reload the page and try again.');
+  if (typeof saveAs !== 'function') throw new Error('The download helper (file-saver) did not load. Reload the page and try again.');
   await loadScorecardFonts();
   const canvas = await renderToCanvas(slideHtml(d), { width: `${SLIDE.w}px`, height: `${SLIDE.h}px`, scale, html2canvas });
   const { zip, filename } = await buildSlidePptx(d, canvas.toDataURL('image/png'), JSZip);

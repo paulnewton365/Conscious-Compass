@@ -15,6 +15,7 @@
 import { ATTRIBUTES } from '../data/rubric.js';
 import { TEASER_VERSION, isCurrentMethod } from './teaser.js';
 import { THESIS_TENETS, levelLabel } from '../data/thesis.js';
+import { loadJSZip } from './lazyZip.js';
 
 const LENSES = [['credibility', 'Credibility'], ['trust', 'Trust'], ['reputation', 'Reputation'], ['authenticity', 'Authenticity']];
 
@@ -247,7 +248,7 @@ export const exportFilename = (campaignName, date = new Date()) => {
 // Resolves to a JSZip instance; the caller chooses blob (browser) or buffer (tests).
 export async function buildCampaignWorkbook(campaignName, teasers, exportedAt = new Date(), baselines = {}, { thesis = false } = {}) {
   const cols = columnsFor({ thesis });
-  const { default: JSZip } = await import('jszip');
+  const JSZip = await loadJSZip();
   const rows = buildCampaignRows(teasers, baselines);
   const zip = new JSZip();
   zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

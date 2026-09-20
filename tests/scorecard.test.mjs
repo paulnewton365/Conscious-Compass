@@ -7,7 +7,7 @@ import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import {
   cardFrontHtml, cardBackHtml, slideHtml, cardNameSize, slideNameSize,
-  scorecardReady, scorecardData, buildSlidePptx, exportScorecardPdf, cardFilename, TRIM, BLEED, SLIDE,
+  scorecardReady, scorecardData, buildSlidePptx, exportScorecardPdf, exportScorecardSlide, cardFilename, TRIM, BLEED, SLIDE,
 } from '../src/lib/scorecard.js';
 
 const tpl = (n) => readFileSync(new URL(`./fixtures/templates/${n}`, import.meta.url), 'utf8');
@@ -153,4 +153,21 @@ test('filenames are safe for any brand name', () => {
   assert.equal(cardFilename('H&M', 'Card'), 'H-M-Compass-Card');
   assert.equal(cardFilename('Mercedes-Benz High-Power Charging', 'Slide'), 'Mercedes-Benz-High-Power-Charging-Compass-Slide');
   assert.equal(cardFilename('', 'Card'), 'brand-Compass-Card');
+});
+
+// ── Library loading failures name the library (v3.39) ──
+
+test('a library that fails to load is named, never a minified letter', async () => {
+  await assert.rejects(exportScorecardPdf(D, { html2canvas: undefined, jsPDF, save: false }), /html2canvas/);
+  await assert.rejects(exportScorecardPdf(D, { html2canvas: async () => stubCanvas(), jsPDF: {}, save: false }), /jsPDF/);
+  await assert.rejects(exportScorecardSlide(D, { html2canvas: undefined, JSZip, saveAs: () => {}, save: false }), /html2canvas/);
+  await assert.rejects(exportScorecardSlide(D, { html2canvas: async () => stubCanvas(), JSZip: {}, saveAs: () => {}, save: false }), /zip library/);
+  await assert.rejects(exportScorecardSlide(D, { html2canvas: async () => stubCanvas(), JSZip, saveAs: undefined, save: false }), /file-saver/);
+  await assert.rejects(buildSlidePptx(D, 'data:image/png;base64,AA', {}), /zip library/);
+  await assert.rejects(buildSlidePptx(D, 'data:image/png;base64,AA', undefined), /zip library/);
+});
+
+test('the zip loader accepts every shape a bundler can hand back', async () => {
+  const { loadJSZip } = await import('../src/lib/lazyZip.js');
+  assert.equal(typeof await loadJSZip(), 'function', 'resolves the real module');
 });

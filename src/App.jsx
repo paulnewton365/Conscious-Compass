@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.38.0';
+const APP_VERSION = '3.39.0';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -44,6 +44,7 @@ import {
 } from './lib/supabase';
 import { buildCampaignWorkbook, buildCampaignRows, campaignSummary } from './lib/teaserExport';
 import { scorecardData, scorecardReady, exportScorecardPdf, exportScorecardSlide } from './lib/scorecard';
+import { loadJSZip } from './lib/lazyZip';
 
 // Use 'PROXY' to route through serverless function (secure, API key on server)
 // Or set VITE_ANTHROPIC_API_KEY for local development with direct API calls
@@ -14683,9 +14684,10 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
     try {
       const d = scorecardData(record, baseline, industryNameFull);
       if (kind === 'card') await exportScorecardPdf(d, { html2canvas, jsPDF });
-      else await exportScorecardSlide(d, { html2canvas, JSZip: (await import('jszip')).default, saveAs });
+      else await exportScorecardSlide(d, { html2canvas, JSZip: await loadJSZip(), saveAs });
     } catch (e) {
-      setHeroError(`${kind === 'card' ? 'Card' : 'Slide'} export failed: ${e.message}`);
+      console.error('Scorecard export failed', e);
+      setHeroError(`${kind === 'card' ? 'Card' : 'Slide'} export failed: ${e.message}. The browser console has the full detail.`);
     } finally { setMaking(null); }
   };
   const cov = evidenceCoverage(record.evidence);

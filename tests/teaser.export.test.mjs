@@ -125,10 +125,14 @@ test('an empty campaign still produces a valid workbook', async () => {
   assert.ok(files['xl/worksheets/sheet1.xml'].includes('0 brands'));
 });
 
-test('JSZip is loaded on demand, not imported at the top of the module', () => {
+test('JSZip is loaded on demand through one resolver, not imported at the top of the module', () => {
   const src = readFileSync(new URL('../src/lib/teaserExport.js', import.meta.url), 'utf8');
-  assert.ok(!/^import .*jszip/m.test(src), 'static import would add a second JSZip to the main bundle');
-  assert.ok(src.includes("await import('jszip')"));
+  const loader = readFileSync(new URL('../src/lib/lazyZip.js', import.meta.url), 'utf8');
+  assert.ok(!/^import .*'jszip'/m.test(src), 'static import would add a second JSZip to the main bundle');
+  assert.ok(!/^import .*'jszip'/m.test(loader));
+  assert.ok(src.includes('await loadJSZip()'), 'goes through the shared resolver');
+  assert.ok(loader.includes("await import('jszip')"));
+  assert.ok(loader.includes("typeof c === 'function'"), 'picks whichever export is constructible');
 });
 
 // ── Sector baseline columns (v3.31) ──
