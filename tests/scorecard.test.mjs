@@ -29,6 +29,12 @@ test('card front and back reuse the template styles exactly, bar the declared ch
   //  1. no border-radius: the card is bled and trimmed square
   //  2. the template's <image-slot> becomes a plain <img> with cover fit
   const DEVIATIONS = [
+    // html2canvas ignores CSS filters, so the logo ships pre-whitened
+    'height:0.36in;width:auto;display:block;',
+    // and it paints an inline highlight box over the line above, so the
+    // highlighted words sit on their own line as an inline-block
+    "font-family:'Archivo Expanded',sans-serif;font-weight:900;font-size:35px;line-height:1.08;margin:0.18in 0 0;text-transform:uppercase;color:#F2F5F0;",
+    'display:inline-block;background:#D9E021;color:#171B26;padding:0 0.04in;',
     'width:100%;height:100%;background:#171B26;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;padding:0.2in 0.22in 0.18in;',
     'width:100%;height:100%;background:#171B26;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;padding:0.3in 0.3in 0;',
     'width:100%;height:100%;object-fit:cover;display:block;',
@@ -43,8 +49,13 @@ test('slide reuses the template styles exactly, bar the declared change', () => 
   const template = styles(tpl('slide.dc.html'));
   // Declared deviation: the template's frame is sized by its runtime wrapper,
   // so the exported frame carries 1920x1080 itself. Everything else matches.
+  const DEVIATIONS_SLIDE = [
+    'height:38px;width:auto;display:block;',
+    "font-family:'Inter',sans-serif;font-weight:900;font-size:60px;line-height:1.18;margin:0;text-transform:uppercase;color:#F2F5F0;",
+    'display:inline-block;background:#D9E021;color:#171B26;padding:0 8px;',
+  ];
   const DEVIATION = "width:1920px;height:1080px;background:#171B26;display:flex;flex-direction:column;padding:52px 72px 86px;box-sizing:border-box;overflow:hidden;font-family:'Inter',sans-serif;color:#F2F5F0;";
-  const unmatched = styles(slideHtml(D)).filter(s => !template.includes(s) && s !== DEVIATION);
+  const unmatched = styles(slideHtml(D)).filter(s => !template.includes(s) && s !== DEVIATION && !DEVIATIONS_SLIDE.includes(s));
   assert.deepEqual(unmatched, [], 'styles not found in the template');
 });
 
@@ -114,7 +125,7 @@ test('card PDF is two pages at 5.25 x 7.25in, the 5 x 7 trim plus bleed', async 
   const calls = [];
   const html2canvas = async (node) => { calls.push(node.style.width + ' x ' + node.style.height); return stubCanvas(); };
   global.document = new JSDOM('<!doctype html><body></body>').window.document;
-  const { pdf, filename } = await exportScorecardPdf(D, { html2canvas, jsPDF, scale: 1, save: false });
+  const { pdf, filename } = await exportScorecardPdf(D, { html2canvas, jsPDF, scale: 1, save: false, backArtwork: null });
   assert.equal(pdf.internal.getNumberOfPages(), 2);
   const size = pdf.internal.pageSize;
   assert.equal(Math.round(size.getWidth() * 1000) / 1000, TRIM.w + BLEED * 2);
@@ -170,4 +181,48 @@ test('a library that fails to load is named, never a minified letter', async () 
 test('the zip loader accepts every shape a bundler can hand back', async () => {
   const { loadJSZip } = await import('../src/lib/lazyZip.js');
   assert.equal(typeof await loadJSZip(), 'function', 'resolves the real module');
+});
+
+
+// ── Rendering faults found in the first printed card (v3.41) ──
+
+test('no CSS filter survives in the artwork: html2canvas ignores them', () => {
+  const html = cardFrontHtml(D) + cardBackHtml() + slideHtml(D);
+  assert.ok(!/filter:/.test(html), 'a filtered logo renders dark on dark');
+  assert.ok(html.includes('/scorecard/antenna-logo-white.png'), 'pre-whitened asset used instead');
+});
+
+test('the highlighted headline sits on its own line, so its box cannot cover the line above', () => {
+  for (const html of [cardBackHtml(), slideHtml(D)]) {
+    const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1];
+    assert.ok(h1.includes('<br>'), 'explicit break before the highlight');
+    assert.match(h1, /<span style="display:inline-block;background:#D9E021/);
+    assert.ok(!/text-wrap:balance/.test(html), 'balance is not honoured and changed the wrap');
+  }
+});
+
+test('the back page uses fixed artwork when it is present, and the HTML back page when it is not', async () => {
+  const added = [];
+  const pdfStub = { addImage: (img) => added.push(typeof img === 'string' ? 'canvas' : 'artwork'), addPage() {}, save() {}, internal: { getNumberOfPages: () => 2, pageSize: { getWidth: () => 5.25, getHeight: () => 7.25 } } };
+  const jsPDFStub = function () { return pdfStub; };
+  const html2canvas = async () => stubCanvas();
+  global.document = new JSDOM('<!doctype html><body></body>').window.document;
+  global.window = { Image: class { set src(v) { this.naturalWidth = v === 'has-artwork' ? 1575 : 0; setTimeout(() => (v === 'has-artwork' ? this.onload() : this.onerror()), 0); } } };
+  await exportScorecardPdf(D, { html2canvas, jsPDF: jsPDFStub, scale: 1, save: false, backArtwork: 'has-artwork' });
+  assert.deepEqual(added, ['canvas', 'artwork'], 'front rendered, back taken from the artwork');
+  added.length = 0;
+  await exportScorecardPdf(D, { html2canvas, jsPDF: jsPDFStub, scale: 1, save: false, backArtwork: 'missing' });
+  assert.deepEqual(added, ['canvas', 'canvas'], 'falls back to rendering the HTML back page');
+  delete global.document; delete global.window;
+});
+
+test('the fixed back artwork ships with the build at the right size', async () => {
+  const { statSync, readFileSync: rf } = await import('node:fs');
+  const path = new URL('../public/scorecard/card-back.png', import.meta.url);
+  assert.ok(statSync(path).size > 10000, 'artwork present');
+  // PNG header: width and height are big-endian 32-bit at bytes 16 and 20.
+  const buf = rf(path);
+  const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+  assert.equal(w, Math.round((TRIM.w + BLEED * 2) * 300), '5.25in at 300dpi');
+  assert.equal(h, Math.round((TRIM.h + BLEED * 2) * 300), '7.25in at 300dpi');
 });

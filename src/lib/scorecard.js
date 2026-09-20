@@ -18,7 +18,9 @@
 // ─────────────────────────────────────────────────────────────
 
 const A = {
-  antennaLogo: '/scorecard/antenna-logo.png',
+  // Pre-whitened: the templates whiten the dark logo with a CSS filter, and
+  // html2canvas ignores filters, so the logo came out dark on dark.
+  antennaLogo: '/scorecard/antenna-logo-white.png',
   antennaA: '/scorecard/antenna-a.png',
   howl: '/scorecard/howl-logo.svg',
   qr: '/scorecard/qr-lets-chat.png',
@@ -113,7 +115,7 @@ export function cardFrontHtml(d) {
 export function cardBackHtml() {
   return `<div style="width:100%;height:100%;background:#171B26;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;padding:0.3in 0.3in 0;">
   <div style="border-bottom:1px solid #2A3040;padding-bottom:0.12in;font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:800;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;white-space:nowrap;"><span style="color:#F2F5F0;">The</span> <span style="color:#D9E021;">Conscious</span> <span style="color:#F2F5F0;">Compass</span></div>
-  <h1 style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:900;font-size:35px;line-height:1.08;margin:0.18in 0 0;text-transform:uppercase;color:#F2F5F0;text-wrap:balance;">Consequential brands are <span style="background:#D9E021;color:#171B26;padding:0 0.04in;">conscious brands</span></h1>
+  <h1 style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:900;font-size:35px;line-height:1.08;margin:0.18in 0 0;text-transform:uppercase;color:#F2F5F0;">Consequential brands are<br><span style="display:inline-block;background:#D9E021;color:#171B26;padding:0 0.04in;">conscious brands</span></h1>
   <div style="font-size:19px;font-weight:400;line-height:1.5;margin-top:0.2in;display:flex;flex-direction:column;gap:0.14in;text-wrap:pretty;color:#F2F5F0;font-family:'Archivo',sans-serif;">
     <p style="margin:0 0 0.06in;font-size:24px;font-weight:800;line-height:1.3;">How you show up means something.</p>
     <p style="margin:0;">Antenna Group’s proprietary brand diagnostic assesses how well brands with purpose meet the world.</p>
@@ -126,7 +128,7 @@ export function cardBackHtml() {
   </div>
   <div style="flex:1;"></div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:0.25in;border-top:1.5px solid #3A4152;margin-top:0.14in;padding:0.14in 0 0.18in;">
-    <img src="${A.antennaLogo}" alt="Antenna Group" style="height:0.36in;width:auto;display:block;filter:invert(1) grayscale(1) brightness(1.6);">
+    <img src="${A.antennaLogo}" alt="Antenna Group" style="height:0.36in;width:auto;display:block;">
     <img src="${A.howl}" alt="Howl" style="height:0.44in;width:auto;display:block;">
   </div>
 </div>`;
@@ -144,7 +146,7 @@ export function slideHtml(d) {
     <div style="font-family:'Inter',sans-serif;font-weight:800;font-size:27px;letter-spacing:0.14em;white-space:nowrap;"><span style="color:#F2F5F0;">The</span> <span style="color:#D9E021;">conscious</span> <span style="color:#F2F5F0;">compass</span></div>
     <div style="flex:1;"></div>
     <div style="display:flex;align-items:center;gap:28px;">
-      <img src="${A.antennaLogo}" alt="Antenna Group" style="height:38px;width:auto;display:block;filter:invert(1) grayscale(1) brightness(1.6);">
+      <img src="${A.antennaLogo}" alt="Antenna Group" style="height:38px;width:auto;display:block;">
       <img src="${A.howl}" alt="Howl" style="height:46px;width:auto;display:block;">
     </div>
   </div>
@@ -176,7 +178,7 @@ export function slideHtml(d) {
       </div>
     </div>
     <div style="min-width:0;display:flex;flex-direction:column;">
-      <h1 style="font-family:'Inter',sans-serif;font-weight:900;font-size:60px;line-height:1.18;margin:0;text-transform:uppercase;color:#F2F5F0;text-wrap:balance;">Consequential brands are <span style="background:#D9E021;color:#171B26;padding:0 8px;">conscious brands</span></h1>
+      <h1 style="font-family:'Inter',sans-serif;font-weight:900;font-size:60px;line-height:1.18;margin:0;text-transform:uppercase;color:#F2F5F0;">Consequential brands are<br><span style="display:inline-block;background:#D9E021;color:#171B26;padding:0 8px;">conscious brands</span></h1>
       <div style="font-size:26px;font-weight:400;line-height:1.26;margin-top:18px;display:flex;flex-direction:column;gap:12px;text-wrap:pretty;color:#F2F5F0;">
         <p style="margin:0;font-size:34px;font-weight:800;line-height:1.2;">How you show up means something.</p>
         <p style="margin:0;">Antenna Group’s proprietary brand diagnostic assesses how well brands with purpose meet the world.</p>
@@ -257,17 +259,39 @@ function bleedWrap(inner) {
 </div>`;
 }
 
-export async function exportScorecardPdf(d, { html2canvas, jsPDF, scale = 3, save = true }) {
+// The back page is identical for every brand, so a fixed artwork export beats
+// re-rendering HTML. Drop a 5.25 x 7.25in image (1575 x 2175px at 300dpi) at
+// public/scorecard/card-back.png and it is used instead; without it, the HTML
+// back page below is rendered as before.
+export const BACK_ARTWORK = '/scorecard/card-back.png';
+
+export function loadImage(src) {
+  if (typeof window === 'undefined' || typeof window.Image !== 'function') return Promise.resolve(null);
+  return new Promise(resolve => {
+    const img = new window.Image();
+    const done = (ok) => resolve(ok ? img : null);
+    img.onload = () => done(img.naturalWidth > 0);
+    img.onerror = () => done(false);
+    img.src = src;
+  });
+}
+
+export async function exportScorecardPdf(d, { html2canvas, jsPDF, scale = 3, save = true, backArtwork = BACK_ARTWORK }) {
   if (typeof html2canvas !== 'function') throw new Error('The page-rendering library (html2canvas) did not load. Reload the page and try again.');
   if (typeof jsPDF !== 'function') throw new Error('The PDF library (jsPDF) did not load. Reload the page and try again.');
   await loadScorecardFonts();
   const w = TRIM.w + BLEED * 2, h = TRIM.h + BLEED * 2;
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: [w, h] });
-  const pages = [cardFrontHtml(d), cardBackHtml()];
-  for (let i = 0; i < pages.length; i++) {
-    const canvas = await renderToCanvas(bleedWrap(pages[i]), { width: `${w}in`, height: `${h}in`, scale, html2canvas });
-    if (i > 0) pdf.addPage([w, h], 'portrait');
-    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h);
+  const front = await renderToCanvas(bleedWrap(cardFrontHtml(d)), { width: `${w}in`, height: `${h}in`, scale, html2canvas });
+  pdf.addImage(front.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h);
+
+  pdf.addPage([w, h], 'portrait');
+  const artwork = backArtwork ? await loadImage(backArtwork) : null;
+  if (artwork) {
+    pdf.addImage(artwork, 'PNG', 0, 0, w, h);
+  } else {
+    const back = await renderToCanvas(bleedWrap(cardBackHtml()), { width: `${w}in`, height: `${h}in`, scale, html2canvas });
+    pdf.addImage(back.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h);
   }
   const filename = `${cardFilename(d.brand, 'Card')}-5x7-bleed.pdf`;
   if (save) pdf.save(filename);
