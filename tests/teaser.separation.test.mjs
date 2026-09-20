@@ -192,3 +192,26 @@ test('the baseline is fed only from compass_results, never from teaser data', ()
   const fetchBody = read('src/lib/supabase.js').match(/export const fetchCompassResults = async \(\) => \{[\s\S]*?\n\};/)[0];
   assert.deepEqual([...fetchBody.matchAll(/\.from\('([^']+)'\)/g)].map(m => m[1]), ['compass_results']);
 });
+
+// ── Scorecards are teasers only (v3.38) ──
+
+test('the scorecard is built and offered only inside the teaser', () => {
+  const src = read('src/lib/scorecard.js');
+  assert.ok(!/supabase/i.test(src));
+  WRITES.forEach(t => assert.ok(!src.includes(t), `scorecard references ${t}`));
+  // Every use of the scorecard in the app sits in the teaser block.
+  const uses = [...app.matchAll(/scorecard[A-Za-z]*\(|exportScorecard[A-Za-z]*\(|makeScorecard\(/g)].map(m => m.index);
+  const start = app.indexOf('// TEASER (v3.29)');
+  const end = app.indexOf('function AppContent() {');
+  assert.ok(uses.length >= 4);
+  uses.forEach(i => assert.ok(i > start && i < end, 'scorecard used outside the teaser block'));
+  // And the full report's own exports know nothing about it.
+  const reportPage = app.slice(app.indexOf('function ReportPage('), app.indexOf('function ReportGlanceSection('));
+  assert.ok(!/scorecard|hero_image/i.test(reportPage), 'full report references the scorecard');
+});
+
+test('the scorecard reads a teaser record, never a full assessment', () => {
+  const src = read('src/lib/scorecard.js');
+  assert.ok(src.includes('record?.result') && src.includes('record?.hero_image'));
+  assert.ok(!src.includes('compass_results') && !src.includes('saved_assessments'));
+});

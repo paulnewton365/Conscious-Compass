@@ -771,3 +771,43 @@ test('removing the brand image saves null and disables the scorecard buttons aga
   assert.equal(container.querySelector('[data-field="make-card"]').disabled, true);
   await act(async () => root.unmount());
 });
+
+test('when a scorecard cannot be made, the report says why on the page, not just in a tooltip', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  let m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(m.container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  let note = m.container.querySelector('[data-field="scorecard-blocked"]');
+  assert.ok(note && note.textContent.includes('need a brand image'), note?.textContent);
+  assert.ok(note.textContent.includes('Upload one in the internal panel'));
+  await act(async () => m.root.unmount());
+
+  // No full assessments in the sector: the baseline is what is missing.
+  stub.state.compassRows = [];
+  m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [{ ...rec, hero_image: 'data:image/jpeg;base64,AAAA' }] });
+  await click(btn(m.container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  note = m.container.querySelector('[data-field="scorecard-blocked"]');
+  assert.ok(note.textContent.includes('a sector baseline') && note.textContent.includes('full assessments in this sector'));
+  await act(async () => m.root.unmount());
+
+  // Everything present: no warning, buttons live.
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [{ ...rec, hero_image: 'data:image/jpeg;base64,AAAA' }] });
+  await click(btn(m.container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  assert.equal(m.container.querySelector('[data-field="scorecard-blocked"]'), null);
+  assert.equal(m.container.querySelector('[data-field="make-card"]').disabled, false);
+  await act(async () => m.root.unmount());
+});
+
+test('a missing hero_image column is reported as the SQL that fixes it', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1', hero_image: 'data:image/jpeg;base64,AAAA' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  stub.state.saveResult = { data: null, error: { message: `Could not find the 'hero_image' column of 'teaser_assessments' in the schema cache` } };
+  await click(btn(container, b => b.textContent.trim() === 'Remove'));
+  for (let i = 0; i < 5; i++) await act(flush);
+  assert.ok(container.textContent.includes('add column if not exists hero_image text'), 'names the fix');
+  stub.state.saveResult = null;
+  await act(async () => root.unmount());
+});

@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.37.0';
+const APP_VERSION = '3.38.0';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -14673,7 +14673,9 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
       const img = await readHeroImage(file);
       if (img && img.width < 900) setHeroError(`That image is ${img.width}px wide. The templates want 1200px or more, so it may look soft in print.`);
       await onHeroImage(img ? img.dataUrl : null);
-    } catch (e) { setHeroError(e.message); }
+    } catch (e) {
+      setHeroError(e.message);
+    }
   };
 
   const makeScorecard = async (kind) => {
@@ -14715,6 +14717,15 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
           <button onClick={onDelete} disabled={busy} className="btn-secondary flex items-center gap-2" title="Delete teaser"><Trash2 className="w-4 h-4" /></button>
         </div>
       </div>
+
+      {!scorecard.ready && (
+        <div className="dc-block text-sm" data-field="scorecard-blocked" style={{ marginBottom: 2, borderLeft: '4px solid #C2680C' }}>
+          <span className="font-semibold">Card and slide need {scorecard.missing.join(' and ')}.</span>{' '}
+          {scorecard.missing.includes('a brand image') && 'Upload one in the internal panel below. '}
+          {scorecard.missing.includes('a sector baseline') && 'The industry average on the card comes from full assessments in this sector; there are none to compare against yet. '}
+          {scorecard.missing.includes('a score') && 'Score the teaser first. '}
+        </div>
+      )}
 
       {/* Internal only. Never part of the client payload or the PDF. */}
       <div className="dc-block" style={{ marginBottom: 24, background: '#FAF9F5', border: '1px dashed #DCDAD3' }}>
@@ -14992,7 +15003,14 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   const saveHero = async (dataUrl) => {
     setError(null);
     const { data, error: e } = await saveTeaser({ ...open, hero_image: dataUrl });
-    if (e) { setError(`Could not save the brand image: ${e.message}`); return; }
+    if (e) {
+      // The commonest cause by far: v3.37's column has not been added yet.
+      const missingColumn = /hero_image/.test(e.message || '') && /column|schema/i.test(e.message || '');
+      setError(missingColumn
+        ? 'The brand image could not be saved because the database is missing the hero_image column. Run the v3.37 line of SQL (alter table public.teaser_assessments add column if not exists hero_image text), then try again.'
+        : `Could not save the brand image: ${e.message}`);
+      return;
+    }
     setOpen(data); load();
   };
 
