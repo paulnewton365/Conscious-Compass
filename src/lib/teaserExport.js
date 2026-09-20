@@ -14,6 +14,7 @@
 
 import { ATTRIBUTES } from '../data/rubric.js';
 import { TEASER_VERSION, isCurrentMethod } from './teaser.js';
+import { THESIS_TENETS, levelLabel } from '../data/thesis.js';
 
 const LENSES = [['credibility', 'Credibility'], ['trust', 'Trust'], ['reputation', 'Reputation'], ['authenticity', 'Authenticity']];
 
@@ -23,10 +24,10 @@ export const EXPORT_COLUMNS = [
   { key: 'overall', label: 'Overall', width: 10, score: true },
   { key: 'stage', label: 'Stage', width: 17 },
   { key: 'sector', label: 'Sector', width: 22 },
-  { key: 'baseline', label: 'Sector baseline', width: 11, score: true },
+  { key: 'baseline', label: 'Sector baseline (full assessments)', width: 13, score: true },
   { key: 'vsBaseline', label: 'Vs baseline', width: 10, signed: true },
-  { key: 'baselineBrands', label: 'Brands in baseline', width: 11 },
-  { key: 'baselineBasis', label: 'Baseline basis', width: 34 },
+  { key: 'baselineBrands', label: 'Full assessments in baseline', width: 13 },
+  { key: 'baselineBasis', label: 'Baseline basis', width: 38 },
   ...LENSES.map(([key, label]) => ({ key, label, width: 13, score: true })),
   ...ATTRIBUTES.map(a => ({ key: a.id, label: a.name, width: 12, score: true })),
   { key: 'lowConfidence', label: 'Low-confidence attributes', width: 14 },
@@ -35,6 +36,23 @@ export const EXPORT_COLUMNS = [
   { key: 'scored', label: 'Scored', width: 14 },
   { key: 'method', label: 'Scoring method', width: 22 },
 ];
+
+// Extra columns for campaigns aimed at CSOs and impact leaders.
+export const THESIS_COLUMNS = [
+  { key: 'thesisVerdict', label: 'Progress vs voice', width: 16 },
+  ...THESIS_TENETS.map(t => ({ key: `tenet_${t.id}`, label: t.name, width: 15 })),
+];
+export const columnsFor = ({ thesis = false } = {}) => (thesis ? [...EXPORT_COLUMNS, ...THESIS_COLUMNS] : EXPORT_COLUMNS);
+
+function thesisCells(n) {
+  const out = { thesisVerdict: '' };
+  THESIS_TENETS.forEach(t => { out[`tenet_${t.id}`] = ''; });
+  if (!n) return out;
+  if (!n.present) return { ...out, thesisVerdict: 'No sustainability narrative' };
+  out.thesisVerdict = n.verdict?.label || '';
+  THESIS_TENETS.forEach(t => { out[`tenet_${t.id}`] = n.tenets?.[t.id]?.level ? levelLabel(n.tenets[t.id].level) : ''; });
+  return out;
+}
 
 // Baseline columns for one teaser, from a teaserSectorBaseline() result.
 // Absent or unavailable baselines leave the columns blank and say why.
@@ -59,6 +77,7 @@ export function buildCampaignRows(teasers, baselines = {}) {
     if (!r) {
       return { brand: t.brand_name, website: t.website_url, overall: null, stage: 'Not scored', scoredAt: null,
         ...baselineCells(baselines[t.id], null),
+        ...thesisCells(null),
         ...Object.fromEntries(LENSES.map(([k]) => [k, null])), ...Object.fromEntries(ATTRIBUTES.map(a => [a.id, null])),
         lowConfidence: null, thinRecord: '', headline: '', scored: '', method: '' };
     }
@@ -68,6 +87,7 @@ export function buildCampaignRows(teasers, baselines = {}) {
       overall: r.overall,
       stage: r.stage || '',
       ...baselineCells(baselines[t.id], r.overall),
+      ...thesisCells(r.scores?.sustainabilityNarrative),
       ...Object.fromEntries(LENSES.map(([k]) => [k, r.lensScores?.[k] ?? null])),
       ...Object.fromEntries(ATTRIBUTES.map(a => [a.id, r.scores?.[a.id]?.score ?? null])),
       lowConfidence: r.lowConfidenceCount ?? null,
@@ -156,18 +176,18 @@ const cell = (ref, value, style) => {
   return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${esc(value)}</t></is></c>`;
 };
 
-function scoresSheet(campaignName, rows, exportedAt) {
+function scoresSheet(campaignName, rows, exportedAt, cols = EXPORT_COLUMNS) {
   const sum = campaignSummary(rows);
   const date = exportedAt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const HEADER_ROW = 4;
-  const lastCol = colName(EXPORT_COLUMNS.length - 1);
+  const lastCol = colName(cols.length - 1);
   const xml = [];
   xml.push(`<row r="1" ht="24" customHeight="1">${cell('A1', `${campaignName}: teaser scores`, S.title)}</row>`);
   xml.push(`<row r="2">${cell('A2', `Exported ${date}. ${sum.brands} brand${sum.brands === 1 ? '' : 's'}, ${sum.scored} scored${sum.averageOverall !== null ? `, average overall ${sum.averageOverall}` : ''}. Sector baselines calculated from full assessments on this date.${sum.outdated ? ` ${sum.outdated} brand${sum.outdated === 1 ? ' was' : 's were'} scored with the earlier method; rescore before comparing.` : ''} Indicative reads; see Notes.`, S.sub)}</row>`);
-  xml.push(`<row r="${HEADER_ROW}" ht="42" customHeight="1">${EXPORT_COLUMNS.map((c, i) => cell(`${colName(i)}${HEADER_ROW}`, c.label, S.header)).join('')}</row>`);
+  xml.push(`<row r="${HEADER_ROW}" ht="42" customHeight="1">${cols.map((c, i) => cell(`${colName(i)}${HEADER_ROW}`, c.label, S.header)).join('')}</row>`);
   rows.forEach((row, ri) => {
     const r = HEADER_ROW + 1 + ri;
-    const cells = EXPORT_COLUMNS.map((c, ci) => {
+    const cells = cols.map((c, ci) => {
       const ref = `${colName(ci)}${r}`;
       const v = row[c.key];
       if (c.score) return cell(ref, v, bandStyle(v));
@@ -183,7 +203,7 @@ function scoresSheet(campaignName, rows, exportedAt) {
 <sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
 <sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane xSplit="1" ySplit="${HEADER_ROW}" topLeftCell="B${HEADER_ROW + 1}" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>
 <sheetFormatPr defaultRowHeight="15"/>
-<cols>${EXPORT_COLUMNS.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width}" customWidth="1"/>`).join('')}</cols>
+<cols>${cols.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width}" customWidth="1"/>`).join('')}</cols>
 <sheetData>${xml.join('')}</sheetData>
 ${rows.length ? `<autoFilter ref="A${HEADER_ROW}:${lastCol}${lastRow}"/>` : ''}
 <pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>
@@ -196,8 +216,9 @@ const NOTES = [
   'Scores use the same rubric and the same calculations as the full Conscious Compass assessment. The full assessment goes much deeper and can move these numbers.',
   'Overall is the average of the eight attribute scores. Credibility, Trust, Reputation and Authenticity are fixed weightings of the attribute scores, not separate judgments.',
   'Sector baseline is the average overall score of full Conscious Compass assessments in the brand\'s sector, recalculated on the export date so every row uses the same figures. The brand\'s own full assessment, if it has one, is never counted in its baseline. Only assessments on the current framework are included.',
-  'Where a sector has fewer than 5 full assessments, the baseline falls back to the average across all assessed brands, and Baseline basis says so. Vs baseline is the brand\'s overall minus the baseline.',
+  'Where a sector has fewer than 5 full assessments, the baseline falls back to the average across all full assessments, and Baseline basis says so. Teaser scores are never part of any baseline. Vs baseline is the brand\'s overall minus the baseline.',
   'Teaser scores are indicative and baselines come from full assessments, so read Vs baseline as a directional signal, not a like-for-like ranking.',
+  'For campaigns aimed at CSOs and impact leaders, the sustainability narrative columns rate six tenets of Antenna Group\'s thesis as Buried, Surfacing or Breaking through. Progress vs voice compares how much real sustainability progress is evidenced with how loudly it is told.',
   'Colour bands: green 70 and above, orange 45 to 69, red below 45.',
   'Scores are calibrated to the evidence a quick read can reach. Each attribute is judged on the signals the teaser could observe; signals it could not see count neither for nor against. Nothing is added to scores after the fact, and there is no campaign modifier.',
   'Low-confidence attributes counts scores resting on thin evidence. Limited evidence is flagged when three or more attributes are low confidence.',
@@ -224,7 +245,8 @@ export const exportFilename = (campaignName, date = new Date()) => {
 };
 
 // Resolves to a JSZip instance; the caller chooses blob (browser) or buffer (tests).
-export async function buildCampaignWorkbook(campaignName, teasers, exportedAt = new Date(), baselines = {}) {
+export async function buildCampaignWorkbook(campaignName, teasers, exportedAt = new Date(), baselines = {}, { thesis = false } = {}) {
+  const cols = columnsFor({ thesis });
   const { default: JSZip } = await import('jszip');
   const rows = buildCampaignRows(teasers, baselines);
   const zip = new JSZip();
@@ -244,7 +266,7 @@ export async function buildCampaignWorkbook(campaignName, teasers, exportedAt = 
   zip.file('xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <sheets><sheet name="${esc(sheetName(campaignName))}" sheetId="1" r:id="rId1"/><sheet name="Notes" sheetId="2" r:id="rId2"/></sheets>
-${rows.length ? `<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'${esc(sheetName(campaignName)).replace(/'/g, "''")}'!$A$4:$${colName(EXPORT_COLUMNS.length - 1)}$${4 + rows.length}</definedName></definedNames>` : ''}
+${rows.length ? `<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'${esc(sheetName(campaignName)).replace(/'/g, "''")}'!$A$4:$${colName(cols.length - 1)}$${4 + rows.length}</definedName></definedNames>` : ''}
 </workbook>`);
   zip.file('xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -253,7 +275,7 @@ ${rows.length ? `<definedNames><definedName name="_xlnm._FilterDatabase" localSh
 <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`);
   zip.file('xl/styles.xml', STYLES);
-  zip.file('xl/worksheets/sheet1.xml', scoresSheet(campaignName, rows, exportedAt));
+  zip.file('xl/worksheets/sheet1.xml', scoresSheet(campaignName, rows, exportedAt, cols));
   zip.file('xl/worksheets/sheet2.xml', notesSheet());
   return { zip, rows, filename: exportFilename(campaignName, exportedAt) };
 }

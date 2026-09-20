@@ -9,8 +9,9 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.32.0';
-import { TEASER_SOURCES, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
+const APP_VERSION = '3.36.0';
+import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
+import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
   supabase, 
   signUp, 
@@ -38,6 +39,7 @@ import {
   createCampaign,
   renameCampaign,
   deleteCampaign,
+  setCampaignAudience,
   fetchCampaignScores
 } from './lib/supabase';
 import { buildCampaignWorkbook, buildCampaignRows, campaignSummary } from './lib/teaserExport';
@@ -569,7 +571,9 @@ function teaserSectorBaseline(results, { industry, brandName, totalScore }) {
     avgScore: snap.avgScore,
     count: snap.count,
     sectorCount: snap.sectorCount,
-    basis: snap.scope === 'industry' ? 'Sector' : (sector ? `All brands (fewer than ${BENCHMARK_MIN_N} in sector)` : 'All brands (no sector)'),
+    basis: snap.scope === 'industry'
+      ? 'Sector full assessments'
+      : (sector ? `All full assessments (fewer than ${BENCHMARK_MIN_N} in sector)` : 'All full assessments (no sector)'),
     difference: Number.isFinite(totalScore) ? totalScore - snap.avgScore : null,
   };
 }
@@ -1367,6 +1371,63 @@ const FP_MUTED = '#68655B';
 // A different read on scores already given. Every figure is computed in code
 // from fixed weights, so no model call and no added latency: the only thing
 // the scoring pass supplies is the findings list.
+// ── Sustainability narrative panel (framework 2.10) ──────────
+// One component for every place the thesis read appears: full report, client
+// link, shared report and teaser. Renders nothing when there is no read.
+const THESIS_CHIP = {
+  buried: { background: 'transparent', color: '#68655B', border: '1px dashed #B3B0A8' },
+  surfacing: { background: '#F8E6D2', color: '#8A4A08', border: '1px solid #F8E6D2' },
+  breaking: { background: '#DEE42F', color: '#0B0B0B', border: '1px solid #DEE42F' },
+};
+
+function ThesisPanel({ thesis, onRegenerate = null }) {
+  if (!thesis) {
+    return onRegenerate ? (
+      <div className="dc-block text-sm text-[#4A4840]" data-thesis-panel="missing">
+        This report was scored before the sustainability narrative read existed, or the scoring pass did not return it.
+        <div style={{ marginTop: 10 }}><button onClick={onRegenerate} className="btn-secondary text-xs py-1.5 px-3">Regenerate report</button></div>
+      </div>
+    ) : null;
+  }
+  return (
+    <div data-thesis-panel="true">
+      {thesis.summary && <div className="dc-block" style={{ marginBottom: 2 }}><p className="dc-lead" style={{ fontSize: 16, maxWidth: '72ch' }}>{thesis.summary}</p></div>}
+      {!thesis.present ? (
+        <div className="dc-block text-sm text-[#68655B]">No sustainability narrative is observable for this brand.</div>
+      ) : (
+        <>
+          {thesis.verdict && (
+            <div className="bg-[#0B0B0B] text-white" style={{ padding: '18px 22px', marginBottom: 2, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', color: '#DEE42F' }}>{thesis.verdict.label}</div>
+              <div style={{ flex: '1 1 260px' }}>
+                <div style={{ fontSize: 15 }}>{thesis.verdict.meaning}</div>
+                <div className="dc-kicker-sm" style={{ color: '#9A9A94', marginTop: 6 }}>Progress {thesis.progress} · Voice {thesis.voice}</div>
+              </div>
+            </div>
+          )}
+          <div className="dc-stack">
+            {THESIS_TENETS.map(t => {
+              const e = thesis.tenets?.[t.id];
+              const chip = THESIS_CHIP[e?.level] || THESIS_CHIP.buried;
+              return (
+                <div key={t.id} className="dc-block" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 18px' }}>
+                  <span style={{ ...chip, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', padding: '4px 8px', whiteSpace: 'nowrap', minWidth: 118, textAlign: 'center' }}>
+                    {levelLabel(e?.level)}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700 }}>{t.name}</div>
+                    {e?.reason && <p className="text-sm text-[#4A4840]" style={{ marginTop: 4, lineHeight: 1.5 }}>{e.reason}</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function TrustLensPanel({ scores, findings = [], overall, showFindings = true }) {
   const data = computeTrustLenses(scores, findings);
   const [spotlight, setSpotlight] = useState(null);
@@ -2249,26 +2310,26 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-1">
           <button onClick={onStayConscious} className={navBtnClass('stay-conscious')}>
-            <Sparkles className="w-4 h-4" /> Stay Conscious
+            Stay Conscious
           </button>
           <button onClick={onComparison} className={navBtnClass('compare')}>
-            <Users className="w-4 h-4" /> Compare
+            Compare
           </button>
           <button onClick={onCompassResults} className={navBtnClass('results')}>
-            <BarChart3 className="w-4 h-4" /> Results
+            Results
           </button>
           <button onClick={onSavedAssessments} className={navBtnClass('saved')}>
-            <FileText className="w-4 h-4" /> Saved
+            Saved
           </button>
           {/* Teaser is admin only. RLS enforces the same rule at the database. */}
           {profile?.is_admin && onTeaser && (
             <button onClick={onTeaser} className={navBtnClass('teaser')}>
-              <Zap className="w-4 h-4" /> Teaser
+              Teaser
             </button>
           )}
           {!isReadonly && (
             <button onClick={onNewAssessment} className="flex items-center gap-2 bg-[#DEE42F] text-[#0B0B0B] hover:bg-[#CBD11F] px-4 py-2.5 ml-2 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors">
-              <Plus className="w-4 h-4" /> New
+              New
             </button>
           )}
           
@@ -2276,7 +2337,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
           <div className="ml-2 pl-3 border-l border-[#DCDAD3] flex items-center gap-3">
             {profile?.is_admin && (
               <button onClick={onAdmin} className="flex items-center gap-1.5 text-sm text-[#B23A3A] hover:text-[#C62828] transition-colors font-medium">
-                <Shield className="w-4 h-4" /> Admin
+                Admin
               </button>
             )}
             {isReadonly && (
@@ -2285,8 +2346,8 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             <span className="text-xs text-[#68655B] max-w-[120px] truncate" title={user?.email}>
               {profile?.full_name || user?.email?.split('@')[0]}
             </span>
-            <button onClick={onLogout} className="flex items-center gap-1 text-sm text-[#68655B] hover:text-[#0B0B0B] transition-colors" title="Sign out">
-              <LogOut className="w-4 h-4" />
+            <button onClick={onLogout} className="text-sm text-[#68655B] hover:text-[#0B0B0B] transition-colors">
+              Sign out
             </button>
           </div>
         </div>
@@ -2296,7 +2357,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="md:hidden p-2 text-[#0B0B0B]"
         >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em]">{mobileMenuOpen ? 'Close' : 'Menu'}</span>
         </button>
       </div>
 
@@ -2309,25 +2370,25 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             </div>
           )}
           <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
-            <Sparkles className="w-5 h-5" /> Stay Conscious
+            Stay Conscious
           </button>
           <button onClick={() => { onComparison(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('compare')}>
-            <Users className="w-5 h-5" /> Compare Brands
+            Compare Brands
           </button>
           <button onClick={() => { onCompassResults(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('results')}>
-            <BarChart3 className="w-5 h-5" /> Results Grid
+            Results Grid
           </button>
           <button onClick={() => { onSavedAssessments(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('saved')}>
-            <FileText className="w-5 h-5" /> Saved Assessments
+            Saved Assessments
           </button>
           {profile?.is_admin && onTeaser && (
             <button onClick={() => { onTeaser(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('teaser')}>
-              <Zap className="w-5 h-5" /> Teaser
+              Teaser
             </button>
           )}
           {!isReadonly && (
             <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#DEE42F] text-[#0B0B0B] transition-colors">
-              <Plus className="w-5 h-5" /> New Assessment
+              New Assessment
             </button>
           )}
           
@@ -2338,11 +2399,11 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             </div>
             {profile?.is_admin && (
               <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#B23A3A] hover:bg-[#E4E2DC] transition-colors">
-                <Shield className="w-5 h-5" /> User Management
+                User Management
               </button>
             )}
             <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#4A4840] hover:bg-[#E4E2DC] transition-colors">
-              <LogOut className="w-5 h-5" /> Sign Out
+              Sign Out
             </button>
           </div>
         </div>
@@ -6366,6 +6427,7 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
     return () => { cancelled = true; };
   }, []);
   const [expandedSections, setExpandedSections] = useState({
+    thesis: true,
     attributes: true,
     recommendations: true,
     conclusions: true,
@@ -6813,6 +6875,10 @@ SERVICE AREAS TO REFERENCE IN RECOMMENDATIONS:
 - VISIONARY: Brand Strategy, Impact Communications, Executive Visibility
 - INTENTIONAL: Brand Strategy, Brand Assets & Guidelines, Website Development, Communications Training
 
+${thesisPromptBlock()}
+
+The full assessment is broader than this read. Score the eight attributes on the whole brand, using the full rubric above, which already includes the thesis signals where they belong. The read below is one lens among several, not the verdict on the brand.
+
 Return valid JSON only — no prose before or after. For every attribute, "findings" is what you observed, "impact" is what is directly pushing the score up or down right now (name the specific strengths helping and the specific weaknesses hurting), and "actions" is the concrete, brand-specific move that would raise the score. Make impact and actions specific to THIS brand and its evidence, never generic. Schema:
 {
   "headline": "Single pithy sentence (max 20 words) capturing brand state and primary opportunity. Specific, not generic.",
@@ -6821,6 +6887,7 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
   "trustFindings": [
     { "text": "One publicly observable finding bearing on trust, credibility, reputation or authenticity. Max 12 words. Name the source.", "tags": ["trust|credibility|reputation|authenticity"], "supports": true }
   ],
+  ${THESIS_SCHEMA},
   "footprint": {
     "verdict": "One sentence on where this brand shows up and where it does not. Direct. Max 20 words.",
     "links": [
@@ -6884,6 +6951,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             }
             const level = parsed.campaignCoherence?.level;
             const adjusted = applyCampaignModifiers(parsed, level);
+            // Sustainability narrative read (framework 2.10). Parsed, never
+            // guessed: missing means the report offers to regenerate.
+            adjusted.sustainabilityNarrative = parseThesis(parsed.sustainabilityNarrative);
             adjusted.campaignCoherence = {
               ...(parsed.campaignCoherence || {}),
               level: Number.isFinite(Number(level)) ? Math.max(0, Math.min(5, Math.round(Number(level)))) : null,
@@ -7768,6 +7838,17 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         y += 6;
       });
 
+      // ========== SUSTAINABILITY NARRATIVE (framework 2.10) ==========
+      {
+        const tr = thesisTextRows(scores.sustainabilityNarrative);
+        if (tr) {
+          addSection('SUSTAINABILITY NARRATIVE');
+          if (tr.verdict) addParagraph(tr.verdict, 11);
+          if (tr.summary) addParagraph(tr.summary);
+          tr.tenets.forEach(t => addParagraph(`${t.level.toUpperCase()}: ${t.name}${t.reason ? `. ${t.reason}` : ''}`, 9));
+        }
+      }
+
       // ========== CAMPAIGN COHERENCE ==========
       if (campaignStage) {
         addSection('CAMPAIGN COHERENCE');
@@ -8494,6 +8575,21 @@ ${content.slice(0, 8000)}`;
               ];
             }),
 
+            // ── SUSTAINABILITY NARRATIVE (framework 2.10) ─────────
+            ...(() => {
+              const tr = thesisTextRows(scores.sustainabilityNarrative);
+              if (!tr) return [];
+              return [
+                h2('Sustainability Narrative', true),
+                ...(tr.verdict ? [body(clean(tr.verdict))] : []),
+                ...(tr.summary ? [body(clean(tr.summary))] : []),
+                ...tr.tenets.map(t => new Paragraph({ spacing: { after: 80, ...LINE_SPACING }, children: [
+                  new TextRun({ text: `${t.level}: `, bold: true, size: 20, font: 'Inter' }),
+                  new TextRun({ text: `${t.name}${t.reason ? `. ${clean(t.reason)}` : ''}`, size: 20, font: 'Inter' }),
+                ]})),
+              ];
+            })(),
+
             // ── CAMPAIGN COHERENCE ───────────────────────────────
             ...(campaignStage ? [
               h2('Campaign Coherence', true),
@@ -8755,7 +8851,8 @@ ${content.slice(0, 8000)}`;
   // a counter incremented during render. React does not guarantee that child
   // components execute in document order, and a counter would renumber itself
   // the moment a section was toggled.
-  // The design fixes the report at twelve numbered sections, in this order.
+  // The report's numbered sections, in this order. Sustainability narrative
+  // (framework 2.10) follows Trust and credibility.
   // Brand maturity is 02 and carries a number of its own.
   const sectionOrder = [
     'Results at a glance',
@@ -8764,6 +8861,7 @@ ${content.slice(0, 8000)}`;
     'Brand footprint',
     'Campaign coherence',
     'Trust and credibility',
+    'Sustainability narrative',
     'Benchmark comparison',
     'Recommendations',
     'Conclusions',
@@ -9013,6 +9111,18 @@ ${content.slice(0, 8000)}`;
         {expandedSections.trust && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
             <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={overall} />
+          </div>
+        )}
+      </div>
+
+      {/* Sustainability narrative (framework 2.10) - Collapsible */}
+      <div className="dc-reveal" style={{ marginTop: 80 }} data-section="thesis">
+        <SectionHead label="Sustainability narrative" open={expandedSections.thesis}
+          onToggle={() => toggleSection('thesis')} />
+        {expandedSections.thesis && (
+          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+            <ThesisPanel thesis={scores.sustainabilityNarrative}
+              onRegenerate={() => { setScores(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
           </div>
         )}
       </div>
@@ -12623,6 +12733,15 @@ function makeClientPayload({ project, scores, benchmark, assessorNote = null }) 
       return acc;
     }, {
       headline: scores?.headline,
+      // Whitelisted field by field, like the rest of this payload.
+      sustainabilityNarrative: scores?.sustainabilityNarrative ? JSON.parse(JSON.stringify({
+        present: scores.sustainabilityNarrative.present,
+        summary: scores.sustainabilityNarrative.summary,
+        progress: scores.sustainabilityNarrative.progress,
+        voice: scores.sustainabilityNarrative.voice,
+        verdict: scores.sustainabilityNarrative.verdict,
+        tenets: scores.sustainabilityNarrative.tenets,
+      })) : null,
       campaignCoherence: scores?.campaignCoherence
         ? {
             level: scores.campaignCoherence.level,
@@ -12883,6 +13002,7 @@ function ClientReportView({ payload }) {
     ...(hasFootprintData(payload.footprint) ? ['Brand footprint'] : []),
     ...(campaignStage ? ['Campaign coherence'] : []),
     'Trust and credibility',
+    ...(scores?.sustainabilityNarrative ? ['Sustainability narrative'] : []),
     ...(benchmark ? ['Benchmark comparison'] : []),
     ...(payload.conclusion ? ['Conclusions'] : []),
   ];
@@ -13052,6 +13172,16 @@ function ClientReportView({ payload }) {
           <TrustLensPanel scores={scores} overall={overall} showFindings={false} />
         </div>
         </div>
+
+        {/* ── Sustainability narrative (framework 2.10) ───────── */}
+        {scores?.sustainabilityNarrative && (
+          <div className="dc-reveal" style={{ marginTop: 80 }} data-section="thesis">
+            <SectionHead label="Sustainability narrative" />
+            <div style={{ marginTop: 32, marginBottom: 8 }}>
+              <ThesisPanel thesis={scores.sustainabilityNarrative} />
+            </div>
+          </div>
+        )}
 
         {/* ── Benchmark comparison ────────────────────────────── */}
         {benchmark && benchmarkAvg && (
@@ -13429,6 +13559,14 @@ function SharedReportView({ report, onClose }) {
             </div>
           );
         })()}
+
+        {/* Sustainability narrative (framework 2.10) */}
+        {scores?.sustainabilityNarrative && (
+          <>
+            <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">SUSTAINABILITY NARRATIVE</h3>
+            <div className="mb-8"><ThesisPanel thesis={scores.sustainabilityNarrative} /></div>
+          </>
+        )}
 
         {/* Campaign Coherence */}
         {sharedCampaignStage && (
@@ -14199,6 +14337,23 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
 // Pipeline, prompts and every calculation live in src/lib/teaser.js.
 // ═════════════════════════════════════════════════════════════
 
+// A browser tab keeps running the JavaScript it loaded until it is reloaded.
+// After a deploy, an old tab would score teasers with the old method and stamp
+// the old version, silently. Before any scoring, ask the server which version
+// is live. If it cannot be checked (offline, local dev), do not block.
+async function checkLiveVersion() {
+  try {
+    const r = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) return { stale: false, live: null };
+    const { version } = await r.json();
+    return { stale: !!version && version !== APP_VERSION, live: version || null };
+  } catch {
+    return { stale: false, live: null };
+  }
+}
+
+const staleMessage = (live) => `This tab is running Compass v${APP_VERSION}, but v${live} is live. Reload the page before scoring, so the current scoring method is used. Nothing was scored.`;
+
 const TEASER_STAGE_LABEL = { running: 'Gathering', ok: 'Done', failed: 'Failed', pending: 'Waiting' };
 
 // Web-searched evidence call through the proxy. Returns the model's text only.
@@ -14300,6 +14455,13 @@ function TeaserClientView({ payload, chartRef = null }) {
       <section style={{ marginTop: 40 }}>
         <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={payload.overall} />
       </section>
+
+      {payload.thesis && (
+        <section style={{ marginTop: 40 }}>
+          <div className="dc-kicker" style={{ marginBottom: 14 }}>{THESIS_NAME}</div>
+          <ThesisPanel thesis={payload.thesis} />
+        </section>
+      )}
 
       {payload.fullAssessmentWouldResolve?.length > 0 && (
         <section style={{ marginTop: 40 }}>
@@ -14405,6 +14567,14 @@ async function exportTeaserPdf(payload, chartEl, { download = true } = {}) {
     findings.forEach(f => para(`${f.supports ? '+' : '-'}  ${f.text}  [${f.tags.join(', ')}]`, 9, 'normal', [74, 72, 64], 1));
   }
 
+  const thesisRows = thesisTextRows(payload.thesis);
+  if (thesisRows) {
+    kicker(THESIS_NAME);
+    if (thesisRows.verdict) para(thesisRows.verdict, 11, 'bold', [11, 11, 11], 2);
+    if (thesisRows.summary) para(thesisRows.summary, 10, 'normal', [74, 72, 64], 2);
+    thesisRows.tenets.forEach(t => para(`${t.level.toUpperCase()}  ${t.name}${t.reason ? `: ${t.reason}` : ''}`, 9, 'normal', [74, 72, 64], 1));
+  }
+
   if (payload.fullAssessmentWouldResolve?.length) {
     kicker('What a full assessment would settle');
     payload.fullAssessmentWouldResolve.forEach((q, i) => para(`${String(i + 1).padStart(2, '0')}  ${q}`, 10, 'normal', [11, 11, 11], 1.5));
@@ -14435,7 +14605,7 @@ function TeaserProgress({ statuses, scoring, elapsed }) {
         <div className="dc-kicker-sm">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</div>
       </div>
       <div className="dc-stack">
-        {TEASER_SOURCES.map(src => {
+        {[...TEASER_SOURCES, ...(statuses.sustainability ? [SUSTAINABILITY_SOURCE] : [])].map(src => {
           const st = statuses[src.id] || 'pending';
           return (
             <div key={src.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #EEECE6' }}>
@@ -14509,7 +14679,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
             ))}
           </div>
           <div data-field="baseline">
-            <span className="font-semibold">Sector baseline:</span>{' '}
+            <span className="font-semibold">Sector baseline, from full assessments:</span>{' '}
             {baselineError ? `unavailable (${baselineError})`
               : !baseline ? 'loading'
               : !baseline.available ? 'unavailable, no comparable full assessments yet'
@@ -14520,6 +14690,16 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
                 </>}
           </div>
           {record.context && <div><span className="font-semibold">Context:</span> {record.context}</div>}
+          {record.result && campaigns.find(c => c.id === record.campaign_id)?.cso_audience && record.result.audience !== 'cso' && (
+            <div data-field="audience-mismatch" style={{ color: '#C2680C' }}>
+              <span className="font-semibold">Scored before this campaign was set to CSO audience.</span> Refresh evidence to add the sustainability scan and read.
+            </div>
+          )}
+          {record.result && (
+            <div data-field="scored-with">
+              <span className="font-semibold">Scored:</span> {new Date(record.result.scoredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} with method v{record.result.teaserVersion || '1.0'}
+            </div>
+          )}
           {record.result && !isCurrentMethod(record.result) && (
             <div data-field="method-outdated" style={{ color: '#C2680C' }}>
               <span className="font-semibold">Earlier scoring method (v{record.result.teaserVersion || '1.0'}).</span> Scored before calibration and with the campaign modifier. Rescore to apply the current method (v{TEASER_VERSION}); it reuses the stored evidence, no new searches.
@@ -14562,12 +14742,14 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   const [filter, setFilter] = useState('all');        // 'all' | campaign id | 'unassigned'
   const [form, setForm] = useState(blank);
   const [newCampaign, setNewCampaign] = useState(null); // null = picking; string = typing a new name
+  const [newCampaignCso, setNewCampaignCso] = useState(false);
   const [open, setOpen] = useState(null);             // full record being viewed
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [campaignBusy, setCampaignBusy] = useState(null); // campaign id with an action in flight
   // Full-assessment results for the sector baseline, fetched fresh each time a
   // teaser is opened. Read-only: nothing here writes to full results.
+  const [staleLive, setStaleLive] = useState(null);   // live version, when this tab is out of date
   const [benchPool, setBenchPool] = useState(null);
   const [benchError, setBenchError] = useState(null);
   const [statuses, setStatuses] = useState({});
@@ -14584,6 +14766,23 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   };
   useEffect(() => { load(); }, []);
 
+  // Check on open and whenever the tab regains focus, so a tab left open over
+  // a deploy says so before anyone scores from it.
+  useEffect(() => {
+    const check = async () => { const v = await checkLiveVersion(); setStaleLive(v.stale ? v.live : null); };
+    check();
+    window.addEventListener('focus', check);
+    return () => window.removeEventListener('focus', check);
+  }, []);
+
+  // Every scoring action goes through this. Returns false, with a message,
+  // when the tab is out of date.
+  const liveGuard = async () => {
+    const v = await checkLiveVersion();
+    if (v.stale) { setStaleLive(v.live); setError(staleMessage(v.live)); return false; }
+    return true;
+  };
+
   const startClock = () => {
     setElapsed(0);
     const t0 = Date.now();
@@ -14594,6 +14793,8 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   useEffect(() => () => clearInterval(timerRef.current), []);
 
   const inputFrom = (rec) => ({
+    // The campaign decides the audience at the moment of scoring.
+    audience: campaigns.find(c => c.id === rec.campaign_id)?.cso_audience ? 'cso' : 'general',
     brandName: rec.brand_name,
     websiteUrl: rec.website_url,
     businessModel: rec.business_model,
@@ -14629,16 +14830,18 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     const name = String(newCampaign || '').trim();
     if (!name) { setError('Give the campaign a name.'); return; }
     setError(null);
-    const { data, error: e } = await createCampaign({ name, created_by: user?.id, created_by_name: profile?.full_name || user?.email || '' });
+    const { data, error: e } = await createCampaign({ name, cso_audience: newCampaignCso, created_by: user?.id, created_by_name: profile?.full_name || user?.email || '' });
     if (e) { setError(e.message); return; }
     setCampaigns(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
     setForm(f => ({ ...f, campaignId: data.id }));
     setNewCampaign(null);
+    setNewCampaignCso(false);
   };
 
   const runNew = async () => {
     const errs = validateTeaserInput(form);
     if (errs.length) { setError(errs.join(' ')); return; }
+    if (!(await liveGuard())) return;
     setBusy(true); setError(null); setScoring('pending'); startClock();
     let saved = null;
     try {
@@ -14688,6 +14891,8 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   };
 
   const rescore = async () => {
+    setError(null);
+    if (!(await liveGuard())) return;
     setBusy(true); setError(null); setStatuses(Object.fromEntries(TEASER_SOURCES.map(s => [s.id, open.evidence?.sources?.[s.id]?.status === 'ok' ? 'ok' : 'failed'])));
     startClock();
     try { setOpen(await scoreAndSave(open)); load(); }
@@ -14697,6 +14902,8 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
 
   const refresh = async () => {
     if (!confirm('Gather fresh evidence and rescore? Search results change over time, so scores may move. The current score is kept in the history.')) return;
+    setError(null);
+    if (!(await liveGuard())) return;
     setBusy(true); setError(null); setScoring('pending'); startClock();
     try {
       const evidence = await gather(open);
@@ -14735,6 +14942,14 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     load();
   };
 
+  const toggleAudience = async (c) => {
+    setCampaignBusy(c.id); setError(null);
+    const { error: e } = await setCampaignAudience(c.id, !c.cso_audience);
+    setCampaignBusy(null);
+    if (e) { setError(e.message); return; }
+    load();
+  };
+
   const removeCampaign = async (c, count) => {
     // The database refuses this too; the check here just explains why.
     if (count > 0) { setError(`${c.name} still has ${count} teaser${count === 1 ? '' : 's'}. Move or delete them first.`); return; }
@@ -14758,7 +14973,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       const pool = (full.data || []).map(formatCompassResult);
       const baselines = Object.fromEntries((data || []).map(t => [t.id,
         teaserSectorBaseline(pool, { industry: t.industry, brandName: t.brand_name, totalScore: t.result?.overall })]));
-      const { zip, filename } = await buildCampaignWorkbook(c.name, data || [], new Date(), baselines);
+      const { zip, filename } = await buildCampaignWorkbook(c.name, data || [], new Date(), baselines, { thesis: !!c.cso_audience });
       const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       saveAs(blob, filename);
     } catch (e) {
@@ -14772,14 +14987,27 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
 
   const progress = <TeaserProgress statuses={statuses} scoring={scoring} elapsed={elapsed} />;
 
+  const staleBanner = staleLive && (
+    <div className="dc-wrap" data-field="stale-banner" style={{ padding: '0 32px' }}>
+      <div className="bg-[#0B0B0B] text-white" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', marginTop: 16 }}>
+        <AlertCircle className="w-4 h-4" style={{ color: '#DEE42F' }} />
+        <span style={{ flex: 1, fontSize: 14 }}>A newer version of the Compass (v{staleLive}) is live. Reload before scoring; this tab would use an out-of-date method.</span>
+        <button onClick={() => window.location.reload()} className="bg-[#DEE42F] text-[#0B0B0B] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em]">Reload</button>
+      </div>
+    </div>
+  );
+
   if (open) {
     return (
+      <>
+      {staleBanner}
       <TeaserReport record={open} busy={busy} progress={progress} error={error}
         campaigns={campaigns} onMove={moveTo}
         baseline={benchPool ? teaserSectorBaseline(benchPool, { industry: open.industry, brandName: open.brand_name, totalScore: open.result?.overall }) : null}
         baselineError={benchError}
         onBack={() => { setOpen(null); setError(null); }}
         onRescore={rescore} onRefresh={refresh} onConvert={convert} onDelete={remove} />
+      </>
     );
   }
 
@@ -14822,6 +15050,8 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   );
 
   return (
+    <>
+    {staleBanner}
     <div className="dc-wrap dc-page animate-fade-in">
       <div className="dc-pagehead">
         <div>
@@ -14846,9 +15076,15 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
               <input className={inputCls} autoFocus value={newCampaign} data-field="new-campaign"
                 onChange={e => setNewCampaign(e.target.value)} placeholder="e.g., Climate Week 2026 outreach"
                 onKeyDown={e => { if (e.key === 'Enter') addCampaign(); if (e.key === 'Escape') setNewCampaign(null); }} />
+              <label className="text-sm" style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                <input type="checkbox" checked={newCampaignCso} data-field="new-campaign-cso" onChange={e => setNewCampaignCso(e.target.checked)} /> CSO audience
+              </label>
               <button onClick={addCampaign} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>Create</button>
               <button onClick={() => setNewCampaign(null)} className="btn-secondary">Cancel</button>
             </div>
+          )}
+          {newCampaign === null && campaigns.find(c => c.id === form.campaignId)?.cso_audience && (
+            <p className="text-xs text-[#68655B] mt-1" data-field="cso-hint">CSO audience: adds a sustainability scan and the sustainability narrative read, written for impact leaders.</p>
           )}
         </div>
         <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
@@ -14872,7 +15108,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
               <option value="">Choose a sector</option>
               {INDUSTRIES.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
-            <p className="text-xs text-[#68655B] mt-1">Sets the sector baseline. Other compares against all assessed brands.</p>
+            <p className="text-xs text-[#68655B] mt-1">Sets the sector baseline, drawn from full assessments. Other compares against all full assessments.</p>
           </div>
         </div>
         <div style={{ marginTop: 16 }}>
@@ -14922,6 +15158,12 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
                       className="flex items-center gap-2 bg-[#DEE42F] text-[#0B0B0B] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] disabled:opacity-40">
                       {campaignBusy === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download scores
                     </button>
+                    <button onClick={() => toggleAudience(c)} disabled={busy || campaignBusy === c.id} data-field="cso-toggle"
+                      title="Teasers in CSO campaigns add a sustainability scan and the sustainability narrative read"
+                      className="px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em]"
+                      style={c.cso_audience ? { background: '#FFFFFF', color: '#0B0B0B' } : { border: '1px solid #4A4840', color: '#FFFFFF' }}>
+                      CSO audience {c.cso_audience ? 'on' : 'off'}
+                    </button>
                     <button onClick={() => rename(c)} disabled={busy || campaignBusy === c.id} title="Rename campaign" className="p-2 text-white hover:text-[#DEE42F]"><Pencil className="w-4 h-4" /></button>
                     <button onClick={() => removeCampaign(c, teasers.length)} disabled={busy || campaignBusy === c.id}
                       title={teasers.length ? 'Only an empty campaign can be deleted' : 'Delete campaign'}
@@ -14950,6 +15192,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
         )}
       </section>
     </div>
+    </>
   );
 }
 

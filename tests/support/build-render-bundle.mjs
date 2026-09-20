@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const EXPOSE = ['Header', 'TeaserClientView', 'TeaserReport', 'TeaserPage', 'TrustLensPanel', 'exportTeaserPdf'];
+const EXPOSE = ['Header', 'TeaserClientView', 'TeaserReport', 'TeaserPage', 'TrustLensPanel', 'exportTeaserPdf', 'ThesisPanel', 'ClientReportView', 'makeClientPayload'];
 
 await build({
   entryPoints: [path.join(root, 'src/App.jsx')],

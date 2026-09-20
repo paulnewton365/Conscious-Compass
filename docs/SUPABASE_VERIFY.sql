@@ -26,7 +26,8 @@ required_columns (t, c) as (values
   ('stay_conscious_newsletter','newsletter'),
   ('teaser_assessments','evidence'), ('teaser_assessments','result'),
   ('teaser_assessments','context'), ('teaser_assessments','converted_at'),
-  ('teaser_assessments','campaign_id'), ('teaser_campaigns','name')
+  ('teaser_assessments','campaign_id'), ('teaser_campaigns','name'),
+  ('teaser_campaigns','cso_audience')
 )
 
 -- 1. Tables exist

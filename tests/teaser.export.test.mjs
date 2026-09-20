@@ -9,6 +9,7 @@ import {
   sheetName, exportFilename, EXPORT_COLUMNS,
 } from '../src/lib/teaserExport.js';
 import { ATTRIBUTES } from '../src/data/rubric.js';
+import { TEASER_VERSION } from '../src/lib/teaser.js';
 
 const scoresFor = (base) => Object.fromEntries(ATTRIBUTES.map((a, i) => [a.id, { score: base + i, confidence: 'medium', rationale: 'SENTINEL_RATIONALE' }]));
 const teaser = (name, overall, extra = {}) => ({
@@ -132,24 +133,24 @@ test('JSZip is loaded on demand, not imported at the top of the module', () => {
 
 // ── Sector baseline columns (v3.31) ──
 
-const sectorBaseline = { available: true, scope: 'industry', sectorName: 'Energy & Utilities', avgScore: 58, count: 12, basis: 'Sector' };
+const sectorBaseline = { available: true, scope: 'industry', sectorName: 'Energy & Utilities', avgScore: 58, count: 12, basis: 'Sector full assessments' };
 
 test('baseline columns sit after Stage, in order', () => {
   const labels = EXPORT_COLUMNS.map(c => c.label);
-  assert.deepEqual(labels.slice(3, 9), ['Stage', 'Sector', 'Sector baseline', 'Vs baseline', 'Brands in baseline', 'Baseline basis']);
+  assert.deepEqual(labels.slice(3, 9), ['Stage', 'Sector', 'Sector baseline (full assessments)', 'Vs baseline', 'Full assessments in baseline', 'Baseline basis']);
 });
 
 test('baseline row values: difference is overall minus baseline; unscored brands still get their baseline', () => {
   const rows = buildCampaignRows([teaser('Acme', 61), teaser('Later', null)], { Acme: sectorBaseline, Later: sectorBaseline });
-  assert.deepEqual([rows[0].sector, rows[0].baseline, rows[0].vsBaseline, rows[0].baselineBrands, rows[0].baselineBasis], ['Energy & Utilities', 58, 3, 12, 'Sector']);
+  assert.deepEqual([rows[0].sector, rows[0].baseline, rows[0].vsBaseline, rows[0].baselineBrands, rows[0].baselineBasis], ['Energy & Utilities', 58, 3, 12, 'Sector full assessments']);
   assert.equal(rows[1].baseline, 58);
   assert.equal(rows[1].vsBaseline, null, 'no difference without a score');
 });
 
 test('fallback and unavailable baselines are labelled, never shown as a sector figure or a zero', () => {
-  const fallback = { ...sectorBaseline, scope: 'all', avgScore: 55, count: 40, basis: 'All brands (fewer than 5 in sector)' };
+  const fallback = { ...sectorBaseline, scope: 'all', avgScore: 55, count: 40, basis: 'All full assessments (fewer than 5 in sector)' };
   const [f] = buildCampaignRows([teaser('Acme', 61)], { Acme: fallback });
-  assert.equal(f.baselineBasis, 'All brands (fewer than 5 in sector)');
+  assert.equal(f.baselineBasis, 'All full assessments (fewer than 5 in sector)');
   const [u] = buildCampaignRows([teaser('Acme', 61)], { Acme: { available: false, reason: 'x' } });
   assert.equal(u.baseline, null);
   assert.match(u.baselineBasis, /Unavailable/);
@@ -176,10 +177,10 @@ test('Vs baseline is written as a signed number; baseline carries score colours'
 // ── Scoring method (v3.32) ──
 
 test('each row states its scoring method, and the sheet warns when a campaign mixes methods', async () => {
-  const current = teaser('Now', 60); current.result.teaserVersion = '2.0';
+  const current = teaser('Now', 60); current.result.teaserVersion = TEASER_VERSION;
   const earlier = teaser('Then', 55); earlier.result.teaserVersion = '1.0';
   const rows = buildCampaignRows([current, earlier, teaser('Pending', null)]);
-  assert.equal(rows.find(r => r.brand === 'Now').method, 'Calibrated v2.0');
+  assert.equal(rows.find(r => r.brand === 'Now').method, `Calibrated v${TEASER_VERSION}`);
   assert.equal(rows.find(r => r.brand === 'Then').method, 'Earlier v1.0, rescore');
   assert.equal(rows.find(r => r.brand === 'Pending').method, '');
   const mixed = await buildCampaignWorkbook('C', [current, earlier]);
@@ -187,4 +188,35 @@ test('each row states its scoring method, and the sheet warns when a campaign mi
   const clean = await buildCampaignWorkbook('C', [current]);
   assert.ok(!(await clean.zip.file('xl/worksheets/sheet1.xml').async('string')).includes('earlier method'));
   assert.ok((await clean.zip.file('xl/worksheets/sheet2.xml').async('string')).includes('no campaign modifier'));
+});
+
+
+test('every baseline label names full assessments, so it cannot be read as a teaser average', () => {
+  const labels = EXPORT_COLUMNS.map(c => c.label).filter(l => /baseline/i.test(l));
+  assert.ok(labels.some(l => /full assessments/.test(l)));
+  assert.ok(!EXPORT_COLUMNS.some(c => c.label === 'Brands in baseline'));
+});
+
+// ── Sustainability narrative columns (v3.36) ──
+
+import { THESIS_COLUMNS, columnsFor } from '../src/lib/teaserExport.js';
+
+test('CSO campaigns get the thesis columns; general campaigns keep the file unchanged', async () => {
+  assert.equal(columnsFor().length, EXPORT_COLUMNS.length);
+  assert.equal(columnsFor({ thesis: true }).length, EXPORT_COLUMNS.length + 7);
+  assert.deepEqual(THESIS_COLUMNS.map(c => c.label).slice(0, 2), ['Progress vs voice', 'Inside the brand, not beside it']);
+  const t = teaser('Acme', 61);
+  t.result.scores.sustainabilityNarrative = { present: true, verdict: { label: 'Whispering' }, tenets: { inside: { level: 'breaking' }, scars: { level: 'buried' } } };
+  const n = teaser('Nada', 50); n.result.scores.sustainabilityNarrative = { present: false };
+  const [a, b] = buildCampaignRows([t, n]);
+  assert.equal(a.thesisVerdict, 'Whispering');
+  assert.equal(a.tenet_inside, 'Breaking through');
+  assert.equal(a.tenet_scars, 'Buried');
+  assert.equal(a.tenet_engine, '', 'unrated stays blank');
+  assert.equal(b.thesisVerdict, 'No sustainability narrative');
+  const withCols = await buildCampaignWorkbook('C', [t], new Date(), {}, { thesis: true });
+  const sheet = await withCols.zip.file('xl/worksheets/sheet1.xml').async('string');
+  assert.ok(sheet.includes('Progress vs voice') && sheet.includes('Whispering'));
+  const without = await buildCampaignWorkbook('C', [t]);
+  assert.ok(!(await without.zip.file('xl/worksheets/sheet1.xml').async('string')).includes('Progress vs voice'));
 });

@@ -1,6 +1,9 @@
 // Brand Consciousness Assessment Framework v2.9
 
-export const FRAMEWORK_VERSION = '2.9';
+// 2.10: sustainability narrative thesis signals added to six attributes.
+// Minor bump: benchmarks compare on the major version, so 2.x assessments
+// remain comparable.
+export const FRAMEWORK_VERSION = '2.10';
 
 export const MATURITY_STAGES = [
   { id: 'pre-foundational', name: 'Pre-Foundational', min: 0, max: 25, color: '#94A3B8', description: 'Requires fundamental development across most attributes. Significant gaps exist in basic brand presence and identity. The brand is largely invisible or incoherent to its audiences.' },
@@ -26,9 +29,13 @@ export const ATTRIBUTES = [
     description: 'Awake brands do not merely participate in industry conversations; they define them. They introduce frameworks, coin terms, and set agendas that others follow. Evidence includes: leadership visible in industry conversations, proactive thought leadership, media seeking them out as a source, Wikipedia presence with external citations, and consistent narrative across earned, owned, and shared media.',
     color: '#E11D48',
     signals: {
-      strong: ['Original research/thought leadership cited by third parties', 'Media requests for expert commentary on breaking news', 'Keynote speaking at flagship industry events', 'Competitors referencing or responding to their positions', 'Industry awards for thought leadership'],
+      strong: ['Original research/thought leadership cited by third parties', 'Media requests for expert commentary on breaking news', 'Keynote speaking at flagship industry events', 'Competitors referencing or responding to their positions', 'Industry awards for thought leadership',
+        'Real sustainability progress amplified through earned media and leadership voice',
+      ],
       moderate: ['Regular bylines in industry publications', 'Podcast guest appearances', 'LinkedIn articles with meaningful engagement', 'Conference panel presentations', 'Quoted in industry roundups'],
-      weak: ['Blog posts without external pickup', 'Social posts about industry topics without engagement', 'Press releases without earned coverage', 'No evidence of external validation'],
+      weak: ['Blog posts without external pickup', 'Social posts about industry topics without engagement', 'Press releases without earned coverage', 'No evidence of external validation',
+        'Substantive sustainability progress kept quiet, visible only in reports',
+      ],
     },
   },
   {
@@ -39,9 +46,13 @@ export const ATTRIBUTES = [
     description: 'Aware brands demonstrate deep knowledge of their audiences through evidence of listening, segmentation, and responsive engagement. Trust is built systematically through transparency, reliability, and genuine dialogue. Evidence includes: content demonstrating deep audience understanding, language mirroring how customers speak, presence on platforms where audience lives, community engagement that is conversational not broadcast, and visible trust signals.',
     color: '#F97316',
     signals: {
-      strong: ['Active community with visible two-way dialogue', 'Customer advisory boards or feedback panels', 'Content addressing specific persona pain points by name', 'Testimonials citing trust, reliability, or understanding', 'Responsive social engagement within hours', 'Evidence of listening informing product or content'],
+      strong: ['Active community with visible two-way dialogue', 'Customer advisory boards or feedback panels', 'Content addressing specific persona pain points by name', 'Testimonials citing trust, reliability, or understanding', 'Responsive social engagement within hours', 'Evidence of listening informing product or content',
+        'Sustainability expressed as a benefit customers can see themselves in',
+      ],
       moderate: ['Segmented content for different audiences', 'Customer success stories with quotes', 'Social listening evidence', 'Newsletter with personalization', 'FAQ addressing real customer questions'],
-      weak: ['Generic messaging for all audiences', 'One-way broadcast communication only', 'No visible feedback mechanisms', 'Testimonials without specifics', 'Slow or no social response'],
+      weak: ['Generic messaging for all audiences', 'One-way broadcast communication only', 'No visible feedback mechanisms', 'Testimonials without specifics', 'Slow or no social response',
+        'Sustainability addressed only to investors and regulators, never to customers',
+      ],
     },
   },
   {
@@ -52,9 +63,15 @@ export const ATTRIBUTES = [
     description: 'Reflective brands exhibit alignment between what they claim and what they demonstrate. Their external brand expression reflects genuine internal culture, mission, and values. Evidence includes: consistent brand expression across every touchpoint, clear brand strategy (mission, vision, purpose, promise, values, personality), tone of voice consistent regardless of channel, clear brand architecture (single brand, house of brands, endorsed, or sub-brand structure), and Glassdoor reviews that align with external brand promises.',
     color: '#FBBF24',
     signals: {
-      strong: ['Employee advocacy programs with authentic participation', 'Leadership publicly visible and aligned with brand values', 'Third-party validation of cultural claims', 'Consistent tone and visual identity across all channels', 'Transparent acknowledgment of challenges or evolution', 'Clear brand architecture with logical hierarchy between brands, sub-brands, and products'],
+      strong: ['Employee advocacy programs with authentic participation', 'Leadership publicly visible and aligned with brand values', 'Third-party validation of cultural claims', 'Consistent tone and visual identity across all channels', 'Transparent acknowledgment of challenges or evolution', 'Clear brand architecture with logical hierarchy between brands, sub-brands, and products',
+        'Candour about missed targets, the hardest areas and open questions alongside the vision',
+        'Sustainability claims consistent between ESG reporting and marketing',
+      ],
       moderate: ['Brand guidelines being followed consistently', 'Some employee social presence', 'Culture referenced in marketing with some evidence', 'Visual consistency across main channels', 'Brand architecture present but not consistently applied'],
-      weak: ['Disconnect between marketing claims and Glassdoor reviews', 'Inconsistent visual identity across channels', 'Leadership invisible or misaligned with brand positioning', 'No evidence of genuine internal culture', 'Confusing brand/product hierarchy with unclear relationships between entities'],
+      weak: ['Disconnect between marketing claims and Glassdoor reviews', 'Inconsistent visual identity across channels', 'Leadership invisible or misaligned with brand positioning', 'No evidence of genuine internal culture', 'Confusing brand/product hierarchy with unclear relationships between entities',
+        'Only successes shown, with no acknowledgment of trade-offs or gaps',
+        'Marketing sustainability claims that outrun reported data',
+      ],
     },
   },
   {
@@ -91,9 +108,13 @@ export const ATTRIBUTES = [
     description: 'Sentient brands create genuine emotional connection through creative excellence that moves audiences. They develop distinctive creative approaches that capture attention and inspire action through feeling, not just information. Evidence includes: creative work that makes you feel something, distinctive visual and verbal identity, storytelling that connects human to human, and brand personality that is genuine and ownable.',
     color: '#818CF8',
     signals: {
-      strong: ['Distinctive creative identity recognizable without logo', 'Emotional storytelling that drives sharing', 'Community passion and advocacy visible', 'Content that audiences seek out', 'Creative that breaks category conventions', 'Craft holds at the same high standard in every channel it appears in'],
+      strong: ['Distinctive creative identity recognizable without logo', 'Emotional storytelling that drives sharing', 'Community passion and advocacy visible', 'Content that audiences seek out', 'Creative that breaks category conventions', 'Craft holds at the same high standard in every channel it appears in',
+        'Sustainability told with distinctive voice and creative, tied to what the brand stands for',
+      ],
       moderate: ['Some distinctive creative elements', 'Occasional emotional resonance', 'Competent but not memorable execution', 'Content that is consumed but not shared', 'Brand personality present but not ownable', 'Craft varies noticeably between channels'],
-      weak: ['Generic stock imagery and corporate copy', 'No emotional resonance in content', 'Forgettable creative execution', 'Interchangeable with competitors', 'No evidence of audience passion', 'Execution quality collapses outside the primary channel'],
+      weak: ['Generic stock imagery and corporate copy', 'No emotional resonance in content', 'Forgettable creative execution', 'Interchangeable with competitors', 'No evidence of audience passion', 'Execution quality collapses outside the primary channel',
+        'Generic sustainability imagery and language interchangeable with peers',
+      ],
     },
   },
   {
@@ -104,9 +125,15 @@ export const ATTRIBUTES = [
     description: 'Visionary brands articulate purpose beyond profit and demonstrate commitment to meaningful outcomes. They connect their work to broader benefit for customers, communities, or society. Evidence includes: clear articulation of purpose, vision that extends beyond quarterly targets, willingness to take positions on relevant issues, and content that inspires not just informs.',
     color: '#A78BFA',
     signals: {
-      strong: ['Purpose statement that drives visible decisions', 'Impact measured and reported transparently', 'Positions taken on relevant issues', 'Stakeholder benefit articulated broadly', 'Vision referenced consistently across channels', 'Evidence of purpose informing strategy'],
+      strong: ['Purpose statement that drives visible decisions', 'Impact measured and reported transparently', 'Positions taken on relevant issues', 'Stakeholder benefit articulated broadly', 'Vision referenced consistently across channels', 'Evidence of purpose informing strategy',
+        'Sustainability woven into brand, product and homepage, not housed only in an ESG report, microsite or awareness-day posts',
+        'Sustainability framed as progress and advantage, not sacrifice or obligation',
+      ],
       moderate: ['Purpose mentioned but not central', 'Some social responsibility evidence', 'Vision present but vague', 'Occasional forward-thinking content', 'Mission statement exists but feels generic'],
-      weak: ['No discernible purpose beyond profit', 'No vision for the future articulated', 'Purely transactional positioning', 'No evidence of broader benefit consideration', 'Mission absent or clearly lip service'],
+      weak: ['No discernible purpose beyond profit', 'No vision for the future articulated', 'Purely transactional positioning', 'No evidence of broader benefit consideration', 'Mission absent or clearly lip service',
+        'Sustainability confined to a standalone ESG report, vanity URL or calendar-driven posts',
+        'Sustainability framed as compliance, sacrifice or obligation',
+      ],
     },
   },
   {
@@ -117,9 +144,13 @@ export const ATTRIBUTES = [
     description: 'Intentional brands project credibility through substantive positioning and professional execution. They signal competence, reliability, and market seriousness through visible evidence of capability. Evidence includes: trademark protection (WIPO registration), consistent brand assets, professional presentation in every context, credentials and certifications prominently displayed, clear brand architecture strategy, and client logos that signal trust.',
     color: '#64748B',
     signals: {
-      strong: ['Registered trademarks protecting brand assets', 'Executive visibility and industry recognition', 'Awards and certifications prominently displayed', 'Client logos and case studies with names', 'Consistent professional presentation everywhere', 'Third-party credibility signals abundant', 'Clear brand architecture (single brand, house of brands, endorsed, or sub-brand) consistently applied'],
+      strong: ['Registered trademarks protecting brand assets', 'Executive visibility and industry recognition', 'Awards and certifications prominently displayed', 'Client logos and case studies with names', 'Consistent professional presentation everywhere', 'Third-party credibility signals abundant', 'Clear brand architecture (single brand, house of brands, endorsed, or sub-brand) consistently applied',
+        'Sustainability targets, certifications and reported data visible where customers and partners look',
+      ],
       moderate: ['Some credentials visible', 'Generally professional presentation', 'Basic brand consistency', 'Some client references', 'Occasional credibility signals', 'Brand architecture exists but applied inconsistently'],
-      weak: ['No trademark protection', 'Amateur or inconsistent presentation', 'No visible credentials or recognition', 'No client evidence', 'Credibility gaps undermine positioning', 'Confusing brand hierarchy undermining professional credibility'],
+      weak: ['No trademark protection', 'Amateur or inconsistent presentation', 'No visible credentials or recognition', 'No client evidence', 'Credibility gaps undermine positioning', 'Confusing brand hierarchy undermining professional credibility',
+        'Sustainability claims without targets, data or third-party verification',
+      ],
     },
   },
 ];

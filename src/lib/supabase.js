@@ -215,15 +215,15 @@ const campaignError = (error) => {
 
 export const fetchCampaigns = async () => {
   const { data, error } = await supabase
-    .from('teaser_campaigns').select('id, name, created_by_name, created_at, updated_at')
+    .from('teaser_campaigns').select('id, name, cso_audience, created_by_name, created_at, updated_at')
     .order('name', { ascending: true });
   return { data, error };
 };
 
-export const createCampaign = async ({ name, created_by, created_by_name }) => {
+export const createCampaign = async ({ name, created_by, created_by_name, cso_audience = false }) => {
   const { data, error } = await supabase
     .from('teaser_campaigns')
-    .insert({ name: String(name || '').trim(), created_by, created_by_name })
+    .insert({ name: String(name || '').trim(), created_by, created_by_name, cso_audience: !!cso_audience })
     .select().single();
   return { data, error: campaignError(error) };
 };
@@ -232,6 +232,14 @@ export const renameCampaign = async (id, name) => {
   const { data, error } = await supabase
     .from('teaser_campaigns')
     .update({ name: String(name || '').trim(), updated_at: new Date().toISOString() })
+    .eq('id', id).select().single();
+  return { data, error: campaignError(error) };
+};
+
+export const setCampaignAudience = async (id, cso) => {
+  const { data, error } = await supabase
+    .from('teaser_campaigns')
+    .update({ cso_audience: !!cso, updated_at: new Date().toISOString() })
     .eq('id', id).select().single();
   return { data, error: campaignError(error) };
 };

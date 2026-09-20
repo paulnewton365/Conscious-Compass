@@ -119,4 +119,18 @@ insert into outcome select 'campaigns left full results untouched',
   (select count(*) from public.compass_results) = 1 and (select count(*) from public.saved_assessments) = 1
   and (select total_score from public.compass_results where brand_name = 'FullBrand') = 61;
 
+-- ── CSO audience flag (v3.36) ──
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+insert into public.teaser_campaigns (id, name) values ('00000000-0000-0000-0000-0000000000c9', 'Audience default');
+insert into outcome select 'new campaigns default to general audience',
+  (select cso_audience from public.teaser_campaigns where id = '00000000-0000-0000-0000-0000000000c9') = false;
+update public.teaser_campaigns set cso_audience = true where id = '00000000-0000-0000-0000-0000000000c9';
+insert into outcome select 'admin can switch a campaign to CSO',
+  (select cso_audience from public.teaser_campaigns where id = '00000000-0000-0000-0000-0000000000c9') = true;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
+with u as (update public.teaser_campaigns set cso_audience = false returning 1)
+  insert into outcome select 'non-admin cannot change audience', (select count(*) from u) = 0;
+reset role;
+
 select (case when pass then 'PASS' else 'FAIL' end) || '  ' || check_name as result from outcome;

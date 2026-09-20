@@ -256,8 +256,8 @@ test('a campaign read returned by the model never moves a score, at any level', 
 
 test('results carry the method version; earlier results are recognised as outdated', () => {
   const r = finaliseTeaser(parseTeaserScoring(modelJson()));
-  assert.equal(TEASER_VERSION, '2.0');
-  assert.equal(r.teaserVersion, '2.0');
+  assert.equal(TEASER_VERSION, '2.1', 'framework 2.10 rubric and CSO audience');
+  assert.equal(r.teaserVersion, TEASER_VERSION);
   assert.equal(isCurrentMethod(r), true);
   assert.equal(isCurrentMethod({ ...r, teaserVersion: '1.0' }), false);
   assert.equal(isCurrentMethod({ overall: 50 }), false, 'no version means the earliest method');
@@ -309,7 +309,8 @@ test('client payload is a whitelist: no context, evidence, author, history, basi
   const payload = makeTeaserClientPayload(sentinelRecord());
   const json = JSON.stringify(payload);
   SENTINELS.forEach(s => assert.ok(!json.includes(s), `${s} leaked into the client payload`));
-  assert.deepEqual(Object.keys(payload).sort(), ['brandName', 'frameworkVersion', 'fullAssessmentWouldResolve', 'headline', 'lensScores', 'overall', 'scoredAt', 'scores', 'stage', 'summary', 'thinRecord', 'websiteUrl'].sort());
+  assert.deepEqual(Object.keys(payload).sort(), ['brandName', 'frameworkVersion', 'fullAssessmentWouldResolve', 'headline', 'lensScores', 'overall', 'scoredAt', 'scores', 'stage', 'summary', 'thesis', 'thinRecord', 'websiteUrl'].sort());
+  assert.equal(payload.thesis, null, 'no thesis read on a general-audience teaser');
   ATTRIBUTES.forEach(a => assert.deepEqual(Object.keys(payload.scores[a.id]).sort(), ['confidence', 'rationale', 'score']));
   assert.ok(!json.includes('baseScore') && !json.includes('campaignModifier') && !json.includes('"basis"'));
 });
@@ -332,4 +333,70 @@ test('client payload is a copy: mutating it cannot alter the stored record', () 
   assert.ok(!rec.result.scores.trustFindings[0].tags.includes('x'));
   assert.notEqual(rec.result.lensScores.trust, 0);
   assert.equal(rec.result.scores.fullAssessmentWouldResolve.length, 3);
+});
+
+// ── CSO audience (v3.36) ──
+
+import { THESIS_TENETS } from '../src/data/thesis.js';
+const thesisJson = { present: true, summary: 'SUM', progress: 'strong', voice: 'quiet', verdict: { label: 'SENTINEL_MODEL_VERDICT' }, internalNote: 'SENTINEL_EXTRA',
+  tenets: Object.fromEntries(THESIS_TENETS.map(t => [t.id, { level: 'buried', reason: 'r', secret: 'SENTINEL_EXTRA' }])) };
+
+test('CSO campaigns add a sustainability scan; general campaigns do not', async () => {
+  const prompts = [];
+  const callSearch = async (p) => { prompts.push(p); return LONG; };
+  const cso = await gatherEvidence({ ...input, audience: 'cso' }, { fetchImpl: mockFetch(), callSearch });
+  assert.equal(prompts.length, 5);
+  assert.ok(prompts.some(p => p.includes('WHERE IT LIVES') && p.includes('CANDOUR')));
+  assert.equal(cso.sources.sustainability.status, 'ok');
+  prompts.length = 0;
+  const gen = await gatherEvidence(input, { fetchImpl: mockFetch(), callSearch });
+  assert.equal(prompts.length, 4);
+  assert.equal(gen.sources.sustainability, undefined);
+});
+
+test('the sustainability scan is optional: its failure never blocks a read or counts toward the minimum', () => {
+  const ev = fullEvidence({ social: { status: 'failed' }, aiPerception: { status: 'failed' }, thirdParty: { status: 'failed' }, sustainability: { status: 'ok', text: LONG } });
+  assert.equal(evidenceCoverage(ev).canScore, false, 'website plus earned plus sustainability is still only two main sources');
+  const ok = evidenceCoverage(fullEvidence({ sustainability: { status: 'failed' } }));
+  assert.equal(ok.canScore, true);
+});
+
+test('CSO prompt carries the thesis, the audience and the schema; general prompt carries none of it', () => {
+  const cso = buildTeaserScoringPrompt({ ...input, audience: 'cso' }, fullEvidence({ sustainability: { status: 'ok', text: LONG } }));
+  assert.match(cso, /Sustainability is getting buried/);
+  assert.match(cso, /Chief Sustainability Officer or impact leader/);
+  assert.match(cso, /"sustainabilityNarrative"/);
+  assert.match(cso, /SUSTAINABILITY NARRATIVE: \(web-searched/);
+  assert.match(cso, /evidence this pass could not reach counts neither for nor against a tenet/);
+  assert.match(cso, /attribute scores stay on the full rubric/);
+  const gen = buildTeaserScoringPrompt(input, fullEvidence());
+  assert.ok(!/Sustainability is getting buried|sustainabilityNarrative|Chief Sustainability Officer/.test(gen));
+});
+
+test('CSO results record the audience and carry a thesis read; code decides the verdict', async () => {
+  const raw = JSON.parse(modelJson()); raw.sustainabilityNarrative = thesisJson;
+  const r = await scoreTeaser({ ...input, audience: 'cso' }, fullEvidence(), { callScoring: async () => JSON.stringify(raw) });
+  assert.equal(r.audience, 'cso');
+  assert.equal(r.scores.sustainabilityNarrative.verdict.label, 'Whispering');
+  const g = await scoreTeaser(input, fullEvidence(), { callScoring: async () => modelJson() });
+  assert.equal(g.audience, 'general');
+  assert.equal(g.scores.sustainabilityNarrative, undefined);
+});
+
+test('the thesis reaches the client payload field by field, nothing extra', async () => {
+  const raw = JSON.parse(modelJson()); raw.sustainabilityNarrative = thesisJson;
+  const result = await scoreTeaser({ ...input, audience: 'cso' }, fullEvidence(), { callScoring: async () => JSON.stringify(raw) });
+  const payload = makeTeaserClientPayload({ brand_name: 'Acme', website_url: 'https://acme.com', result });
+  assert.deepEqual(Object.keys(payload.thesis).sort(), ['present', 'progress', 'summary', 'tenets', 'verdict', 'voice']);
+  const json = JSON.stringify(payload);
+  assert.ok(!json.includes('SENTINEL_EXTRA') && !json.includes('SENTINEL_MODEL_VERDICT'));
+  assert.equal(payload.thesis.verdict.label, 'Whispering');
+});
+
+test('the audience never changes the attribute scores', async () => {
+  const raw = JSON.parse(modelJson()); raw.sustainabilityNarrative = thesisJson;
+  const cso = await scoreTeaser({ ...input, audience: 'cso' }, fullEvidence(), { callScoring: async () => JSON.stringify(raw) });
+  const gen = await scoreTeaser(input, fullEvidence(), { callScoring: async () => modelJson() });
+  ATTRIBUTES.forEach(a => assert.equal(cso.scores[a.id].score, gen.scores[a.id].score));
+  assert.equal(cso.overall, gen.overall);
 });

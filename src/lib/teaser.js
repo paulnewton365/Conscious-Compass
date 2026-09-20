@@ -27,11 +27,14 @@
 import {
   ATTRIBUTES, FRAMEWORK_VERSION, computeTrustLenses, getMaturityStage,
 } from '../data/rubric.js';
+import { thesisPromptBlock, THESIS_SCHEMA, parseThesis } from '../data/thesis.js';
 
 // 2.0 (v3.32): scoring calibrated to what a teaser can observe, and no
 // campaign modifier. Results carry the version so teasers scored with 1.0
 // are flagged until rescored.
-export const TEASER_VERSION = '2.0';
+// 2.1 (v3.36): framework 2.10 rubric with sustainability thesis signals, and
+// the CSO audience option.
+export const TEASER_VERSION = '2.1';
 export const isCurrentMethod = (result) => !!result && result.teaserVersion === TEASER_VERSION;
 
 // Sources in the order they are shown while a teaser runs. `required` sources
@@ -44,6 +47,11 @@ export const TEASER_SOURCES = [
   { id: 'thirdParty',  label: 'Reviews and search', required: false },
   { id: 'earned',      label: 'Earned media',       required: false },
 ];
+
+// Extra source for campaigns aimed at CSOs and impact leaders. Optional: it
+// never counts toward the minimum, and a failure never stops the read.
+export const SUSTAINABILITY_SOURCE = { id: 'sustainability', label: 'Sustainability narrative' };
+export const isCso = (input) => input?.audience === 'cso';
 
 // At least this many of the five sources must return evidence before the run
 // is allowed to score. Fewer than that and the teaser is a guess.
@@ -171,6 +179,23 @@ ${NO_INVENTION}
 No recommendations. Under 650 words.`;
 }
 
+export function buildSustainabilityPrompt(input) {
+  return `${brandLine(input)}
+
+Search for how this brand talks about sustainability and what it has actually done. Report:
+
+- WHERE IT LIVES: is sustainability on the homepage, in product pages and in brand campaigns, or only in an ESG or impact report, a separate microsite or vanity URL, or awareness-day posts? Give URLs.
+- PROGRESS: stated targets and their dates, programs, reported results, certifications and ratings (for example SBTi, B Corp, CDP, EcoVadis), and any third-party verification.
+- FRAMING: quote short phrases showing whether it is framed as progress and advantage or as obligation, compliance and sacrifice.
+- CANDOUR: any acknowledgment of missed targets, the hardest areas (for example Scope 3), trade-offs or open questions. Whether reporting and marketing tell the same story.
+- VOICE: sustainability coverage in the last twelve months, executives or the CSO speaking publicly, and customer-facing sustainability messaging.
+- FLAGS: greenwashing accusations, regulatory action or activist criticism.
+
+${NO_INVENTION}
+
+Compact factual notes under those headings. No recommendations. Under 550 words.`;
+}
+
 // ── Evidence gathering ─────────────────────────────────────────
 
 const trimTo = (text, n) => {
@@ -234,6 +259,7 @@ export async function gatherEvidence(input, { fetchImpl, callSearch, onProgress 
     aiPerception: () => callSearch(buildAiPerceptionPrompt(input), { searchUses: 6, maxTokens: 3000 }).then(text => ({ text })),
     thirdParty:   () => callSearch(buildThirdPartyPrompt(input), { searchUses: 7, maxTokens: 3000 }).then(text => ({ text })),
     earned:       () => callSearch(buildEarnedPrompt(input), { searchUses: 8, maxTokens: 4000 }).then(text => ({ text })),
+    ...(isCso(input) ? { sustainability: () => callSearch(buildSustainabilityPrompt(input), { searchUses: 7, maxTokens: 3500 }).then(text => ({ text })) } : {}),
     knowledgeGraph: () => gatherKnowledgeGraph(input, fetchImpl),
   };
 
@@ -317,6 +343,7 @@ ${s.knowledgeGraph?.status === 'ok' ? `KNOWLEDGE GRAPH (verified API data):\n${s
 ${sourceBlock('REVIEWS, SEARCH AND COMMUNITY', s.thirdParty, 'third-party signals')}
 
 ${sourceBlock('EARNED MEDIA', s.earned, 'web-searched scan')}
+${isCso(input) ? `\n${sourceBlock('SUSTAINABILITY NARRATIVE', s.sustainability, 'web-searched scan of sustainability claims, progress and candour')}\n` : ''}
 
 SCORING RUBRIC. Score each attribute 0 to 100:
 
@@ -341,7 +368,11 @@ SCORING NOTES:
 
 TRUST, CREDIBILITY, REPUTATION AND AUTHENTICITY. These are calculated in code from the attribute scores, so DO NOT score them. In "trustFindings" give 5 to 8 publicly observable findings that explain them, each tagged to every lens it bears on, each marked supports true or false. Include both. Name the source. Max 12 words each.
 
-THIS IS A TEASER, SO:
+${isCso(input) ? `${thesisPromptBlock({ calibrated: true })}
+
+AUDIENCE. This read is for a Chief Sustainability Officer or impact leader at the brand. Write the headline, summary and "fullAssessmentWouldResolve" for that reader: how the brand's sustainability progress shows up in its brand, and where it is buried, whispered or at risk of overclaiming. The attribute scores stay on the full rubric, unchanged by the audience.
+
+` : ''}THIS IS A TEASER, SO:
 - Give no recommendations and no actions anywhere. The deeper assessment is where those live.
 - "summary" is the topline for a senior reader: verdict first, then the one tension that most defines this brand's standing. Three or four sentences.
 - "fullAssessmentWouldResolve" names two or three specific questions this pass could not settle and a full assessment would. Specific to this brand, never generic.
@@ -350,7 +381,7 @@ Return valid JSON only, no prose before or after, no markdown fences:
 {
   "headline": "One sentence, max 20 words, capturing the brand's state. Specific.",
   "summary": "Three or four sentences. Verdict first.",
-  "fullAssessmentWouldResolve": ["max 3, each under 25 words"],
+  "fullAssessmentWouldResolve": ["max 3, each under 25 words"],${isCso(input) ? `\n  ${THESIS_SCHEMA},` : ''}
   "trustFindings": [ { "text": "max 12 words, name the source", "tags": ["trust|credibility|reputation|authenticity"], "supports": true } ],
 ${ATTRIBUTES.map(a => `  "${a.id}": { "score": 0-100, "confidence": "low|medium|high", "rationale": "What drives this score, citing evidence. Under 45 words.", "unobserved": "Signals for this attribute this pass could not reach. Under 20 words, or empty.", "basis": ["website|social|ai|reviews|earned"] }`).join(',\n')}
 }`;
@@ -385,6 +416,8 @@ export function parseTeaserScoring(raw) {
       }))
       .filter(f => f.tags.length)
       .slice(0, 9),
+    // Present only when the prompt asked for it (CSO campaigns).
+    ...(parsed.sustainabilityNarrative ? { sustainabilityNarrative: parseThesis(parsed.sustainabilityNarrative) } : {}),
   };
   ATTRIBUTES.forEach(a => {
     const e = parsed[a.id];
@@ -403,7 +436,7 @@ export function parseTeaserScoring(raw) {
 }
 
 // Every number the report shows is derived here, in code.
-export function finaliseTeaser(parsed) {
+export function finaliseTeaser(parsed, { audience = 'general' } = {}) {
   // Scores stand exactly as the scoring pass gave them: no campaign modifier
   // and no adjustment of any kind.
   const scores = parsed;
@@ -427,6 +460,7 @@ export function finaliseTeaser(parsed) {
     thinRecord: lowCount >= 3,
     frameworkVersion: FRAMEWORK_VERSION,
     teaserVersion: TEASER_VERSION,
+    audience,
     scoredAt: new Date().toISOString(),
   };
 }
@@ -441,7 +475,7 @@ export async function scoreTeaser(input, evidence, { callScoring }) {
     throw new Error(`${why} Refresh the evidence and try again.`);
   }
   const raw = await callScoring(buildTeaserScoringPrompt(input, evidence));
-  return finaliseTeaser(parseTeaserScoring(raw));
+  return finaliseTeaser(parseTeaserScoring(raw), { audience: isCso(input) ? 'cso' : 'general' });
 }
 
 // ── Client payload ─────────────────────────────────────────────
@@ -466,6 +500,15 @@ export function makeTeaserClientPayload(record) {
     headline: r.scores?.headline || '',
     summary: r.scores?.summary || '',
     fullAssessmentWouldResolve: [...(r.scores?.fullAssessmentWouldResolve || [])],
+    // Whitelisted field by field, like everything else here.
+    thesis: r.scores?.sustainabilityNarrative ? JSON.parse(JSON.stringify({
+      present: r.scores.sustainabilityNarrative.present,
+      summary: r.scores.sustainabilityNarrative.summary,
+      progress: r.scores.sustainabilityNarrative.progress,
+      voice: r.scores.sustainabilityNarrative.voice,
+      verdict: r.scores.sustainabilityNarrative.verdict,
+      tenets: r.scores.sustainabilityNarrative.tenets,
+    })) : null,
     lensScores: { ...r.lensScores },
     thinRecord: !!r.thinRecord,
     scores,

@@ -183,6 +183,11 @@ create table if not exists public.teaser_campaigns (
 create unique index if not exists teaser_campaigns_name_key
   on public.teaser_campaigns (lower(btrim(name)));
 
+-- v3.36: campaigns aimed at CSOs and impact leaders add a sustainability scan
+-- and the sustainability narrative read to every teaser in them.
+alter table public.teaser_campaigns
+  add column if not exists cso_audience boolean not null default false;
+
 alter table public.teaser_assessments
   add column if not exists campaign_id uuid references public.teaser_campaigns(id) on delete restrict;
 

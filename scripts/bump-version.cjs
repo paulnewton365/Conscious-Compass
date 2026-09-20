@@ -18,4 +18,8 @@ app = app.replace(
 );
 fs.writeFileSync(appPath, app);
 
+// And into public/version.json, which open tabs poll to detect a newer
+// deploy. It must always match APP_VERSION; a test enforces that.
+fs.writeFileSync(path.join(__dirname, '..', 'public', 'version.json'), JSON.stringify({ version: pkg.version }) + '\n');
+
 console.log('Version bumped to ' + pkg.version);

@@ -164,6 +164,7 @@ function installFetch(scoringText) {
     const res = (status, json) => ({ ok: status < 400, status, json: async () => json });
     if (url.startsWith('/api/scrape')) return url.includes(encodeURIComponent('https://acme.com') + '&') ? res(200, { text: 'Acme home. ' + LONG }) : res(404, { error: 'no' });
     if (url.startsWith('/api/knowledge-graph')) return res(200, { found: false });
+    if (url.startsWith('/version.json')) return globalThis.__liveVersion ? res(200, { version: globalThis.__liveVersion }) : res(404, {});
     if (url === '/api/claude') {
       if (body.useWebSearch) return res(200, { content: [{ type: 'server_tool_use' }, { type: 'text', text: LONG }] });
       return res(200, { content: [{ type: 'text', text: scoringText }], stop_reason: 'end_turn' });
@@ -190,7 +191,7 @@ test('empty form is rejected before any network call', async () => {
   assert.ok(container.textContent.includes('Choose a campaign.'));
   assert.ok(container.textContent.includes('Choose a sector.'));
   assert.ok(container.textContent.includes('Brand name is required.'));
-  assert.equal(log.length, 0);
+  assert.equal(log.filter(l => !l.url.startsWith('/version.json')).length, 0, 'no gathering or scoring; the version check on open is expected');
   await act(async () => root.unmount());
 });
 
@@ -397,7 +398,7 @@ test('report view shows a live sector baseline from full results, excluding the 
   await click(btn(container, b => b.textContent.includes('Acme')));
   await act(flush);
   const text = container.querySelector('[data-field="baseline"]').textContent;
-  assert.match(text, /Sector baseline:\s*60/, 'average of the five eligible energy brands');
+  assert.match(text, /from full assessments:\s*60/, 'average of the five eligible energy brands');
   assert.ok(text.includes('Energy & Utilities') && text.includes('5 full assessments'));
   const diff = rec.result.overall - 60;
   assert.ok(text.includes(`this teaser ${diff > 0 ? '+' : ''}${diff}`));
@@ -412,13 +413,13 @@ test('a thin sector falls back to all brands and says so; Other means no sector'
   let m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [thin] });
   await click(btn(m.container, b => b.textContent.includes('Acme'))); await act(flush);
   let text = m.container.querySelector('[data-field="baseline"]').textContent;
-  assert.ok(text.includes('70') && text.includes('fewer than 5 in sector') && text.includes('3 full assessments'), text);
+  assert.ok(text.includes('70') && text.includes('All full assessments (fewer than 5 in sector)') && text.includes('3 full assessments'), text);
   await act(async () => m.root.unmount());
   const other = { ...thin, industry: 'other' };
   m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [other] });
   await click(btn(m.container, b => b.textContent.includes('Acme'))); await act(flush);
   text = m.container.querySelector('[data-field="baseline"]').textContent;
-  assert.ok(text.includes('All brands (no sector)'), text);
+  assert.ok(text.includes('All full assessments (no sector)'), text);
   await act(async () => m.root.unmount());
 });
 
@@ -501,4 +502,235 @@ test('what could not be observed is listed internally, outside the prospect view
   assert.ok(container.querySelector('[data-field="unobserved"]').textContent.includes('SENTINEL_UNOBSERVED'));
   assert.ok(!container.querySelector('[data-teaser-client-view]').innerHTML.includes('SENTINEL_UNOBSERVED'));
   await act(async () => root.unmount());
+});
+
+
+test('rescoring an earlier-method teaser clears its flag in the report and in the list', async () => {
+  const old = { ...(await makeRecord()), id: 'old', brand_name: 'Earlier', campaign_id: 'c-1', updated_at: '2026-09-01T00:00:00Z' };
+  old.result = { ...old.result, teaserVersion: '1.0' };
+  installFetch(await scoringJson());
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [old] });
+  const row = () => btn(container, b => b.textContent.includes('Earlier') && !b.textContent.includes('All teasers'));
+  assert.ok(row().textContent.includes('Earlier method'), 'flagged before');
+  await click(row()); await act(flush);
+  await click(btn(container, b => b.textContent.trim() === 'Rescore'));
+  for (let i = 0; i < 15; i++) await act(flush);
+  assert.ok(!container.querySelector('[data-field="method-outdated"]'), 'report flag cleared');
+  await click(btn(container, b => b.textContent.includes('All teasers')));
+  for (let i = 0; i < 5; i++) await act(flush);
+  assert.ok(!row().textContent.includes('Earlier method'), `list flag still shown: ${row().textContent}`);
+  await act(async () => root.unmount());
+});
+
+
+// ── Out-of-date tabs (v3.33) ──
+
+const { readFileSync } = await import('node:fs');
+const APP_VERSION = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8').match(/const APP_VERSION = '([^']+)'/)[1];
+const TEASER_VERSION_LIVE = (await import('../src/lib/teaser.js')).TEASER_VERSION;
+
+async function openOldTeaser() {
+  const old = { ...(await makeRecord()), id: 'old', brand_name: 'Earlier', campaign_id: 'c-1' };
+  old.result = { ...old.result, teaserVersion: '1.0' };
+  const m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [old] });
+  for (let i = 0; i < 3; i++) await act(flush);
+  return m;
+}
+
+test('a tab running an older build refuses to score and says why', async () => {
+  const log = installFetch(await scoringJson());
+  globalThis.__liveVersion = '99.0.0';
+  const { container, root } = await openOldTeaser();
+  assert.ok(container.querySelector('[data-field="stale-banner"]'), 'banner on the list');
+  await click(btn(container, b => b.textContent.includes('Earlier') && !b.textContent.includes('All teasers'))); await act(flush);
+  assert.ok(container.querySelector('[data-field="stale-banner"]'), 'banner on the report');
+  stub.calls.length = 0;
+  await click(btn(container, b => b.textContent.trim() === 'Rescore'));
+  for (let i = 0; i < 10; i++) await act(flush);
+  assert.equal(stub.calls.filter(c => c[0] === 'saveTeaser').length, 0, 'nothing saved');
+  assert.equal(log.filter(l => l.url === '/api/claude').length, 0, 'no scoring call made');
+  assert.ok(container.textContent.includes(`running Compass v${APP_VERSION}, but v99.0.0 is live`));
+  assert.ok(container.querySelector('[data-field="method-outdated"]'), 'still honestly flagged');
+  globalThis.__liveVersion = undefined;
+  await act(async () => root.unmount());
+});
+
+test('an out-of-date tab cannot start a new teaser either', async () => {
+  const log = installFetch(await scoringJson());
+  globalThis.__liveVersion = '99.0.0';
+  stub.state.campaigns = [{ id: 'c-1', name: 'One' }]; stub.state.teasers = []; stub.calls.length = 0;
+  const { container, root, props } = mountPage();
+  await act(async () => { root.render(h(App.TeaserPage, props)); }); await act(flush);
+  await selectValue(container.querySelector('[data-field="campaign"]'), 'c-1');
+  await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
+  await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
+  await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
+  await click(btn(container, b => b.textContent.includes('Run teaser')));
+  for (let i = 0; i < 10; i++) await act(flush);
+  assert.equal(log.filter(l => l.url === '/api/claude' || l.url.startsWith('/api/scrape')).length, 0, 'no gathering or scoring');
+  assert.equal(stub.calls.filter(c => c[0] === 'saveTeaser').length, 0);
+  globalThis.__liveVersion = undefined;
+  await act(async () => root.unmount());
+});
+
+test('an up-to-date tab rescores, stamps the current method and clears the flag', async () => {
+  installFetch(await scoringJson());
+  globalThis.__liveVersion = APP_VERSION;
+  const { container, root } = await openOldTeaser();
+  assert.ok(!container.querySelector('[data-field="stale-banner"]'));
+  await click(btn(container, b => b.textContent.includes('Earlier') && !b.textContent.includes('All teasers'))); await act(flush);
+  await click(btn(container, b => b.textContent.trim() === 'Rescore'));
+  for (let i = 0; i < 15; i++) await act(flush);
+  const saved = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
+  assert.equal(saved.result.teaserVersion, TEASER_VERSION_LIVE);
+  assert.ok(!container.querySelector('[data-field="method-outdated"]'));
+  assert.ok(container.querySelector('[data-field="scored-with"]').textContent.includes(`with method v${TEASER_VERSION_LIVE}`));
+  await click(btn(container, b => b.textContent.includes('All teasers')));
+  for (let i = 0; i < 5; i++) await act(flush);
+  assert.ok(!btn(container, b => b.textContent.includes('Earlier') && !b.textContent.includes('All teasers')).textContent.includes('Earlier method'));
+  globalThis.__liveVersion = undefined;
+  await act(async () => root.unmount());
+});
+
+test('when the version cannot be checked, scoring is not blocked', async () => {
+  installFetch(await scoringJson());
+  globalThis.__liveVersion = undefined; // version.json answers 404
+  const { container, root } = await openOldTeaser();
+  await click(btn(container, b => b.textContent.includes('Earlier') && !b.textContent.includes('All teasers'))); await act(flush);
+  await click(btn(container, b => b.textContent.trim() === 'Rescore'));
+  for (let i = 0; i < 15; i++) await act(flush);
+  assert.equal(stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1].result.teaserVersion, TEASER_VERSION_LIVE);
+  await act(async () => root.unmount());
+});
+
+
+test('teasers never move a baseline: only full assessments count, even with teasers in the same sector', async () => {
+  // Five energy full assessments averaging 60, plus teasers in the same sector
+  // scoring far lower. The baseline must stay at 60 in the report and export.
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`Full${i}`, 'energy', v));
+  const t = async (id, name, overall) => { const r = { ...(await makeRecord()), id, brand_name: name, industry: 'energy', campaign_id: 'c-1' }; r.result = { ...r.result, overall }; return r; };
+  const teasers = [await t('a', 'Alpha', 20), await t('b', 'Bravo', 25), await t('c', 'Charlie', 30)];
+  stub.state.campaignScores = teasers.map(x => ({ id: x.id, brand_name: x.brand_name, website_url: x.website_url, industry: 'energy', result: x.result }));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers });
+  await click(btn(container, b => b.textContent.includes('Alpha') && !b.textContent.includes('All teasers'))); await act(flush);
+  assert.match(container.querySelector('[data-field="baseline"]').textContent, /from full assessments:\s*60/);
+  assert.ok(container.querySelector('[data-field="baseline"]').textContent.includes('5 full assessments'), 'three teasers not counted');
+  await act(async () => root.unmount());
+});
+
+// ── Navigation (v3.35) ──
+
+test('the top navigation has no icons, desktop or mobile, and every control keeps a text label', async () => {
+  const props = { onNewAssessment() {}, onGoHome() {}, onSavedAssessments() {}, onCompassResults() {}, onComparison() {}, onStayConscious() {}, onTeaser() {}, activePage: null, user: { email: 'a@b.c' }, profile: { is_admin: true, full_name: 'Paul' }, onLogout() {}, onAdmin() {} };
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.Header, props)); });
+  const navButtons = () => [...container.querySelectorAll('button')].filter(b => !b.querySelector('img'));
+  for (const b of navButtons()) {
+    assert.equal(b.querySelector('svg'), null, `icon in "${b.textContent.trim()}"`);
+    assert.ok(b.textContent.trim().length > 0, 'no unlabelled controls');
+  }
+  const labels = navButtons().map(b => b.textContent.trim());
+  for (const l of ['Stay Conscious', 'Compare', 'Results', 'Saved', 'Teaser', 'New', 'Admin', 'Sign out', 'Menu']) assert.ok(labels.includes(l), l);
+  // Open the mobile menu and check it too.
+  await click([...container.querySelectorAll('button')].find(b => b.textContent.trim() === 'Menu'));
+  assert.ok(labels.length < navButtons().length, 'mobile menu opened');
+  for (const b of navButtons()) assert.equal(b.querySelector('svg'), null, `icon in mobile "${b.textContent.trim()}"`);
+  assert.ok(navButtons().some(b => b.textContent.trim() === 'Close'));
+  await act(async () => root.unmount());
+});
+
+// ── CSO audience and thesis (v3.36) ──
+
+const { THESIS_TENETS: TENETS } = await import('../src/data/thesis.js');
+const thesisRead = { present: true, summary: 'Progress is real and quiet.', progress: 'strong', voice: 'quiet', verdict: { label: 'Whispering', meaning: 'Real progress, told too quietly to move anyone.' },
+  tenets: Object.fromEntries(TENETS.map((t, i) => [t.id, { level: ['buried', 'surfacing', 'breaking'][i % 3], reason: `Reason ${t.id}` }])) };
+
+test('the thesis panel renders all six tenets and the verdict; a general teaser shows none of it', async () => {
+  const rec = await makeRecord();
+  const withThesis = { ...rec, result: { ...rec.result, scores: { ...rec.result.scores, sustainabilityNarrative: thesisRead } } };
+  const html = server.renderToStaticMarkup(h(App.TeaserClientView, { payload: logic.makeTeaserClientPayload(withThesis) }));
+  assert.ok(html.includes('Sustainability narrative') && html.includes('Whispering') && html.includes('Progress strong · Voice quiet'));
+  TENETS.forEach(t => assert.ok(html.includes(t.name), t.name));
+  assert.ok(html.includes('Breaking through') && html.includes('Surfacing') && html.includes('Buried'));
+  const plain = server.renderToStaticMarkup(h(App.TeaserClientView, { payload: logic.makeTeaserClientPayload(rec) }));
+  assert.ok(!plain.includes('data-thesis-panel'));
+});
+
+test('the teaser PDF writes the thesis read for CSO teasers', async () => {
+  const rec = await makeRecord();
+  rec.result = { ...rec.result, scores: { ...rec.result.scores, sustainabilityNarrative: thesisRead } };
+  const { pdf } = await App.exportTeaserPdf(logic.makeTeaserClientPayload(rec), null, { download: false });
+  const text = [...pdf.output().matchAll(/\((.*?)\) Tj/g)].map(m => m[1]).join(' ');
+  assert.ok(text.includes('SUSTAINABILITY NARRATIVE') && text.includes('Whispering'));
+  assert.ok(text.includes('BREAKING THROUGH'));
+});
+
+test('a new campaign can be created for a CSO audience, and the switch on a campaign flips it', async () => {
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'General', cso_audience: false }] });
+  await selectValue(container.querySelector('[data-field="campaign"]'), '__new');
+  await typeInto(container.querySelector('[data-field="new-campaign"]'), 'Impact leaders Q4');
+  const box = container.querySelector('[data-field="new-campaign-cso"]');
+  await act(async () => { box.click(); });
+  await click(btn(container, b => b.textContent === 'Create'));
+  await act(flush);
+  assert.equal(stub.calls.find(c => c[0] === 'createCampaign')[1].cso_audience, true);
+  assert.ok(container.querySelector('[data-field="cso-hint"]'), 'form says what CSO audience adds');
+  const toggle = container.querySelector('[data-campaign="c-1"] [data-field="cso-toggle"]');
+  assert.ok(toggle.textContent.includes('off'));
+  await click(toggle); await act(flush);
+  assert.deepEqual(stub.calls.find(c => c[0] === 'setCampaignAudience').slice(1), ['c-1', true]);
+  await act(async () => root.unmount());
+});
+
+test('running a teaser in a CSO campaign adds the sustainability scan and records the audience', async () => {
+  const raw = JSON.parse(await scoringJson()); raw.sustainabilityNarrative = thesisRead;
+  const log = installFetch(JSON.stringify(raw));
+  stub.state.campaigns = [{ id: 'c-1', name: 'Impact', cso_audience: true }]; stub.state.teasers = []; stub.calls.length = 0;
+  const { container, root, props } = mountPage();
+  await act(async () => { root.render(h(App.TeaserPage, props)); }); await act(flush);
+  await selectValue(container.querySelector('[data-field="campaign"]'), 'c-1');
+  await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
+  await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
+  await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
+  await click(btn(container, b => b.textContent.includes('Run teaser')));
+  for (let i = 0; i < 20; i++) await act(flush);
+  const searches = log.filter(l => l.url === '/api/claude' && l.body.useWebSearch);
+  assert.equal(searches.length, 5, 'four standard scans plus sustainability');
+  const saved = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
+  assert.equal(saved.result.audience, 'cso');
+  assert.equal(saved.evidence.sources.sustainability.status, 'ok');
+  assert.ok(container.querySelector('[data-teaser-client-view] [data-thesis-panel]'), 'thesis read shown');
+  await act(async () => root.unmount());
+});
+
+test('a teaser scored before its campaign went CSO says how to add the read', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', campaign_id: 'c-1' };
+  rec.result = { ...rec.result, audience: 'general' };
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'Impact', cso_audience: true }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  assert.ok(container.querySelector('[data-field="audience-mismatch"]').textContent.includes('Refresh evidence'));
+  await act(async () => root.unmount());
+});
+
+// ── Full assessment: the thesis reaches the client link (v3.36) ──
+
+test('full assessment client payload whitelists the thesis read, and the client view shows it', () => {
+  const scores = { headline: 'H', sustainabilityNarrative: { ...thesisRead, rawModelText: 'SENTINEL_RAW' } };
+  for (const a of ['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL']) scores[a] = { score: 60, findings: 'f', impact: 'i' };
+  const payload = App.makeClientPayload({ project: { brandName: 'Acme', industry: 'energy' }, scores, benchmark: null });
+  assert.ok(!JSON.stringify(payload).includes('SENTINEL_RAW'));
+  assert.equal(payload.scores.sustainabilityNarrative.verdict.label, 'Whispering');
+  const html = server.renderToStaticMarkup(h(App.ClientReportView, { payload }));
+  assert.ok(html.includes('data-thesis-panel') && html.includes('Whispering'));
+  const none = App.makeClientPayload({ project: { brandName: 'Acme', industry: 'energy' }, scores: { ...scores, sustainabilityNarrative: undefined }, benchmark: null });
+  assert.ok(!server.renderToStaticMarkup(h(App.ClientReportView, { payload: none })).includes('data-thesis-panel'), 'older reports simply omit the section');
+});
+
+test('the full report offers to regenerate when an older report has no thesis read', () => {
+  let clicked = false;
+  const html = server.renderToStaticMarkup(h(App.ThesisPanel, { thesis: null, onRegenerate: () => { clicked = true; } }));
+  assert.ok(html.includes('Regenerate report'));
+  assert.equal(server.renderToStaticMarkup(h(App.ThesisPanel, { thesis: null })), '', 'client views show nothing');
+  void clicked;
 });

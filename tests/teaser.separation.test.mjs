@@ -180,3 +180,15 @@ test('no teaser copy blames the brand for the narrowness of the read', () => {
     assert.ok(!/Thin public record/.test(src));
   }
 });
+
+
+test('the baseline is fed only from compass_results, never from teaser data', () => {
+  const calls = [...teaserBlock.matchAll(/teaserSectorBaseline\(([^,]+),/g)].map(m => m[1].trim());
+  assert.ok(calls.length >= 2);
+  // Both call sites pass a pool built from fetchCompassResults via formatCompassResult.
+  calls.forEach(arg => assert.ok(['pool', 'benchPool'].includes(arg), `baseline fed from ${arg}`));
+  assert.match(teaserBlock, /const pool = \(full\.data \|\| \[\]\)\.map\(formatCompassResult\)/);
+  assert.match(teaserBlock, /setBenchPool\(\(data \|\| \[\]\)\.map\(formatCompassResult\)\)/);
+  const fetchBody = read('src/lib/supabase.js').match(/export const fetchCompassResults = async \(\) => \{[\s\S]*?\n\};/)[0];
+  assert.deepEqual([...fetchBody.matchAll(/\.from\('([^']+)'\)/g)].map(m => m[1]), ['compass_results']);
+});
