@@ -176,6 +176,7 @@ export const saveTeaser = async (teaser) => {
     industry: teaser.industry,
     context: teaser.context || '',
     campaign_id: teaser.campaign_id || null,
+    hero_image: teaser.hero_image || null,
     evidence: teaser.evidence,
     result: teaser.result,
     updated_at: new Date().toISOString(),

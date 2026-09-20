@@ -734,3 +734,40 @@ test('the full report offers to regenerate when an older report has no thesis re
   assert.equal(server.renderToStaticMarkup(h(App.ThesisPanel, { thesis: null })), '', 'client views show nothing');
   void clicked;
 });
+
+// ── Scorecard controls (v3.37) ──
+
+test('Card and Slide are offered only when there is a score, an image and a baseline', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  const card = () => container.querySelector('[data-field="make-card"]');
+  const slide = () => container.querySelector('[data-field="make-slide"]');
+  assert.equal(card().disabled, true, 'no brand image yet');
+  assert.match(card().title, /Needs a brand image/);
+  assert.ok(container.querySelector('[data-field="hero-image"]').textContent.includes('none yet'));
+
+  // Upload one: the report saves it against the teaser.
+  stub.state.teasers[0] = { ...rec, hero_image: 'data:image/jpeg;base64,AAAA' };
+  const { container: c2, root: r2 } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [stub.state.teasers[0]] });
+  await click(btn(c2, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  assert.equal(c2.querySelector('[data-field="make-card"]').disabled, false);
+  assert.equal(c2.querySelector('[data-field="make-slide"]').disabled, false);
+  assert.ok(c2.querySelector('[data-field="hero-image"] img'), 'thumbnail shown');
+  void slide; void root;
+  await act(async () => r2.unmount());
+});
+
+test('removing the brand image saves null and disables the scorecard buttons again', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1', hero_image: 'data:image/jpeg;base64,AAAA' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  await click(btn(container, b => b.textContent.trim() === 'Remove'));
+  for (let i = 0; i < 5; i++) await act(flush);
+  const saved = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
+  assert.equal(saved.hero_image, null);
+  assert.equal(container.querySelector('[data-field="make-card"]').disabled, true);
+  await act(async () => root.unmount());
+});

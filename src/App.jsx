@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, computeTrustLenses, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, getPresenceLevel, hasFootprintData, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
-import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap } from 'lucide-react';
+import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.36.0';
+const APP_VERSION = '3.37.0';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -43,6 +43,7 @@ import {
   fetchCampaignScores
 } from './lib/supabase';
 import { buildCampaignWorkbook, buildCampaignRows, campaignSummary } from './lib/teaserExport';
+import { scorecardData, scorecardReady, exportScorecardPdf, exportScorecardSlide } from './lib/scorecard';
 
 // Use 'PROXY' to route through serverless function (secure, API key on server)
 // Or set VITE_ANTHROPIC_API_KEY for local development with direct API calls
@@ -14354,6 +14355,33 @@ async function checkLiveVersion() {
 
 const staleMessage = (live) => `This tab is running Compass v${APP_VERSION}, but v${live} is live. Reload the page before scoring, so the current scoring method is used. Nothing was scored.`;
 
+// Brand hero image for the scorecard. Downscaled in the browser so the teaser
+// row stays small: the templates want 1200px or more on the long edge.
+const HERO_MAX_W = 1800;
+async function readHeroImage(file) {
+  if (!file) return null;
+  if (!/^image\//.test(file.type)) throw new Error('That is not an image file.');
+  if (file.size > 25 * 1024 * 1024) throw new Error('Image is over 25MB. Use a smaller file.');
+  const dataUrl = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = () => rej(new Error('Could not read that file.'));
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error('That image could not be opened.'));
+    i.src = dataUrl;
+  });
+  const scale = Math.min(1, HERO_MAX_W / img.naturalWidth);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
+  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+  return { dataUrl: canvas.toDataURL('image/jpeg', 0.86), width: canvas.width, height: canvas.height };
+}
+
 const TEASER_STAGE_LABEL = { running: 'Gathering', ok: 'Done', failed: 'Failed', pending: 'Waiting' };
 
 // Web-searched evidence call through the proxy. Returns the model's text only.
@@ -14629,10 +14657,35 @@ function TeaserProgress({ statuses, scoring, elapsed }) {
   );
 }
 
-function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
+function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, onHeroImage = () => {}, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
   const chartRef = useRef(null);
+  const heroRef = useRef(null);
   const payload = makeTeaserClientPayload(record);
   const [exporting, setExporting] = useState(false);
+  const [making, setMaking] = useState(null);      // 'card' | 'slide'
+  const [heroError, setHeroError] = useState(null);
+  const industryNameFull = INDUSTRIES.find(i => i.id === record.industry)?.name || '';
+  const scorecard = scorecardReady(record, baseline);
+
+  const pickHero = async (file) => {
+    setHeroError(null);
+    try {
+      const img = await readHeroImage(file);
+      if (img && img.width < 900) setHeroError(`That image is ${img.width}px wide. The templates want 1200px or more, so it may look soft in print.`);
+      await onHeroImage(img ? img.dataUrl : null);
+    } catch (e) { setHeroError(e.message); }
+  };
+
+  const makeScorecard = async (kind) => {
+    setMaking(kind); setHeroError(null);
+    try {
+      const d = scorecardData(record, baseline, industryNameFull);
+      if (kind === 'card') await exportScorecardPdf(d, { html2canvas, jsPDF });
+      else await exportScorecardSlide(d, { html2canvas, JSZip: (await import('jszip')).default, saveAs });
+    } catch (e) {
+      setHeroError(`${kind === 'card' ? 'Card' : 'Slide'} export failed: ${e.message}`);
+    } finally { setMaking(null); }
+  };
   const cov = evidenceCoverage(record.evidence);
   const sources = record.evidence?.sources || {};
   const industryName = INDUSTRIES.find(i => i.id === record.industry)?.name;
@@ -14652,6 +14705,12 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
           {payload && <button onClick={handleExport} disabled={busy || exporting} className="btn-secondary flex items-center gap-2">{exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF</button>}
           <button onClick={onRescore} disabled={busy || !cov.canScore} className="btn-secondary flex items-center gap-2" title="Score the stored evidence again, without new searches"><RefreshCw className="w-4 h-4" /> {payload ? 'Rescore' : 'Score'}</button>
           <button onClick={onRefresh} disabled={busy} className="btn-secondary flex items-center gap-2" title="Gather fresh evidence, then score it"><Search className="w-4 h-4" /> Refresh evidence</button>
+          <button onClick={() => makeScorecard('card')} disabled={busy || !!making || !scorecard.ready} data-field="make-card"
+            title={scorecard.ready ? 'Two-page 5x7in print card with bleed' : `Needs ${scorecard.missing.join(' and ')}`}
+            className="btn-secondary flex items-center gap-2">{making === 'card' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />} Card</button>
+          <button onClick={() => makeScorecard('slide')} disabled={busy || !!making || !scorecard.ready} data-field="make-slide"
+            title={scorecard.ready ? 'One 16:9 slide as a PowerPoint file, opens in Google Slides' : `Needs ${scorecard.missing.join(' and ')}`}
+            className="btn-secondary flex items-center gap-2">{making === 'slide' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Presentation className="w-4 h-4" />} Slide</button>
           <button onClick={onConvert} disabled={busy} className="btn-primary flex items-center gap-2"><ArrowRight className="w-4 h-4" /> Full assessment</button>
           <button onClick={onDelete} disabled={busy} className="btn-secondary flex items-center gap-2" title="Delete teaser"><Trash2 className="w-4 h-4" /></button>
         </div>
@@ -14689,6 +14748,19 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
                   {baseline.difference !== null && <> · this teaser <strong>{baseline.difference > 0 ? '+' : ''}{baseline.difference}</strong></>}
                 </>}
           </div>
+          <div data-field="hero-image" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span className="font-semibold">Brand image:</span>
+            {record.hero_image
+              ? <img src={record.hero_image} alt="" style={{ height: 40, width: 68, objectFit: 'cover', border: '1px solid #DCDAD3' }} />
+              : <span className="text-[#68655B]">none yet. Needed for the card and slide.</span>}
+            <input ref={heroRef} type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pickHero(f); }} />
+            <button onClick={() => heroRef.current?.click()} disabled={busy} className="btn-secondary text-xs py-1 px-2">
+              {record.hero_image ? 'Replace' : 'Upload'}
+            </button>
+            {record.hero_image && <button onClick={() => onHeroImage(null)} disabled={busy} className="btn-secondary text-xs py-1 px-2">Remove</button>}
+          </div>
+          {heroError && <div style={{ color: '#C2680C' }}>{heroError}</div>}
           {record.context && <div><span className="font-semibold">Context:</span> {record.context}</div>}
           {record.result && campaigns.find(c => c.id === record.campaign_id)?.cso_audience && record.result.audience !== 'cso' && (
             <div data-field="audience-mismatch" style={{ color: '#C2680C' }}>
@@ -14917,6 +14989,13 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     finally { setBusy(false); stopClock(); }
   };
 
+  const saveHero = async (dataUrl) => {
+    setError(null);
+    const { data, error: e } = await saveTeaser({ ...open, hero_image: dataUrl });
+    if (e) { setError(`Could not save the brand image: ${e.message}`); return; }
+    setOpen(data); load();
+  };
+
   const moveTo = async (campaignId) => {
     if (!campaignId || campaignId === open.campaign_id) return;
     setError(null);
@@ -15002,7 +15081,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       <>
       {staleBanner}
       <TeaserReport record={open} busy={busy} progress={progress} error={error}
-        campaigns={campaigns} onMove={moveTo}
+        campaigns={campaigns} onMove={moveTo} onHeroImage={saveHero}
         baseline={benchPool ? teaserSectorBaseline(benchPool, { industry: open.industry, brandName: open.brand_name, totalScore: open.result?.overall }) : null}
         baselineError={benchError}
         onBack={() => { setOpen(null); setError(null); }}

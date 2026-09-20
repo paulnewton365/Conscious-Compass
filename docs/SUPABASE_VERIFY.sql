@@ -27,7 +27,7 @@ required_columns (t, c) as (values
   ('teaser_assessments','evidence'), ('teaser_assessments','result'),
   ('teaser_assessments','context'), ('teaser_assessments','converted_at'),
   ('teaser_assessments','campaign_id'), ('teaser_campaigns','name'),
-  ('teaser_campaigns','cso_audience')
+  ('teaser_campaigns','cso_audience'), ('teaser_assessments','hero_image')
 )
 
 -- 1. Tables exist

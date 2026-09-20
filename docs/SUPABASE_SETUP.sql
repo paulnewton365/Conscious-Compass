@@ -188,6 +188,11 @@ create unique index if not exists teaser_campaigns_name_key
 alter table public.teaser_campaigns
   add column if not exists cso_audience boolean not null default false;
 
+-- v3.37: brand hero image for the printed scorecard and pitch slide, held as
+-- a data URL on the teaser. Downscaled in the browser before saving.
+alter table public.teaser_assessments
+  add column if not exists hero_image text;
+
 alter table public.teaser_assessments
   add column if not exists campaign_id uuid references public.teaser_campaigns(id) on delete restrict;
 
