@@ -23,7 +23,7 @@ const C = {
   ink: '#F2F5F0',
   muted: '#AEBFCB',
   dim: '#7E8BA0',
-  chip: '#222834',                       // the template's rgba(15,18,26,.88) over the image
+  chip: '#0F121A',                       // drawn at 88% opacity, as the template has it
   gradFrom: '#F5EFD5',
   gradMid: '#F0DA1E',
   gradTo: '#E04A26',
@@ -36,8 +36,8 @@ export const CARD = {
 
 // Text with letter-spacing, drawn by hand so spacing matches the template's
 // em values exactly rather than a viewer's approximation.
-function tracked(pdf, text, x, y, { size, spacing = 0, color = C.ink, bold = true, align = 'left' }) {
-  pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+function tracked(pdf, text, x, y, { size, spacing = 0, color = C.ink, bold = true, align = 'left', font = 'helvetica' }) {
+  pdf.setFont(font, font === 'helvetica' ? (bold ? 'bold' : 'normal') : 'normal');
   pdf.setFontSize(size);
   pdf.setTextColor(color);
   const chars = [...String(text)];
@@ -47,8 +47,8 @@ function tracked(pdf, text, x, y, { size, spacing = 0, color = C.ink, bold = tru
   return width;
 }
 
-const trackedWidth = (pdf, text, { size, spacing = 0, bold = true }) => {
-  pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+const trackedWidth = (pdf, text, { size, spacing = 0, bold = true, font = 'helvetica' }) => {
+  pdf.setFont(font, font === 'helvetica' ? (bold ? 'bold' : 'normal') : 'normal');
   pdf.setFontSize(size);
   const chars = [...String(text)];
   return chars.reduce((t, ch) => t + pdf.getTextWidth(ch) + spacing, 0) - (chars.length ? spacing : 0);
@@ -84,6 +84,16 @@ export const nameSizePx = (brand) => { const n = String(brand || '').length; ret
 // Everything the front needs that is not text: QR, the Antenna "a", and the
 // brand's own image. Each may be an HTMLImageElement or a data URL.
 export function drawCardFront(pdf, d, assets = {}) {
+  // Space Mono is embedded for the two plate labels, exactly as the template
+  // sets them. Everything else is Helvetica, which PDF carries itself.
+  let mono = 'helvetica';
+  if (assets.spaceMono) {
+    try {
+      pdf.addFileToVFS('SpaceMono-Regular.ttf', assets.spaceMono);
+      pdf.addFont('SpaceMono-Regular.ttf', 'SpaceMono', 'normal');
+      mono = 'SpaceMono';
+    } catch { mono = 'helvetica'; }
+  }
   const { bleed } = CARD;
   const L = bleed + CARD.padSide;
   const R = bleed + CARD.trimW - CARD.padSide;
@@ -112,11 +122,16 @@ export function drawCardFront(pdf, d, assets = {}) {
   gradientBar(pdf, barX, nameTop, Math.max(0.3, R - barX), nameH);
 
   // Fixed blocks below, so the image well can take the space that is left.
+  // Gaps measured from the reference card rather than taken from the CSS,
+  // which the browser resolved slightly differently.
+  const TILE_GAP = 0.107;          // between the four tiles
+  const TILES_TOP_GAP = 0.18;      // image well to tiles
+  const CHIP_ABOVE_WELL = 0.62;    // chip's bottom above the well bottom
   const limeH = 0.72 + 0.13 * 2;
   const footH = 8.5 * PX * 1.2;
   const tileH = 0.08 + 26 * PX + 5 * PX + 7 * PX * 1.2 + 0.09;
   const imageTop = nameTop + nameH + 0.14;
-  const imageBottom = bottom - limeH - 0.14 - footH - 0.12 - tileH - 0.16;
+  const imageBottom = bottom - limeH - 0.14 - footH - 0.12 - tileH - TILES_TOP_GAP;
   const imageH = imageBottom - imageTop;
 
   // Image well: border, ground, then the brand image cropped to fill (the
@@ -148,35 +163,50 @@ export function drawCardFront(pdf, d, assets = {}) {
   const labelSize = 8 * PX * 72;
   const scoreW = trackedWidth(pdf, String(d.overall ?? '—'), { size: scoreSize });
   const suffixW = trackedWidth(pdf, '/100', { size: 12 * PX * 72, bold: false });
-  const labelW = Math.max(trackedWidth(pdf, 'COMPASS', { size: labelSize, spacing: 0.14 * 8 * PX }),
-    trackedWidth(pdf, 'SCORE', { size: labelSize, spacing: 0.14 * 8 * PX }));
+  const labelW = Math.max(trackedWidth(pdf, 'COMPASS', { size: labelSize, spacing: 0.14 * 8 * PX, font: mono }),
+    trackedWidth(pdf, 'SCORE', { size: labelSize, spacing: 0.14 * 8 * PX, font: mono }));
   const plateW = 0.14 * 2 + labelW + 0.1 + scoreW + 2 * PX + suffixW;
   const plateX = L + W - plateW;
   pdf.setFillColor(C.lime);
   pdf.rect(plateX, plateY, plateW, plateH, 'F');
   const labelMid = plateY + plateH / 2;
-  tracked(pdf, 'COMPASS', plateX + 0.14, labelMid - 0.004, { size: labelSize, spacing: 0.14 * 8 * PX, color: C.ground });
-  tracked(pdf, 'SCORE', plateX + 0.14, labelMid + 8 * PX * 1.3 - 0.004, { size: labelSize, spacing: 0.14 * 8 * PX, color: C.ground });
+  tracked(pdf, 'COMPASS', plateX + 0.14, labelMid - 0.004, { size: labelSize, spacing: 0.14 * 8 * PX, color: C.ground, font: mono });
+  tracked(pdf, 'SCORE', plateX + 0.14, labelMid + 8 * PX * 1.3 - 0.004, { size: labelSize, spacing: 0.14 * 8 * PX, color: C.ground, font: mono });
   const scoreBaseline = plateY + plateH / 2 + 34 * PX * 0.36;
   tracked(pdf, String(d.overall ?? '—'), plateX + 0.14 + labelW + 0.1, scoreBaseline, { size: scoreSize, color: C.ground });
   tracked(pdf, '/100', plateX + 0.14 + labelW + 0.1 + scoreW + 2 * PX, scoreBaseline, { size: 12 * PX * 72, color: C.ground, bold: false });
 
   const chipH = 0.05 * 2 + 15 * PX;
-  const chipY = plateY - chipH;
+  // The template pins the chip 0.62in above the bottom of the well, which
+  // leaves a gap above the score plate rather than stacking the two.
+  const chipY = imageTop + imageH - CHIP_ABOVE_WELL - chipH;
   const avgLabelSize = 7.5 * PX * 72;
   const avgW = trackedWidth(pdf, String(d.baseline ?? '—'), { size: 15 * PX * 72 });
-  const avgLabelW = trackedWidth(pdf, 'INDUSTRY AVERAGE', { size: avgLabelSize, spacing: 0.12 * 7.5 * PX });
+  const avgLabelW = trackedWidth(pdf, 'INDUSTRY AVERAGE', { size: avgLabelSize, spacing: 0.12 * 7.5 * PX, font: mono });
   const chipW = 0.14 * 2 + avgLabelW + 0.08 + avgW;
   const chipX = L + W - chipW;
+  // The template's chip is rgba(15,18,26,0.88): the image reads through it.
+  // Drawn with real PDF transparency, with a solid fill as the fallback if a
+  // renderer has no graphics-state support.
+  const chipAlpha = 0.88;
+  let alphaSet = false;
+  if (typeof pdf.GState === 'function' && typeof pdf.setGState === 'function') {
+    try {
+      pdf.saveGraphicsState();
+      pdf.setGState(new pdf.GState({ opacity: chipAlpha }));
+      alphaSet = true;
+    } catch { alphaSet = false; }
+  }
   pdf.setFillColor(C.chip);
   pdf.rect(chipX, chipY, chipW, chipH, 'F');
+  if (alphaSet) pdf.restoreGraphicsState();
   const chipBaseline = chipY + chipH / 2 + 15 * PX * 0.33;
-  tracked(pdf, 'INDUSTRY AVERAGE', chipX + 0.14, chipY + chipH / 2 + 7.5 * PX * 0.35, { size: avgLabelSize, spacing: 0.12 * 7.5 * PX, color: C.muted });
+  tracked(pdf, 'INDUSTRY AVERAGE', chipX + 0.14, chipY + chipH / 2 + 7.5 * PX * 0.35, { size: avgLabelSize, spacing: 0.12 * 7.5 * PX, color: C.muted, font: mono });
   tracked(pdf, String(d.baseline ?? '—'), chipX + 0.14 + avgLabelW + 0.08, chipBaseline, { size: 15 * PX * 72, color: C.ink });
 
   // Four attribute tiles.
-  const tileTop = imageTop + imageH + 0.16;
-  const gap = 0.08;
+  const tileTop = imageTop + imageH + TILES_TOP_GAP;
+  const gap = TILE_GAP;
   const tileW = (W - gap * 3) / 4;
   [['credibility', 'CREDIBILITY'], ['trust', 'TRUST'], ['reputation', 'REPUTATION'], ['authenticity', 'AUTHENTICITY']]
     .forEach(([key, label], i) => {

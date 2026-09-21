@@ -26,6 +26,8 @@ const A = {
   antennaA: '/scorecard/antenna-a.png',
   howl: '/scorecard/howl-logo.svg',
   qr: '/scorecard/qr-lets-chat.png',
+  // Space Mono, embedded into the PDF for the two plate labels.
+  spaceMono: '/scorecard/SpaceMono-Regular.ttf',
 };
 
 const IMAGE_TIMEOUT_MS = 8000;
@@ -187,6 +189,21 @@ export const cardFilename = (brand, kind) => `${String(brand || 'brand').replace
 // back page below is rendered as before.
 export const BACK_ARTWORK = '/scorecard/card-back.png';
 
+// Font bytes as base64 for jsPDF's virtual file system. A failure here just
+// falls back to Helvetica rather than stopping the card.
+export async function loadFontBase64(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return btoa(bin);
+  } catch {
+    return null;
+  }
+}
+
 export function loadImage(src) {
   if (typeof window === 'undefined' || typeof window.Image !== 'function') return Promise.resolve(null);
   return new Promise(resolve => {
@@ -224,9 +241,11 @@ export async function exportScorecardPdf(d, { jsPDF, save = true, backArtwork = 
 
 // Images the front needs, with their aspect ratios.
 export async function loadFrontAssets(d) {
-  const [qr, antennaA, hero] = await Promise.all([loadImage(A.qr), loadImage(A.antennaA), d.img ? loadImage(d.img) : Promise.resolve(null)]);
+  const [qr, antennaA, hero, spaceMono] = await Promise.all([
+    loadImage(A.qr), loadImage(A.antennaA), d.img ? loadImage(d.img) : Promise.resolve(null), loadFontBase64(A.spaceMono),
+  ]);
   return {
-    qr, antennaA,
+    qr, antennaA, spaceMono,
     antennaARatio: antennaA ? antennaA.naturalWidth / antennaA.naturalHeight : 1,
     hero,
     heroRatio: hero ? hero.naturalWidth / hero.naturalHeight : 1.6,

@@ -163,15 +163,19 @@ function recorder() {
   const calls = { rect: [], text: [], image: [], line: [], triangle: [] };
   const api = {
     setFillColor(c) { this.fill = c; }, setDrawColor(c) { this.stroke = c; }, setLineWidth() {},
-    setFont() {}, setFontSize(s) { this.size = s; }, setTextColor() {},
+    setFont(f) { this.font = f; }, setFontSize(s) { this.size = s; }, setTextColor() {},
+    addFileToVFS(name) { calls.vfs = name; }, addFont(file, name) { calls.font = name; },
     getTextWidth(t) { return (this.size / 72) * 0.58 * String(t).length; },
-    rect(x, y, w, h, style) { calls.rect.push({ x, y, w, h, style, fill: this.fill }); },
-    text(t, x, y) { calls.text.push({ t, x, y, size: this.size }); },
+    rect(x, y, w, h, style) { calls.rect.push({ x, y, w, h, style, fill: this.fill, alpha: this.alpha }); },
+    text(t, x, y) { calls.text.push({ t, x, y, size: this.size, font: this.font }); },
     addImage(img, fmt, x, y, w, h) { calls.image.push({ img, x, y, w, h }); },
     line(x1, y1, x2, y2) { calls.line.push({ x1, y1, x2, y2 }); },
     triangle() { calls.triangle.push(1); },
     saveGraphicsState() { calls.saved = true; }, restoreGraphicsState() { calls.restored = true; },
     clip() { calls.clipped = true; }, discardPath() {},
+    // a plain function, since shorthand methods cannot be called with new
+    GState: function (o) { return o; },
+    setGState(o) { calls.gstate = o; this.alpha = o.opacity; },
   };
   return { api, calls };
 }
@@ -233,4 +237,75 @@ test('the arrow is drawn, because Helvetica has no arrow glyph', () => {
 
 test('name size steps down as the brand name gets longer', () => {
   assert.deepEqual(['Nasdaq', 'Wells Fargo', 'Mitsubishi Heavy Industries'].map(nameSizePx), [34, 25, 13]);
+});
+
+
+test('the plate labels are set in the embedded Space Mono, as the template has them', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, D, { spaceMono: 'AAAA' });
+  assert.equal(calls.vfs, 'SpaceMono-Regular.ttf');
+  assert.equal(calls.font, 'SpaceMono');
+  const fontOf = (word) => calls.text.filter(t => t.t === word).map(t => t.font);
+  ['C', 'O', 'M'].forEach(ch => assert.ok(fontOf(ch).includes('SpaceMono'), `${ch} of COMPASS in Space Mono`));
+  // Digits appear only in the scores, never in the mono labels: they stay in
+  // Helvetica, which PDF carries itself.
+  const digits = calls.text.filter(t => /^[0-9]$/.test(t.t));
+  assert.ok(digits.length > 8 && digits.every(t => t.font === 'helvetica'), 'scores in Helvetica');
+});
+
+test('a missing font file falls back to Helvetica rather than failing the card', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, D, {});
+  assert.equal(calls.font, undefined, 'no font registered');
+  assert.ok(calls.text.every(t => t.font === 'helvetica'));
+  assert.ok(calls.text.length > 50, 'card still drawn in full');
+});
+
+test('the Space Mono file ships with the build', async () => {
+  const { statSync } = await import('node:fs');
+  const f = statSync(new URL('../public/scorecard/SpaceMono-Regular.ttf', import.meta.url));
+  assert.ok(f.size > 10000 && f.size < 200000, `unexpected font size ${f.size}`);
+});
+
+test('spacing matches the reference card: the chip clears the plate, and the tiles keep their gaps', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, D, {});
+  const filled = calls.rect.filter(r => r.style === 'F');
+  const lime = filled.filter(r => r.fill === '#D9E021');
+  const plate = lime[0];                       // score plate inside the well
+  const chip = filled.find(r => r.fill === '#0F121A' && r.alpha === 0.88);
+  const gap = plate.y - (chip.y + chip.h);
+  assert.ok(gap > 0.06 && gap < 0.11, `chip should clear the plate by about 0.09in, got ${gap.toFixed(3)}`);
+
+  const tiles = filled.filter(r => r.fill === '#1D2230');
+  assert.equal(tiles.length, 4);
+  const gaps = tiles.slice(1).map((t, i) => t.x - (tiles[i].x + tiles[i].w));
+  gaps.forEach(g => assert.ok(Math.abs(g - 0.107) < 0.002, `tile gap ${g.toFixed(3)}`));
+  const first = tiles[0], last = tiles[3];
+  assert.ok(Math.abs(first.x - (CARD.bleed + 0.22)) < 0.002, 'tiles start at the content edge');
+  assert.ok(Math.abs((last.x + last.w) - (CARD.bleed + CARD.trimW - 0.22)) < 0.002, 'and end at it');
+
+  // Tiles sit 0.18in below the image well, as measured on the reference.
+  const well = filled.find(r => r.fill === '#0F121A');
+  assert.ok(Math.abs(first.y - (well.y + well.h + 0.18)) < 0.002, 'gap above the tiles');
+});
+
+
+test('the average chip is translucent, so the image reads through it as in the template', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, D, {});
+  assert.deepEqual(calls.gstate, { opacity: 0.88 }, 'rgba(15,18,26,0.88)');
+  const chip = calls.rect.find(r => r.style === 'F' && r.fill === '#0F121A' && r.alpha === 0.88);
+  assert.ok(chip, 'chip drawn translucent');
+  // The score plate underneath stays solid lime.
+  const plate = calls.rect.find(r => r.style === 'F' && r.fill === '#D9E021');
+  assert.ok(plate && plate.alpha !== 0.88, 'plate is opaque');
+});
+
+test('a renderer without graphics-state support still gets a solid chip, not a missing one', () => {
+  const { api, calls } = recorder();
+  delete api.GState; delete api.setGState;
+  drawCardFront(api, D, {});
+  const chip = calls.rect.find(r => r.style === 'F' && r.fill === '#0F121A');
+  assert.ok(chip, 'chip still drawn');
 });
