@@ -62,3 +62,4 @@ export const setCampaignAudience = async (id, cso) => {
   const c = state.campaigns.find(x => x.id === id); if (c) c.cso_audience = !!cso;
   return ok(c);
 };
+export const setBiz = async (userId, isBiz) => { calls.push(['setBiz', userId, isBiz]); return ok({ id: userId, is_biz: isBiz }); };

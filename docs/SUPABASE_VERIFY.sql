@@ -14,7 +14,7 @@ required_tables (t) as (values
 ),
 required_columns (t, c) as (values
   ('profiles','is_readonly'), ('profiles','last_login'), ('profiles','full_name'),
-  ('profiles','is_admin'), ('profiles','is_approved'),
+  ('profiles','is_admin'), ('profiles','is_approved'), ('profiles','is_biz'),
   ('compass_results','assessor_name'), ('compass_results','rubric_version'),
   ('compass_results','scores'), ('compass_results','services_recommended'),
   ('saved_assessments','project'), ('saved_assessments','assessments'), ('saved_assessments','scores'),
@@ -129,23 +129,32 @@ select
 
 union all
 
--- 10. Teasers and campaigns are admin only. Every policy must gate on
--- is_admin, and all four operations must be covered, or a non-admin can
--- reach them.
+-- 10. Teasers and campaigns are reachable only by admins and business users.
+-- Every policy must gate on can_teaser, and all four operations must be
+-- covered, or anyone approved could reach them.
 select
-  '10. admin-only', tt.t,
+  '10. teaser access', tt.t,
   case
     when (select count(*) from pg_policies p
           where p.schemaname = 'public' and p.tablename = tt.t) < 4
       then 'INCOMPLETE — expected 4 policies, re-run SUPABASE_SETUP.sql'
     when exists (select 1 from pg_policies p
           where p.schemaname = 'public' and p.tablename = tt.t
-            and coalesce(p.qual, '') not like '%is_admin%'
-            and coalesce(p.with_check, '') not like '%is_admin%')
-      then 'OPEN — a policy does not check is_admin'
+            and coalesce(p.qual, '') not like '%can_teaser%'
+            and coalesce(p.with_check, '') not like '%can_teaser%')
+      then 'OPEN — a policy does not check can_teaser'
     else 'PASS'
   end
 from (values ('teaser_assessments'), ('teaser_campaigns')) tt (t)
+
+union all
+
+-- 10b. Role columns cannot be set by the person they belong to.
+select
+  '10b. roles', 'self-promotion blocked',
+  case when exists (
+    select 1 from pg_trigger where tgname = 'profiles_guard_roles' and not tgisinternal
+  ) then 'PASS' else 'OPEN — any user could set is_admin on themselves, re-run SUPABASE_SETUP.sql' end
 
 union all
 

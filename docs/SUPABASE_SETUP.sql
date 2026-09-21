@@ -34,6 +34,8 @@ create table if not exists public.profiles (
 
 -- Columns added after the original schema shipped.
 alter table public.profiles add column if not exists is_readonly boolean default false;
+-- v3.50: business users. Full access plus the teaser, without admin rights.
+alter table public.profiles add column if not exists is_biz boolean default false;
 alter table public.profiles add column if not exists last_login  timestamptz;
 
 -- Deleting an auth user must remove their profile. Without this, admin user
@@ -293,6 +295,51 @@ as $$
   select coalesce((select p.is_admin from public.profiles p where p.id = uid), false);
 $$;
 
+-- Who may use the teaser: admins and business users, approved, and not
+-- read-only. One function, so the UI and every policy agree.
+create or replace function public.can_teaser(uid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce((
+    select (p.is_admin or p.is_biz) and p.is_approved and not coalesce(p.is_readonly, false)
+    from public.profiles p where p.id = uid
+  ), false);
+$$;
+
+-- Role columns are not self-serve. "Users can update own profile" lets people
+-- edit their own row, which also let them set is_admin on themselves. RLS
+-- cannot restrict columns, so a trigger pins the role columns to their old
+-- values unless an admin is making the change.
+create or replace function public.guard_profile_roles()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    return new;                      -- service role and server-side jobs
+  end if;
+  if public.is_admin(auth.uid()) then
+    return new;                      -- admins may set roles
+  end if;
+  new.is_admin    := old.is_admin;
+  new.is_biz      := old.is_biz;
+  new.is_approved := old.is_approved;
+  new.is_readonly := old.is_readonly;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_guard_roles on public.profiles;
+create trigger profiles_guard_roles
+  before update on public.profiles
+  for each row execute function public.guard_profile_roles();
+
 drop policy if exists "Admins can update all profiles" on public.profiles;
 create policy "Admins can update all profiles"
   on public.profiles for update to authenticated using (public.is_admin(auth.uid()));
@@ -367,7 +414,7 @@ create policy "client_reports_delete"
   using (auth.uid() = created_by or public.is_admin(auth.uid()));
 
 
--- ── Teaser assessments and campaigns: admins only, every operation ──
+-- ── Teaser assessments and campaigns: admins and business users ──────
 
 do $$
 declare
@@ -379,15 +426,15 @@ begin
       execute format('drop policy if exists %I on public.%I', t || '_' || op, t);
       if op = 'insert' then
         execute format(
-          'create policy %I on public.%I for insert to authenticated with check (public.is_admin(auth.uid()))',
+          'create policy %I on public.%I for insert to authenticated with check (public.can_teaser(auth.uid()))',
           t || '_' || op, t);
       elsif op = 'update' then
         execute format(
-          'create policy %I on public.%I for update to authenticated using (public.is_admin(auth.uid())) with check (public.is_admin(auth.uid()))',
+          'create policy %I on public.%I for update to authenticated using (public.can_teaser(auth.uid())) with check (public.can_teaser(auth.uid()))',
           t || '_' || op, t);
       else
         execute format(
-          'create policy %I on public.%I for %s to authenticated using (public.is_admin(auth.uid()))',
+          'create policy %I on public.%I for %s to authenticated using (public.can_teaser(auth.uid()))',
           t || '_' || op, t, op);
       end if;
     end loop;

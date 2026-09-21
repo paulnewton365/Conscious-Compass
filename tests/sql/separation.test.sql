@@ -133,4 +133,59 @@ with u as (update public.teaser_campaigns set cso_audience = false returning 1)
   insert into outcome select 'non-admin cannot change audience', (select count(*) from u) = 0;
 reset role;
 
+-- ── Business users (v3.50): teaser access, no admin rights ──
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-00000000000c', 'biz@antenna.test') on conflict do nothing;
+-- Granting a role is an admin action, so act as the admin. The role-guard
+-- trigger blocks anyone else from setting these columns.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+update public.profiles set is_admin = false, is_biz = true, is_approved = true, is_readonly = false
+  where id = '00000000-0000-0000-0000-00000000000c';
+insert into outcome select 'admin can grant the business role',
+  (select is_biz from public.profiles where id = '00000000-0000-0000-0000-00000000000c') = true;
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', false);
+insert into public.teaser_campaigns (id, name) values ('00000000-0000-0000-0000-0000000000d1', 'Biz campaign');
+insert into public.teaser_assessments (brand_name, website_url, campaign_id, result)
+  values ('BizBrand', 'https://biz.test', '00000000-0000-0000-0000-0000000000d1', '{"overall":57}');
+insert into outcome select 'business user can create a campaign and a teaser',
+  (select count(*) from public.teaser_campaigns where id = '00000000-0000-0000-0000-0000000000d1') = 1
+  and (select count(*) from public.teaser_assessments where brand_name = 'BizBrand') = 1;
+insert into outcome select 'business user can read teasers', (select count(*) from public.teaser_assessments) >= 1;
+with u as (update public.teaser_assessments set business_model = 'b2c' where brand_name = 'BizBrand' returning 1)
+  insert into outcome select 'business user can update a teaser', (select count(*) from u) = 1;
+insert into outcome select 'business user can read full results for the baseline', (select count(*) from public.compass_results) >= 1;
+
+-- ...but no admin rights.
+update public.profiles set is_admin = true, is_readonly = false where id = '00000000-0000-0000-0000-00000000000c';
+insert into outcome select 'business user cannot make themselves admin',
+  (select is_admin from public.profiles where id = '00000000-0000-0000-0000-00000000000c') = false;
+insert into outcome select 'business user is not an admin', public.is_admin('00000000-0000-0000-0000-00000000000c') = false;
+insert into outcome select 'business user may use the teaser', public.can_teaser('00000000-0000-0000-0000-00000000000c') = true;
+
+-- A plain full user still cannot reach the teaser.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
+insert into outcome select 'full user still sees no teasers', (select count(*) from public.teaser_assessments) = 0;
+insert into outcome select 'full user still sees no campaigns', (select count(*) from public.teaser_campaigns) = 0;
+insert into outcome select 'full user may not use the teaser', public.can_teaser('00000000-0000-0000-0000-00000000000b') = false;
+reset role;
+
+-- Read-only and unapproved business users are shut out too.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+update public.profiles set is_readonly = true where id = '00000000-0000-0000-0000-00000000000c';
+insert into outcome select 'read-only business user may not use the teaser', public.can_teaser('00000000-0000-0000-0000-00000000000c') = false;
+update public.profiles set is_readonly = false, is_approved = false where id = '00000000-0000-0000-0000-00000000000c';
+insert into outcome select 'unapproved business user may not use the teaser', public.can_teaser('00000000-0000-0000-0000-00000000000c') = false;
+update public.profiles set is_approved = true where id = '00000000-0000-0000-0000-00000000000c';
+
+-- Admins keep full teaser access.
+insert into outcome select 'admin may still use the teaser', public.can_teaser('00000000-0000-0000-0000-00000000000a') = true;
+
+-- Cleanup so later checks see the same counts.
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+delete from public.teaser_assessments where brand_name = 'BizBrand';
+delete from public.teaser_campaigns where id = '00000000-0000-0000-0000-0000000000d1';
+reset role;
+
 select (case when pass then 'PASS' else 'FAIL' end) || '  ' || check_name as result from outcome;

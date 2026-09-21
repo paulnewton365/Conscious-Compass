@@ -298,8 +298,14 @@ export const removeAdmin = async (userId) => {
   return updateProfile(userId, { is_admin: false });
 };
 
+// Business users get the teaser without admin rights. Read-only and business
+// are mutually exclusive: the teaser creates things, read-only does not.
+export const setBiz = async (userId, isBiz) => {
+  return updateProfile(userId, isBiz ? { is_biz: true, is_readonly: false } : { is_biz: false });
+};
+
 export const setReadonly = async (userId, isReadonly) => {
-  return updateProfile(userId, { is_readonly: isReadonly });
+  return updateProfile(userId, isReadonly ? { is_readonly: true, is_biz: false } : { is_readonly: false });
 };
 
 export const deleteUser = async (userId) => {

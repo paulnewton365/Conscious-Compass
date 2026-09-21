@@ -128,12 +128,17 @@ test('PDF writes scores and lenses from the payload and nothing internal', async
 
 // ── Admin gating ──
 
-test('Teaser nav appears for admins only', () => {
+test('Teaser nav appears for admins and business users only', () => {
   const props = (profile, onTeaser = () => {}) => ({ onNewAssessment() {}, onGoHome() {}, onSavedAssessments() {}, onCompassResults() {}, onComparison() {}, onStayConscious() {}, onTeaser, activePage: null, user: { email: 'a@b.c' }, profile, onLogout() {}, onAdmin() {} });
   const count = (html) => (html.match(/Teaser<\/button>/g) || []).length;
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: true })))), 1);
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: false })))), 0);
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: false, is_readonly: true })))), 0);
+  // Business users get it too (v3.50), unless read-only or unapproved.
+  assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_biz: true })))), 1);
+  assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_biz: true, is_approved: true })))), 1);
+  assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_biz: true, is_readonly: true })))), 0);
+  assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_biz: true, is_approved: false })))), 0);
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: true }, null)))), 0);
 });
 
@@ -832,4 +837,39 @@ test('exports refuse to start from a tab left open across a deploy', async () =>
   assert.ok(container.textContent.includes('older version of the Compass'));
   globalThis.__liveVersion = undefined;
   await act(async () => root.unmount());
+});
+
+
+// ── Business users (v3.50) ──
+
+test('a business user runs teasers exactly like an admin', async () => {
+  const raw = await scoringJson();
+  const log = installFetch(raw);
+  globalThis.__liveVersion = undefined;
+  stub.state.campaigns = [{ id: 'c-1', name: 'Prospects' }]; stub.state.teasers = []; stub.calls.length = 0;
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  const props = { user: { id: 'u2', email: 'biz@antenna' }, profile: { is_biz: true, is_admin: false, full_name: 'Biz User' }, apiKey: 'PROXY', onConvert: () => true };
+  await act(async () => { root.render(h(App.TeaserPage, props)); }); await act(flush);
+  await selectValue(container.querySelector('[data-field="campaign"]'), 'c-1');
+  await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
+  await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
+  await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
+  await click([...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser')));
+  for (let i = 0; i < 20; i++) await act(flush);
+  const saved = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
+  assert.equal(saved.created_by_name, 'Biz User');
+  assert.ok(saved.result, 'scored');
+  void log;
+  await act(async () => root.unmount());
+});
+
+test('the teaser page is shown by the same rule the database enforces', async () => {
+  const { canTeaser } = await import('./.build/app.bundle.mjs');
+  assert.equal(canTeaser({ is_admin: true }), true);
+  assert.equal(canTeaser({ is_biz: true }), true);
+  assert.equal(canTeaser({ is_biz: true, is_readonly: true }), false, 'read-only wins');
+  assert.equal(canTeaser({ is_biz: true, is_approved: false }), false, 'must be approved');
+  assert.equal(canTeaser({ is_admin: false, is_biz: false }), false);
+  assert.equal(canTeaser(null), false);
 });

@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.49.0';
+const APP_VERSION = '3.50.0';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -28,6 +28,7 @@ import {
   approveUser,
   revokeUser,
   makeAdmin,
+  setBiz,
   removeAdmin,
   setReadonly,
   deleteUser,
@@ -288,6 +289,15 @@ function AdminPage({ currentUser, onBack }) {
     loadUsers();
   };
 
+  const handleToggleBiz = async (userId, isCurrentlyBiz) => {
+    if (userId === currentUser.id) {
+      alert("You can't change your own access level");
+      return;
+    }
+    await setBiz(userId, !isCurrentlyBiz);
+    loadUsers();
+  };
+
   const handleToggleReadonly = async (userId, isCurrentlyReadonly) => {
     if (userId === currentUser.id) {
       alert("You can't change your own access level");
@@ -377,8 +387,8 @@ function AdminPage({ currentUser, onBack }) {
               <div className="space-y-3">
                 {users.filter(u => u.is_approved).map(user => {
                   const isSelf = user.id === currentUser.id;
-                  const roleColor = user.is_admin ? 'bg-[#DEE42F]' : user.is_readonly ? 'bg-[#B3B0A8]' : 'bg-[#059669]';
-                  const roleLabel = user.is_admin ? 'Admin' : user.is_readonly ? 'Read-only' : 'Full Access';
+                  const roleColor = user.is_admin ? 'bg-[#DEE42F]' : user.is_readonly ? 'bg-[#B3B0A8]' : user.is_biz ? 'bg-[#0B6E4F]' : 'bg-[#059669]';
+                  const roleLabel = user.is_admin ? 'Admin' : user.is_readonly ? 'Read-only' : user.is_biz ? 'Business' : 'Full Access';
                   return (
                     <div key={user.id} className="bg-white border border-[#DCDAD3] p-5">
                       {/* User info row */}
@@ -419,6 +429,17 @@ function AdminPage({ currentUser, onBack }) {
                                   : 'border-[#9CA3AF] text-[#B3B0A8] hover:bg-[#B3B0A8]/10'
                               }`}>
                               {user.is_readonly ? 'Grant Full Access' : 'Set Read-only'}
+                            </button>
+                          )}
+                          {!user.is_admin && (
+                            <button onClick={() => handleToggleBiz(user.id, user.is_biz)} data-action="toggle-biz"
+                              title="Business users get the teaser without admin rights"
+                              className={`text-sm px-3 py-1.5 border transition-colors ${
+                                user.is_biz
+                                  ? 'border-[#0B6E4F] text-[#0B6E4F] hover:bg-[#0B6E4F]/10'
+                                  : 'border-[#DCDAD3] text-[#68655B] hover:border-[#0B0B0B]'
+                              }`}>
+                              {user.is_biz ? 'Remove Teaser Access' : 'Grant Teaser Access'}
                             </button>
                           )}
                           <button onClick={() => handleToggleAdmin(user.id, user.is_admin)}
@@ -493,6 +514,11 @@ const BENCHMARK_MIN_N = 5;
 // extended. Filtering to the current version alone would leave the benchmark
 // empty on release day.
 const BENCHMARK_RUBRIC_MAJOR = '2';
+
+// Mirrors public.can_teaser() in the database: admins and business users,
+// approved, and not read-only. The database enforces it; this decides what
+// the person is shown.
+const canTeaser = (profile) => !!profile && !!(profile.is_admin || profile.is_biz) && profile.is_approved !== false && !profile.is_readonly;
 
 const rubricMajor = (v) => String(v || '2.3').split('.')[0];
 
@@ -2323,8 +2349,8 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
           <button onClick={onSavedAssessments} className={navBtnClass('saved')}>
             Saved
           </button>
-          {/* Teaser is admin only. RLS enforces the same rule at the database. */}
-          {profile?.is_admin && onTeaser && (
+          {/* Admins and business users. RLS enforces the same rule. */}
+          {canTeaser(profile) && onTeaser && (
             <button onClick={onTeaser} className={navBtnClass('teaser')}>
               Teaser
             </button>
@@ -2383,7 +2409,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
           <button onClick={() => { onSavedAssessments(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('saved')}>
             Saved Assessments
           </button>
-          {profile?.is_admin && onTeaser && (
+          {canTeaser(profile) && onTeaser && (
             <button onClick={() => { onTeaser(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('teaser')}>
               Teaser
             </button>
@@ -15173,7 +15199,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       <div className="dc-pagehead">
         <div>
           <h1 className="dc-h2">Teaser</h1>
-          <div className="dc-standfirst">Indicative Compass reads for new business · Admin only</div>
+          <div className="dc-standfirst">Indicative Compass reads for new business</div>
         </div>
       </div>
 
@@ -15924,9 +15950,9 @@ function AppContent() {
     return <AdminPage currentUser={user} onBack={() => setShowAdminPage(false)} />;
   }
 
-  // Teaser page. Admin only: a non-admin who lands on #teaser sees the normal
-  // shell, and RLS refuses the table to them regardless.
-  if (showTeaserPage && profile?.is_admin) {
+  // Teaser page, for admins and business users. Anyone else who lands on
+  // #teaser sees the normal shell, and RLS refuses the tables to them.
+  if (showTeaserPage && canTeaser(profile)) {
     return (
       <div className="min-h-screen bg-[#F2F0EA]">
         <Header
