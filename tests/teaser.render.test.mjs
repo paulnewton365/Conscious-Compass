@@ -403,7 +403,7 @@ test('report view shows a live sector baseline from full results, excluding the 
   await click(btn(container, b => b.textContent.includes('Acme')));
   await act(flush);
   const text = container.querySelector('[data-field="baseline"]').textContent;
-  assert.match(text, /from full assessments:\s*60/, 'average of the five eligible energy brands');
+  assert.match(text, /60\s*sector baseline, from full assessments/, 'average of the five eligible energy brands');
   assert.ok(text.includes('Energy & Utilities') && text.includes('5 full assessments'));
   const diff = rec.result.overall - 60;
   assert.ok(text.includes(`this teaser ${diff > 0 ? '+' : ''}${diff}`));
@@ -433,7 +433,7 @@ test('no full assessments at all reads as unavailable, not as a zero baseline', 
   const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
   const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
   await click(btn(container, b => b.textContent.includes('Acme'))); await act(flush);
-  assert.ok(container.querySelector('[data-field="baseline"]').textContent.includes('unavailable'));
+  assert.match(container.querySelector('[data-field="baseline"]').textContent, /unavailable/i);
   await act(async () => root.unmount());
 });
 
@@ -589,7 +589,7 @@ test('an up-to-date tab rescores, stamps the current method and clears the flag'
   const saved = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
   assert.equal(saved.result.teaserVersion, TEASER_VERSION_LIVE);
   assert.ok(!container.querySelector('[data-field="method-outdated"]'));
-  assert.ok(container.querySelector('[data-field="scored-with"]').textContent.includes(`with method v${TEASER_VERSION_LIVE}`));
+  assert.ok(container.querySelector('[data-field="scored-with"]').textContent.includes(`method v${TEASER_VERSION_LIVE}`));
   await click(btn(container, b => b.textContent.includes('All teasers')));
   for (let i = 0; i < 5; i++) await act(flush);
   assert.ok(!btn(container, b => b.textContent.includes('Earlier') && !b.textContent.includes('All teasers')).textContent.includes('Earlier method'));
@@ -618,7 +618,7 @@ test('teasers never move a baseline: only full assessments count, even with teas
   stub.state.campaignScores = teasers.map(x => ({ id: x.id, brand_name: x.brand_name, website_url: x.website_url, industry: 'energy', result: x.result }));
   const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers });
   await click(btn(container, b => b.textContent.includes('Alpha') && !b.textContent.includes('All teasers'))); await act(flush);
-  assert.match(container.querySelector('[data-field="baseline"]').textContent, /from full assessments:\s*60/);
+  assert.match(container.querySelector('[data-field="baseline"]').textContent, /60\s*sector baseline, from full assessments/);
   assert.ok(container.querySelector('[data-field="baseline"]').textContent.includes('5 full assessments'), 'three teasers not counted');
   await act(async () => root.unmount());
 });
@@ -648,6 +648,7 @@ test('the top navigation has no icons, desktop or mobile, and every control keep
 // ── CSO audience and thesis (v3.36) ──
 
 const { THESIS_TENETS: TENETS } = await import('../src/data/thesis.js');
+const ATTRS = ['Awake', 'Aware', 'Reflective', 'Attentive', 'Cogent', 'Sentient', 'Visionary', 'Intentional'];
 const thesisRead = { present: true, summary: 'Progress is real and quiet.', progress: 'strong', voice: 'quiet', verdict: { label: 'Whispering', meaning: 'Real progress, told too quietly to move anyone.' },
   tenets: Object.fromEntries(TENETS.map((t, i) => [t.id, { level: ['buried', 'surfacing', 'breaking'][i % 3], reason: `Reason ${t.id}` }])) };
 
@@ -751,7 +752,7 @@ test('Card and Slide are offered only when there is a score, an image and a base
   const slide = () => container.querySelector('[data-field="make-slide"]');
   assert.equal(card().disabled, true, 'no brand image yet');
   assert.match(card().title, /Needs a brand image/);
-  assert.ok(container.querySelector('[data-field="hero-image"]').textContent.includes('none yet'));
+  assert.match(container.querySelector('[data-field="hero-image"]').textContent, /none yet/i);
 
   // Upload one: the report saves it against the teaser.
   stub.state.teasers[0] = { ...rec, hero_image: 'data:image/jpeg;base64,AAAA' };
@@ -872,4 +873,56 @@ test('the teaser page is shown by the same rule the database enforces', async ()
   assert.equal(canTeaser({ is_biz: true, is_approved: false }), false, 'must be approved');
   assert.equal(canTeaser({ is_admin: false, is_biz: false }), false);
   assert.equal(canTeaser(null), false);
+});
+
+// ── Refined layout for the two blocks under the nav (v3.51) ──
+
+test('the internal panel is a labelled grid: campaign, evidence, baseline, image, context', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1', hero_image: 'data:image/jpeg;base64,AAAA', context: 'SENTINEL_CONTEXT brief' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  const panel = container.querySelector('[data-field="internal-panel"]');
+  assert.ok(panel, 'panel present');
+  for (const label of ['Campaign', 'Evidence', 'Baseline', 'Brand image', 'Context']) {
+    assert.ok(panel.textContent.includes(label), label);
+  }
+  assert.ok(panel.querySelector('[data-field="move-campaign"]'), 'campaign still selectable');
+  assert.ok(panel.querySelector('[data-field="scored-with"]').textContent.startsWith('Scored'), 'scored line in the header row');
+  assert.ok(panel.querySelectorAll('.dc-meta').length >= 5, 'one evidence chip per source');
+  assert.ok(panel.textContent.includes('SENTINEL_CONTEXT'), 'context shown to the admin');
+  // and still never to the prospect
+  assert.ok(!container.querySelector('[data-teaser-client-view]').innerHTML.includes('SENTINEL_CONTEXT'));
+  await act(async () => root.unmount());
+});
+
+test('the read leads with the brand, then verdict beside the image, then one score band', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1', hero_image: 'data:image/jpeg;base64,AAAA' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  const view = container.querySelector('[data-teaser-client-view]');
+  assert.equal(view.querySelector('h1').textContent, 'Acme');
+  const summary = view.querySelector('[data-field="read-summary"]');
+  assert.ok(summary.querySelector('h2').textContent.length > 10, 'headline as generated');
+  assert.ok(summary.querySelector('img'), 'brand image sits beside the verdict');
+  const band = view.querySelector('[data-field="score-band"]');
+  assert.ok(band.textContent.includes(`${rec.result.overall}`) && band.textContent.includes('Overall'));
+  ['Credibility', 'Trust', 'Reputation', 'Authenticity'].forEach(l => assert.ok(band.textContent.includes(l), l));
+  assert.equal((band.textContent.match(/\/100/g) || []).length, 5, 'overall plus four lenses');
+  // the radar chart and everything under it are untouched
+  assert.ok(view.querySelector('svg'), 'radar chart still rendered');
+  ATTRS.forEach(name => assert.ok(view.textContent.includes(name), name));
+  await act(async () => root.unmount());
+});
+
+test('without a brand image the read still balances, with no empty frame', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  const summary = container.querySelector('[data-field="read-summary"]');
+  assert.equal(summary.querySelector('img'), null, 'no placeholder frame');
+  assert.ok(summary.querySelector('h2'), 'verdict still shown');
+  await act(async () => root.unmount());
 });

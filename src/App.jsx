@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.50.0';
+const APP_VERSION = '3.51.0';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -14445,7 +14445,7 @@ function ConfidencePill({ level }) {
 
 // The prospect-facing view. Renders ONLY from makeTeaserClientPayload output,
 // so context, evidence text and authorship cannot appear here.
-function TeaserClientView({ payload, chartRef = null }) {
+function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
   if (!payload) return null;
   const { scores } = payload;
   const date = payload.scoredAt ? new Date(payload.scoredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
@@ -14458,9 +14458,12 @@ function TeaserClientView({ payload, chartRef = null }) {
 
   return (
     <div data-teaser-client-view="true">
-      <div className="dc-kicker" style={{ marginBottom: 10 }}>Indicative Compass read{date ? ` · ${date}` : ''}</div>
-      <h1 className="dc-h2" style={{ marginBottom: 6 }}>{payload.brandName}</h1>
-      <div className="text-sm text-[#68655B]" style={{ marginBottom: 28 }}>{payload.websiteUrl}</div>
+      {/* Masthead: the read, the brand, the site. */}
+      <div style={{ paddingBottom: 18 }}>
+        <div className="dc-kicker">Indicative Compass read{date ? ` · ${date}` : ''}</div>
+        <h1 style={{ fontSize: 46, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1.1, marginTop: 6 }}>{payload.brandName}</h1>
+        <div className="text-sm text-[#68655B]" style={{ marginTop: 2 }}>{payload.websiteUrl}</div>
+      </div>
 
       {payload.thinRecord && (
         <div className="dc-block" style={{ marginBottom: 2, borderLeft: '6px solid #DEE42F' }}>
@@ -14469,23 +14472,38 @@ function TeaserClientView({ payload, chartRef = null }) {
         </div>
       )}
 
-      <div className="dc-block" style={{ marginBottom: 2 }}>
-        {payload.headline && <p style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.01em', lineHeight: 1.3, marginBottom: 12 }}>{payload.headline}</p>}
-        {payload.summary && <p className="dc-lead" style={{ maxWidth: '72ch', fontSize: 16 }}>{payload.summary}</p>}
-      </div>
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2 }}>
-        <div className="bg-[#0B0B0B]" style={{ flex: '1 1 200px', minWidth: 0, padding: '20px 22px' }}>
-          <div style={{ fontSize: 44, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, color: '#DEE42F' }}>
-            {payload.overall}<span style={{ fontSize: 16, fontWeight: 500, color: '#9A9A94' }}>/100</span>
-          </div>
-          <div className="dc-kicker-sm" style={{ marginTop: 8, color: '#9A9A94' }}>Overall · {payload.stage}</div>
+      {/* Verdict beside the brand image. */}
+      <div className="bg-white" data-field="read-summary"
+        style={{ padding: '30px 34px', display: 'grid', gridTemplateColumns: heroImage ? 'minmax(0,1fr) 300px' : 'minmax(0,1fr)', gap: 36, alignItems: 'start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {payload.headline && <h2 style={{ margin: 0, fontSize: 21, fontWeight: 700, lineHeight: 1.35, letterSpacing: '-.01em', maxWidth: '34ch' }}>{payload.headline}</h2>}
+          {payload.summary && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#4A4840', maxWidth: '78ch' }}>{payload.summary}</p>}
         </div>
-        {lensStats.map(([label, v]) => <StatBlock key={label} value={v} label={label} />)}
+        {heroImage && <img src={heroImage} alt="" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }} />}
+      </div>
+
+      {/* Scores as one band: overall on ink, the four lenses beside it. */}
+      <div data-field="score-band" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1.1fr) repeat(4, minmax(140px,1fr))', borderTop: '1px solid #DCDAD3' }}>
+        <div className="bg-[#0B0B0B]" style={{ padding: '20px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+            <span style={{ fontSize: 38, fontWeight: 800, lineHeight: 1, color: '#DEE42F' }}>{payload.overall}</span>
+            <span style={{ fontSize: 15, fontWeight: 600, color: '#DEE42F' }}>/100</span>
+          </div>
+          <div className="dc-kicker-sm" style={{ marginTop: 9, color: '#9A9A94' }}>Overall · {payload.stage}</div>
+        </div>
+        {lensStats.map(([label, v]) => (
+          <div key={label} className="bg-white" style={{ padding: '20px 24px', borderLeft: '1px solid #DCDAD3' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+              <span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, color: scoreColor(v) }}>{Number.isFinite(Number(v)) ? v : '—'}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#68655B' }}>/100</span>
+            </div>
+            <div className="dc-kicker-sm" style={{ marginTop: 9 }}>{label}</div>
+          </div>
+        ))}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2 }}>
-        <div className="bg-white" ref={chartRef} style={{ flex: '1 1 340px', minWidth: 0, padding: 20, display: 'flex', justifyContent: 'center' }}>
+        <div className="bg-white" ref={chartRef} style={{ flex: '1 1 340px', minWidth: 0, padding: 20, display: 'flex', justifyContent: 'center', borderTop: '1px solid #DCDAD3' }}>
           <SpiderChart scores={scores} size={340} animate={false} />
         </div>
         <div className="dc-stack" style={{ flex: '2 1 420px', minWidth: 0 }}>
@@ -14727,7 +14745,6 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
   };
   const cov = evidenceCoverage(record.evidence);
   const sources = record.evidence?.sources || {};
-  const industryName = INDUSTRIES.find(i => i.id === record.industry)?.name;
 
   const handleExport = async () => {
     setExporting(true);
@@ -14765,87 +14782,112 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
       )}
 
       {/* Internal only. Never part of the client payload or the PDF. */}
-      <div className="dc-block" style={{ marginBottom: 24, background: '#FAF9F5', border: '1px dashed #DCDAD3' }}>
-        <div className="dc-kicker-sm" style={{ marginBottom: 10 }}>Internal · not shown to the prospect</div>
-        <div className="text-sm text-[#4A4840]" style={{ display: 'grid', gap: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span className="font-semibold">Campaign:</span>
+      <div className="dc-block" data-field="internal-panel"
+        style={{ marginBottom: 24, background: '#FAF9F5', border: '1px dashed #DCDAD3', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', borderBottom: '1px solid #EEECE6', paddingBottom: 14 }}>
+          <div className="dc-kicker-sm">Internal · not shown to the prospect</div>
+          {record.result && (
+            <div className="text-sm text-[#68655B]" data-field="scored-with">
+              Scored {new Date(record.result.scoredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} · method v{record.result.teaserVersion || '1.0'}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '132px minmax(0,1fr)', gap: '18px 20px', alignItems: 'start' }}>
+          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 7 }}>Campaign</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             <select value={record.campaign_id || ''} disabled={busy} data-field="move-campaign"
-              onChange={e => onMove(e.target.value)} className="px-2 py-1 border border-[#DCDAD3] bg-white text-sm">
+              onChange={e => onMove(e.target.value)} className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm" style={{ width: 'max-content' }}>
               {!record.campaign_id && <option value="">Unassigned, choose a campaign</option>}
               {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            <div className="text-sm text-[#68655B]" style={{ lineHeight: 1.5 }}>
+              {String(record.business_model || '').toUpperCase()}{industryNameFull ? ` · ${industryNameFull}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? new Date(record.evidence.gatheredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'never'}{record.converted_at ? ` · converted to full assessment ${new Date(record.converted_at).toLocaleDateString('en-US')}` : ''}
+            </div>
           </div>
-          <div>{String(record.business_model || '').toUpperCase()}{industryName ? ` · ${industryName}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? new Date(record.evidence.gatheredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'never'}{record.converted_at ? ` · converted to full assessment ${new Date(record.converted_at).toLocaleDateString('en-US')}` : ''}</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {TEASER_SOURCES.map(src => (
-              <span key={src.id} className="dc-meta" title={sources[src.id]?.error || ''}
-                style={{ color: sources[src.id]?.status === 'ok' ? '#0F7A4F' : '#D42528', borderColor: sources[src.id]?.status === 'ok' ? '#DCDAD3' : '#D42528' }}>
-                {src.label}: {sources[src.id]?.status === 'ok' ? (src.id === 'website' ? `${sources.website.pages.length} page${sources.website.pages.length === 1 ? '' : 's'}` : 'ok') : 'failed'}
-              </span>
-            ))}
+
+          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 5 }}>Evidence</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {[...TEASER_SOURCES, ...(sources.sustainability ? [SUSTAINABILITY_SOURCE] : [])].map(src => {
+              const ok = sources[src.id]?.status === 'ok';
+              return (
+                <span key={src.id} className="dc-meta" title={sources[src.id]?.error || ''}
+                  style={{ background: '#FFFFFF', color: ok ? '#0F7A4F' : '#D42528', borderColor: ok ? '#DCDAD3' : '#D42528' }}>
+                  {src.label}: {ok ? (src.id === 'website' ? `${sources.website.pages.length} page${sources.website.pages.length === 1 ? '' : 's'}` : 'ok') : 'failed'}
+                </span>
+              );
+            })}
           </div>
-          <div data-field="baseline">
-            <span className="font-semibold">Sector baseline, from full assessments:</span>{' '}
-            {baselineError ? `unavailable (${baselineError})`
-              : !baseline ? 'loading'
-              : !baseline.available ? 'unavailable, no comparable full assessments yet'
+
+          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 2 }}>Baseline</div>
+          <div data-field="baseline" className="text-sm text-[#4A4840]" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            {baselineError ? `Unavailable (${baselineError})`
+              : !baseline ? 'Loading'
+              : !baseline.available ? 'Unavailable, no comparable full assessments yet'
               : <>
-                  <span style={{ fontWeight: 700, color: scoreColor(baseline.avgScore) }}>{baseline.avgScore}</span>
-                  {' '}({baseline.scope === 'industry' ? baseline.sectorName : baseline.basis}, {baseline.count} full assessment{baseline.count === 1 ? '' : 's'})
-                  {baseline.difference !== null && <> · this teaser <strong>{baseline.difference > 0 ? '+' : ''}{baseline.difference}</strong></>}
+                  <span style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, color: scoreColor(baseline.avgScore) }}>{baseline.avgScore}</span>
+                  <span>sector baseline, from full assessments</span>
+                  <span className="text-[#68655B]">· {baseline.scope === 'industry' ? baseline.sectorName : baseline.basis}, {baseline.count} full assessment{baseline.count === 1 ? '' : 's'}</span>
+                  {baseline.difference !== null && <span style={{ borderLeft: '1px solid #DCDAD3', paddingLeft: 10 }}>this teaser <strong>{baseline.difference > 0 ? '+' : ''}{baseline.difference}</strong></span>}
                 </>}
           </div>
-          <div data-field="hero-image" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span className="font-semibold">Brand image:</span>
-            {record.hero_image
-              ? <img src={record.hero_image} alt="" style={{ height: 40, width: 68, objectFit: 'cover', border: '1px solid #DCDAD3' }} />
-              : <span className="text-[#68655B]">none yet. Needed for the card and slide.</span>}
+
+          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 9 }}>Brand image</div>
+          <div data-field="hero-image" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            {record.hero_image && <img src={record.hero_image} alt="" style={{ height: 44, width: 74, objectFit: 'cover', border: '1px solid #DCDAD3' }} />}
             <input ref={heroRef} type="file" accept="image/*" style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pickHero(f); }} />
-            <button onClick={() => heroRef.current?.click()} disabled={busy} className="btn-secondary text-xs py-1 px-2">
+            <button onClick={() => heroRef.current?.click()} disabled={busy} className="btn-secondary text-xs py-2 px-4">
               {record.hero_image ? 'Replace' : 'Upload'}
             </button>
-            {record.hero_image && <button onClick={() => onHeroImage(null)} disabled={busy} className="btn-secondary text-xs py-1 px-2">Remove</button>}
+            {record.hero_image
+              ? <button onClick={() => onHeroImage(null)} disabled={busy} className="btn-secondary text-xs py-2 px-4">Remove</button>
+              : <span className="text-sm text-[#68655B]">None yet. Needed for the card and slide.</span>}
           </div>
-          {heroError && <div style={{ color: '#C2680C' }}>{heroError}</div>}
-          {record.context && <div><span className="font-semibold">Context:</span> {record.context}</div>}
-          {record.result && campaigns.find(c => c.id === record.campaign_id)?.cso_audience && record.result.audience !== 'cso' && (
-            <div data-field="audience-mismatch" style={{ color: '#C2680C' }}>
-              <span className="font-semibold">Scored before this campaign was set to CSO audience.</span> Refresh evidence to add the sustainability scan and read.
-            </div>
-          )}
-          {record.result && (
-            <div data-field="scored-with">
-              <span className="font-semibold">Scored:</span> {new Date(record.result.scoredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} with method v{record.result.teaserVersion || '1.0'}
-            </div>
-          )}
-          {record.result && !isCurrentMethod(record.result) && (
-            <div data-field="method-outdated" style={{ color: '#C2680C' }}>
-              <span className="font-semibold">Earlier scoring method (v{record.result.teaserVersion || '1.0'}).</span> Scored before calibration and with the campaign modifier. Rescore to apply the current method (v{TEASER_VERSION}); it reuses the stored evidence, no new searches.
-            </div>
-          )}
-          {record.result && isCurrentMethod(record.result) && ATTRIBUTES.some(a => record.result.scores?.[a.id]?.unobserved) && (
-            <details data-field="unobserved">
-              <summary className="font-semibold" style={{ cursor: 'pointer' }}>Not observable in this read</summary>
-              <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
-                {ATTRIBUTES.filter(a => record.result.scores?.[a.id]?.unobserved).map(a => (
-                  <div key={a.id}><span className="font-semibold">{a.name}:</span> {record.result.scores[a.id].unobserved}</div>
-                ))}
-              </div>
-            </details>
-          )}
-          {record.result?.history?.length > 0 && (
-            <div>Previous scores: {record.result.history.map(h => `${h.overall} (${new Date(h.scoredAt).toLocaleDateString('en-US')})`).join(', ')}</div>
-          )}
+
+          {record.context && <>
+            <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 2 }}>Context</div>
+            <div className="text-sm text-[#4A4840]" style={{ lineHeight: 1.62, maxWidth: '74ch' }}>{record.context}</div>
+          </>}
         </div>
+
+        {(heroError || (record.result && !isCurrentMethod(record.result)) || (record.result && campaigns.find(c => c.id === record.campaign_id)?.cso_audience && record.result.audience !== 'cso') || record.result?.history?.length > 0) && (
+          <div className="text-sm" style={{ display: 'grid', gap: 6, borderTop: '1px solid #EEECE6', paddingTop: 14 }}>
+            {heroError && <div style={{ color: '#C2680C' }}>{heroError}</div>}
+            {record.result && !isCurrentMethod(record.result) && (
+              <div data-field="method-outdated" style={{ color: '#C2680C' }}>
+                <span className="font-semibold">Earlier scoring method (v{record.result.teaserVersion || '1.0'}).</span> Scored before calibration and with the campaign modifier. Rescore to apply the current method (v{TEASER_VERSION}); it reuses the stored evidence, no new searches.
+              </div>
+            )}
+            {record.result && campaigns.find(c => c.id === record.campaign_id)?.cso_audience && record.result.audience !== 'cso' && (
+              <div data-field="audience-mismatch" style={{ color: '#C2680C' }}>
+                <span className="font-semibold">Scored before this campaign was set to CSO audience.</span> Refresh evidence to add the sustainability scan and read.
+              </div>
+            )}
+            {record.result?.history?.length > 0 && (
+              <div className="text-[#68655B]">Previous scores: {record.result.history.map(h => `${h.overall} (${new Date(h.scoredAt).toLocaleDateString('en-US')})`).join(', ')}</div>
+            )}
+          </div>
+        )}
+
+        {record.result && isCurrentMethod(record.result) && ATTRIBUTES.some(a => record.result.scores?.[a.id]?.unobserved) && (
+          <details data-field="unobserved" style={{ borderTop: '1px solid #EEECE6', paddingTop: 14 }}>
+            <summary className="text-sm font-semibold text-[#4A4840]" style={{ cursor: 'pointer' }}>Not observable in this read</summary>
+            <div className="text-sm text-[#4A4840]" style={{ display: 'grid', gap: 4, marginTop: 8 }}>
+              {ATTRIBUTES.filter(a => record.result.scores?.[a.id]?.unobserved).map(a => (
+                <div key={a.id}><span className="font-semibold">{a.name}:</span> {record.result.scores[a.id].unobserved}</div>
+              ))}
+            </div>
+          </details>
+        )}
       </div>
 
       {error && <div className="dc-block text-sm" style={{ marginBottom: 16, color: '#D42528', borderLeft: '4px solid #D42528' }}>{error}</div>}
       {busy && progress}
 
       {payload ? (
-        <TeaserClientView payload={payload} chartRef={chartRef} />
+        <TeaserClientView payload={payload} chartRef={chartRef} heroImage={record.hero_image || null} />
       ) : !busy && (
         <div className="dc-block text-[#4A4840]">Evidence is stored but this teaser has not been scored yet. {cov.canScore ? 'Use Score to run it.' : 'Too few sources returned evidence to score. Use Refresh evidence.'}</div>
       )}
