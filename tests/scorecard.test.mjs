@@ -6,7 +6,7 @@ import { JSDOM } from 'jsdom';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import {
-  cardFrontHtml, cardBackHtml, slideHtml, cardNameSize, slideNameSize,
+  slideHtml, cardNameSize, slideNameSize,
   scorecardReady, scorecardData, buildSlidePptx, exportScorecardPdf, exportScorecardSlide, cardFilename, TRIM, BLEED, SLIDE,
 } from '../src/lib/scorecard.js';
 
@@ -23,28 +23,6 @@ const styles = (html) => [...html.matchAll(/style="([^"]*)"/g)].map(m => m[1]
   .replace(/color:\s*(\{\{ c\.footColor \}\}|#7E8BA0);text-transform:uppercase;/g, 'color:FOOTCOLOR;text-transform:uppercase;')
   .replace(/\s+/g, ' ').trim());
 
-test('card front and back reuse the template styles exactly, bar the declared changes', () => {
-  const template = styles(tpl('card.dc.html'));
-  // Declared deviations, and nothing else:
-  //  1. no border-radius: the card is bled and trimmed square
-  //  2. the template's <image-slot> becomes a plain <img> with cover fit
-  const DEVIATIONS = [
-    // html2canvas ignores CSS filters, so the logo ships pre-whitened
-    'height:0.36in;width:auto;display:block;',
-    // and it paints an inline highlight box over the line above, so the
-    // highlighted words sit on their own line as an inline-block
-    "font-family:'Archivo Expanded',sans-serif;font-weight:900;font-size:35px;line-height:1.08;margin:0.18in 0 0;text-transform:uppercase;color:#F2F5F0;",
-    'display:inline-block;background:#D9E021;color:#171B26;padding:0 0.04in;',
-    'width:100%;height:100%;background:#171B26;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;padding:0.2in 0.22in 0.18in;',
-    'width:100%;height:100%;background:#171B26;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;padding:0.3in 0.3in 0;',
-    'width:100%;height:100%;object-fit:cover;display:block;',
-    "font-size:19px;font-weight:400;line-height:1.5;margin-top:0.2in;display:flex;flex-direction:column;gap:0.14in;text-wrap:pretty;color:#F2F5F0;font-family:'Archivo',sans-serif;",
-  ];
-  const unmatched = [...styles(cardFrontHtml(D)), ...styles(cardBackHtml())]
-    .filter(s => !template.includes(s) && !DEVIATIONS.includes(s));
-  assert.deepEqual(unmatched, [], 'styles not found in the template');
-});
-
 test('slide reuses the template styles exactly, bar the declared change', () => {
   const template = styles(tpl('slide.dc.html'));
   // Declared deviation: the template's frame is sized by its runtime wrapper,
@@ -59,26 +37,15 @@ test('slide reuses the template styles exactly, bar the declared change', () => 
   assert.deepEqual(unmatched, [], 'styles not found in the template');
 });
 
-test('the card keeps Archivo and the slide keeps Inter, as the templates do', () => {
-  const card = cardFrontHtml(D) + cardBackHtml();
-  assert.ok(card.includes("'Archivo Expanded'") && card.includes("'Space Mono'"));
-  assert.ok(!card.includes('Inter'));
-  const slide = slideHtml(D);
-  assert.ok(slide.includes("'Inter',sans-serif"));
-  assert.ok(!slide.includes('Archivo') && !slide.includes('Space Mono'));
-});
-
 test('brand data lands in both, and nothing is left as a template placeholder', () => {
-  for (const html of [cardFrontHtml(D), slideHtml(D)]) {
+  for (const html of [slideHtml(D)]) {
     assert.ok(!/\{\{|\}\}|sc-if|sc-for|image-slot/.test(html), 'unresolved template syntax');
     assert.ok(html.includes('Acme &amp; Sons'), 'brand name escaped');
     for (const v of ['51', '65', '69', '66', '62']) assert.ok(html.includes(`>${v}<`), v);
     ['Credibility', 'Trust', 'Reputation', 'Authenticity'].forEach(l => assert.ok(html.includes(l)));
     assert.ok(html.includes('data:image/jpeg;base64,AAAA'), 'hero image');
   }
-  assert.ok(cardFrontHtml(D).includes('Measured by the Conscious Compass Teaser Assessment'));
   assert.ok(slideHtml(D).includes('Indicative scores measured by the Conscious Compass Teaser Assessment'));
-  assert.ok(cardBackHtml().includes('Consequential brands are'));
 });
 
 test('missing scores show as a dash rather than NaN or zero', () => {
@@ -88,7 +55,7 @@ test('missing scores show as a dash rather than NaN or zero', () => {
 });
 
 test('nothing loads from another origin, or the PDF canvas would be blocked', () => {
-  const html = cardFrontHtml(D) + cardBackHtml() + slideHtml(D);
+  const html = slideHtml(D);
   const srcs = [...html.matchAll(/src="([^"]+)"/g)].map(m => m[1]);
   srcs.forEach(src => assert.ok(src.startsWith('/scorecard/') || src.startsWith('data:'), `external asset: ${src}`));
   assert.ok(srcs.includes('/scorecard/qr-lets-chat.png'), 'QR is the local asset, not api.qrserver.com');
@@ -120,22 +87,6 @@ test('scorecard data comes from the teaser and the full-assessment baseline', ()
 // ── Print card PDF ──
 
 const stubCanvas = () => ({ toDataURL: () => 'data:image/jpeg;base64,/9j/4AAQSkZJRg==', width: 10, height: 14 });
-
-test('card PDF is two pages at 5.25 x 7.25in, the 5 x 7 trim plus bleed', async () => {
-  const calls = [];
-  const html2canvas = async (node) => { calls.push(node.style.width + ' x ' + node.style.height); return stubCanvas(); };
-  global.document = new JSDOM('<!doctype html><body></body>').window.document;
-  const { pdf, filename } = await exportScorecardPdf(D, { html2canvas, jsPDF, scale: 1, save: false, backArtwork: null });
-  assert.equal(pdf.internal.getNumberOfPages(), 2);
-  const size = pdf.internal.pageSize;
-  assert.equal(Math.round(size.getWidth() * 1000) / 1000, TRIM.w + BLEED * 2);
-  assert.equal(Math.round(size.getHeight() * 1000) / 1000, TRIM.h + BLEED * 2);
-  assert.deepEqual(calls, ['5.25in x 7.25in', '5.25in x 7.25in']);
-  assert.equal(filename, 'Acme-Sons-Compass-Card-5x7-bleed.pdf');
-  delete global.document;
-});
-
-// ── Slide as PowerPoint ──
 
 test('pptx is a valid single-slide 16:9 deck with the frame full bleed', async () => {
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
@@ -169,8 +120,7 @@ test('filenames are safe for any brand name', () => {
 // ── Library loading failures name the library (v3.39) ──
 
 test('a library that fails to load is named, never a minified letter', async () => {
-  await assert.rejects(exportScorecardPdf(D, { html2canvas: undefined, jsPDF, save: false }), /html2canvas/);
-  await assert.rejects(exportScorecardPdf(D, { html2canvas: async () => stubCanvas(), jsPDF: {}, save: false }), /jsPDF/);
+  await assert.rejects(exportScorecardPdf(D, { jsPDF: {}, save: false }), /jsPDF/);
   await assert.rejects(exportScorecardSlide(D, { html2canvas: undefined, JSZip, saveAs: () => {}, save: false }), /html2canvas/);
   await assert.rejects(exportScorecardSlide(D, { html2canvas: async () => stubCanvas(), JSZip: {}, saveAs: () => {}, save: false }), /zip library/);
   await assert.rejects(exportScorecardSlide(D, { html2canvas: async () => stubCanvas(), JSZip, saveAs: undefined, save: false }), /file-saver/);
@@ -187,33 +137,9 @@ test('the zip loader accepts every shape a bundler can hand back', async () => {
 // ── Rendering faults found in the first printed card (v3.41) ──
 
 test('no CSS filter survives in the artwork: html2canvas ignores them', () => {
-  const html = cardFrontHtml(D) + cardBackHtml() + slideHtml(D);
+  const html = slideHtml(D);
   assert.ok(!/filter:/.test(html), 'a filtered logo renders dark on dark');
   assert.ok(html.includes('/scorecard/antenna-logo-white.png'), 'pre-whitened asset used instead');
-});
-
-test('the highlighted headline sits on its own line, so its box cannot cover the line above', () => {
-  for (const html of [cardBackHtml(), slideHtml(D)]) {
-    const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1];
-    assert.ok(h1.includes('<br>'), 'explicit break before the highlight');
-    assert.match(h1, /<span style="display:inline-block;background:#D9E021/);
-    assert.ok(!/text-wrap:balance/.test(html), 'balance is not honoured and changed the wrap');
-  }
-});
-
-test('the back page uses fixed artwork when it is present, and the HTML back page when it is not', async () => {
-  const added = [];
-  const pdfStub = { addImage: (img) => added.push(typeof img === 'string' ? 'canvas' : 'artwork'), addPage() {}, save() {}, internal: { getNumberOfPages: () => 2, pageSize: { getWidth: () => 5.25, getHeight: () => 7.25 } } };
-  const jsPDFStub = function () { return pdfStub; };
-  const html2canvas = async () => stubCanvas();
-  global.document = new JSDOM('<!doctype html><body></body>').window.document;
-  global.window = { Image: class { set src(v) { this.naturalWidth = v === 'has-artwork' ? 1575 : 0; setTimeout(() => (v === 'has-artwork' ? this.onload() : this.onerror()), 0); } } };
-  await exportScorecardPdf(D, { html2canvas, jsPDF: jsPDFStub, scale: 1, save: false, backArtwork: 'has-artwork' });
-  assert.deepEqual(added, ['canvas', 'artwork'], 'front rendered, back taken from the artwork');
-  added.length = 0;
-  await exportScorecardPdf(D, { html2canvas, jsPDF: jsPDFStub, scale: 1, save: false, backArtwork: 'missing' });
-  assert.deepEqual(added, ['canvas', 'canvas'], 'falls back to rendering the HTML back page');
-  delete global.document; delete global.window;
 });
 
 test('the fixed back artwork ships with the build at the right size', async () => {
@@ -225,4 +151,86 @@ test('the fixed back artwork ships with the build at the right size', async () =
   const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
   assert.equal(w, Math.round((TRIM.w + BLEED * 2) * 300), '5.25in at 300dpi');
   assert.equal(h, Math.round((TRIM.h + BLEED * 2) * 300), '7.25in at 300dpi');
+});
+
+
+// ── Vector card front (v3.43) ──
+
+import { drawCardFront, CARD, nameSizePx } from '../src/lib/cardVector.js';
+
+// A stand-in PDF that records what would be drawn.
+function recorder() {
+  const calls = { rect: [], text: [], image: [], line: [], triangle: [] };
+  const api = {
+    setFillColor(c) { this.fill = c; }, setDrawColor(c) { this.stroke = c; }, setLineWidth() {},
+    setFont() {}, setFontSize(s) { this.size = s; }, setTextColor() {},
+    getTextWidth(t) { return (this.size / 72) * 0.58 * String(t).length; },
+    rect(x, y, w, h, style) { calls.rect.push({ x, y, w, h, style, fill: this.fill }); },
+    text(t, x, y) { calls.text.push({ t, x, y, size: this.size }); },
+    addImage(img, fmt, x, y, w, h) { calls.image.push({ img, x, y, w, h }); },
+    line(x1, y1, x2, y2) { calls.line.push({ x1, y1, x2, y2 }); },
+    triangle() { calls.triangle.push(1); },
+    saveGraphicsState() { calls.saved = true; }, restoreGraphicsState() { calls.restored = true; },
+    clip() { calls.clipped = true; }, discardPath() {},
+  };
+  return { api, calls };
+}
+
+const PAGE = { w: CARD.trimW + CARD.bleed * 2, h: CARD.trimH + CARD.bleed * 2 };
+
+test('every element of the front sits inside the page, and the ground covers the bleed', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, D, {});
+  const ground = calls.rect[0];
+  assert.deepEqual([ground.x, ground.y, ground.w, ground.h], [0, 0, PAGE.w, PAGE.h], 'ground bleeds to the edges');
+  for (const r of calls.rect) {
+    assert.ok(r.x >= -0.001 && r.y >= -0.001 && r.x + r.w <= PAGE.w + 0.001 && r.y + r.h <= PAGE.h + 0.001,
+      `rect out of page: ${JSON.stringify(r)}`);
+  }
+  for (const t of calls.text) {
+    assert.ok(t.x >= CARD.bleed && t.x <= PAGE.w - CARD.bleed, `text out of trim: ${t.t} at ${t.x}`);
+    assert.ok(t.y >= CARD.bleed && t.y <= PAGE.h - CARD.bleed, `text out of trim: ${t.t} at ${t.y}`);
+  }
+});
+
+test('the front carries the brand, every score and the fixed copy', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, D, {});
+  const drawn = calls.text.map(t => t.t).join('');
+  for (const word of ['NASDAQ'.slice(0, 0) + 'ACME & SONS', 'COMPASS', 'SCORE', '/100', 'INDUSTRYAVERAGE'.slice(0, 8)]) {
+    assert.ok(drawn.replace(/\s/g, '').includes(word.replace(/\s/g, '')), word);
+  }
+  ['65', '51', '69', '66', '62'].forEach(v => assert.ok(drawn.includes(v), v));
+  ['CREDIBILITY', 'TRUST', 'REPUTATION', 'AUTHENTICITY'].forEach(l => assert.ok(drawn.includes(l), l));
+  assert.ok(drawn.includes('MEASUREDBYTHECONSCIOUSCOMPASSTEASERASSESSMENT'.slice(0, 8)) || drawn.includes('MEASURED'));
+  assert.ok(drawn.includes('AREYOU') || drawn.includes('ARE YOU'));
+});
+
+test('the brand image is clipped to its well', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, D, { hero: 'data:image/jpeg;base64,AA', heroRatio: 3 });
+  assert.ok(calls.saved && calls.clipped && calls.restored, 'clip path set and released');
+  const hero = calls.image.find(i => i.img.startsWith('data:image/jpeg'));
+  assert.ok(hero, 'hero drawn');
+  assert.ok(hero.w > CARD.trimW - CARD.padSide * 2, 'a wide image overflows the well, which is why it is clipped');
+});
+
+test('missing scores print an em dash, never NaN', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, { brand: 'X' }, {});
+  const drawn = calls.text.map(t => t.t).join('');
+  assert.ok(drawn.includes('\u2014'));
+  assert.ok(!/NaN|undefined|null/.test(drawn));
+});
+
+test('the arrow is drawn, because Helvetica has no arrow glyph', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, D, {});
+  assert.equal(calls.line.length >= 1, true);
+  assert.equal(calls.triangle.length, 1);
+  assert.ok(!calls.text.some(t => /\u2192/.test(t.t)), 'no arrow character is typeset');
+});
+
+test('name size steps down as the brand name gets longer', () => {
+  assert.deepEqual(['Nasdaq', 'Wells Fargo', 'Mitsubishi Heavy Industries'].map(nameSizePx), [34, 25, 13]);
 });

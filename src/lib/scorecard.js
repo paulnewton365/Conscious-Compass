@@ -17,6 +17,8 @@
 // from, which would break the export. Same destination, same 1000px source.
 // ─────────────────────────────────────────────────────────────
 
+import { drawCardFront, CARD } from './cardVector.js';
+
 const A = {
   // Pre-whitened: the templates whiten the dark logo with a CSS filter, and
   // html2canvas ignores filters, so the logo came out dark on dark.
@@ -61,77 +63,6 @@ export function scorecardData(record, baseline, sectorName) {
     authenticity: r.lensScores?.authenticity,
     img: record?.hero_image || '',
   };
-}
-
-// ── Card, page 1 (front) ──────────────────────────────────────
-
-export function cardFrontHtml(d) {
-  return `<div style="width:100%;height:100%;background:#171B26;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;padding:0.2in 0.22in 0.18in;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:0.1in;border-bottom:1px solid #2A3040;padding-bottom:0.09in;">
-    <div style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:800;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;white-space:nowrap;"><span style="color:#F2F5F0;">The</span> <span style="color:#D9E021;">Conscious</span> <span style="color:#F2F5F0;">Compass</span></div>
-  </div>
-  <div style="margin-top:0.16in;">
-    <div style="display:flex;align-items:stretch;gap:0;">
-      <div style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:900;font-size:${cardNameSize(d.brand)};letter-spacing:0.01em;text-transform:uppercase;line-height:1;color:#F2F5F0;white-space:nowrap;">${esc(d.brand)}</div>
-      <div style="flex:1;min-width:0.3in;align-self:stretch;background:linear-gradient(90deg,rgba(245,239,213,0) 0%,#F5EFD5 25%,#F0DA1E 60%,#E04A26 100%);margin-left:0.1in;"></div>
-    </div>
-  </div>
-  <div style="margin-top:0.14in;position:relative;flex:1;min-height:0;border:1.5px solid #3A4152;background:#0F121A;">
-    <img src="${esc(d.img)}" alt="${esc(d.brand)} homepage" style="width:100%;height:100%;object-fit:cover;display:block;">
-    <div style="position:absolute;right:0;bottom:0.62in;background:rgba(15,18,26,0.88);color:#F2F5F0;display:flex;align-items:center;gap:0.08in;padding:0.05in 0.14in;pointer-events:none;">
-      <div style="font-family:'Space Mono',monospace;font-size:7.5px;letter-spacing:0.12em;text-transform:uppercase;color:#AEBFCB;">Industry average</div>
-      <div style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:900;font-size:15px;line-height:1;">${num(d.baseline)}</div>
-    </div>
-    <div style="position:absolute;right:0;bottom:0;background:#D9E021;color:#171B26;display:flex;align-items:center;gap:0.1in;padding:0.09in 0.14in;pointer-events:none;">
-      <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:0.14em;text-transform:uppercase;line-height:1.3;">Compass<br>Score</div>
-      <div style="display:flex;align-items:baseline;gap:2px;">
-        <div style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:900;font-size:34px;line-height:1;">${num(d.overall)}</div>
-        <div style="font-family:'Archivo',sans-serif;font-weight:400;font-size:12px;line-height:1;">/100</div>
-      </div>
-    </div>
-  </div>
-  <div style="margin-top:0.16in;display:grid;grid-template-columns:repeat(4,1fr);gap:0.08in;">
-    ${[['credibility', 'Credibility'], ['trust', 'Trust'], ['reputation', 'Reputation'], ['authenticity', 'Authenticity']].map(([k, label]) => `<div style="border:1px solid #3A4152;background:#1D2230;padding:0.08in 0 0.09in;text-align:center;">
-      <div style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:900;font-size:26px;line-height:1;color:#F2F5F0;">${num(d[k])}</div>
-      <div style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:700;font-size:7px;letter-spacing:0.12em;text-transform:uppercase;color:#AEBFCB;margin-top:5px;">${label}</div>
-    </div>`).join('\n    ')}
-  </div>
-  <div style="margin-top:0.12in;font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:700;font-size:8.5px;letter-spacing:0.18em;color:#7E8BA0;text-transform:uppercase;">Measured by the Conscious Compass Teaser Assessment</div>
-  <div style="margin-top:0.14in;display:flex;align-items:stretch;">
-    <div style="flex:1;background:#D9E021;color:#171B26;display:flex;align-items:center;gap:0.16in;padding:0.13in 0.18in;">
-      <img src="${A.qr}" alt="QR code" style="width:0.72in;height:0.72in;display:block;flex-shrink:0;image-rendering:pixelated;">
-      <div>
-        <div style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:900;font-size:21px;line-height:1.02;text-transform:uppercase;">Are you<br>conscious?</div>
-        <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:12.5px;line-height:1.3;margin-top:5px;white-space:nowrap;">Scan to find out → antennagroup.com</div>
-      </div>
-      <img src="${A.antennaA}" alt="Antenna" style="height:0.34in;width:auto;display:block;flex-shrink:0;margin-left:auto;">
-    </div>
-  </div>
-</div>`;
-}
-
-// ── Card, page 2 (shared back, identical for every brand) ─────
-
-export function cardBackHtml() {
-  return `<div style="width:100%;height:100%;background:#171B26;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;padding:0.3in 0.3in 0;">
-  <div style="border-bottom:1px solid #2A3040;padding-bottom:0.12in;font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:800;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;white-space:nowrap;"><span style="color:#F2F5F0;">The</span> <span style="color:#D9E021;">Conscious</span> <span style="color:#F2F5F0;">Compass</span></div>
-  <h1 style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:900;font-size:35px;line-height:1.08;margin:0.18in 0 0;text-transform:uppercase;color:#F2F5F0;">Consequential brands are<br><span style="display:inline-block;background:#D9E021;color:#171B26;padding:0 0.04in;">conscious brands</span></h1>
-  <div style="font-size:19px;font-weight:400;line-height:1.5;margin-top:0.2in;display:flex;flex-direction:column;gap:0.14in;text-wrap:pretty;color:#F2F5F0;font-family:'Archivo',sans-serif;">
-    <p style="margin:0 0 0.06in;font-size:24px;font-weight:800;line-height:1.3;">How you show up means something.</p>
-    <p style="margin:0;">Antenna Group’s proprietary brand diagnostic assesses how well brands with purpose meet the world.</p>
-    <p style="margin:0;">It scores your credibility, trust, reputation, and influence, and pinpoints the marketing opportunities that will sharpen your impact.</p>
-    <p style="margin:0.06in 0 0;">Reach out to learn more.</p>
-  </div>
-  <div style="display:flex;align-items:center;gap:0.12in;margin-top:0.22in;">
-    <div style="font-family:'Archivo Expanded','Archivo',sans-serif;font-weight:800;font-size:24px;color:#D9E021;white-space:nowrap;">antennagroup.com</div>
-    <div style="flex:1;height:0.09in;background:linear-gradient(90deg,rgba(240,218,30,0) 0%,#F0DA1E 30%,#E04A26 100%);"></div>
-  </div>
-  <div style="flex:1;"></div>
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:0.25in;border-top:1.5px solid #3A4152;margin-top:0.14in;padding:0.14in 0 0.18in;">
-    <img src="${A.antennaLogo}" alt="Antenna Group" style="height:0.36in;width:auto;display:block;">
-    <img src="${A.howl}" alt="Howl" style="height:0.44in;width:auto;display:block;">
-  </div>
-</div>`;
 }
 
 // ── Slide (1920 x 1080) ───────────────────────────────────────
@@ -250,15 +181,6 @@ export async function renderToCanvas(html, { width, height, scale = 1, html2canv
 
 export const cardFilename = (brand, kind) => `${String(brand || 'brand').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'brand'}-Compass-${kind}`;
 
-// Print card: bleed page with the 5 x 7in artwork centred, so trimming to 5 x 7
-// leaves ink to the edge. The template's rounded corner is dropped here; on a
-// bled, square-trimmed card it would cut to white wedges.
-function bleedWrap(inner) {
-  return `<div style="width:${TRIM.w + BLEED * 2}in;height:${TRIM.h + BLEED * 2}in;background:#171B26;box-sizing:border-box;padding:${BLEED}in;">
-  <div style="width:${TRIM.w}in;height:${TRIM.h}in;overflow:hidden;">${inner}</div>
-</div>`;
-}
-
 // The back page is identical for every brand, so a fixed artwork export beats
 // re-rendering HTML. Drop a 5.25 x 7.25in image (1575 x 2175px at 300dpi) at
 // public/scorecard/card-back.png and it is used instead; without it, the HTML
@@ -276,26 +198,39 @@ export function loadImage(src) {
   });
 }
 
-export async function exportScorecardPdf(d, { html2canvas, jsPDF, scale = 3, save = true, backArtwork = BACK_ARTWORK }) {
-  if (typeof html2canvas !== 'function') throw new Error('The page-rendering library (html2canvas) did not load. Reload the page and try again.');
+export async function exportScorecardPdf(d, { jsPDF, save = true, backArtwork = BACK_ARTWORK, assets = null }) {
   if (typeof jsPDF !== 'function') throw new Error('The PDF library (jsPDF) did not load. Reload the page and try again.');
-  await loadScorecardFonts();
   const w = TRIM.w + BLEED * 2, h = TRIM.h + BLEED * 2;
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: [w, h] });
-  const front = await renderToCanvas(bleedWrap(cardFrontHtml(d)), { width: `${w}in`, height: `${h}in`, scale, html2canvas });
-  pdf.addImage(front.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h);
 
+  // Page 1 is drawn as vector art: sharp at any size, and free of the web
+  // font and renderer differences that HTML rendering brought with it.
+  const art = assets || await loadFrontAssets(d);
+  drawCardFront(pdf, d, art);
+
+  // Page 2 never changes, so it comes from fixed artwork.
   pdf.addPage([w, h], 'portrait');
-  const artwork = backArtwork ? await loadImage(backArtwork) : null;
-  if (artwork) {
-    pdf.addImage(artwork, 'PNG', 0, 0, w, h);
+  const back = backArtwork ? await loadImage(backArtwork) : null;
+  if (back) {
+    pdf.addImage(back, 'PNG', 0, 0, w, h);
   } else {
-    const back = await renderToCanvas(bleedWrap(cardBackHtml()), { width: `${w}in`, height: `${h}in`, scale, html2canvas });
-    pdf.addImage(back.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h);
+    throw new Error('The card back artwork (public/scorecard/card-back.png) is missing from this build, so the card was not created.');
   }
+
   const filename = `${cardFilename(d.brand, 'Card')}-5x7-bleed.pdf`;
   if (save) pdf.save(filename);
   return { pdf, filename };
+}
+
+// Images the front needs, with their aspect ratios.
+export async function loadFrontAssets(d) {
+  const [qr, antennaA, hero] = await Promise.all([loadImage(A.qr), loadImage(A.antennaA), d.img ? loadImage(d.img) : Promise.resolve(null)]);
+  return {
+    qr, antennaA,
+    antennaARatio: antennaA ? antennaA.naturalWidth / antennaA.naturalHeight : 1,
+    hero,
+    heroRatio: hero ? hero.naturalWidth / hero.naturalHeight : 1.6,
+  };
 }
 
 // ── PowerPoint (opens in Google Slides) ───────────────────────

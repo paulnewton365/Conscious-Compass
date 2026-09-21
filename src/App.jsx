@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.42.0';
+const APP_VERSION = '3.43.0';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -14685,7 +14685,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
     setMaking(kind); setHeroError(null);
     try {
       const d = scorecardData(record, baseline, industryNameFull);
-      if (kind === 'card') await exportScorecardPdf(d, { html2canvas, jsPDF });
+      if (kind === 'card') await exportScorecardPdf(d, { jsPDF });
       else await exportScorecardSlide(d, { html2canvas, JSZip: await loadJSZip(), saveAs });
     } catch (e) {
       console.error('Scorecard export failed', e);
