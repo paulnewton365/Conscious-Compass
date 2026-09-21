@@ -811,3 +811,25 @@ test('a missing hero_image column is reported as the SQL that fixes it', async (
   stub.state.saveResult = null;
   await act(async () => root.unmount());
 });
+
+test('exports refuse to start from a tab left open across a deploy', async () => {
+  installFetch(await scoringJson());
+  globalThis.__liveVersion = '99.0.0';
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1', hero_image: 'data:image/jpeg;base64,AAAA' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  stub.state.campaignScores = [{ id: 'a', brand_name: 'Acme', website_url: 'https://acme.com', industry: 'energy', result: rec.result }];
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  stub.calls.length = 0;
+  // campaign download
+  await click(btn(container.querySelector('[data-campaign="c-1"]'), b => b.textContent.includes('Download scores')));
+  for (let i = 0; i < 6; i++) await act(flush);
+  assert.equal(stub.calls.filter(c => c[0] === 'fetchCampaignScores').length, 0, 'no work started');
+  assert.ok(container.textContent.includes('Reload the page'));
+  // slide and card
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  await click(container.querySelector('[data-field="make-slide"]'));
+  for (let i = 0; i < 6; i++) await act(flush);
+  assert.ok(container.textContent.includes('older version of the Compass'));
+  globalThis.__liveVersion = undefined;
+  await act(async () => root.unmount());
+});

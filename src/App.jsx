@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.46.0';
+const APP_VERSION = '3.48.0';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -14660,7 +14660,7 @@ function TeaserProgress({ statuses, scoring, elapsed }) {
   );
 }
 
-function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, onHeroImage = () => {}, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
+function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, onHeroImage = () => {}, onStaleCheck = null, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
   const chartRef = useRef(null);
   const heroRef = useRef(null);
   const payload = makeTeaserClientPayload(record);
@@ -14682,11 +14682,18 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
   };
 
   const makeScorecard = async (kind) => {
-    setMaking(kind); setHeroError(null);
+    setHeroError(null);
+    // A tab left open across a deploy cannot load the files these exports
+    // need, so check before starting rather than failing halfway.
+    if (onStaleCheck && !(await onStaleCheck())) {
+      setHeroError('This page is running an older version of the Compass. Reload the page, then try again.');
+      return;
+    }
+    setMaking(kind);
     try {
       const d = scorecardData(record, baseline, industryNameFull);
       if (kind === 'card') await exportScorecardPdf(d, { jsPDF });
-      else await exportScorecardSlide(d, { html2canvas, JSZip: await loadJSZip(), saveAs });
+      else await exportScorecardSlide(d, { JSZip: await loadJSZip(), saveAs });
     } catch (e) {
       console.error('Scorecard export failed', e);
       setHeroError(`${kind === 'card' ? 'Card' : 'Slide'} export failed: ${e.message}. The browser console has the full detail.`);
@@ -14864,6 +14871,13 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
 
   // Every scoring action goes through this. Returns false, with a message,
   // when the tab is out of date.
+  // True when this tab matches the deployed build.
+  const notStale = async () => {
+    const v = await checkLiveVersion();
+    if (v.stale) { setStaleLive(v.live); return false; }
+    return true;
+  };
+
   const liveGuard = async () => {
     const v = await checkLiveVersion();
     if (v.stale) { setStaleLive(v.live); setError(staleMessage(v.live)); return false; }
@@ -15064,7 +15078,9 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   };
 
   const download = async (c) => {
-    setCampaignBusy(c.id); setError(null);
+    setError(null);
+    if (!(await notStale())) { setError(staleMessage(staleLive || 'a newer version')); return; }
+    setCampaignBusy(c.id);
     try {
       // Baselines are recalculated from full results at every export, so every
       // row in one file is compared against the same day's figures.
@@ -15103,7 +15119,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       <>
       {staleBanner}
       <TeaserReport record={open} busy={busy} progress={progress} error={error}
-        campaigns={campaigns} onMove={moveTo} onHeroImage={saveHero}
+        campaigns={campaigns} onMove={moveTo} onHeroImage={saveHero} onStaleCheck={notStale}
         baseline={benchPool ? teaserSectorBaseline(benchPool, { industry: open.industry, brandName: open.brand_name, totalScore: open.result?.overall }) : null}
         baselineError={benchError}
         onBack={() => { setOpen(null); setError(null); }}

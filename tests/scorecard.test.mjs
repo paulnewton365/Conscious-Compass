@@ -6,7 +6,7 @@ import { JSDOM } from 'jsdom';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import {
-  slideHtml, cardNameSize, slideNameSize,
+  cardNameSize, slideNameSize,
   scorecardReady, scorecardData, buildSlidePptx, exportScorecardPdf, exportScorecardSlide, cardFilename, TRIM, BLEED, SLIDE,
 } from '../src/lib/scorecard.js';
 
@@ -15,53 +15,6 @@ const D = { brand: 'Acme & Sons', sector: 'Energy & Utilities', baseline: 51, ov
 
 // Style attributes carry no brand data apart from the name size, so comparing
 // them against the template is a direct fidelity check.
-const styles = (html) => [...html.matchAll(/style="([^"]*)"/g)].map(m => m[1]
-  .replace(/&quot;/g, '"').replace(/&amp;/g, '&')
-  .replace(/'Archivo Expanded','Archivo',sans-serif/g, "'Archivo Expanded',sans-serif")
-  .replace(/font-size:\s*(\{\{ c\.nameSize \}\}|\d+px);letter-spacing:0\.01em/g, 'font-size:NAMESIZE;letter-spacing:0.01em')
-  // the template's footer colour is a placeholder; the per-brand value is #7E8BA0
-  .replace(/color:\s*(\{\{ c\.footColor \}\}|#7E8BA0);text-transform:uppercase;/g, 'color:FOOTCOLOR;text-transform:uppercase;')
-  .replace(/\s+/g, ' ').trim());
-
-test('slide reuses the template styles exactly, bar the declared change', () => {
-  const template = styles(tpl('slide.dc.html'));
-  // Declared deviation: the template's frame is sized by its runtime wrapper,
-  // so the exported frame carries 1920x1080 itself. Everything else matches.
-  const DEVIATIONS_SLIDE = [
-    'height:38px;width:auto;display:block;',
-    "font-family:'Inter',sans-serif;font-weight:900;font-size:60px;line-height:1.18;margin:0;text-transform:uppercase;color:#F2F5F0;",
-    'display:inline-block;background:#D9E021;color:#171B26;padding:0 8px;',
-  ];
-  const DEVIATION = "width:1920px;height:1080px;background:#171B26;display:flex;flex-direction:column;padding:52px 72px 86px;box-sizing:border-box;overflow:hidden;font-family:'Inter',sans-serif;color:#F2F5F0;";
-  const unmatched = styles(slideHtml(D)).filter(s => !template.includes(s) && s !== DEVIATION && !DEVIATIONS_SLIDE.includes(s));
-  assert.deepEqual(unmatched, [], 'styles not found in the template');
-});
-
-test('brand data lands in both, and nothing is left as a template placeholder', () => {
-  for (const html of [slideHtml(D)]) {
-    assert.ok(!/\{\{|\}\}|sc-if|sc-for|image-slot/.test(html), 'unresolved template syntax');
-    assert.ok(html.includes('Acme &amp; Sons'), 'brand name escaped');
-    for (const v of ['51', '65', '69', '66', '62']) assert.ok(html.includes(`>${v}<`), v);
-    ['Credibility', 'Trust', 'Reputation', 'Authenticity'].forEach(l => assert.ok(html.includes(l)));
-    assert.ok(html.includes('data:image/jpeg;base64,AAAA'), 'hero image');
-  }
-  assert.ok(slideHtml(D).includes('Indicative scores measured by the Conscious Compass Teaser Assessment'));
-});
-
-test('missing scores show as a dash rather than NaN or zero', () => {
-  const html = slideHtml({ ...D, overall: null, baseline: undefined, credibility: 'x' });
-  assert.ok(html.includes('>—<'));
-  assert.ok(!/NaN|undefined|null/.test(html));
-});
-
-test('nothing loads from another origin, or the PDF canvas would be blocked', () => {
-  const html = slideHtml(D);
-  const srcs = [...html.matchAll(/src="([^"]+)"/g)].map(m => m[1]);
-  srcs.forEach(src => assert.ok(src.startsWith('/scorecard/') || src.startsWith('data:'), `external asset: ${src}`));
-  assert.ok(srcs.includes('/scorecard/qr-lets-chat.png'), 'QR is the local asset, not api.qrserver.com');
-  assert.ok(!html.includes('qrserver.com'));
-});
-
 test('name sizes follow the template ladders', () => {
   assert.deepEqual(['Nasdaq', 'Autodesk', 'Wells Fargo', 'Mitsubishi Heavy Industries'].map(cardNameSize), ['34px', '34px', '25px', '13px']);
   assert.deepEqual(['Nasdaq', 'Wells Fargo', 'Mitsubishi Heavy Industries'].map(slideNameSize), ['84px', '66px', '40px']);
@@ -88,15 +41,17 @@ test('scorecard data comes from the teaser and the full-assessment baseline', ()
 
 const stubCanvas = () => ({ toDataURL: () => 'data:image/jpeg;base64,/9j/4AAQSkZJRg==', width: 10, height: 14 });
 
-test('pptx is a valid single-slide 16:9 deck with the frame full bleed', async () => {
+test('pptx is a valid single-slide 16:9 deck with its media embedded', async () => {
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
-  const { zip, filename } = await buildSlidePptx(D, png, JSZip);
+  const jpg = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+  const { zip, filename } = await buildSlidePptx(D, { hero: jpg, heroRatio: 1.6, qr: png, antenna: png, howl: png }, JSZip);
   const back = await JSZip.loadAsync(await zip.generateAsync({ type: 'nodebuffer' }));
   const names = Object.keys(back.files);
   for (const part of ['[Content_Types].xml', '_rels/.rels', 'ppt/presentation.xml', 'ppt/_rels/presentation.xml.rels',
-    'ppt/slideMasters/slideMaster1.xml', 'ppt/slideMasters/_rels/slideMaster1.xml.rels', 'ppt/slideLayouts/slideLayout1.xml',
-    'ppt/slideLayouts/_rels/slideLayout1.xml.rels', 'ppt/slides/slide1.xml', 'ppt/slides/_rels/slide1.xml.rels',
-    'ppt/theme/theme1.xml', 'ppt/media/image1.png']) assert.ok(names.includes(part), `missing ${part}`);
+    'ppt/slideMasters/slideMaster1.xml', 'ppt/slideLayouts/slideLayout1.xml', 'ppt/slides/slide1.xml',
+    'ppt/slides/_rels/slide1.xml.rels', 'ppt/theme/theme1.xml']) assert.ok(names.includes(part), `missing ${part}`);
+  assert.equal(names.filter(n => n.startsWith('ppt/media/') && !back.files[n].dir).length, 4, 'hero, QR and both logos embedded');
+  assert.ok(names.includes('ppt/media/image2.jpeg'), 'the hero keeps its JPEG type');
   const parser = new (new JSDOM('').window.DOMParser)();
   for (const n of names.filter(x => x.endsWith('.xml') || x.endsWith('.rels'))) {
     const doc = parser.parseFromString(await back.file(n).async('string'), 'application/xml');
@@ -104,13 +59,11 @@ test('pptx is a valid single-slide 16:9 deck with the frame full bleed', async (
   }
   const pres = await back.file('ppt/presentation.xml').async('string');
   assert.ok(pres.includes('cx="12192000" cy="6858000"'), '13.333 x 7.5in, Google Slides widescreen');
-  const slide = await back.file('ppt/slides/slide1.xml').async('string');
-  assert.ok(slide.includes('<a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/>'), 'image fills the slide');
-  assert.ok(slide.includes('Acme &amp; Sons Compass Score'), 'brand name escaped in the shape name');
+  const rels = await back.file('ppt/slides/_rels/slide1.xml.rels').async('string');
+  assert.equal((rels.match(/relationships\/image/g) || []).length, 4);
   assert.equal(filename, 'Acme-Sons-Compass-Slide.pptx');
   assert.equal(SLIDE.w / SLIDE.h, 16 / 9);
 });
-
 test('filenames are safe for any brand name', () => {
   assert.equal(cardFilename('H&M', 'Card'), 'H-M-Compass-Card');
   assert.equal(cardFilename('Mercedes-Benz High-Power Charging', 'Slide'), 'Mercedes-Benz-High-Power-Charging-Compass-Slide');
@@ -121,9 +74,8 @@ test('filenames are safe for any brand name', () => {
 
 test('a library that fails to load is named, never a minified letter', async () => {
   await assert.rejects(exportScorecardPdf(D, { jsPDF: {}, save: false }), /jsPDF/);
-  await assert.rejects(exportScorecardSlide(D, { html2canvas: undefined, JSZip, saveAs: () => {}, save: false }), /html2canvas/);
-  await assert.rejects(exportScorecardSlide(D, { html2canvas: async () => stubCanvas(), JSZip: {}, saveAs: () => {}, save: false }), /zip library/);
-  await assert.rejects(exportScorecardSlide(D, { html2canvas: async () => stubCanvas(), JSZip, saveAs: undefined, save: false }), /file-saver/);
+  await assert.rejects(exportScorecardSlide(D, { JSZip: {}, saveAs: () => {}, save: false, media: {} }), /zip library/);
+  await assert.rejects(exportScorecardSlide(D, { JSZip, saveAs: undefined, save: false, media: {} }), /file-saver/);
   await assert.rejects(buildSlidePptx(D, 'data:image/png;base64,AA', {}), /zip library/);
   await assert.rejects(buildSlidePptx(D, 'data:image/png;base64,AA', undefined), /zip library/);
 });
@@ -135,12 +87,6 @@ test('the zip loader accepts every shape a bundler can hand back', async () => {
 
 
 // ── Rendering faults found in the first printed card (v3.41) ──
-
-test('no CSS filter survives in the artwork: html2canvas ignores them', () => {
-  const html = slideHtml(D);
-  assert.ok(!/filter:/.test(html), 'a filtered logo renders dark on dark');
-  assert.ok(html.includes('/scorecard/antenna-logo-white.png'), 'pre-whitened asset used instead');
-});
 
 test('the fixed back artwork ships with the build at the right size', async () => {
   const { statSync, readFileSync: rf } = await import('node:fs');
@@ -308,4 +254,91 @@ test('a renderer without graphics-state support still gets a solid chip, not a m
   drawCardFront(api, D, {});
   const chip = calls.rect.find(r => r.style === 'F' && r.fill === '#0F121A');
   assert.ok(chip, 'chip still drawn');
+});
+
+test('a chunk that no longer exists on the server reads as an out-of-date page', async () => {
+  const src = readFileSync(new URL('../src/lib/lazyZip.js', import.meta.url), 'utf8');
+  assert.match(src, /Reload the page and try again/);
+  assert.match(src, /catch/);
+});
+
+
+// ── Native slide (v3.48) ──
+
+import { slideXml, slideLayout, slideNamePx, SLIDE_PX, EMU_PER_PX } from '../src/lib/slideVector.js';
+
+const RELS = { hero: 'rId2', qr: 'rId3', antenna: 'rId4', howl: 'rId5' };
+
+test('the slide is native shapes and text, not a picture of the frame', () => {
+  const xml = slideXml({ ...D, heroRatio: 1.6 }, RELS);
+  const parsed = new (new JSDOM('').window.DOMParser)().parseFromString(xml, 'application/xml');
+  assert.equal(parsed.getElementsByTagName('parsererror').length, 0, 'well-formed');
+  const shapes = (xml.match(/<p:sp>/g) || []).length;
+  assert.ok(shapes > 20, `expected a shape per element, got ${shapes}`);
+  // Every word a reader sees is real text.
+  for (const t of ['ACME &amp; SONS', 'CONSEQUENTIAL', 'BRANDS ARE', 'CONSCIOUS BRANDS', 'YOUR COMPASS', 'INDUSTRY AVERAGE',
+    'CREDIBILITY', 'TRUST', 'REPUTATION', 'AUTHENTICITY', 'antennagroup.com', 'ARE YOU', 'CONSCIOUS?']) {
+    assert.ok(xml.includes(`<a:t>${t}</a:t>`), t);
+  }
+  ['65', '51', '69', '66', '62'].forEach(v => assert.ok(xml.includes(`<a:t>${v}</a:t>`), v));
+  assert.ok(xml.includes('/100'));
+});
+
+test('1920 x 1080 px maps exactly onto the 13.333 x 7.5in slide', () => {
+  assert.equal(SLIDE_PX.w * EMU_PER_PX, 12192000, '13.333in');
+  assert.equal(SLIDE_PX.h * EMU_PER_PX, 6858000, '7.5in');
+});
+
+test('nothing overflows the slide, and the columns keep the template geometry', () => {
+  const L = slideLayout(D);
+  assert.equal(L.leftX, 72);
+  assert.equal(L.rightX + L.rightW, SLIDE_PX.w - 72, 'right column ends at the padding');
+  assert.ok(L.tileY + L.tileH <= L.bottom + 0.5, 'tiles sit inside the bottom padding');
+  assert.ok(L.wellH > 300, 'the image well takes the space left over');
+  const xml = slideXml(D, RELS);
+  const offs = [...xml.matchAll(/<a:off x="(-?\d+)" y="(-?\d+)"\/><a:ext cx="(\d+)" cy="(\d+)"\/>/g)];
+  offs.forEach(([, x, y, cx, cy]) => {
+    assert.ok(Number(x) + Number(cx) <= 12192000 + 1, 'shape within slide width');
+    assert.ok(Number(y) + Number(cy) <= 6858000 + 1, 'shape within slide height');
+  });
+});
+
+test('the headline highlight and the URL never wrap', () => {
+  const xml = slideXml(D, RELS);
+  const noWrap = [...xml.matchAll(/<a:bodyPr[^>]*wrap="none"[^>]*>/g)];
+  assert.ok(noWrap.length >= 2, 'highlight and link are set not to wrap');
+  // The highlight is its own block, so it cannot paint over the line above.
+  const hi = xml.indexOf('CONSCIOUS BRANDS');
+  const before = xml.slice(0, hi);
+  assert.ok(before.lastIndexOf('D9E021') > before.lastIndexOf('<a:t>BRANDS ARE</a:t>'), 'lime block belongs to the highlight line');
+});
+
+test('line spacing is exact points, since percentage spacing adds the font leading', () => {
+  const xml = slideXml(D, RELS);
+  assert.ok(!xml.includes('spcPct'), 'no percentage line spacing');
+  assert.ok((xml.match(/<a:spcPts val="\d+"\/>/g) || []).length > 10);
+});
+
+test('text is set in Inter, and the name size steps with the brand length', () => {
+  const xml = slideXml(D, RELS);
+  assert.ok(xml.includes('<a:latin typeface="Inter"/>'));
+  assert.deepEqual(['Nasdaq', 'Wells Fargo', 'Mitsubishi Heavy Industries'].map(slideNamePx), [84, 66, 40]);
+});
+
+test('images are referenced by relationship, and a missing one simply drops out', () => {
+  const full = slideXml(D, RELS);
+  ['rId2', 'rId3', 'rId4', 'rId5'].forEach(id => assert.ok(full.includes(`r:embed="${id}"`), id));
+  const none = slideXml(D, {});
+  assert.ok(!none.includes('<p:pic>'), 'no picture shapes without media');
+  assert.ok(none.includes('<a:t>CONSEQUENTIAL</a:t>'), 'the rest of the slide still builds');
+});
+
+test('the brand image is cropped to fill its frame, like object-fit cover', () => {
+  const wide = slideXml({ ...D, heroRatio: 3 }, RELS);
+  const tall = slideXml({ ...D, heroRatio: 0.5 }, RELS);
+  // the brand image, not whichever picture happens to come first
+  const crop = (xml) => xml.slice(xml.indexOf('name="Brand image"')).match(/<a:srcRect l="(\d+)" r="(\d+)" t="(\d+)" b="(\d+)"\/>/);
+  const w = crop(wide), t = crop(tall);
+  assert.ok(Number(w[1]) > 0 && Number(w[3]) === 0, 'a wide image is cropped left and right');
+  assert.ok(Number(t[3]) > 0 && Number(t[1]) === 0, 'a tall image is cropped top and bottom');
 });

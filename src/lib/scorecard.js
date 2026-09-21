@@ -18,13 +18,14 @@
 // ─────────────────────────────────────────────────────────────
 
 import { drawCardFront, CARD } from './cardVector.js';
+import { slideXml, SLIDE_PX } from './slideVector.js';
 
 const A = {
   // Pre-whitened: the templates whiten the dark logo with a CSS filter, and
   // html2canvas ignores filters, so the logo came out dark on dark.
   antennaLogo: '/scorecard/antenna-logo-white.png',
   antennaA: '/scorecard/antenna-a.png',
-  howl: '/scorecard/howl-logo.svg',
+  howl: '/scorecard/howl-logo.png',
   qr: '/scorecard/qr-lets-chat.png',
   // Space Mono, embedded into the PDF for the two plate labels.
   spaceMono: '/scorecard/SpaceMono-Regular.ttf',
@@ -36,8 +37,6 @@ export const TRIM = { w: 5, h: 7 };           // inches
 export const BLEED = 0.125;                    // inches on every side
 export const SLIDE = { w: 1920, h: 1080 };     // px
 
-const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const num = (v) => (Number.isFinite(Number(v)) ? String(Math.round(Number(v))) : '—');
 
 // Type scales from the templates, driven by the length of the brand name.
 export const cardNameSize = (brand) => { const n = String(brand || '').length; return n > 24 ? '13px' : n > 16 ? '17px' : n > 9 ? '25px' : '34px'; };
@@ -67,120 +66,10 @@ export function scorecardData(record, baseline, sectorName) {
   };
 }
 
-// ── Slide (1920 x 1080) ───────────────────────────────────────
-
-export function slideHtml(d) {
-  const tile = (v, label) => `<div style="border:1px solid #3A4152;background:#1D2230;padding:18px 0 20px;text-align:center;">
-        <div style="font-family:'Inter',sans-serif;font-weight:900;font-size:54px;line-height:1;color:#F2F5F0;">${num(v)}</div>
-        <div style="font-family:'Inter',sans-serif;font-weight:700;font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#AEBFCB;margin-top:12px;">${label}</div>
-      </div>`;
-  return `<div style="width:1920px;height:1080px;background:#171B26;display:flex;flex-direction:column;padding:52px 72px 86px;box-sizing:border-box;overflow:hidden;font-family:'Inter',sans-serif;color:#F2F5F0;">
-  <div style="display:flex;align-items:center;gap:32px;padding-bottom:22px;">
-    <div style="font-family:'Inter',sans-serif;font-weight:800;font-size:27px;letter-spacing:0.14em;white-space:nowrap;"><span style="color:#F2F5F0;">The</span> <span style="color:#D9E021;">conscious</span> <span style="color:#F2F5F0;">compass</span></div>
-    <div style="flex:1;"></div>
-    <div style="display:flex;align-items:center;gap:28px;">
-      <img src="${A.antennaLogo}" alt="Antenna Group" style="height:38px;width:auto;display:block;">
-      <img src="${A.howl}" alt="Howl" style="height:46px;width:auto;display:block;">
-    </div>
-  </div>
-  <div style="flex:1;min-height:0;display:grid;grid-template-columns:1.15fr 0.85fr;gap:56px;padding-top:28px;">
-    <div style="min-width:0;display:flex;flex-direction:column;">
-      <div style="display:flex;align-items:stretch;gap:24px;">
-        <div style="font-family:'Inter',sans-serif;font-weight:900;font-size:${slideNameSize(d.brand)};letter-spacing:0.01em;text-transform:uppercase;line-height:1;color:#F2F5F0;white-space:nowrap;">${esc(d.brand)}</div>
-      </div>
-      <div style="margin-top:26px;position:relative;flex:1;min-height:0;border:3px solid #3A4152;background:#0F121A;overflow:hidden;">
-        <img src="${esc(d.img)}" alt="${esc(d.brand)} homepage" style="width:100%;height:100%;object-fit:cover;display:block;">
-        <div style="position:absolute;right:0;bottom:122px;background:rgba(15,18,26,0.88);display:flex;align-items:center;gap:16px;padding:12px 28px;">
-          <div style="font-family:'Inter',sans-serif;font-size:15px;letter-spacing:0.12em;text-transform:uppercase;color:#AEBFCB;">Industry average</div>
-          <div style="font-family:'Inter',sans-serif;font-weight:900;font-size:32px;line-height:1;color:#F2F5F0;">${num(d.baseline)}</div>
-        </div>
-        <div style="position:absolute;right:0;bottom:0;background:#D9E021;color:#171B26;display:flex;align-items:center;gap:22px;padding:20px 28px;">
-          <div style="font-family:'Inter',sans-serif;font-size:16px;letter-spacing:0.14em;text-transform:uppercase;line-height:1.3;">Your Compass<br>Score</div>
-          <div style="display:flex;align-items:baseline;gap:4px;">
-            <div style="font-family:'Inter',sans-serif;font-weight:900;font-size:76px;line-height:1;">${num(d.overall)}</div>
-            <div style="font-family:'Inter',sans-serif;font-weight:400;font-size:26px;line-height:1;">/100</div>
-          </div>
-        </div>
-      </div>
-      <div style="margin-top:22px;font-family:'Inter',sans-serif;font-weight:700;font-size:15px;letter-spacing:0.18em;color:#7E8BA0;text-transform:uppercase;">Indicative scores measured by the Conscious Compass Teaser Assessment</div>
-      <div style="margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
-        ${tile(d.credibility, 'Credibility')}
-        ${tile(d.trust, 'Trust')}
-        ${tile(d.reputation, 'Reputation')}
-        ${tile(d.authenticity, 'Authenticity')}
-      </div>
-    </div>
-    <div style="min-width:0;display:flex;flex-direction:column;">
-      <h1 style="font-family:'Inter',sans-serif;font-weight:900;font-size:60px;line-height:1.18;margin:0;text-transform:uppercase;color:#F2F5F0;">Consequential brands are<br><span style="display:inline-block;background:#D9E021;color:#171B26;padding:0 8px;">conscious brands</span></h1>
-      <div style="font-size:26px;font-weight:400;line-height:1.26;margin-top:18px;display:flex;flex-direction:column;gap:12px;text-wrap:pretty;color:#F2F5F0;">
-        <p style="margin:0;font-size:34px;font-weight:800;line-height:1.2;">How you show up means something.</p>
-        <p style="margin:0;">Antenna Group’s proprietary brand diagnostic assesses how well brands with purpose meet the world.</p>
-        <p style="margin:0;">It scores your credibility, trust, reputation, and influence, and pinpoints the marketing opportunities that will sharpen your impact.</p>
-        <p style="margin:0;margin-top:8px;border-top:1px solid #3A4152;padding-top:12px;font-size:23.4px;">The scores shown here come from our teaser assessment.<br>Contact us for a deeper dive into your brand.</p>
-      </div>
-      <div style="display:flex;align-items:center;gap:20px;margin-top:20px;">
-        <span style="font-family:'Inter',sans-serif;font-weight:800;font-size:36px;color:#D9E021;white-space:nowrap;text-decoration:none;">antennagroup.com</span>
-        <div style="flex:1;height:10px;background:linear-gradient(90deg,rgba(240,218,30,0) 0%,#F0DA1E 30%,#E04A26 100%);"></div>
-      </div>
-      <div style="flex:1;min-height:24px;"></div>
-      <div style="background:#D9E021;color:#171B26;display:flex;align-items:center;gap:28px;padding:26px 30px;">
-        <img src="${A.qr}" alt="QR code" style="width:126px;height:126px;display:block;flex-shrink:0;image-rendering:pixelated;">
-        <div>
-          <div style="font-family:'Inter',sans-serif;font-weight:900;font-size:36px;line-height:1.02;text-transform:uppercase;">Are you<br>conscious?</div>
-          <div style="font-family:'Inter',sans-serif;font-weight:700;font-size:21px;line-height:1.3;margin-top:10px;">Scan to find out → antennagroup.com</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>`;
-}
-
 // ── Rendering ─────────────────────────────────────────────────
 
-// The templates' own Google Fonts requests. Loaded on demand so the rest of
-// the app never pays for them.
-const FONT_HREFS = [
-  'https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap',
-  // Archivo Expanded is the width axis of Archivo; requested both ways so the
-  // card keeps its expanded headline whichever the font service serves.
-  'https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@600;700;800;900&display=swap',
-  'https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,400..900&display=swap',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap',
-];
-
-export async function loadScorecardFonts(doc = document) {
-  FONT_HREFS.forEach(href => {
-    if (doc.querySelector(`link[href="${href}"]`)) return;
-    const l = doc.createElement('link');
-    l.rel = 'stylesheet'; l.href = href;
-    doc.head.appendChild(l);
-  });
-  try { await doc.fonts.ready; } catch { /* fonts API unavailable */ }
-}
-
-// Renders a fragment offscreen at a fixed size and returns a canvas.
-export async function renderToCanvas(html, { width, height, scale = 1, html2canvas }) {
-  if (typeof html2canvas !== 'function') throw new Error('The page-rendering library (html2canvas) did not load. Reload the page and try again.');
-  const host = document.createElement('div');
-  host.setAttribute('data-scorecard-render', 'true');
-  host.style.cssText = `position:fixed;left:-20000px;top:0;width:${width};height:${height};overflow:hidden;background:#171B26;`;
-  host.innerHTML = html;
-  document.body.appendChild(host);
-  try {
-    // Images must be decoded before the canvas is drawn, or they come out
-    // blank. Each gets a deadline: a stalled image draws as a gap, it never
-    // leaves the export hanging with a spinner.
-    await Promise.all([...host.querySelectorAll('img')].map(img => (img.complete && img.naturalWidth ? Promise.resolve() : new Promise(res => {
-      const done = () => { clearTimeout(timer); res(); };
-      const timer = setTimeout(done, IMAGE_TIMEOUT_MS);
-      img.onload = done; img.onerror = done;
-    }))));
-    return await html2canvas(host, { scale, backgroundColor: '#171B26', logging: false, useCORS: true, width: host.offsetWidth, height: host.offsetHeight });
-  } finally {
-    host.remove();
-  }
-}
-
+// Kept for reference while the card was rendered from HTML; nothing loads
+// fonts at export time now.
 export const cardFilename = (brand, kind) => `${String(brand || 'brand').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'brand'}-Compass-${kind}`;
 
 // The back page is identical for every brand, so a fixed artwork export beats
@@ -264,6 +153,8 @@ const PPTX_PARTS = {
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
 <Default Extension="png" ContentType="image/png"/>
+<Default Extension="jpeg" ContentType="image/jpeg"/>
+<Default Extension="jpg" ContentType="image/jpeg"/>
 <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
 <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
 <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
@@ -321,38 +212,68 @@ const PPTX_PARTS = {
 </a:theme>`,
 };
 
-const slideXml = (brand) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
-<p:cSld><p:spTree>
-<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
-<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${EMU.w}" cy="${EMU.h}"/><a:chOff x="0" y="0"/><a:chExt cx="${EMU.w}" cy="${EMU.h}"/></a:xfrm></p:grpSpPr>
-<p:pic>
-<p:nvPicPr><p:cNvPr id="2" name="${esc(brand)} Compass Score"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>
-<p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
-<p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${EMU.w}" cy="${EMU.h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
-</p:pic>
-</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
-</p:sld>`;
-
 const dataUrlToBase64 = (u) => String(u).split(',')[1] || '';
 
-export async function buildSlidePptx(d, pngDataUrl, JSZip) {
+// Assembles the .pptx. Images are embedded as media parts and referenced by
+// the slide's shapes, so everything on the slide stays editable text.
+export async function buildSlidePptx(d, media, JSZip) {
   if (typeof JSZip !== 'function') throw new Error('The zip library could not be loaded, so the slide could not be built. Reload the page and try again.');
   const zip = new JSZip();
   Object.entries(PPTX_PARTS).forEach(([path, xml]) => zip.file(path, xml));
-  zip.file('ppt/slides/slide1.xml', slideXml(d.brand));
-  zip.file('ppt/media/image1.png', dataUrlToBase64(pngDataUrl), { base64: true });
+
+  // media: { hero, qr, antenna, howl } as data URLs, plus heroRatio.
+  const rels = {};
+  const relXml = ['<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'];
+  let n = 1;
+  for (const key of ['hero', 'qr', 'antenna', 'howl']) {
+    const url = media?.[key];
+    if (!url) continue;
+    const ext = /^data:image\/jpe?g/.test(url) ? 'jpeg' : 'png';
+    const id = `rId${++n}`;
+    rels[key] = id;
+    zip.file(`ppt/media/image${n}.${ext}`, dataUrlToBase64(url), { base64: true });
+    relXml.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${n}.${ext}"/>`);
+  }
+  zip.file('ppt/slides/_rels/slide1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${relXml.join('\n')}
+</Relationships>`);
+  zip.file('ppt/slides/slide1.xml', slideXml({ ...d, heroRatio: media?.heroRatio }, rels));
   return { zip, filename: `${cardFilename(d.brand, 'Slide')}.pptx` };
 }
 
-export async function exportScorecardSlide(d, { html2canvas, JSZip, saveAs, scale = 1, save = true }) {
-  if (typeof html2canvas !== 'function') throw new Error('The page-rendering library (html2canvas) did not load. Reload the page and try again.');
-  if (typeof JSZip !== 'function') throw new Error('The zip library could not be loaded, so the slide could not be built. Reload the page and try again.');
+export async function exportScorecardSlide(d, { JSZip, saveAs, save = true, media = null }) {
   if (typeof saveAs !== 'function') throw new Error('The download helper (file-saver) did not load. Reload the page and try again.');
-  await loadScorecardFonts();
-  const canvas = await renderToCanvas(slideHtml(d), { width: `${SLIDE.w}px`, height: `${SLIDE.h}px`, scale, html2canvas });
-  const { zip, filename } = await buildSlidePptx(d, canvas.toDataURL('image/png'), JSZip);
+  const assets = media || await loadSlideMedia(d);
+  const { zip, filename } = await buildSlidePptx(d, assets, JSZip);
   const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
   if (save) saveAs(blob, filename);
   return { blob, filename };
+}
+
+// The slide's images, as data URLs the .pptx can embed.
+export async function loadSlideMedia(d) {
+  const [qr, antenna, howl] = await Promise.all([fetchDataUrl(A.qr), fetchDataUrl(A.antennaLogo), fetchDataUrl(A.howl)]);
+  let heroRatio = 1.6;
+  if (d.img) {
+    const img = await loadImage(d.img);
+    if (img && img.naturalWidth) heroRatio = img.naturalWidth / img.naturalHeight;
+  }
+  return { hero: d.img || null, qr, antenna, howl, heroRatio };
+}
+
+export async function fetchDataUrl(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
 }
