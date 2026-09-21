@@ -134,8 +134,8 @@ export function drawCardFront(pdf, d, assets = {}) {
   const imageBottom = bottom - limeH - 0.14 - footH - 0.12 - tileH - TILES_TOP_GAP;
   const imageH = imageBottom - imageTop;
 
-  // Image well: border, ground, then the brand image cropped to fill (the
-  // template's object-fit: cover).
+  // Image well: ground, then the brand image cropped to fill (the template's
+  // object-fit: cover). No keyline: the grey border was dropped by request.
   pdf.setFillColor(C.imageWell);
   pdf.rect(L, imageTop, W, imageH, 'F');
   if (assets.hero) {
@@ -152,9 +152,6 @@ export function drawCardFront(pdf, d, assets = {}) {
     pdf.addImage(assets.hero, 'JPEG', dx, dy, dw, dh);
     pdf.restoreGraphicsState();
   }
-  pdf.setDrawColor(C.keyline);
-  pdf.setLineWidth(1.5 * PX);
-  pdf.rect(L, imageTop, W, imageH, 'S');
 
   // Score plate, bottom right inside the well, and the average chip above it.
   const plateH = 0.09 * 2 + 34 * PX;

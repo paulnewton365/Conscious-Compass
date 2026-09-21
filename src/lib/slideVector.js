@@ -135,8 +135,9 @@ export function buildSlideShapes(d, rels = {}) {
   s.push(textBox('Brand', L.leftX, L.nameY, L.leftW, L.namePx * 1.1,
     para(run(String(d.brand || '').toUpperCase(), { size: L.namePx, tracking: 0.01 }), { lineHeight: 1, size: L.namePx })));
 
-  s.push(rect('Image well', L.leftX, L.wellY, L.leftW, L.wellH, C.well, { line: C.keyline, lineW: 3 }));
-  if (rels.hero) s.push(picture('Brand image', rels.hero, L.leftX + 3, L.wellY + 3, L.leftW - 6, L.wellH - 6, d.heroRatio || 1.6));
+  // No keyline around the image: the grey border was dropped by request.
+  s.push(rect('Image well', L.leftX, L.wellY, L.leftW, L.wellH, C.well));
+  if (rels.hero) s.push(picture('Brand image', rels.hero, L.leftX, L.wellY, L.leftW, L.wellH, d.heroRatio || 1.6));
 
   const plateY = L.wellY + L.wellH - L.plateH;
   const chipY = L.wellY + L.wellH - L.chipAbove - L.chipH;

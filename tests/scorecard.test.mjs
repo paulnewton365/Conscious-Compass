@@ -342,3 +342,19 @@ test('the brand image is cropped to fill its frame, like object-fit cover', () =
   assert.ok(Number(w[1]) > 0 && Number(w[3]) === 0, 'a wide image is cropped left and right');
   assert.ok(Number(t[3]) > 0 && Number(t[1]) === 0, 'a tall image is cropped top and bottom');
 });
+
+
+test('no keyline is drawn around the image, on the card or the slide', () => {
+  const { api, calls } = recorder();
+  drawCardFront(api, D, { hero: 'data:image/jpeg;base64,AA', heroRatio: 1.6 });
+  const well = calls.rect.find(r => r.style === 'F' && r.fill === '#0F121A');
+  const outlines = calls.rect.filter(r => r.style === 'S' && Math.abs(r.w - well.w) < 0.001 && Math.abs(r.h - well.h) < 0.001);
+  assert.equal(outlines.length, 0, 'the image well has no stroked border');
+  // Tiles keep theirs.
+  assert.ok(calls.rect.some(r => r.style === 'S'), 'tile borders are still drawn');
+
+  const xml = slideXml({ ...D, heroRatio: 1.6 }, RELS);
+  const wellShape = xml.slice(xml.indexOf('name="Image well"'), xml.indexOf('name="Brand image"'));
+  assert.ok(wellShape.includes('<a:ln><a:noFill/></a:ln>'), 'slide image well has no line');
+  assert.ok(!wellShape.includes('3A4152'), 'no keyline colour on the well');
+});
