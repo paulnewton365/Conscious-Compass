@@ -143,18 +143,22 @@ export function buildSlideShapes(d, rels = {}) {
   const chipY = L.wellY + L.wellH - L.chipAbove - L.chipH;
   const chipLabelW = 190, chipNumW = 46, chipW = 28 * 2 + chipLabelW + 16 + chipNumW;
   s.push(rect('Industry average', L.leftX + L.leftW - chipW, chipY, chipW, L.chipH, C.well, { alpha: 0.88 }));
-  s.push(textBox('Industry average label', L.leftX + L.leftW - chipW + 28, chipY + 18, chipLabelW, 24,
-    para(run('INDUSTRY AVERAGE', { size: 15, color: C.muted, bold: false, tracking: 0.12 }), { size: 15, lineHeight: 1.2 })));
-  s.push(textBox('Industry average value', L.leftX + L.leftW - 28 - chipNumW, chipY + 10, chipNumW, 40,
+  s.push(textBox('Industry average label', L.leftX + L.leftW - chipW + 28, chipY + 19.7, chipLabelW, 24,
+    para(run('INDUSTRY AVERAGE', { size: 16, color: C.muted, bold: false, tracking: 0.12 }), { size: 16, lineHeight: 18 / 16 })));
+  s.push(textBox('Industry average value', L.leftX + L.leftW - 28 - chipNumW, chipY + 11.7, chipNumW, 40,
     para(run(num(d.baseline), { size: 32 }), { align: 'r', size: 32, lineHeight: 1 })));
 
-  const plateLabelW = 200, plateNumW = 190;
-  const plateW = 28 * 2 + plateLabelW + 22 + plateNumW;
+  // Plate geometry and copy from the reference deck: "TEASER SCORE" at 24px,
+  // in a wider label box, with the number sitting lower to match.
+  const plateLabelW = 222, plateNumW = 190;
+  const plateW = 468;
   s.push(rect('Compass score plate', L.leftX + L.leftW - plateW, plateY, plateW, L.plateH, C.lime));
-  s.push(textBox('Compass score label', L.leftX + L.leftW - plateW + 28, plateY + 32, plateLabelW, 60,
-    para(run('YOUR COMPASS', { size: 16, color: C.ground, bold: false, tracking: 0.14 }), { lineHeight: 1.3, size: 16 }) +
-    para(run('SCORE', { size: 16, color: C.ground, bold: false, tracking: 0.14 }), { lineHeight: 1.3, size: 16 })));
-  s.push(textBox('Compass score value', L.leftX + L.leftW - 28 - plateNumW, plateY + 18, plateNumW, 86,
+  // Two lines, always: a viewer without Inter substitutes a wider face and
+  // would otherwise wrap this to four lines and spill out of the plate.
+  s.push(textBox('Compass score label', L.leftX + L.leftW - plateW + 28, plateY + 30.5, plateLabelW, 60,
+    para(run('YOUR COMPASS', { size: 24, color: C.ground, tracking: 0.14 }), { lineHeight: 26.8 / 24, size: 24 }) +
+    para(run('TEASER SCORE', { size: 24, color: C.ground, tracking: 0.14 }), { lineHeight: 26.8 / 24, size: 24 }), { wrap: 'none' }));
+  s.push(textBox('Compass score value', L.leftX + L.leftW - 28 - plateNumW, plateY + 24.9, plateNumW, 86,
     para(run(num(d.overall), { size: 76, color: C.ground }) + run('/100', { size: 26, color: C.ground, bold: false }), { align: 'r', lineHeight: 1, size: 76 })));
 
   s.push(textBox('Measured by', L.leftX, L.footY, L.leftW, L.footH + 6,
@@ -164,56 +168,51 @@ export function buildSlideShapes(d, rels = {}) {
     .forEach(([key, label], i) => {
       const x = L.leftX + i * (L.tileW + L.tileGap);
       s.push(rect(`Tile ${label}`, x, L.tileY, L.tileW, L.tileH, C.panel, { line: C.keyline, lineW: 1 }));
-      s.push(textBox(`${label} value`, x, L.tileY + 18, L.tileW, 60, para(run(num(d[key]), { size: 54 }), { align: 'ctr', lineHeight: 1, size: 54 })));
-      s.push(textBox(`${label} label`, x, L.tileY + 18 + 54 + 12, L.tileW, 24, para(run(label, { size: 14, color: C.muted, tracking: 0.12 }), { align: 'ctr', size: 14, lineHeight: 1.2 })));
+      s.push(textBox(`${label} value`, x, L.tileY + 30.1, L.tileW, 60, para(run(num(d[key]), { size: 66 }), { align: 'ctr', lineHeight: 54 / 66, size: 66 })));
+      s.push(textBox(`${label} label`, x, L.tileY + 87.5, L.tileW, 24, para(run(label, { size: 16, color: C.muted, tracking: 0.12 }), { align: 'ctr', size: 16, lineHeight: 16.8 / 16 })));
     });
 
   // Right column.
-  let y = L.gridTop;
-  const headSize = 60, headLine = 1.18, headStep = headSize * headLine;
+  // Right column positions come from the cleaned-up reference deck, not from
+  // stacking heights: the divider and separate teaser note were removed there,
+  // and the note now runs on as the last paragraphs of the body.
+  const headSize = 58, headStep = 63.85, headLine = 70.8 / headSize;
   ['CONSEQUENTIAL', 'BRANDS ARE'].forEach((line, i) => {
-    s.push(textBox(`Headline ${i + 1}`, L.rightX, y + i * headStep, L.rightW, headStep,
+    s.push(textBox(`Headline ${i + 1}`, L.rightX, L.gridTop + i * headStep, L.rightW, 70.8,
       para(run(line, { size: headSize }), { lineHeight: headLine, size: headSize })));
   });
-  y += headStep * 2;
   // The highlight is a lime block behind its own line, so it can never sit
   // over the line above the way an inline background did.
-  const highlightText = 'CONSCIOUS BRANDS';
-  const highlightW = Math.min(L.rightW, Math.round(headSize * 0.72 * highlightText.length) + 20);
-  s.push(rect('Highlight', L.rightX, y, highlightW, headStep, C.lime, {
+  s.push(rect('Highlight', L.rightX, L.gridTop + headStep * 2, 650.9, 70.8, C.lime, {
     insets: 8, anchor: 'ctr', wrap: 'none',
-    paras: para(run(highlightText, { size: headSize, color: C.ground }), { lineHeight: headLine, size: headSize }),
+    paras: para(run('CONSCIOUS BRANDS', { size: headSize, color: C.ground }), { lineHeight: headLine, size: headSize }),
   }));
-  y += headStep + 20;
 
-  s.push(textBox('Lead', L.rightX, y, L.rightW, 48, para(run('How you show up means something.', { size: 34 }), { lineHeight: 1.2, size: 34 })));
-  y += 34 * 1.2 + 12;
-  const bodyA = 'Antenna Group\u2019s proprietary brand diagnostic assesses how well brands with purpose meet the world.';
-  const bodyB = 'It scores your credibility, trust, reputation, and influence, and pinpoints the marketing opportunities that will sharpen your impact.';
-  s.push(textBox('Body', L.rightX, y, L.rightW, 26 * 1.26 * 6,
-    para(run(bodyA, { size: 26, bold: false }), { lineHeight: 1.26, size: 26 }) +
-    para(run(bodyB, { size: 26, bold: false }), { lineHeight: 1.26, size: 26, spaceBefore: 12 })));
-  y += 26 * 1.26 * 5 + 12;
+  s.push(textBox('Lead', L.rightX, 371.7, L.rightW, 48,
+    para(run('How you show up means something.', { size: 34 }), { lineHeight: 40.8 / 34, size: 34 })));
 
-  s.push(rect('Divider', L.rightX, y, L.rightW, 1, C.keyline));
-  y += 13;
-  s.push(textBox('Teaser note', L.rightX, y, L.rightW, 23.4 * 1.26 * 2 + 8,
-    para(run('The scores shown here come from our teaser assessment.', { size: 23.4, bold: false }), { lineHeight: 1.26, size: 23.4 }) +
-    para(run('Contact us for a deeper dive into your brand.', { size: 23.4, bold: false }), { lineHeight: 1.26, size: 23.4 })));
-  y += 23.4 * 1.26 * 2 + 20;
+  const bodySize = 23, bodyLine = 35.2 / bodySize;
+  const bodyParas = [
+    'Antenna Group\u2019s proprietary brand diagnostic assesses how well brands with purpose meet the world.',
+    'It scores your credibility, trust, reputation, and influence, and pinpoints the marketing opportunities that will sharpen your impact.',
+    'The scores shown here come from our teaser assessment.',
+    'Contact us for a deeper dive into your brand.',
+  ];
+  s.push(textBox('Body', L.rightX, 436.7, 711, 196.6,
+    bodyParas.map(t => para(run(t, { size: bodySize, bold: false }), { lineHeight: bodyLine, size: bodySize, spaceBefore: 12 })).join('')));
 
-  const linkW = 380;
-  s.push(textBox('Link', L.rightX, y, linkW, 48, para(run('antennagroup.com', { size: 36, color: C.lime }), { lineHeight: 1.2, size: 36 }), { wrap: 'none' }));
-  s.push(gradientBar('Gradient', L.rightX + linkW + 20, y + 16, L.rightW - linkW - 20, 10));
+  s.push(textBox('Link', L.rightX, 749.5, 380, 48,
+    para(run('antennagroup.com', { size: 36, color: C.lime }), { lineHeight: 43.2 / 36, size: 36 }), { wrap: 'none' }));
+  s.push(gradientBar('Gradient', 1517, 765.5, 331, 10));
 
   const qrY = L.bottom - L.qrBlockH;
   s.push(rect('Call to action', L.rightX, qrY, L.rightW, L.qrBlockH, C.lime));
   if (rels.qr) s.push(picture('QR code', rels.qr, L.rightX + 30, qrY + 26, 126, 126, 1));
-  s.push(textBox('CTA head', L.rightX + 30 + 126 + 28, qrY + 30, L.rightW - 30 - 126 - 28 - 30, 90,
-    para(run('ARE YOU', { size: 36, color: C.ground }), { lineHeight: 1.02, size: 36 }) +
-    para(run('CONSCIOUS?', { size: 36, color: C.ground }), { lineHeight: 1.02, size: 36 })));
-  s.push(textBox('CTA sub', L.rightX + 30 + 126 + 28, qrY + 30 + 36 * 1.02 * 2 + 10, L.rightW - 30 - 126 - 58, 30,
-    para(run('Scan to find out \u2192 antennagroup.com', { size: 21, color: C.ground }), { lineHeight: 1.3, size: 21 })));
+  s.push(textBox('CTA head', 1290.6, qrY + 30, 517, 90,
+    para(run('ARE YOU', { size: 36, color: C.ground }), { lineHeight: 36.7 / 36, size: 36 }) +
+    para(run('CONSCIOUS?', { size: 36, color: C.ground }), { lineHeight: 36.7 / 36, size: 36 })));
+  s.push(textBox('CTA sub', 1288.9, 941.6, 517, 30,
+    para(run('Scan to find out \u2192 antennagroup.com', { size: 21, color: C.ground }), { lineHeight: 27.3 / 21, size: 21 })));
 
   return s.join('\n');
 }

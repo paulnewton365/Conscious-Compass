@@ -358,3 +358,24 @@ test('no keyline is drawn around the image, on the card or the slide', () => {
   assert.ok(wellShape.includes('<a:ln><a:noFill/></a:ln>'), 'slide image well has no line');
   assert.ok(!wellShape.includes('3A4152'), 'no keyline colour on the well');
 });
+
+test('the slide follows the cleaned-up reference deck (v3.52)', () => {
+  const xml = slideXml({ ...D, heroRatio: 1.6 }, RELS);
+  // The divider and the separate teaser note were removed there; the note now
+  // runs on as the last paragraphs of the body.
+  assert.ok(!xml.includes('name="Divider"'));
+  assert.ok(!xml.includes('name="Teaser note"'));
+  const body = xml.slice(xml.indexOf('name="Body"'), xml.indexOf('name="Link"'));
+  assert.ok(body.includes('The scores shown here come from our teaser assessment.'));
+  assert.ok(body.includes('Contact us for a deeper dive into your brand.'));
+  assert.equal((body.match(/<a:p>/g) || []).length, 4, 'four body paragraphs');
+  // Sizes as set in the reference: headline 58, body 23, tiles 66/16,
+  // plate label 20 bold, chip label 16.
+  assert.ok(xml.includes(`sz="${58 * 50}"`), 'headline 58px');
+  assert.ok(body.includes(`sz="${23 * 50}"`), 'body 23px');
+  const tile = xml.slice(xml.indexOf('name="CREDIBILITY value"'), xml.indexOf('name="Tile TRUST"'));
+  assert.ok(tile.includes(`sz="${66 * 50}"`), 'tile value 66px');
+  const plateLabel = xml.slice(xml.indexOf('name="Compass score label"'), xml.indexOf('name="Compass score value"'));
+  assert.ok(plateLabel.includes(`sz="${24 * 50}"`) && plateLabel.includes('b="1"'), 'plate label 24px bold');
+  assert.ok(plateLabel.includes('<a:t>YOUR COMPASS</a:t>') && plateLabel.includes('<a:t>TEASER SCORE</a:t>'), 'the plate says TEASER SCORE');
+});
