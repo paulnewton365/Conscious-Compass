@@ -373,3 +373,13 @@ test('no default framework colours are left in the app', () => {
   ['#F59E0B', '#D97706', '#6366F1', '#E53935', '#059669'].forEach(hex =>
     assert.ok(!app.toUpperCase().includes(hex), `${hex} is a framework default, not a token`));
 });
+
+test('the shell and form rules match the screen examples', () => {
+  const css = read('src/index.css');
+  assert.match(css, /\.dc-header \{[^}]*height: 64px/);
+  assert.match(css, /\.dc-nav-active \{[^}]*border-bottom: 2px solid var\(--cc-rust-text/);
+  assert.match(css, /--cc-gutter: 80px/, 'the screens use 80px page padding');
+  // fields: 44px, hairline, 2px radius, everywhere rather than per screen
+  assert.match(css, /\.dc-page select \{ height: 44px; \}/);
+  assert.match(css, /border: 1px solid var\(--cc-faint, #8A8E95\)/);
+});

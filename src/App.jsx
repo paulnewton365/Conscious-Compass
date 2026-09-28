@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.65.0';
+const APP_VERSION = '3.66.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -2314,10 +2314,10 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
   // Active nav carries a lime underline rather than a filled block, which is
   // how the redesign signals position.
   const navBtnClass = (page) =>
-    `flex items-center gap-2 px-1 py-1 transition-colors text-[12px] font-semibold tracking-[0.04em] ${
+    `flex items-center gap-2 h-full px-1 transition-colors text-[13.5px] ${
       activePage === page
         ? 'dc-nav-active'
-        : 'text-[#5B6068] hover:text-[#15171A]'
+        : 'font-medium text-[#5B6068] hover:text-[#15171A]'
     }`;
 
   const mobileNavBtnClass = (page) =>
@@ -2328,8 +2328,8 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
     }`;
   
   return (
-    <header className="bg-white border-b-2 border-[#15171A] py-4 md:py-[18px] px-4 md:px-6">
-      <div className="dc-wrap flex items-center justify-between gap-6 flex-wrap">
+    <header className="dc-header">
+      <div className="dc-wrap flex items-center justify-between gap-6 h-full">
         <button onClick={onGoHome || onNewAssessment} className="flex items-center gap-2 md:gap-4 hover:opacity-75 transition-opacity">
           <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
           <div className="hidden lg:block h-6 w-px bg-[#15171A]" />

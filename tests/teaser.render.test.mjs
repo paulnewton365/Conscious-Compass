@@ -1072,3 +1072,16 @@ test('no retired colour appears in the UI kit', async () => {
     assert.ok(!container.innerHTML.toUpperCase().includes(hex), `${hex} in the kit`));
   await act(async () => root.unmount());
 });
+
+test('the header follows the screen examples: 64px shell, full-height nav, rust underline on the active item', async () => {
+  const props = { onNewAssessment() {}, onGoHome() {}, onSavedAssessments() {}, onCompassResults() {}, onComparison() {}, onStayConscious() {}, onTeaser() {}, activePage: 'saved', user: { email: 'a@b.c' }, profile: { is_admin: true, full_name: 'Paul' }, onLogout() {}, onAdmin() {} };
+  const html = server.renderToStaticMarkup(h(App.Header, props));
+  assert.ok(html.includes('class="dc-header"'), 'the header uses the shell class');
+  assert.ok(!html.includes('border-b-2'), 'the heavy 2px rule is gone');
+  const doc = new JSDOM(html).window.document;
+  const active = [...doc.querySelectorAll('button')].filter(b => b.className.includes('dc-nav-active'));
+  assert.equal(active.length, 1, 'exactly one active nav item');
+  assert.ok(active[0].textContent.includes('Saved'));
+  const inactive = [...doc.querySelectorAll('button')].find(b => b.textContent.trim() === 'Compare');
+  assert.ok(inactive.className.includes('text-[13.5px]'), 'nav sits at the size the screens use');
+});
