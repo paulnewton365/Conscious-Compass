@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.89.0';
+const APP_VERSION = '3.94.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -1493,12 +1493,10 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const toggle = (id) => setSpotlight(prev => (prev === id ? null : id));
   const lit = (id) => spotlight === id;
 
-  // Reach bars: light grey at zero, through to lime at full reach.
-  const reachFill = (count, total) => {
-    if (count === 0) return RULE;
-    if (count === total) return LIME;
-    return count >= total - 1 ? INK : '#5B6068';
-  };
+  // Reach columns: ink where an attribute carries every lens, #C9C4BA
+  // otherwise. The count is written under each column, so the reading never
+  // depends on the shade.
+  const reachFill = (count, total) => (count === total ? INK : count === 0 ? RULE : '#C9C4BA');
 
   // Eight columns of bars, shared by the reach panel and every lens row.
   const BarRow = ({ items, trackH = 64, dark = false, caption, rowInView = true }) => (
@@ -1506,16 +1504,22 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
       {items.map(it => (
         <button key={it.id} onClick={() => toggle(it.id)} type="button"
           style={{
-            flex: 1, minWidth: 0, background: lit(it.id) ? (dark ? '#2A2A26' : '#EAEFC0') : 'transparent',
+            flex: 1, minWidth: 0, background: lit(it.id) ? (dark ? '#2A2A26' : '#F3F1EC') : 'transparent',
             border: 0, padding: '4px 2px', cursor: 'pointer', textAlign: 'center',
           }}>
           <div style={{ height: trackH, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-            <div style={{
-              width: '100%',
-              height: `${rowInView ? Math.max(it.pct, it.value ? 4 : 2) : 0}%`,
-              background: it.fill,
-              transition: 'height 600ms cubic-bezier(0.22,1,0.36,1)',
-            }} />
+            {it.value ? (
+              <div style={{
+                width: '100%',
+                height: `${rowInView ? Math.max(it.pct, 4) : 0}%`,
+                background: it.fill,
+                transition: 'height 600ms cubic-bezier(0.22,1,0.36,1)',
+              }} />
+            ) : (
+              /* A weight of zero is a dashed baseline, not a sliver of colour:
+                 it carries no lens and should not look like a small one. */
+              <div style={{ width: '100%', height: 0, borderTop: `1px dashed ${dark ? '#6E6E68' : '#C9C4BA'}` }} />
+            )}
           </div>
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', marginTop: 8,
             color: dark ? (it.value ? '#FBFAF7' : '#6E6E68') : (it.value ? INK : '#8A8E95') }}>
@@ -1552,7 +1556,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
         <div style={{ position: 'relative', height: 20 }}>
           <div style={{ position: 'absolute', left: 0, right: 0, top: 9, height: 2, background: dark ? '#3A3A36' : RULE }} />
           {Number.isFinite(overall) && (
-            <div style={{ position: 'absolute', left: `${at(overall)}%`, top: 2, width: 3, height: 16, background: LIME }} />
+            <div style={{ position: 'absolute', left: `${at(overall)}%`, top: 2, width: 2, height: 16, background: '#8A8E95' }} />
           )}
           <div style={{
             position: 'absolute', left: `${rowInView ? at(score) : 0}%`, top: 3,
@@ -1565,7 +1569,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
           <span>{RLO}</span><span>{RMID}</span><span>{RHI}</span>
         </div>
         <div style={{ fontSize: 10, marginTop: 6, color: dark ? '#B9BCC1' : MUTED }}>
-          {RLO}&ndash;{RHI} scale · <span style={{ color: LIME, fontWeight: 700 }}>lime</span> = compass overall {overall}
+          {RLO}&ndash;{RHI} scale · tick = Compass overall {overall}
         </div>
       </div>
     );
@@ -1575,7 +1579,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
     const shown = useCountUp(row.score, rowInView);
     return (
       <div style={{ fontSize: 60, fontWeight: 700, letterSpacing: '-.04em', lineHeight: .9,
-        color: dark ? LIME : scoreColor(row.score) }}>{shown}</div>
+        color: dark ? '#F06A4E' : INK }}>{shown}</div>
     );
   };
 
@@ -1626,9 +1630,9 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   }));
 
   return (
-    <div ref={ref} style={{ background: GROUND }}>
+    <div ref={ref} className="dc-lens">
       {/* Header */}
-      <div style={{ background: CARD, padding: 40, marginBottom: 2 }}>
+      <div className="dc-lens-intro">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <span style={{ width: 10, height: 10, background: LIME, display: 'inline-block' }} />
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase' }}>
@@ -1647,7 +1651,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
       </div>
 
       {/* Attribute reach */}
-      <div style={{ background: CARD, padding: '32px 40px', marginBottom: 2 }}>
+      <div style={{  padding: '32px 40px', marginBottom: 2 }}>
         <div className="dc-lens-row" style={{ display: 'flex', gap: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ width: 280, minWidth: 240, flex: '0 1 280px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: MUTED }}>
@@ -1675,7 +1679,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
       <LensRow row={data.foundation} dark />
 
       {showFindings && findings.length === 0 && (
-        <div style={{ background: CARD, padding: '32px 40px', marginTop: 2 }}>
+        <div style={{  padding: '32px 40px', marginTop: 2 }}>
           <h4 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.025em' }}>What sits behind these scores</h4>
           <p style={{ fontSize: 14, color: '#2E3238', marginTop: 10, maxWidth: '80ch', lineHeight: 1.6,
             borderLeft: `6px solid ${LIME}`, paddingLeft: 18 }}>
@@ -1862,15 +1866,16 @@ function FootprintMap({ footprint, brandName }) {
               transitionDelay: `${120 + i * 60}ms`,
             }}>
               <circle cx={p.x} cy={p.y} r={rad}
-                fill={has ? (brandVoice ? FP_INK : FP_LIME) : 'transparent'}
-                stroke={has ? 'none' : '#C9C6BE'} strokeWidth={1.5} strokeDasharray={has ? '' : '3 4'}>
+                fill={has ? (brandVoice ? FP_INK : FP_PAPER) : 'transparent'}
+                stroke={has ? FP_INK : '#C9C6BE'} strokeWidth={1.5}
+                strokeDasharray={has ? '' : '3 4'}>
                 {/* The evidence moved off the canvas; it lives here instead,
                     alongside what the channel means. */}
                 <title>{`${r.name} — ${r.hint}\n\nLevel ${r.level} ${r.levelName}: ${getPresenceLevel(r.level).short}\n${has ? r.evidence : 'No evidence found'}`}</title>
               </circle>
               {has && (
                 <text x={p.x} y={p.y + 5} textAnchor="middle"
-                  style={{ fontSize: 14, fontWeight: 700, fill: brandVoice ? '#FBFAF7' : FP_INK }}>
+                  style={{ fontSize: 14, fontWeight: 600, fill: brandVoice ? FP_PAPER : FP_INK }}>
                   {r.level}
                 </text>
               )}
@@ -1896,7 +1901,7 @@ function FootprintMap({ footprint, brandName }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
+              {[...rows].sort((a, b) => b.level - a.level).map(r => (
                 <tr key={r.id}>
                   <td>
                     <span className={`dc-fp-key ${r.level > 0 ? (isBrandVoice(r.id) ? 'is-brand' : 'is-market') : 'is-absent'}`} />
@@ -1905,7 +1910,9 @@ function FootprintMap({ footprint, brandName }) {
                   <td className="muted">{isBrandVoice(r.id) ? 'Brand' : 'Market'}</td>
                   <td>
                     <span className="dc-fp-seg" role="img" aria-label={`${r.level} of 10`}>
-                      {Array.from({ length: 10 }, (_, k) => <i key={k} className={k < r.level ? 'on' : ''} />)}
+                      {Array.from({ length: 10 }, (_, k) => (
+                        <i key={k} className={`${k < r.level ? 'on' : ''}${k === 6 ? ' t' : ''}`} />
+                      ))}
                     </span>
                   </td>
                   <td className="num"><b>{r.level}</b></td>
@@ -1917,18 +1924,15 @@ function FootprintMap({ footprint, brandName }) {
         </div>
       </div>
 
-      {/* Legend and the connection read */}
-      <div className="flex flex-wrap items-center gap-x-7 gap-y-2" style={{ marginTop: 4, paddingBottom: 18 }}>
-        <span className="flex items-center gap-2 text-[11px]" style={{ color: FP_INK }}>
-          <span style={{ width: 12, height: 12, background: FP_INK, display: 'inline-block' }} /> Brand controls
-        </span>
-        <span className="flex items-center gap-2 text-[11px]" style={{ color: FP_INK }}>
-          <span style={{ width: 12, height: 12, background: FP_LIME, display: 'inline-block' }} /> Market generates
-        </span>
-        <span className="flex items-center gap-2 text-[11px]" style={{ color: FP_MUTED }}>
-          <span style={{ width: 18, height: 4, background: FP_LIME, display: 'inline-block' }} /> Corroborated between channels
-        </span>
-        <span className="text-[11px]" style={{ color: FP_MUTED }}>Node size = presence level</span>
+      {/* Legend in the design's terms: the keys match the nodes, and both
+          node size and the tick on the bar are explained. */}
+      <div className="dc-fp-legend">
+        <span><span className="dc-fp-key is-brand" /> Brand controls</span>
+        <span><span className="dc-fp-key is-market" /> Market generates</span>
+        <span><span className="dc-fp-key is-absent" /> Absent</span>
+        <span><span className="dc-fp-line" /> Corroborated</span>
+        <span><span className="dc-fp-line is-partly" /> Partly corroborated</span>
+        <span className="dc-meta">Node size = presence level · tick on the bar = conscious threshold (7)</span>
       </div>
 
       <p className="text-[11px]" style={{ color: FP_MUTED, maxWidth: '86ch', marginTop: -8, paddingBottom: 14 }}>
@@ -2335,9 +2339,28 @@ function MaturityContinuum({ score, hideTitle = false }) {
 // Header, to the design export: a 64px shell, the wordmark, a text nav whose
 // active item is marked with aria-current (not a class), and a Menu button
 // below 900px. No icons.
-function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResults, onComparison, onStayConscious, onTeaser, activePage, lastAutoSave, user, profile, onLogout, onAdmin }) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+// App header, to the design brief: brand left, nav centred on the page,
+// session right. Admin is a nav link for admins, Sign out lives in the account
+// menu, and "Draft saved" has moved to the assessment step bar.
+function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResults, onComparison, onStayConscious, onTeaser, activePage, user, profile, onLogout, onAdmin }) {
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
+
+  // Both close on a route change, so a menu never outlives the page it was
+  // opened on. Tracking the page in state avoids an effect that sets state
+  // during render.
+  const [seenPage, setSeenPage] = useState(activePage);
+  if (seenPage !== activePage) { setSeenPage(activePage); setAccountOpen(false); setDrawerOpen(false); }
+
+  useEffect(() => {
+    if (!accountOpen) return undefined;
+    const onDown = (e) => { if (!e.target.closest('.dc-account')) setAccountOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setAccountOpen(false); };
+    document.addEventListener('click', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('click', onDown); document.removeEventListener('keydown', onKey); };
+  }, [accountOpen]);
 
   const items = [
     ['stay-conscious', 'Stay Conscious', onStayConscious],
@@ -2345,60 +2368,63 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
     ['results', 'Results', onCompassResults],
     ['saved', 'Saved', onSavedAssessments],
     ...(canTeaser(profile) && onTeaser ? [['teaser', 'Teaser', onTeaser]] : []),
+    ...(profile?.is_admin ? [['admin', 'Admin', onAdmin]] : []),
   ];
-
-  const go = (fn) => (e) => { e.preventDefault(); setMobileMenuOpen(false); fn?.(); };
+  const go = (fn) => (e) => { e.preventDefault(); setDrawerOpen(false); fn?.(); };
+  const current = (id) => (activePage === id ? { 'aria-current': 'page' } : {});
 
   return (
-    <header className="dc-header">
-      <div className="dc-wrap">
-        <a className="dc-wordmark" href="/" onClick={go(onGoHome)}>
-          {/* The Antenna wordmark itself, not a text stand-in. */}
-          <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
-            alt="Antenna Group" style={{ height: 22, width: 'auto', display: 'block' }} />
-          <span>Conscious Compass</span>
-        </a>
+    <>
+      <header className="dc-header">
+        <div className="dc-wrap">
+          <a className="dc-wordmark" href="/" onClick={go(onGoHome)}>
+            {/* The wordmark itself, kept to the brief's 17px and centred on
+                the same line as the product name. */}
+            <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
+              alt="Antenna Group" style={{ height: 17, width: 'auto', display: 'block' }} />
+            <span>Conscious Compass</span>
+          </a>
 
-        <nav aria-label="Main">
-          <ul className="dc-nav-links">
+          <nav aria-label="Main">
+            <ul className="dc-nav-links">
+              {items.map(([id, label, fn]) => (
+                <li key={id}><a href={`#${id}`} onClick={go(fn)} {...current(id)}>{label}</a></li>
+              ))}
+            </ul>
+          </nav>
+
+          <div className="dc-session">
+            {!isReadonly && (
+              <a className="btn-primary" href="#new" onClick={go(onNewAssessment)}>New assessment</a>
+            )}
+            <div className="dc-account">
+              <button type="button" aria-haspopup="menu" aria-expanded={accountOpen} aria-controls="account-menu"
+                onClick={(e) => { e.stopPropagation(); setAccountOpen(v => !v); }}>
+                {profile?.full_name || user?.email || 'Account'}
+              </button>
+              <ul className="dc-account-menu" id="account-menu" role="menu" hidden={!accountOpen}>
+                <li className="dc-account-email" role="none">{user?.email}</li>
+                <li role="none"><button type="button" role="menuitem" onClick={onLogout}>Sign out</button></li>
+              </ul>
+            </div>
+            <button className="btn-secondary dc-menu-btn" type="button"
+              aria-expanded={drawerOpen} aria-controls="nav-drawer"
+              onClick={() => setDrawerOpen(v => !v)}>Menu</button>
+          </div>
+        </div>
+      </header>
+
+      <div className="dc-drawer" id="nav-drawer" hidden={!drawerOpen}>
+        <div className="dc-wrap">
+          <ul>
             {items.map(([id, label, fn]) => (
-              <li key={id}>
-                <a href={`#${id}`} onClick={go(fn)} {...(activePage === id ? { 'aria-current': 'page' } : {})}>{label}</a>
-              </li>
+              <li key={id}><a href={`#${id}`} onClick={go(fn)} {...current(id)}>{label}</a></li>
             ))}
           </ul>
-        </nav>
-
-        <div className="dc-head-actions">
-          {!isReadonly && <button className="btn-primary btn-sm" type="button" onClick={onNewAssessment}>New</button>}
-          {profile?.is_admin && <button className="btn-secondary btn-sm" type="button" onClick={onAdmin}>Admin</button>}
-          <span className="dc-meta">{profile?.full_name || user?.email}</span>
-          {/* lastAutoSave is a Date: rendering it raw crashes React. */}
-          {lastAutoSave && (
-            <span className="dc-meta">
-              Draft saved {new Date(lastAutoSave).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-            </span>
-          )}
-          <button className="btn-secondary btn-sm" type="button" onClick={onLogout}>Sign out</button>
-          <button className="btn-secondary btn-sm dc-menu-btn" type="button"
-            aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(v => !v)}>
-            {mobileMenuOpen ? 'Close' : 'Menu'}
-          </button>
+          {!isReadonly && <a className="btn-primary" href="#new" onClick={go(onNewAssessment)}>New assessment</a>}
         </div>
       </div>
-
-      {mobileMenuOpen && (
-        <div className="dc-mobilemenu">
-          {items.map(([id, label, fn]) => (
-            <button key={id} type="button" onClick={go(fn)}
-              className={activePage === id ? 'dc-nav-active' : ''}>{label}</button>
-          ))}
-          {!isReadonly && <button type="button" onClick={go(onNewAssessment)}>New assessment</button>}
-          {profile?.is_admin && <button type="button" onClick={go(onAdmin)}>Admin</button>}
-          <button type="button" onClick={go(onLogout)}>Sign out</button>
-        </div>
-      )}
-    </header>
+    </>
   );
 }
 
@@ -8925,7 +8951,7 @@ ${content.slice(0, 8000)}`;
       </header>
 
       {/* ── 01 Results at a glance ───────────────────────────── */}
-      <section className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
+      <section className="dc-reveal dc-keep-white">
         <SectionHead label="Results at a glance" />
         <ReportGlanceSection project={project} scores={scores} overall={overall}
           stage={stage} sortedAttrs={sortedAttrs} chartRef={chartRef}
@@ -8963,7 +8989,7 @@ ${content.slice(0, 8000)}`;
         </div>
       </section>
       {/* Attribute Analysis - Collapsible */}
-      <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
+      <div className="dc-reveal dc-keep-white">
         <SectionHead label="Attribute analysis" open={expandedSections.attributes}
           onToggle={() => toggleSection('attributes')} />
         <ReportAttributeSection scores={scores} benchmark={benchmark}
@@ -8975,7 +9001,7 @@ ${content.slice(0, 8000)}`;
           scored before presence levels existed, rather than rendering an
           empty ring that would read as genuine absence. */}
       {hasFootprintData(scores?.footprint) && (
-        <div className="dc-reveal" style={{ marginTop: 80 }}>
+        <div className="dc-reveal">
           <SectionHead label="Brand footprint" open={expandedSections.footprint}
           onToggle={() => toggleSection('footprint')} />
           {expandedSections.footprint && (
@@ -8988,7 +9014,7 @@ ${content.slice(0, 8000)}`;
 
       {/* Campaign Coherence - Collapsible */}
       {!campaignStage && (
-        <div className="dc-reveal" style={{ marginTop: 80 }}>
+        <div className="dc-reveal">
           <SectionHead label="Campaign coherence" />
           <div className="card border-l-4 border-[#D9442A]">
             <p className="text-sm text-[#2E3238] leading-relaxed">
@@ -9005,7 +9031,7 @@ ${content.slice(0, 8000)}`;
         </div>
       )}
       {campaignStage && (
-        <div className="dc-reveal" style={{ marginTop: 80 }}>
+        <div className="dc-reveal">
           <SectionHead label="Campaign coherence" open={expandedSections.campaign}
           onToggle={() => toggleSection('campaign')} />
           {expandedSections.campaign && (
@@ -9072,7 +9098,7 @@ ${content.slice(0, 8000)}`;
       )}
 
       {/* Trust & Credibility Lens - Collapsible */}
-      <div className="dc-reveal" style={{ marginTop: 80 }}>
+      <div className="dc-reveal">
         <SectionHead label="Trust and credibility" open={expandedSections.trust}
           onToggle={() => toggleSection('trust')} />
         {expandedSections.trust && (
@@ -9083,7 +9109,7 @@ ${content.slice(0, 8000)}`;
       </div>
 
       {/* Sustainability narrative (framework 2.10) - Collapsible */}
-      <div className="dc-reveal" style={{ marginTop: 80 }} data-section="thesis">
+      <div className="dc-reveal" data-section="thesis">
         <SectionHead label="Sustainability narrative" open={expandedSections.thesis}
           onToggle={() => toggleSection('thesis')} />
         {expandedSections.thesis && (
@@ -9096,14 +9122,14 @@ ${content.slice(0, 8000)}`;
 
       {/* Industry Benchmark - Collapsible */}
       {benchmarkUnavailableReason && (
-        <div className="dc-reveal" style={{ marginTop: 80 }}>
+        <div className="dc-reveal">
           <SectionHead label="Benchmark comparison" />
           <div className="card border-l-4 border-[#D9442A]">
             <p className="text-sm text-[#2E3238] leading-relaxed">{benchmarkUnavailableReason}</p>
           </div>
         </div>
       )}
-      <div className="dc-reveal" style={{ marginTop: 80 }}>
+      <div className="dc-reveal">
         <SectionHead label="Benchmark comparison" open={expandedSections.benchmark}
           onToggle={() => toggleSection('benchmark')} />
         <ReportBenchmarkSection project={project} scores={scores} overall={overall} stage={stage}
@@ -9114,7 +9140,7 @@ ${content.slice(0, 8000)}`;
       </div>
 
       {/* Recommendations - Collapsible */}
-      <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
+      <div className="dc-reveal dc-keep-white">
         <SectionHead label="Recommendations" open={expandedSections.recommendations}
           onToggle={() => toggleSection('recommendations')} />
         {expandedSections.recommendations && (
@@ -9147,7 +9173,7 @@ ${content.slice(0, 8000)}`;
       </div>
 
       {/* Conclusions - Collapsible */}
-      <div className="dc-reveal" style={{ marginTop: 80 }}>
+      <div className="dc-reveal">
         <SectionHead label="Conclusions" open={expandedSections.conclusions}
           onToggle={() => toggleSection('conclusions')} />
         {expandedSections.conclusions && (
@@ -9161,7 +9187,7 @@ ${content.slice(0, 8000)}`;
 
       {/* Justification - Collapsible */}
       {scores.justification && (
-        <div className="dc-reveal" style={{ marginTop: 80 }}>
+        <div className="dc-reveal">
           <SectionHead label="Score justification" open={expandedSections.justification}
           onToggle={() => toggleSection('justification')} />
           {expandedSections.justification && (
@@ -9178,7 +9204,7 @@ ${content.slice(0, 8000)}`;
           justification, which was gated on justification text existing: with no
           justification the audit trail vanished even though the data was there. */}
       {scores.challenges?.length > 0 && (
-        <div className="dc-reveal" id="dc-challenge-history" style={{ marginTop: 80 }}>
+        <div className="dc-reveal" id="dc-challenge-history">
           <SectionHead label="Challenge history" open={expandedSections.challenges}
             onToggle={() => toggleSection('challenges')} />
           {expandedSections.challenges && (
@@ -9190,7 +9216,7 @@ ${content.slice(0, 8000)}`;
       )}
 
       {/* What We Evaluated - Collapsible */}
-      <div className="dc-reveal" style={{ marginTop: 80 }}>
+      <div className="dc-reveal">
         <SectionHead label="What we evaluated" open={expandedSections.evaluated}
           onToggle={() => toggleSection('evaluated')} />
         {expandedSections.evaluated && (
@@ -9203,7 +9229,7 @@ ${content.slice(0, 8000)}`;
       </div>
 
       {/* Assessment Readouts - Collapsible */}
-      <div className="dc-reveal" style={{ marginTop: 80 }}>
+      <div className="dc-reveal">
         <SectionHead label="Assessment readouts" open={expandedSections.readouts}
           onToggle={() => toggleSection('readouts')} />
         {expandedSections.readouts && (
@@ -13047,7 +13073,7 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        <section className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
+        <section className="dc-reveal dc-keep-white">
           <SectionHead label="Results at a glance" />
           <ReportGlanceSection project={project} scores={scores} overall={overall}
             stage={stage} sortedAttrs={sortedAttrs} />
@@ -13062,7 +13088,7 @@ function ClientReportView({ payload }) {
         <ReportScoreTiles scores={scores} />
 
         {/* ── Maturity ────────────────────────────────────────── */}
-        <div className="dc-reveal" style={{ marginTop: 80 }}>
+        <div className="dc-reveal">
         <SectionHead label="Brand maturity" />
         <div className="bg-white mb-6" style={{ padding: '52px 32px 32px' }}>
           <div className="relative">
@@ -13090,7 +13116,7 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Attribute analysis ─────────────────────────────── */}
-        <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
+        <div className="dc-reveal dc-keep-white">
           <SectionHead label="Attribute analysis" />
           {/* showInternal false hides the campaign adjustment, the improve
               line and the service mapping. Same component, same formatting. */}
@@ -13101,7 +13127,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Brand footprint ─────────────────────────────────── */}
         {hasFootprintData(payload.footprint) && (
-          <div className="dc-reveal" style={{ marginTop: 80 }}>
+          <div className="dc-reveal">
             <SectionHead label="Brand footprint" />
             <div className="mb-6 overflow-hidden">
               <FootprintMap footprint={payload.footprint} brandName={project.brandName} />
@@ -13111,7 +13137,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
-          <div className="dc-reveal" style={{ marginTop: 80 }}>
+          <div className="dc-reveal">
             <SectionHead label="Campaign coherence" />
             <div className="bg-white" style={{ padding: 24 }}>
               <div className="flex flex-wrap items-start gap-4 mb-4">
@@ -13151,7 +13177,7 @@ function ClientReportView({ payload }) {
         )}
 
         {/* ── Trust and credibility ───────────────────────────── */}
-        <div className="dc-reveal" style={{ marginTop: 80 }}>
+        <div className="dc-reveal">
         <SectionHead label="Trust and credibility" />
         <div style={{ marginTop: 32, marginBottom: 8 }}>
           <TrustLensPanel scores={scores} overall={overall} showFindings={false} />
@@ -13160,7 +13186,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Sustainability narrative (framework 2.10) ───────── */}
         {scores?.sustainabilityNarrative && (
-          <div className="dc-reveal" style={{ marginTop: 80 }} data-section="thesis">
+          <div className="dc-reveal" data-section="thesis">
             <SectionHead label="Sustainability narrative" />
             <div style={{ marginTop: 32, marginBottom: 8 }}>
               <ThesisPanel thesis={scores.sustainabilityNarrative} />
@@ -13170,7 +13196,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Benchmark comparison ────────────────────────────── */}
         {benchmark && benchmarkAvg && (
-          <div className="dc-reveal" style={{ marginTop: 80 }}>
+          <div className="dc-reveal">
             <SectionHead label="Benchmark comparison" />
             <ReportBenchmarkSection project={project} scores={scores} overall={overall}
               stage={stage} benchmark={benchmark} benchmarkAvgScores={benchmarkAvg}
@@ -13180,7 +13206,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Conclusion ──────────────────────────────────────── */}
         {payload.conclusion && (
-          <div className="dc-reveal" style={{ marginTop: 80 }}>
+          <div className="dc-reveal">
             <SectionHead label="Conclusions" />
             <div className="bg-white" style={{ padding: 24 }}>
               <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>{payload.conclusion}</p>

@@ -109,7 +109,8 @@ test('unscored teaser shows no client view and offers Score', async () => {
 
 test('Teaser nav appears for admins and business users only', () => {
   const props = (profile, onTeaser = () => {}) => ({ onNewAssessment() {}, onGoHome() {}, onSavedAssessments() {}, onCompassResults() {}, onComparison() {}, onStayConscious() {}, onTeaser, activePage: null, user: { email: 'a@b.c' }, profile, onLogout() {}, onAdmin() {} });
-  const count = (html) => (html.match(/>Teaser</g) || []).length;
+  // the label appears once in the nav and once in the mobile drawer
+  const count = (html) => Math.min(1, (html.match(/>Teaser</g) || []).length);
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: true })))), 1);
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: false })))), 0);
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: false, is_readonly: true })))), 0);
@@ -616,18 +617,22 @@ test('the top navigation has no icons, desktop or mobile, and every control keep
   await act(async () => { root.render(h(App.Header, props)); });
   // the nav is links now, with aria-current on the active one; the controls
   // beside it are buttons
-  const navButtons = () => [...container.querySelectorAll('button, .dc-nav-links a')].filter(b => !b.querySelector('img'));
+  const navButtons = () => [...container.querySelectorAll('button, .dc-nav-links a, .dc-drawer a')].filter(b => !b.querySelector('img'));
   for (const b of navButtons()) {
     assert.equal(b.querySelector('svg'), null, `icon in "${b.textContent.trim()}"`);
     assert.ok(b.textContent.trim().length > 0, 'no unlabelled controls');
   }
   const labels = navButtons().map(b => b.textContent.trim());
-  for (const l of ['Stay Conscious', 'Compare', 'Results', 'Saved', 'Teaser', 'New', 'Admin', 'Sign out', 'Menu']) assert.ok(labels.includes(l), l);
+  for (const l of ['Stay Conscious', 'Compare', 'Results', 'Saved', 'Teaser', 'Admin', 'New assessment', 'Sign out', 'Menu']) assert.ok(labels.includes(l), l);
   // Open the mobile menu and check it too.
   await click([...container.querySelectorAll('button')].find(b => b.textContent.trim() === 'Menu'));
-  assert.ok(labels.length < navButtons().length, 'mobile menu opened');
+  // the drawer is in the DOM and toggles hidden, so count the visible ones
+  const drawer = container.querySelector('#nav-drawer');
+  assert.ok(drawer && !drawer.hasAttribute('hidden'), 'the drawer opened');
+  assert.ok([...drawer.querySelectorAll('a')].every(a => a.textContent.trim().length > 0), 'every drawer link is labelled');
   for (const b of navButtons()) assert.equal(b.querySelector('svg'), null, `icon in mobile "${b.textContent.trim()}"`);
-  assert.ok(navButtons().some(b => b.textContent.trim() === 'Close'));
+  // the button keeps its label and reports state through aria-expanded
+  assert.ok(container.querySelector('.dc-menu-btn[aria-expanded="true"]'));
   await act(async () => root.unmount());
 });
 
@@ -1179,12 +1184,45 @@ test('the client view opens like the printed read, not like the app', async () =
   await act(async () => root.unmount());
 });
 
-test('the header formats the autosave time; a raw Date crashes React', () => {
+
+test('the header matches the brief: three columns, account menu, drawer', async () => {
   const props = { onNewAssessment() {}, onGoHome() {}, onSavedAssessments() {}, onCompassResults() {}, onComparison() {},
-    onStayConscious() {}, onTeaser() {}, activePage: 'saved', user: { email: 'a@b.c' }, profile: { is_admin: true },
-    onLogout() {}, onAdmin() {}, lastAutoSave: new Date('2026-09-28T15:40:00Z') };
-  const html = server.renderToStaticMarkup(h(App.Header, props));
-  assert.ok(html.includes('Draft saved'));
-  assert.ok(!/\w{3} \w{3} \d{2} 2026/.test(html), 'a raw Date string would mean it was rendered unformatted');
-  assert.match(html, /Draft saved \d{1,2}:\d{2}/);
+    onStayConscious() {}, onTeaser() {}, activePage: 'results', user: { email: 'paul@antennagroup.com' },
+    profile: { is_admin: true, full_name: 'Paul Newton' }, onLogout() {}, onAdmin() {} };
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.Header, props)); });
+
+  assert.ok(container.querySelector('header.dc-header .dc-wrap'), 'the shell');
+  assert.ok(container.querySelector('a.dc-wordmark img'), 'the wordmark');
+  const links = [...container.querySelectorAll('.dc-nav-links a')].map(a => a.textContent.trim());
+  assert.deepEqual(links, ['Stay Conscious', 'Compare', 'Results', 'Saved', 'Teaser', 'Admin']);
+  assert.equal(container.querySelectorAll('.dc-nav-links a[aria-current="page"]').length, 1);
+
+  // session column: one filled button, the account menu closed by default
+  assert.equal(container.querySelectorAll('.dc-session .btn-primary').length, 1, 'the only filled button');
+  const acct = container.querySelector('.dc-account > button');
+  assert.equal(acct.textContent.trim(), 'Paul Newton');
+  assert.equal(acct.getAttribute('aria-expanded'), 'false');
+  assert.ok(container.querySelector('#account-menu').hasAttribute('hidden'));
+  await click(acct);
+  assert.ok(!container.querySelector('#account-menu').hasAttribute('hidden'), 'it opens');
+  assert.ok(container.querySelector('.dc-account-email').textContent.includes('paul@antennagroup.com'));
+
+  // the drawer carries the same links plus New assessment
+  assert.ok(container.querySelector('#nav-drawer').hasAttribute('hidden'));
+  assert.equal(container.querySelectorAll('#nav-drawer a').length, 7);
+  await act(async () => root.unmount());
+});
+
+test('Admin is a nav link for admins only, and Sign out lives in the account menu', () => {
+  const base = { onNewAssessment() {}, onGoHome() {}, onSavedAssessments() {}, onCompassResults() {}, onComparison() {},
+    onStayConscious() {}, onTeaser() {}, activePage: null, user: { email: 'a@b.c' }, onLogout() {}, onAdmin() {} };
+  const asAdmin = server.renderToStaticMarkup(h(App.Header, { ...base, profile: { is_admin: true } }));
+  const asUser = server.renderToStaticMarkup(h(App.Header, { ...base, profile: { is_admin: false, is_approved: true } }));
+  assert.ok(asAdmin.includes('>Admin<'));
+  assert.ok(!asUser.includes('>Admin<'));
+  assert.ok(asAdmin.includes('role="menuitem"') && asAdmin.includes('Sign out'), 'sign out is in the menu');
+  assert.ok(!/class="btn-secondary[^"]*"[^>]*>Sign out/.test(asAdmin), 'not a standalone button');
+  assert.ok(!asAdmin.includes('Draft saved'), 'the draft line moved to the step bar');
 });
