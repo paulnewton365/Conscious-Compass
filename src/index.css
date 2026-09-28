@@ -87,6 +87,7 @@
     --cc-fs-lead: 17px; }
 }
 
+@layer components {
 /* ---------- dc-* / btn-* rules ---------- */
 body { background: var(--cc-paper); color: var(--cc-ink);
   font: var(--cc-w-regular) var(--cc-fs-body)/var(--cc-lh-body) var(--cc-sans);
@@ -1008,3 +1009,5 @@ button { font: inherit; color: inherit; }
   padding: var(--cc-s-4) 0; border-bottom: 1px solid var(--cc-rule); }
 .dc-rec-tags { display: flex; gap: var(--cc-s-2); flex-wrap: wrap; }
 .dc-standfirst { font-size: var(--cc-fs-lead); line-height: 1.5; color: var(--cc-body); max-width: 62ch; }
+
+}

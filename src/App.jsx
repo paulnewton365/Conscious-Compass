@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.78.0';
+const APP_VERSION = '3.79.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -2360,7 +2360,10 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
     <header className="dc-header">
       <div className="dc-wrap">
         <a className="dc-wordmark" href="/" onClick={go(onGoHome)}>
-          <b>.antenna</b><span>Conscious Compass</span>
+          {/* The Antenna wordmark itself, not a text stand-in. */}
+          <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
+            alt="Antenna Group" style={{ height: 22, width: 'auto', display: 'block' }} />
+          <span>Conscious Compass</span>
         </a>
 
         <nav aria-label="Main">

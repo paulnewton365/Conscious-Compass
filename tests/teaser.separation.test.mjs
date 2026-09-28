@@ -504,3 +504,22 @@ test('handoff v2 corrections are applied where they were called out', () => {
   assert.ok(!saved.includes('#F0F7FF'), 'the blue tip box is removed');
   assert.ok(saved.includes("toLocaleDateString('en-GB'"), 'dates read as 31 Aug 2026');
 });
+
+test('the design system sits in a layer, so the markup\'s own utilities still win', () => {
+  const css = read('src/index.css');
+  assert.ok(css.includes('@layer components'), 'system rules are layered');
+  // tokens and faces stay outside the layer, where they belong
+  const layerAt = css.indexOf('@layer components');
+  assert.ok(css.indexOf('@font-face') < layerAt, 'faces are not layered');
+  assert.ok(css.indexOf('--cc-paper:') < layerAt, 'tokens are not layered');
+  // unlayered system rules beat Tailwind utilities, which is how a
+  // text-white label ended up black on a black button
+  assert.ok(css.indexOf('.btn-primary {') > layerAt, 'button rules are inside the layer');
+});
+
+test('the header carries the Antenna wordmark, not a text stand-in', () => {
+  const header = app.slice(app.indexOf('function Header('), app.indexOf('function Header(') + 3000);
+  assert.ok(header.includes('antenna-new-logo.svg'), 'the wordmark image');
+  assert.ok(header.includes('alt="Antenna Group"'));
+  assert.ok(!header.includes('<b>.antenna</b>'), 'the text stand-in is gone');
+});
