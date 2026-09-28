@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.79.0';
+const APP_VERSION = '3.80.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -2380,7 +2380,12 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
           {!isReadonly && <button className="btn-primary btn-sm" type="button" onClick={onNewAssessment}>New</button>}
           {profile?.is_admin && <button className="btn-secondary btn-sm" type="button" onClick={onAdmin}>Admin</button>}
           <span className="dc-meta">{profile?.full_name || user?.email}</span>
-          {lastAutoSave && <span className="dc-meta">Draft saved {lastAutoSave}</span>}
+          {/* lastAutoSave is a Date: rendering it raw crashes React. */}
+          {lastAutoSave && (
+            <span className="dc-meta">
+              Draft saved {new Date(lastAutoSave).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </span>
+          )}
           <button className="btn-secondary btn-sm" type="button" onClick={onLogout}>Sign out</button>
           <button className="btn-secondary btn-sm dc-menu-btn" type="button"
             aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(v => !v)}>

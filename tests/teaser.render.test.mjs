@@ -1178,3 +1178,13 @@ test('the client view opens like the printed read, not like the app', async () =
   assert.ok(!container.innerHTML.includes('6px solid #D9442A'), 'the rust-edged card is gone');
   await act(async () => root.unmount());
 });
+
+test('the header formats the autosave time; a raw Date crashes React', () => {
+  const props = { onNewAssessment() {}, onGoHome() {}, onSavedAssessments() {}, onCompassResults() {}, onComparison() {},
+    onStayConscious() {}, onTeaser() {}, activePage: 'saved', user: { email: 'a@b.c' }, profile: { is_admin: true },
+    onLogout() {}, onAdmin() {}, lastAutoSave: new Date('2026-09-28T15:40:00Z') };
+  const html = server.renderToStaticMarkup(h(App.Header, props));
+  assert.ok(html.includes('Draft saved'));
+  assert.ok(!/\w{3} \w{3} \d{2} 2026/.test(html), 'a raw Date string would mean it was rendered unformatted');
+  assert.match(html, /Draft saved \d{1,2}:\d{2}/);
+});
