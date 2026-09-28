@@ -9,8 +9,8 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.56.0';
-import { STAGES, findStage } from './data/stages';
+const APP_VERSION = '3.58.0';
+import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -45,7 +45,7 @@ import {
   fetchCampaignScores
 } from './lib/supabase';
 import { buildCampaignWorkbook, buildCampaignRows, campaignSummary } from './lib/teaserExport';
-import { scorecardData, scorecardReady, exportScorecardPdf, exportScorecardSlide } from './lib/scorecard';
+import { scorecardData, scorecardReady, exportScorecardPdf, exportScorecardSlide, exportTeaserReportPdf } from './lib/scorecard';
 import { loadJSZip } from './lib/lazyZip';
 
 // Use 'PROXY' to route through serverless function (secure, API key on server)
@@ -2830,6 +2830,20 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
             className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]">
             {BUSINESS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Company Stage</label>
+          <select value={project.companyStage || ''} onChange={(e) => setProject({ ...project, companyStage: e.target.value })}
+            data-field="company-stage"
+            className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]">
+            <option value="">Not set</option>
+            {STAGES.map((st) => <option key={st.id} value={st.id}>{st.name} — {st.subtitle}</option>)}
+          </select>
+          <p className="text-xs text-[#68655B] mt-1">
+            {findStage(project.companyStage)?.indicator
+              || 'Decides what evidence is fair to expect. A startup is not marked down for having no Glassdoor reviews or analyst coverage.'}
+          </p>
         </div>
 
         <div>
@@ -6706,6 +6720,7 @@ HOW TO TREAT A CHALLENGE. Read this carefully, it protects the integrity of the 
 ` : '';
 
     const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}.
+${project.companyStage ? `\n${stagePromptBlock(project.companyStage)}\n` : ''}
 ${challengeBlock}
 ${project.assessorContext ? `\nSTRATEGIC LENS — READINESS:\nThe brand has stated the following aspirations and goals:\n${project.assessorContext}\n\nWrite the whole assessment through this lens. Do not only score what the brand is today; judge how ready it is to achieve what it says it wants. If it wants to reposition, assess its readiness to reposition. If it wants to reach a new audience, assess how well set up it is to reach that audience. Carry this readiness judgment through the findings, impact, actions, and conclusion.\nDo NOT reference the assessor, "the context provided", or this instruction anywhere in the report. The only thing you may surface from it is the brand's own stated aspirations and goals, framed as the brand's ambition. Everything else appears as analysis of readiness, never as a quote.\n` : ''}
 
@@ -7449,6 +7464,7 @@ Brand: ${project.brandName}
 Industry: ${industryName}
 Website: ${project.websiteUrl}
 Business Model: ${project.businessModel.toUpperCase()}
+Company Stage: ${findStage(project.companyStage)?.name || 'Not set'}
 Date: ${new Date().toLocaleDateString()}
 
 ${divider}
@@ -14536,6 +14552,36 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
 
       <section style={{ marginTop: 40 }}>
         <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={payload.overall} />
+        {payload.lensEvidence && (
+          <div className="dc-block" data-field="lens-evidence" style={{ marginTop: 2 }}>
+            <div className="dc-kicker-sm" style={{ marginBottom: 10 }}>What these four rest on</div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {[['credibility', 'Credibility'], ['trust', 'Trust'], ['reputation', 'Reputation'], ['authenticity', 'Authenticity']].map(([id, label]) => {
+                const e = payload.lensEvidence[id] || {};
+                return (
+                  <div key={id} className="text-sm" style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    <span className="font-semibold" style={{ minWidth: 104 }}>{label}</span>
+                    {e.issues > 0
+                      ? <span style={{ color: '#D42528' }}>{e.issues} issue{e.issues === 1 ? '' : 's'} observed{e.worst ? ` (worst: ${e.worst})` : ''}</span>
+                      : <span style={{ color: '#0F7A4F' }}>No issues observed</span>}
+                    {e.gaps > 0 && <span className="text-[#68655B]">· {e.gaps} gap{e.gaps === 1 ? '' : 's'} in the public record</span>}
+                    {e.lowOnAbsenceAlone && <span className="text-[#68655B]">· scored down for what could not be verified, not for anything found</span>}
+                  </div>
+                );
+              })}
+            </div>
+            {payload.negativeTriggers?.length > 0 && (
+              <div style={{ marginTop: 14, borderTop: '1px solid #EEECE6', paddingTop: 12, display: 'grid', gap: 6 }}>
+                {payload.negativeTriggers.map((t, i) => (
+                  <div key={i} className="text-sm text-[#4A4840]">
+                    <span className="dc-meta" style={{ marginRight: 8, color: '#D42528', borderColor: '#E9B9B9' }}>{t.lens}</span>
+                    {t.text}{t.source ? <span className="text-[#68655B]"> · {t.source}</span> : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {payload.thesis && (
@@ -14600,130 +14646,6 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
 }
 
 // One-page-plus PDF for the prospect, built from the client payload only.
-// download:false returns the document instead of saving it (used by tests).
-async function exportTeaserPdf(payload, chartEl, { download = true } = {}) {
-  const pdf = new jsPDF('p', 'mm', 'a4');
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const margin = 16;
-  const contentW = pageW - margin * 2;
-  let y = margin;
-  const ensure = (h) => { if (y + h > pageH - 16) { pdf.addPage(); y = margin; } };
-  const para = (text, size = 10, style = 'normal', color = [74, 72, 64], gap = 2) => {
-    pdf.setFont('helvetica', style); pdf.setFontSize(size); pdf.setTextColor(...color);
-    const lines = pdf.splitTextToSize(String(text || ''), contentW);
-    lines.forEach(line => { ensure(size * 0.45); pdf.text(line, margin, y); y += size * 0.45; });
-    y += gap;
-  };
-  const kicker = (text) => { ensure(10); y += 3; para(text.toUpperCase(), 8, 'bold', [104, 101, 91], 1); };
-  const rgb = (n) => (n >= 70 ? [15, 122, 79] : n >= 45 ? [194, 104, 12] : [212, 37, 40]);
-  const date = payload.scoredAt ? new Date(payload.scoredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
-
-  kicker(`Indicative Compass read${date ? ` - ${date}` : ''}`);
-  para(payload.brandName, 22, 'bold', [11, 11, 11], 1);
-  para(payload.websiteUrl, 9, 'normal', [104, 101, 91], 4);
-
-  // Score strip: overall on ink, then the four lenses.
-  ensure(24);
-  const cells = [['Overall', payload.overall], ['Credibility', payload.lensScores.credibility], ['Trust', payload.lensScores.trust], ['Reputation', payload.lensScores.reputation], ['Authenticity', payload.lensScores.authenticity]];
-  const cw = (contentW - 4 * 1) / 5;
-  cells.forEach(([label, v], i) => {
-    const x = margin + i * (cw + 1);
-    if (i === 0) { pdf.setFillColor(11, 11, 11); } else { pdf.setFillColor(242, 240, 234); }
-    pdf.rect(x, y, cw, 22, 'F');
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(20);
-    if (i === 0) pdf.setTextColor(222, 228, 47); else pdf.setTextColor(...rgb(v));
-    pdf.text(String(v ?? '-'), x + 4, y + 11);
-    pdf.setFontSize(7); pdf.setTextColor(i === 0 ? 180 : 104, i === 0 ? 180 : 101, i === 0 ? 175 : 91);
-    pdf.text((i === 0 ? `${label} - ${payload.stage || ''}` : label).toUpperCase(), x + 4, y + 18);
-  });
-  y += 28;
-
-  if (payload.thinRecord) para('Limited evidence in this read: several scores rest on the limited evidence a quick read can reach. A full assessment would firm them up.', 9, 'italic', [104, 101, 91], 3);
-  if (payload.headline) para(payload.headline, 13, 'bold', [11, 11, 11], 2);
-  if (payload.summary) para(payload.summary, 10, 'normal', [74, 72, 64], 4);
-
-  if (chartEl) {
-    try {
-      const canvas = await html2canvas(chartEl, { scale: 2, backgroundColor: '#ffffff', logging: false });
-      const w = 80; const h = (canvas.height * w) / canvas.width;
-      ensure(h + 4);
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin + (contentW - w) / 2, y, w, h);
-      y += h + 4;
-    } catch (err) {
-      console.warn('Could not capture teaser chart:', err);
-    }
-  }
-
-  kicker('The eight attributes');
-  ATTRIBUTES.forEach(attr => {
-    const e = payload.scores[attr.id] || {};
-    ensure(14);
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(...rgb(e.score));
-    pdf.text(String(e.score), margin, y);
-    pdf.setTextColor(11, 11, 11);
-    pdf.text(attr.name, margin + 12, y);
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(104, 101, 91);
-    pdf.text(`${attr.fullName} - ${e.confidence || 'low'} confidence`, margin + 12 + pdf.getTextWidth(attr.name) * (8 / 11) + 14, y);
-    y += 5;
-    if (e.rationale) {
-      pdf.setFontSize(9); pdf.setTextColor(74, 72, 64);
-      pdf.splitTextToSize(e.rationale, contentW - 12).forEach(line => { ensure(4.2); pdf.text(line, margin + 12, y); y += 4.2; });
-    }
-    y += 2.5;
-  });
-
-  const findings = payload.scores.trustFindings || [];
-  if (findings.length) {
-    kicker('Trust, credibility, reputation and authenticity: the evidence');
-    findings.forEach(f => para(`${f.supports ? '+' : '-'}  ${f.text}  [${f.tags.join(', ')}]`, 9, 'normal', [74, 72, 64], 1));
-  }
-
-  if (payload.opportunity) {
-    kicker('The opportunity');
-    para(payload.opportunity, 10, 'normal', [74, 72, 64], 3);
-  }
-
-  if (payload.services?.length) {
-    kicker('Where marketing would move this score');
-    payload.services.forEach((svc, i) => {
-      para(`${String(i + 1).padStart(2, '0')}  ${svc.title}${svc.attributes?.length ? `  [${svc.attributes.join(', ')}]` : ''}`, 10, 'bold', [11, 11, 11], 1);
-      if (svc.beyondCatalogue) para('Proposed for this brand specifically.', 8, 'italic', [138, 74, 8], 1);
-      if (svc.why) para(svc.why, 9, 'normal', [74, 72, 64], 1);
-      if (svc.impact) para(svc.impact, 9, 'normal', [104, 101, 91], 2);
-    });
-  }
-
-  const thesisRows = thesisTextRows(payload.thesis);
-  if (thesisRows) {
-    kicker(THESIS_NAME);
-    if (thesisRows.verdict) para(thesisRows.verdict, 11, 'bold', [11, 11, 11], 2);
-    if (thesisRows.summary) para(thesisRows.summary, 10, 'normal', [74, 72, 64], 2);
-    thesisRows.tenets.forEach(t => para(`${t.level.toUpperCase()}  ${t.name}${t.reason ? `: ${t.reason}` : ''}`, 9, 'normal', [74, 72, 64], 1));
-  }
-
-  if (payload.fullAssessmentWouldResolve?.length) {
-    kicker('What a full assessment would settle');
-    payload.fullAssessmentWouldResolve.forEach((q, i) => para(`${String(i + 1).padStart(2, '0')}  ${q}`, 10, 'normal', [11, 11, 11], 1.5));
-  }
-
-  kicker('How this read was made');
-  para(`An indicative read against the Conscious Compass framework v${payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the Compass rubric, judged on the evidence this read can reach: signals it could not see count neither for nor against. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.`, 8, 'normal', [104, 101, 91], 0);
-
-  const pages = pdf.internal.getNumberOfPages();
-  for (let i = 1; i <= pages; i++) {
-    pdf.setPage(i);
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(150, 150, 150);
-    pdf.text(`Antenna Group - Conscious Compass - Indicative read`, margin, pageH - 8);
-    pdf.text(`${i} / ${pages}`, pageW - margin, pageH - 8, { align: 'right' });
-  }
-
-  const safe = String(payload.brandName || 'brand').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
-  const filename = `${safe}-Compass-Teaser.pdf`;
-  if (download) pdf.save(filename);
-  return { pdf, filename };
-}
-
 function TeaserProgress({ statuses, scoring, elapsed }) {
   return (
     <div className="dc-block" style={{ marginTop: 2 }}>
@@ -14800,8 +14722,11 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
 
   const handleExport = async () => {
     setExporting(true);
-    try { await exportTeaserPdf(payload, chartRef.current); }
-    catch (e) { alert(`PDF export failed: ${e.message}`); }
+    try { await exportTeaserReportPdf(payload, { jsPDF }); }
+    catch (e) {
+      console.error('Report export failed', e);
+      alert(`PDF export failed: ${e.message}. The browser console has the full detail.`);
+    }
     finally { setExporting(false); }
   };
 
@@ -15455,7 +15380,7 @@ function AppContent() {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('conscious-compass-apikey') || DEFAULT_API_KEY);
   const [project, setProject] = useState({
     brandName: '', websiteUrl: '',
-    businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '',
+    businessModel: 'b2b', industry: 'other', companyStage: '', date: new Date().toISOString().split('T')[0], assessorContext: '',
     additionalProperties: [], primaryLanguage: ''
   });
   const [assessments, setAssessments] = useState({
@@ -15735,7 +15660,7 @@ function AppContent() {
       setCurrentStep(0);
       setShowSavedPage(false);
       setShowTeaserPage(false);
-      setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', date: new Date().toISOString().split('T')[0], assessorContext: '', additionalProperties: [], primaryLanguage: '' });
+      setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', companyStage: '', date: new Date().toISOString().split('T')[0], assessorContext: '', additionalProperties: [], primaryLanguage: '' });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
         social: { status: 'pending', content: '', observations: '', socialHealthCheck: '', linkedinUrl: '', linkedinAbout: '', linkedinPosts: '', linkedinArticles: '', linkedinFollowers: '', employeeAdvocacy: '', awardsRecognition: '', hashtagContent: '', paidMediaContent: '', campaignContent: '', linkedinAuto: '', xAuto: '', instagramAuto: '', youtubeAuto: '', otherPlatformsAuto: '', glassdoorAuto: '', campaignAuto: '', thirdPartyAuto: '', xUrl: '', xContent: '', instagramContent: '', youtubeContent: '', hasYouTube: true, redditAnswersContent: '', wikipediaContent: '', glassdoorContent: '', wipoContent: '', socialImages: [], instagramImages: [], noSocialPresence: false, noSocialNote: '', socialAutoEdited: {} },
@@ -15770,6 +15695,7 @@ function AppContent() {
       websiteUrl: record.website_url,
       businessModel: record.business_model || 'b2b',
       industry: record.industry || 'other',
+      companyStage: record.stage || '',
       date: new Date().toISOString().split('T')[0],
       assessorContext: record.context || '',
       additionalProperties: [],

@@ -15,7 +15,7 @@ const teaserBlock = app.slice(app.indexOf('// TEASER (v3.29)'), app.indexOf('fun
 
 test('the teaser block exists and is the whole teaser UI', () => {
   assert.ok(teaserBlock.length > 5000);
-  for (const fn of ['function TeaserPage', 'function TeaserReport', 'function TeaserClientView', 'async function exportTeaserPdf']) assert.ok(teaserBlock.includes(fn), fn);
+  for (const fn of ['function TeaserPage', 'function TeaserReport', 'function TeaserClientView', 'function TeaserProgress']) assert.ok(teaserBlock.includes(fn), fn);
 });
 
 // v3.31: the teaser may READ full results for the sector baseline, through
@@ -240,4 +240,31 @@ test('the hero image reader uses the browser constructor', () => {
   const body = app.slice(start, app.indexOf('\n}\n', start));
   assert.ok(body.includes('new window.Image()'));
   assert.ok(!/new Image\(\)/.test(body));
+});
+
+// ── Company stage on the full assessment too (v3.58) ──
+
+test('the full assessment takes a company stage and carries its rules into scoring', () => {
+  // The field exists on setup and on a new project.
+  assert.match(app, /data-field="company-stage"/);
+  assert.match(app, /companyStage: ''/);
+  // The stage rules go into the scoring prompt, not just the export.
+  const scoring = app.slice(app.indexOf('const prompt = `You are scoring'), app.indexOf('ASSESSMENT DATA:'));
+  assert.ok(scoring.includes('stagePromptBlock(project.companyStage)'), 'stage rules reach the scoring prompt');
+  // Converting a teaser carries its stage across rather than asking twice.
+  const convert = app.slice(app.indexOf('const handleConvertTeaser = async'), app.indexOf('\n  };\n', app.indexOf('const handleConvertTeaser = async')));
+  assert.ok(convert.includes('companyStage: record.stage'), 'the teaser stage carries into the full assessment');
+});
+
+test('one stage framework, shared by both', async () => {
+  const stages = await import('../src/data/stages.js');
+  assert.equal(stages.STAGES.length, 6);
+  assert.deepEqual(stages.STAGES.map(s => s.id), ['startup', 'scaleup', 'leader', 'multinational', 'conglomerate', 'global']);
+  const startup = stages.stagePromptBlock('startup');
+  assert.match(startup, /Glassdoor/);
+  assert.match(startup, /NEITHER FOR NOR AGAINST/);
+  assert.equal(stages.stagePromptBlock(''), '', 'no stage set means no stage guidance');
+  // The teaser and the full assessment call the same builder.
+  const teaser = readFileSync(new URL('../src/lib/teaser.js', import.meta.url), 'utf8');
+  assert.ok(teaser.includes('stagePromptBlock'));
 });

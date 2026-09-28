@@ -107,27 +107,6 @@ test('unscored teaser shows no client view and offers Score', async () => {
 
 // ── PDF ──
 
-test('PDF writes scores and lenses from the payload and nothing internal', async () => {
-  const rec = await makeRecord();
-  const payload = logic.makeTeaserClientPayload(rec);
-  const { pdf, filename } = await App.exportTeaserPdf(payload, null, { download: false });
-  // jsPDF writes uncompressed content streams by default, so every string
-  // drawn on the page appears in the raw output as (text) Tj.
-  const raw = pdf.output();
-  const written = [...raw.matchAll(/\((.*?)\) Tj/g)].map(m => m[1]);
-  const all = written.join('\n');
-  assert.ok(written.length > 20, 'content stream was read');
-  const savedName = filename;
-  SENTINELS.forEach(s => assert.ok(!all.includes(s), `${s} in PDF`));
-  assert.equal(savedName, 'Acme-Compass-Teaser.pdf');
-  assert.ok(written.includes(String(payload.overall)));
-  for (const k of ['credibility', 'trust', 'reputation', 'authenticity']) assert.ok(written.includes(String(payload.lensScores[k])), k);
-  assert.ok(all.includes('Awake') && all.includes('Intentional'));
-  assert.ok(!/—/.test(all), 'no em dashes in the PDF');
-});
-
-// ── Admin gating ──
-
 test('Teaser nav appears for admins and business users only', () => {
   const props = (profile, onTeaser = () => {}) => ({ onNewAssessment() {}, onGoHome() {}, onSavedAssessments() {}, onCompassResults() {}, onComparison() {}, onStayConscious() {}, onTeaser, activePage: null, user: { email: 'a@b.c' }, profile, onLogout() {}, onAdmin() {} });
   const count = (html) => (html.match(/Teaser<\/button>/g) || []).length;
@@ -668,15 +647,6 @@ test('the thesis panel renders all six tenets and the verdict; a general teaser 
   assert.ok(!plain.includes('data-thesis-panel'));
 });
 
-test('the teaser PDF writes the thesis read for CSO teasers', async () => {
-  const rec = await makeRecord();
-  rec.result = { ...rec.result, scores: { ...rec.result.scores, sustainabilityNarrative: thesisRead } };
-  const { pdf } = await App.exportTeaserPdf(logic.makeTeaserClientPayload(rec), null, { download: false });
-  const text = [...pdf.output().matchAll(/\((.*?)\) Tj/g)].map(m => m[1]).join(' ');
-  assert.ok(text.includes('SUSTAINABILITY NARRATIVE') && text.includes('Whispering'));
-  assert.ok(text.includes('BREAKING THROUGH'));
-});
-
 test('a new campaign can be created for a CSO audience, and the switch on a campaign flips it', async () => {
   const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'General', cso_audience: false }] });
   await selectValue(container.querySelector('[data-field="campaign"]'), '__new');
@@ -974,15 +944,6 @@ test('a read with no services simply omits the section', async () => {
   await act(async () => root.unmount());
 });
 
-test('the PDF carries the opportunity and the services', async () => {
-  const rec = withServices(await makeRecord());
-  const { pdf } = await App.exportTeaserPdf(logic.makeTeaserClientPayload(rec), null, { download: false });
-  const text = [...pdf.output().matchAll(/\((.*?)\) Tj/g)].map(m => m[1]).join(' ');
-  assert.ok(text.includes('THE OPPORTUNITY'));
-  assert.ok(text.includes('WHERE MARKETING WOULD MOVE THIS SCORE'));
-  assert.ok(text.includes('Strategic Media Relations'));
-});
-
 test('a service beyond the catalogue is flagged in the report', async () => {
   const base = await makeRecord();
   const rec = { ...base, id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1',
@@ -1000,3 +961,30 @@ test('a service beyond the catalogue is flagged in the report', async () => {
   assert.ok(flags[0].textContent.includes('Beyond the catalogue'));
   await act(async () => root.unmount());
 });
+
+// ── What the four lenses rest on (v3.57) ──
+
+test('the report says whether a low lens reflects a problem found or a gap in the record', async () => {
+  const base = await makeRecord();
+  const rec = { ...base, id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1',
+    result: { ...base.result,
+      lensEvidence: {
+        credibility: { issues: 0, gaps: 2, worst: null, lowOnAbsenceAlone: true },
+        trust: { issues: 1, gaps: 0, worst: 'high', lowOnAbsenceAlone: false },
+        reputation: { issues: 0, gaps: 0, worst: null, lowOnAbsenceAlone: false },
+        authenticity: { issues: 0, gaps: 1, worst: null, lowOnAbsenceAlone: false },
+      },
+      scores: { ...base.result.scores, negativeTriggers: [{ text: 'Regulator upheld a misleading claim', lens: 'trust', source: 'ASA', severity: 'high' }] } } };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  const panel = container.querySelector('[data-field="lens-evidence"]');
+  assert.ok(panel, 'the block is shown');
+  assert.ok(panel.textContent.includes('1 issue observed (worst: high)'), 'an observed problem is named');
+  assert.ok(panel.textContent.includes('scored down for what could not be verified'), 'a gap-driven score is explained');
+  assert.ok(panel.textContent.includes('2 gaps in the public record'));
+  assert.ok(panel.textContent.includes('No issues observed'), 'clean lenses say so');
+  assert.ok(panel.textContent.includes('Regulator upheld a misleading claim') && panel.textContent.includes('ASA'));
+  await act(async () => root.unmount());
+});
+

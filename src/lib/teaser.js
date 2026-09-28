@@ -34,6 +34,9 @@ import { sectorPromptBlock } from '../data/sectorProfiles.js';
 // 2.0 (v3.32): scoring calibrated to what a teaser can observe, and no
 // campaign modifier. Results carry the version so teasers scored with 1.0
 // are flagged until rescored.
+// 2.5 (v3.57): absence of evidence and evidence of a problem are weighted
+// differently. A gap drags a score toward the middle; only an observed
+// problem takes it low.
 // 2.4 (v3.56): stage and sector calibration. What a company at its stage
 // would not yet have counts neither for nor against, and each sector is read
 // by its own conventions.
@@ -41,7 +44,7 @@ import { sectorPromptBlock } from '../data/sectorProfiles.js';
 // opportunity and the marketing services that would lift the score, led by
 // the framework's own catalogue, with room for one service beyond it where
 // the evidence argues for something the catalogue does not cover.
-export const TEASER_VERSION = '2.4';
+export const TEASER_VERSION = '2.5';
 export const isCurrentMethod = (result) => !!result && result.teaserVersion === TEASER_VERSION;
 
 // Sources in the order they are shown while a teaser runs. `required` sources
@@ -397,7 +400,17 @@ SCORING NOTES:
 - Business model ${String(input.businessModel).toUpperCase()}: ${input.businessModel === 'b2b' ? 'LinkedIn weighs most. Trade press over mainstream. Low TikTok weight.' : input.businessModel === 'b2c' ? 'Consumer social and reviews are critical. Mainstream media over trade press.' : 'Weight LinkedIn for the business audience and consumer channels for the end user. Both trade and mainstream press matter.'}
 - Weight the last three months more heavily.
 
-TRUST, CREDIBILITY, REPUTATION AND AUTHENTICITY. These are calculated in code from the attribute scores, so DO NOT score them. In "trustFindings" give 5 to 8 publicly observable findings that explain them, each tagged to every lens it bears on, each marked supports true or false. Include both. Name the source. Max 12 words each.
+TRUST, CREDIBILITY, REPUTATION AND AUTHENTICITY. These are calculated in code from the attribute scores, so DO NOT score them. In "trustFindings" give 5 to 8 publicly observable findings that explain them, each tagged to every lens it bears on, each marked supports true or false. Include both. Name the source. Max 12 words each. Mark each finding "kind": "evidence" when you observed the thing itself, or "gap" when the finding is that something could not be found.
+
+MISSING EVIDENCE IS NOT THE SAME AS EVIDENCE OF A PROBLEM. This governs every score that feeds those four lenses:
+- An observed problem is a negative trigger: poor or falling reviews, complaints that repeat, a contradiction between claim and conduct, greenwashing or misleading-claim accusations, litigation or regulatory action, hostile or sceptical coverage, employee sentiment that contradicts the external story, a security or privacy incident, a broken promise the brand has not addressed. These are what a low score is for. Weigh them fully.
+- Absence is weaker than that, always. Nothing found is, at most, mild: it says the brand is unproven in public, not that it is untrustworthy. Score it toward the middle of the range, not the bottom.
+- Do not score an attribute below 40 on absence alone. Below 40 means the observable evidence shows something wrong. If you cannot name the negative trigger behind a score under 40, the score is too low: raise it and mark the confidence low instead.
+- Something a scan searched for directly and did not find (no reviews, no coverage in twelve months, no named executives) is a gap, not a problem. Say what is missing, do not imply what it means.
+- Never infer a problem from silence. No reviews is not bad reviews. No coverage is not negative coverage. No response to criticism you did not find is not evasion.
+- List every negative trigger you did observe in "negativeTriggers", with the lens it bears on, a source, and its severity. If there are none, return an empty list and say so plainly in the summary rather than implying trouble.
+
+
 
 ${isCso(input) ? `${thesisPromptBlock({ calibrated: true })}
 
@@ -422,7 +435,8 @@ Return valid JSON only, no prose before or after, no markdown fences:
   "opportunity": "Two or three sentences. The commercial read.",
   "services": [ { "title": "exact catalogue title, or a plain name for one service beyond it", "why": "under 30 words, tied to this brand's evidence", "beyondCatalogue": false, "attributes": ["only when beyondCatalogue is true: the attributes it lifts"] } ],
   "fullAssessmentWouldResolve": ["max 3, each under 25 words"],${isCso(input) ? `\n  ${THESIS_SCHEMA},` : ''}
-  "trustFindings": [ { "text": "max 12 words, name the source", "tags": ["trust|credibility|reputation|authenticity"], "supports": true } ],
+  "trustFindings": [ { "text": "max 12 words, name the source", "tags": ["trust|credibility|reputation|authenticity"], "supports": true, "kind": "evidence|gap" } ],
+  "negativeTriggers": [ { "text": "what was observed, under 20 words", "lens": "trust|credibility|reputation|authenticity", "source": "where it was seen", "severity": "low|moderate|high" } ],
 ${ATTRIBUTES.map(a => `  "${a.id}": { "score": 0-100, "confidence": "low|medium|high", "rationale": "What drives this score, citing evidence. Under 45 words.", "unobserved": "Signals for this attribute this pass could not reach. Under 20 words, or empty.", "basis": ["website|social|ai|reviews|earned"] }`).join(',\n')}
 }`;
 }
@@ -490,9 +504,23 @@ export function parseTeaserScoring(raw) {
         text: String(f.text).trim(),
         tags: (Array.isArray(f.tags) ? f.tags : []).filter(t => LENS_TAGS.includes(t)),
         supports: f.supports !== false,
+        // A finding is either something observed or something missing. The
+        // difference decides how it reads and how it is counted.
+        kind: f.kind === 'gap' ? 'gap' : 'evidence',
       }))
       .filter(f => f.tags.length)
       .slice(0, 9),
+    // Observed problems, kept apart from gaps: only these justify a low score
+    // on trust, credibility or reputation.
+    negativeTriggers: (Array.isArray(parsed.negativeTriggers) ? parsed.negativeTriggers : [])
+      .filter(t => t && t.text && LENS_TAGS.includes(t.lens))
+      .map(t => ({
+        text: String(t.text).trim().slice(0, 200),
+        lens: t.lens,
+        source: String(t.source || '').trim().slice(0, 120),
+        severity: ['low', 'moderate', 'high'].includes(t.severity) ? t.severity : 'moderate',
+      }))
+      .slice(0, 8),
     // Present only when the prompt asked for it (CSO campaigns).
     ...(parsed.sustainabilityNarrative ? { sustainabilityNarrative: parseThesis(parsed.sustainabilityNarrative) } : {}),
   };
@@ -523,8 +551,31 @@ export function finaliseTeaser(parsed, { audience = 'general', companyStage = nu
   const stage = getMaturityStage(overall);
   const lenses = computeTrustLenses(scores, scores.trustFindings || []);
   const lowCount = ATTRIBUTES.filter(a => scores[a.id].confidence === 'low').length;
+
+  // For each lens: how much of its standing rests on observed problems, and
+  // how much on things that simply could not be found. A lens sitting low
+  // with nothing observed against it is a gap in the record, not a failing
+  // brand, and the report says so rather than leaving the number to imply it.
+  const triggers = scores.negativeTriggers || [];
+  const findings = scores.trustFindings || [];
+  const lensEvidence = {};
+  ['credibility', 'trust', 'reputation', 'authenticity'].forEach(lens => {
+    const issues = triggers.filter(t => t.lens === lens);
+    const gaps = findings.filter(f => f.kind === 'gap' && f.tags.includes(lens));
+    const score = lens === 'authenticity'
+      ? lenses.foundation.score
+      : lenses.rows.find(r => r.id === lens)?.score;
+    lensEvidence[lens] = {
+      issues: issues.length,
+      gaps: gaps.length,
+      worst: issues.reduce((w, t) => (t.severity === 'high' ? 'high' : w === 'high' ? 'high' : t.severity === 'moderate' ? 'moderate' : w), issues.length ? 'low' : null),
+      // Low, with nothing actually observed against it.
+      lowOnAbsenceAlone: Number.isFinite(score) && score < 50 && issues.length === 0,
+    };
+  });
   return {
     scores,
+    lensEvidence,
     overall,
     stage: stage ? stage.name : null,
     lensScores: {
@@ -593,6 +644,8 @@ export function makeTeaserClientPayload(record) {
     })) : null,
     lensScores: { ...r.lensScores },
     thinRecord: !!r.thinRecord,
+    lensEvidence: r.lensEvidence ? JSON.parse(JSON.stringify(r.lensEvidence)) : null,
+    negativeTriggers: (r.scores?.negativeTriggers || []).map(t => ({ text: t.text, lens: t.lens, source: t.source, severity: t.severity })),
     scores,
     frameworkVersion: r.frameworkVersion,
   };

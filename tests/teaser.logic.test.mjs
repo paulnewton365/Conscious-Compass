@@ -257,7 +257,7 @@ test('a campaign read returned by the model never moves a score, at any level', 
 
 test('results carry the method version; earlier results are recognised as outdated', () => {
   const r = finaliseTeaser(parseTeaserScoring(modelJson()));
-  assert.equal(TEASER_VERSION, '2.4', 'new business framing: opportunity and services');
+  assert.equal(TEASER_VERSION, '2.5', 'new business framing: opportunity and services');
   assert.equal(r.teaserVersion, TEASER_VERSION);
   assert.equal(isCurrentMethod(r), true);
   assert.equal(isCurrentMethod({ ...r, teaserVersion: '1.0' }), false);
@@ -310,7 +310,7 @@ test('client payload is a whitelist: no context, evidence, author, history, basi
   const payload = makeTeaserClientPayload(sentinelRecord());
   const json = JSON.stringify(payload);
   SENTINELS.forEach(s => assert.ok(!json.includes(s), `${s} leaked into the client payload`));
-  assert.deepEqual(Object.keys(payload).sort(), ['brandName', 'frameworkVersion', 'fullAssessmentWouldResolve', 'headline', 'lensScores', 'overall', 'scoredAt', 'scores', 'stage', 'summary', 'thesis', 'thinRecord', 'websiteUrl', 'opportunity', 'services'].sort());
+  assert.deepEqual(Object.keys(payload).sort(), ['brandName', 'frameworkVersion', 'fullAssessmentWouldResolve', 'headline', 'lensScores', 'overall', 'scoredAt', 'scores', 'stage', 'summary', 'thesis', 'thinRecord', 'websiteUrl', 'opportunity', 'services', 'lensEvidence', 'negativeTriggers'].sort());
   assert.equal(payload.thesis, null, 'no thesis read on a general-audience teaser');
   ATTRIBUTES.forEach(a => assert.deepEqual(Object.keys(payload.scores[a.id]).sort(), ['confidence', 'rationale', 'score']));
   assert.ok(!json.includes('baseScore') && !json.includes('campaignModifier') && !json.includes('"basis"'));
@@ -555,4 +555,73 @@ test('the result records the company stage, separately from the maturity band', 
   const r = await scoreTeaser({ ...input, stage: 'scaleup' }, fullEvidence(), { callScoring: async () => modelJson() });
   assert.equal(r.companyStage, 'scaleup');
   assert.ok(r.stage && r.stage !== 'scaleup', 'maturity band is its own thing');
+});
+
+// ── Missing evidence versus evidence of a problem (v3.57) ──
+
+test('the prompt separates observed problems from gaps and floors absence at 40', () => {
+  const p = buildTeaserScoringPrompt(input, fullEvidence());
+  assert.match(p, /MISSING EVIDENCE IS NOT THE SAME AS EVIDENCE OF A PROBLEM/);
+  assert.match(p, /Do not score an attribute below 40 on absence alone/);
+  assert.match(p, /Never infer a problem from silence/);
+  assert.match(p, /No reviews is not bad reviews/);
+  assert.match(p, /"negativeTriggers"/);
+  assert.match(p, /"kind": "evidence\|gap"/);
+});
+
+test('negative triggers are kept with their lens, source and severity; junk is dropped', () => {
+  const raw = JSON.parse(modelJson());
+  raw.negativeTriggers = [
+    { text: 'Greenwashing complaint upheld', lens: 'trust', source: 'ASA ruling', severity: 'high' },
+    { text: 'no lens given' },
+    { text: 'bad lens', lens: 'vibes', severity: 'high' },
+    { text: 'unknown severity', lens: 'reputation', source: 'Trustpilot', severity: 'catastrophic' },
+  ];
+  const p = parseTeaserScoring(JSON.stringify(raw));
+  assert.deepEqual(p.negativeTriggers.map(t => t.lens), ['trust', 'reputation']);
+  assert.equal(p.negativeTriggers[0].severity, 'high');
+  assert.equal(p.negativeTriggers[1].severity, 'moderate', 'an unknown severity falls back rather than being dropped');
+});
+
+test('a finding is either something seen or something missing, and defaults to seen', () => {
+  const raw = JSON.parse(modelJson());
+  raw.trustFindings = [
+    { text: 'No reviews on any platform', tags: ['reputation'], supports: false, kind: 'gap' },
+    { text: 'Trade press cites their research', tags: ['credibility'], supports: true },
+  ];
+  const p = parseTeaserScoring(JSON.stringify(raw));
+  assert.equal(p.trustFindings[0].kind, 'gap');
+  assert.equal(p.trustFindings[1].kind, 'evidence');
+});
+
+test('a lens low with nothing observed against it is marked as such, not left to imply a problem', () => {
+  const low = modelJson({ AWAKE: { score: 30 }, AWARE: { score: 30 }, REFLECTIVE: { score: 30 }, ATTENTIVE: { score: 30 }, COGENT: { score: 30 }, SENTIENT: { score: 30 }, VISIONARY: { score: 30 }, INTENTIONAL: { score: 30 } });
+  const quiet = finaliseTeaser(parseTeaserScoring(low));
+  ['credibility', 'trust', 'reputation', 'authenticity'].forEach(l => {
+    assert.equal(quiet.lensEvidence[l].issues, 0);
+    assert.equal(quiet.lensEvidence[l].lowOnAbsenceAlone, true, `${l} flagged as low on absence alone`);
+  });
+
+  const withIssue = JSON.parse(low);
+  withIssue.negativeTriggers = [{ text: 'Regulator upheld a misleading claim', lens: 'trust', source: 'ASA', severity: 'high' }];
+  const loud = finaliseTeaser(parseTeaserScoring(JSON.stringify(withIssue)));
+  assert.equal(loud.lensEvidence.trust.issues, 1);
+  assert.equal(loud.lensEvidence.trust.worst, 'high');
+  assert.equal(loud.lensEvidence.trust.lowOnAbsenceAlone, false, 'an observed problem explains the score');
+  assert.equal(loud.lensEvidence.reputation.lowOnAbsenceAlone, true, 'the other lenses are unaffected');
+});
+
+test('a healthy lens is never flagged, and the flag tracks the score, not the mood', () => {
+  const strong = finaliseTeaser(parseTeaserScoring(modelJson({ AWAKE: { score: 72 }, AWARE: { score: 70 }, REFLECTIVE: { score: 71 }, ATTENTIVE: { score: 70 }, COGENT: { score: 70 }, SENTIENT: { score: 70 }, VISIONARY: { score: 70 }, INTENTIONAL: { score: 70 } })));
+  ['credibility', 'trust', 'reputation', 'authenticity'].forEach(l => assert.equal(strong.lensEvidence[l].lowOnAbsenceAlone, false));
+});
+
+test('the distinction reaches the prospect payload', () => {
+  const raw = JSON.parse(modelJson());
+  raw.negativeTriggers = [{ text: 'Repeated delivery complaints', lens: 'reputation', source: 'Trustpilot', severity: 'moderate' }];
+  const result = finaliseTeaser(parseTeaserScoring(JSON.stringify(raw)));
+  const payload = makeTeaserClientPayload({ brand_name: 'Acme', website_url: 'https://acme.com', result });
+  assert.equal(payload.negativeTriggers[0].lens, 'reputation');
+  assert.equal(payload.lensEvidence.reputation.issues, 1);
+  assert.deepEqual(Object.keys(payload.negativeTriggers[0]).sort(), ['lens', 'severity', 'source', 'text']);
 });

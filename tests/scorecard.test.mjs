@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
+import { ATTRIBUTES } from '../src/data/rubric.js';
 import {
   cardNameSize, slideNameSize,
   scorecardReady, scorecardData, buildSlidePptx, exportScorecardPdf, exportScorecardSlide, cardFilename, TRIM, BLEED, SLIDE,
@@ -378,4 +379,78 @@ test('the slide follows the cleaned-up reference deck (v3.52)', () => {
   const plateLabel = xml.slice(xml.indexOf('name="Compass score label"'), xml.indexOf('name="Compass score value"'));
   assert.ok(plateLabel.includes(`sz="${24 * 50}"`) && plateLabel.includes('b="1"'), 'plate label 24px bold');
   assert.ok(plateLabel.includes('<a:t>YOUR COMPASS</a:t>') && plateLabel.includes('<a:t>TEASER SCORE</a:t>'), 'the plate says TEASER SCORE');
+});
+
+// ── The five-page indicative read (v3.58) ──
+
+import { reportData, radarPoints, PAGE as REPORT_PAGE, REPORT_FONTS } from '../src/lib/teaserReport.js';
+import { exportTeaserReportPdf } from '../src/lib/scorecard.js';
+
+const readPayload = () => ({
+  brandName: 'Acme & Sons', websiteUrl: 'https://www.acme.com', scoredAt: '2026-09-28T10:00:00Z',
+  overall: 29, stage: 'Foundational', frameworkVersion: '2.10', thinRecord: true,
+  headline: 'A polished concept with almost no earned presence behind it.',
+  summary: 'The evidence stops at the website.',
+  opportunity: 'A finite, high-stakes sales window.',
+  lensScores: { credibility: 26, trust: 25, reputation: 25, authenticity: 29 },
+  services: [{ title: 'Strategic Media Relations', why: 'One clip in four years.', attributes: ['Awake', 'Intentional'], impact: 'Being the first call for comment creates influence.' }],
+  fullAssessmentWouldResolve: ['Q one?', 'Q two?', 'Q three?'],
+  scores: Object.fromEntries([...ATTRIBUTES.map((a, i) => [a.id, { score: 18 + i * 2, confidence: 'medium', rationale: `Rationale ${a.name}` }]),
+    ['trustFindings', [
+      { text: 'Robb Report covered the project', tags: ['credibility'], supports: true, kind: 'evidence' },
+      { text: 'No consumer reviews anywhere', tags: ['reputation'], supports: false, kind: 'gap' },
+    ]]]),
+});
+
+test('report data maps the read onto the template, in radar order', () => {
+  const d = reportData(readPayload());
+  assert.equal(d.brand.name, 'Acme & Sons');
+  assert.deepEqual(d.attributes.map(a => a.name), ATTRIBUTES.map(a => a.name), 'eight attributes, radar order');
+  assert.deepEqual(d.pillars.map(p => p.name), ['Credibility', 'Trust', 'Reputation', 'Authenticity']);
+  assert.equal(d.overall.score, 29);
+  assert.equal(d.overall.band, 'Foundational');
+  assert.equal(d.limitedEvidence, true, 'the caveat shows when evidence was thin');
+  assert.deepEqual(d.evidence.map(e => e.polarity), ['+', '-']);
+  assert.match(d.evidence[1].claim, /\(not found\)$/, 'a gap reads as not found, not as a problem');
+  assert.equal(d.levers[0].title, 'Strategic Media Relations');
+  assert.equal(d.levers[0].gap, 'One clip in four years.');
+  assert.equal(d.questions.length, 3);
+  assert.ok(d.method.includes('indicative read'));
+});
+
+test('the radar starts at twelve o clock and runs clockwise', () => {
+  const pts = radarPoints([100, 0, 0, 0, 0, 0, 0, 0], 150, 130, 100);
+  assert.ok(Math.abs(pts[0][0] - 150) < 0.001 && Math.abs(pts[0][1] - 30) < 0.001, 'first axis points up');
+  const right = radarPoints(new Array(8).fill(100), 150, 130, 100)[2];
+  assert.ok(right[0] > 240, 'third axis points right');
+  const centre = radarPoints(new Array(8).fill(0), 150, 130, 100);
+  centre.forEach(p => assert.ok(Math.abs(p[0] - 150) < 0.001 && Math.abs(p[1] - 130) < 0.001, 'zero sits at the centre'));
+});
+
+test('the read exports as five Letter pages and never fails for want of a font', async () => {
+  const fonts = Object.fromEntries(REPORT_FONTS.map(f => [f.file, readFileSync(new URL(`../public/report/${f.file}`, import.meta.url)).toString('base64')]));
+  const { pdf, filename, fontsReady } = await exportTeaserReportPdf(readPayload(), { jsPDF, save: false, fonts });
+  assert.equal(pdf.internal.getNumberOfPages(), 5);
+  // The document is in px units, so it reports 816 x 1056; that is US Letter
+  // at 96dpi, and the file itself measures 612 x 792pt.
+  assert.equal(Math.round(pdf.internal.pageSize.getWidth()), REPORT_PAGE.w);
+  assert.equal(Math.round(pdf.internal.pageSize.getHeight()), REPORT_PAGE.h);
+  assert.equal(Math.round(REPORT_PAGE.w * 0.75), 612);
+  assert.equal(filename, 'Acme-Sons-Compass-Read.pdf');
+  assert.equal(fontsReady, true, 'the report fonts are embedded');
+  const names = pdf.internal.getFont ? Object.keys(pdf.getFontList()) : [];
+  assert.ok(names.includes('Newsreader') && names.includes('Hanken'), 'both families registered');
+
+  // With no fonts available it still produces the report.
+  const fallback = await exportTeaserReportPdf(readPayload(), { jsPDF, save: false, fonts: {} });
+  assert.equal(fallback.fontsReady, false);
+  assert.equal(fallback.pdf.internal.getNumberOfPages(), 5);
+});
+
+test('the report carries only what the prospect payload holds', async () => {
+  const fonts = Object.fromEntries(REPORT_FONTS.map(f => [f.file, readFileSync(new URL(`../public/report/${f.file}`, import.meta.url)).toString('base64')]));
+  const payload = { ...readPayload(), context: 'SENTINEL_CONTEXT', evidence: { sources: { social: { text: 'SENTINEL_EVIDENCE' } } } };
+  const { pdf } = await exportTeaserReportPdf(payload, { jsPDF, save: false, fonts });
+  const raw = pdf.output();
+  ['SENTINEL_CONTEXT', 'SENTINEL_EVIDENCE'].forEach(s => assert.ok(!raw.includes(s), `${s} in the report`));
 });

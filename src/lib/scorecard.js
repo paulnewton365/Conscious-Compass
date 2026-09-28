@@ -19,6 +19,7 @@
 
 import { drawCardFront, CARD } from './cardVector.js';
 import { slideXml, SLIDE_PX } from './slideVector.js';
+import { drawTeaserReport, reportData, REPORT_FONTS, PAGE as REPORT_PAGE } from './teaserReport.js';
 
 const A = {
   // Pre-whitened: the templates whiten the dark logo with a CSS filter, and
@@ -276,4 +277,44 @@ export async function fetchDataUrl(url) {
   } catch {
     return null;
   }
+}
+
+
+// ── The five-page indicative read ─────────────────────────────
+// Replaces the earlier single-page summary: built to the Compass Read design,
+// drawn as vector, with the report's own fonts embedded.
+
+export async function exportTeaserReportPdf(payload, { jsPDF, save = true, fonts = null }) {
+  if (typeof jsPDF !== 'function') throw new Error('The PDF library (jsPDF) did not load. Reload the page and try again.');
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [REPORT_PAGE.w, REPORT_PAGE.h], hotfixes: ['px_scaling'] });
+
+  // Newsreader and Hanken Grotesk, embedded so the report reads the same
+  // everywhere. If a font cannot be fetched the report still builds, in the
+  // PDF base fonts, rather than failing.
+  const files = fonts || await loadReportFonts();
+  let fontsReady = false;
+  try {
+    REPORT_FONTS.forEach(f => {
+      if (!files[f.file]) throw new Error(`missing ${f.file}`);
+      pdf.addFileToVFS(f.file, files[f.file]);
+      pdf.addFont(f.file, f.name, f.style);
+    });
+    fontsReady = true;
+  } catch {
+    fontsReady = false;
+  }
+
+  drawTeaserReport(pdf, reportData(payload), { fontsReady });
+  const filename = `${cardFilename(payload.brandName, 'Read')}.pdf`;
+  if (save) pdf.save(filename);
+  return { pdf, filename, fontsReady };
+}
+
+export async function loadReportFonts() {
+  const out = {};
+  await Promise.all(REPORT_FONTS.map(async f => {
+    const b64 = await loadFontBase64(f.url);
+    if (b64) out[f.file] = b64;
+  }));
+  return out;
 }
