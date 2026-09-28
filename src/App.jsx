@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.80.0';
+const APP_VERSION = '3.82.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -929,10 +929,6 @@ function SpiderChart({ scores, size = 400, animate = true }) {
     rawValue: scores?.[attr.id]?.score || 0,
   }));
 
-  const overall = scores ? Math.round(
-    ATTRIBUTES.filter(a => scores[a.id]?.score !== undefined)
-      .reduce((sum, a) => sum + (scores[a.id]?.score || 0), 0) / 8
-  ) : 0;
 
   const RING_PATHS = [
     "M226 169.75L186.225 186.225L169.75 226L186.225 265.775L206.113 274.012L226 282.25L265.775 265.775L282.25 226L265.775 186.225L226 169.75Z",
@@ -971,10 +967,9 @@ function SpiderChart({ scores, size = 400, animate = true }) {
     <div style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: 'var(--cc-paper, #FBFAF7)' }}>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -50 652 552" style={{ width: '100%', height: '100%' }}>
 
-        {/* Background rings */}
+        {/* Rings as grid lines only, per the design notes. */}
         {[...RING_PATHS].reverse().map((path, i) => (
-          <path key={`ring-${i}`} d={path}
-            fill={i % 2 === 0 ? 'var(--cc-track, #E7E3DB)' : 'var(--cc-paper, #FBFAF7)'} stroke="none" />
+          <path key={`ring-${i}`} d={path} fill="none" stroke="var(--cc-rule, #DEDAD2)" strokeWidth="1" />
         ))}
 
         {/* Data shape */}
@@ -1027,12 +1022,6 @@ function SpiderChart({ scores, size = 400, animate = true }) {
           );
         })}
 
-        {/* Centre score */}
-        <circle cx="226" cy="226" r="36" fill="#C23B22" />
-        <text x="226" y="226" textAnchor="middle" dominantBaseline="middle"
-          style={{ fontSize: '28px', fontWeight: '700', fill: '#15171A' }}>
-          {overall}
-        </text>
 
       </svg>
     </div>
@@ -6080,65 +6069,58 @@ function useSectionReveal(deps) {
 // separate markup.
 // ─────────────────────────────────────────────────────────────
 
-function ReportGlanceSection({ project, scores, overall, stage, sortedAttrs, chartRef, animatedScore }) {
-  const shown = Number.isFinite(animatedScore) ? animatedScore : overall;
+// Results at a glance, rebuilt from the design export: the score as a serif
+// numeral with its bar and band chip, the stage description and the summary
+// sentence, beside the radar. No black score box, no repeated quote.
+function ReportGlanceSection({ project, scores, overall, stage, sortedAttrs, chartRef }) {
+  const strengths = [...sortedAttrs].slice(0, 2).map(a => a.name);
+  const growth = [...sortedAttrs].slice(-2).map(a => a.name);
   return (
-                  <div className="dc-split grid gap-14 items-start pt-8" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,.85fr)' }}>
-              <div>
-                <div className="flex gap-6 items-start">
-                  <div className="flex-shrink-0">
-                    <div className="flex items-center justify-center"
-                      style={{ width: 96, height: 96, background: '#15171A', color: '#D9442A',
-                        fontSize: 44, fontWeight: 700, letterSpacing: '-.03em' }}>
-                      {shown}
-                    </div>
-                    <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#5B6068] text-center mt-2">out of 100</div>
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.025em', lineHeight: 1.05 }}>{stage.name}</h3>
-                    <p className="text-[15px] leading-relaxed text-[#2E3238] mt-2.5" style={{ maxWidth: '44ch' }}>{stage.description}</p>
-                  </div>
-                </div>
-
-                {scores.headline && (
-                  <blockquote style={{ margin: '36px 0 0', borderLeft: '6px solid #D9442A', padding: '2px 0 2px 22px',
-                    fontSize: 'clamp(21px,2.1vw,27px)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.25 }}>
-                    &ldquo;{scores.headline}&rdquo;
-                  </blockquote>
-                )}
-
-                <div style={{ height: 1, background: '#DEDAD2', margin: '36px 0 26px' }} />
-
-                <p className="text-[16px]" style={{ maxWidth: '52ch', lineHeight: 1.75 }}>
-                  <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
-                  <span className="font-bold" style={{ boxShadow: 'inset 0 -.32em 0 rgba(217, 68, 42, .22)' }}>
-                    {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}
-                  </span>, with opportunities to grow in{' '}
-                  <span className="font-bold" style={{ borderBottom: '2px dotted #5B6068' }}>
-                    {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}
-                  </span>.
-                </p>
-              </div>
-
-              <div className="bg-white" style={{ padding: 14 }} ref={chartRef}>
-                <SpiderChart scores={scores} size={420} />
-              </div>
-            </div>
+    <div className="dc-glance">
+      <div className="dc-stack is-gap-5">
+        <div className="dc-kicker">Overall Compass score</div>
+        <div className="dc-score">
+          <span className="dc-stat-n is-l">{overall}</span><small>/ 100</small>
+        </div>
+        <div className="dc-lens-bar is-overall" role="img" aria-label={`${overall} out of 100`}>
+          <i style={{ width: `${Math.max(0, Math.min(100, overall))}%` }} />
+        </div>
+        <div className="dc-row">
+          <span className="dc-pill" data-band={String(stage?.name || '').toLowerCase().replace(/\s+/g, '-')}>
+            {stage?.name}{Number.isFinite(stage?.min) ? ` \u00b7 ${stage.min}\u2013${stage.max}` : ''}
+          </span>
+        </div>
+        {stage?.description && <p className="dc-body">{stage.description}</p>}
+        <p className="dc-summary">
+          <b>{project.brandName}</b> demonstrates strength in <b>{strengths.join(' and ')}</b>,
+          with opportunities to grow in <b>{growth.join(' and ')}</b>.
+        </p>
+      </div>
+      <figure className="dc-radar" ref={chartRef}>
+        <SpiderChart scores={scores} />
+      </figure>
+    </div>
   );
 }
 
 function ReportScoreTiles({ scores }) {
+  // Ink numerals in the serif with a bar: colouring them by score carried a
+  // band meaning with no label, which the notes call out.
   return (
-          <div className="dc-tiles dc-keep-white grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-10">
-            {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="dc-tile" style={{ gap: 6, padding: '16px 14px' }}>
-                <div className="dc-kicker-sm leading-tight break-words">{attr.name}</div>
-                <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: scoreColor(scores[attr.id]?.score) }}>
-                  {scores[attr.id]?.score || 0}
-                </div>
-              </div>
-            ))}
+    <div className="dc-tiles">
+      {ATTRIBUTES.map(attr => {
+        const v = scores[attr.id]?.score || 0;
+        return (
+          <div key={attr.id} className="dc-tile">
+            <div className="dc-kicker">{attr.name}</div>
+            <div className="dc-stat-n">{v}</div>
+            <div className="dc-lens-bar" role="img" aria-label={`${v} out of 100`}>
+              <i style={{ width: `${Math.max(0, Math.min(100, v))}%` }} />
+            </div>
           </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -9166,25 +9148,20 @@ ${content.slice(0, 8000)}`;
               <div key={i} className="dc-rec-row dc-reveal grid gap-6 items-baseline"
                 style={{ gridTemplateColumns: '56px minmax(0,1fr) 150px', padding: '22px 0',
                   borderBottom: '1px solid #DEDAD2' }}>
-                <div className="dc-rec-ord" style={{ fontSize: 22, fontWeight: 700, color: '#8A8E95', letterSpacing: '-.02em' }}>
-                  {String(i + 1).padStart(2, '0')}
-                </div>
+                <div className="dc-rec-ord">{String(i + 1).padStart(2, '0')}</div>
                 <div className="min-w-0">
-                  <h4 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.02em' }}>{r.title}</h4>
-                  <p className="text-[14px] text-[#2E3238] mt-1">{r.description}</p>
+                  <h4 className="dc-h is-card">{r.title}</h4>
+                  <p className="dc-body">{r.description}</p>
                   {r.impact && (
-                    <p className="text-[13px] text-[#2E3238] mt-2.5"
-                      style={{ borderLeft: '4px solid #D9442A', paddingLeft: 12, lineHeight: 1.55 }}>
-                      <b className="font-bold">Benefit:</b> {r.impact}
-                    </p>
+                    <>
+                      <div className="dc-kicker" style={{ marginTop: 12 }}>Benefit</div>
+                      <p className="dc-body">{r.impact}</p>
+                    </>
                   )}
                 </div>
                 <div className="dc-rec-tags text-right" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em' }}>
                   {r.attributes.slice(0, 2).map((attr, j) => (
-                    <span key={j} className="inline-block uppercase"
-                      style={{ background: '#D9442A', padding: '4px 7px', marginLeft: 4, marginBottom: 4 }}>
-                      {attr}
-                    </span>
+                    <span key={j} className="dc-pill">{attr}</span>
                   ))}
                 </div>
               </div>

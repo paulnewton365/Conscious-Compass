@@ -368,9 +368,13 @@ test('the charts are on the new palette, on screen and in the export', () => {
   assert.ok(app.includes('fill="#D9442A" fill-opacity="0.14"'), 'exported radar matches');
 });
 
-test('the strength highlight sits under the words rather than through them', () => {
-  assert.ok(!app.includes("inset 0 -.5em 0 #D9442A"), 'a solid bar at half height reads as a strikethrough');
-  assert.match(app, /inset 0 -\.32em 0 rgba\(217, 68, 42, \.22\)/);
+test('the summary names strength and growth in words, not a coloured marker', () => {
+  // the design sets these in bold inside .dc-summary; the old rust marker
+  // under the words read as a strikethrough once the accent changed
+  assert.ok(!app.includes("inset 0 -.5em 0 #D9442A"), 'no solid bar through the words');
+  const glance = app.slice(app.indexOf('function ReportGlanceSection'), app.indexOf('function ReportGlanceSection') + 2500);
+  assert.ok(glance.includes('className="dc-summary"'), 'the summary uses the design class');
+  assert.ok(glance.includes('demonstrates strength in'), 'and states it plainly');
 });
 
 test('no default framework colours are left in the app', () => {
@@ -522,4 +526,26 @@ test('the header carries the Antenna wordmark, not a text stand-in', () => {
   assert.ok(header.includes('antenna-new-logo.svg'), 'the wordmark image');
   assert.ok(header.includes('alt="Antenna Group"'));
   assert.ok(!header.includes('<b>.antenna</b>'), 'the text stand-in is gone');
+});
+
+test('the report follows the design notes: neutral tags, ink tiles, one quote, a plain radar', () => {
+  // recommendations: pills, not ink on a rust fill, and Benefit as a label
+  const recs = app.slice(app.indexOf('const recommendations'), app.indexOf('const recommendations') + 12000);
+  assert.ok(!/background: '#D9442A', padding: '4px 7px'/.test(app), 'the rust-filled tag fails contrast');
+  assert.ok(app.includes('<span key={j} className="dc-pill">{attr}</span>'), 'tags are neutral pills');
+  assert.ok(app.includes('<div className="dc-kicker" style={{ marginTop: 12 }}>Benefit</div>'), 'Benefit is a label');
+  void recs;
+
+  // attribute tiles: the serif numeral and a bar, no colour-by-score
+  const tiles = app.slice(app.indexOf('function ReportScoreTiles'), app.indexOf('function ReportAttributeSection'));
+  assert.ok(tiles.includes('dc-stat-n') && tiles.includes('dc-lens-bar'));
+  assert.ok(!tiles.includes('scoreColor'), 'the number no longer carries a band meaning by colour');
+
+  // the headline appears once, in the masthead
+  assert.ok(!app.includes("borderLeft: '6px solid #D9442A', padding: '2px 0 2px 22px'"), 'the duplicate quote is gone');
+
+  // radar: grid lines, no centre disc
+  const radar = app.slice(app.indexOf('function SpiderChart'), app.indexOf('function SpiderChart') + 4000);
+  assert.ok(!radar.includes('Centre score'), 'the centre disc is gone');
+  assert.ok(radar.includes('Rings as grid lines only'), 'rings are lines, not alternating fills');
 });
