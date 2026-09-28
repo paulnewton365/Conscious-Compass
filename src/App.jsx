@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.76.0';
+const APP_VERSION = '3.78.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -2339,134 +2339,62 @@ function MaturityContinuum({ score, hideTitle = false }) {
 }
 
 // Header
+// Header, to the design export: a 64px shell, the wordmark, a text nav whose
+// active item is marked with aria-current (not a class), and a Menu button
+// below 900px. No icons.
 function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResults, onComparison, onStayConscious, onTeaser, activePage, lastAutoSave, user, profile, onLogout, onAdmin }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
-  // Active nav carries a lime underline rather than a filled block, which is
-  // how the redesign signals position.
-  const navBtnClass = (page) =>
-    `flex items-center gap-2 h-full px-1 transition-colors text-[13.5px] ${
-      activePage === page
-        ? 'dc-nav-active'
-        : 'font-medium text-[#5B6068] hover:text-[#15171A]'
-    }`;
+  const items = [
+    ['stay-conscious', 'Stay Conscious', onStayConscious],
+    ['compare', 'Compare', onComparison],
+    ['results', 'Results', onCompassResults],
+    ['saved', 'Saved', onSavedAssessments],
+    ...(canTeaser(profile) && onTeaser ? [['teaser', 'Teaser', onTeaser]] : []),
+  ];
 
-  const mobileNavBtnClass = (page) =>
-    `w-full flex items-center gap-3 px-4 py-3  transition-colors ${
-      activePage === page
-        ? 'bg-[#15171A] text-white font-medium'
-        : 'text-[#2E3238] hover:bg-[#DEDAD2]'
-    }`;
-  
+  const go = (fn) => (e) => { e.preventDefault(); setMobileMenuOpen(false); fn?.(); };
+
   return (
     <header className="dc-header">
-      <div className="dc-wrap flex items-center justify-between gap-6 h-full">
-        <button onClick={onGoHome || onNewAssessment} className="flex items-center gap-2 md:gap-4 hover:opacity-75 transition-opacity">
-          <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
-          <div className="hidden lg:block h-6 w-px bg-[#15171A]" />
-          <span className="hidden lg:block dc-kicker text-[#15171A]">Conscious Compass</span>
-        </button>
-        
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-1">
-          <button onClick={onStayConscious} className={navBtnClass('stay-conscious')}>
-            Stay Conscious
-          </button>
-          <button onClick={onComparison} className={navBtnClass('compare')}>
-            Compare
-          </button>
-          <button onClick={onCompassResults} className={navBtnClass('results')}>
-            Results
-          </button>
-          <button onClick={onSavedAssessments} className={navBtnClass('saved')}>
-            Saved
-          </button>
-          {/* Admins and business users. RLS enforces the same rule. */}
-          {canTeaser(profile) && onTeaser && (
-            <button onClick={onTeaser} className={navBtnClass('teaser')}>
-              Teaser
-            </button>
-          )}
-          {!isReadonly && (
-            <button onClick={onNewAssessment} className="flex items-center gap-2 bg-[#D9442A] text-[#15171A] hover:bg-[#CBD11F] px-4 py-2.5 ml-2 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors">
-              New
-            </button>
-          )}
-          
-          {/* User Menu */}
-          <div className="ml-2 pl-3 border-l border-[#DEDAD2] flex items-center gap-3">
-            {profile?.is_admin && (
-              <button onClick={onAdmin} className="flex items-center gap-1.5 text-sm text-[#C23B22] hover:text-[#C62828] transition-colors font-medium">
-                Admin
-              </button>
-            )}
-            {isReadonly && (
-              <span className="text-xs px-2 py-0.5 bg-[#8A8E95] text-white">Read-only</span>
-            )}
-            <span className="text-xs text-[#5B6068] max-w-[120px] truncate" title={user?.email}>
-              {profile?.full_name || user?.email?.split('@')[0]}
-            </span>
-            <button onClick={onLogout} className="text-sm text-[#5B6068] hover:text-[#15171A] transition-colors">
-              Sign out
-            </button>
-          </div>
-        </div>
+      <div className="dc-wrap">
+        <a className="dc-wordmark" href="/" onClick={go(onGoHome)}>
+          <b>.antenna</b><span>Conscious Compass</span>
+        </a>
 
-        {/* Mobile Menu Button */}
-        <button 
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 text-[#15171A]"
-        >
-          <span className="text-[11px] font-bold uppercase tracking-[0.12em]">{mobileMenuOpen ? 'Close' : 'Menu'}</span>
-        </button>
+        <nav aria-label="Main">
+          <ul className="dc-nav-links">
+            {items.map(([id, label, fn]) => (
+              <li key={id}>
+                <a href={`#${id}`} onClick={go(fn)} {...(activePage === id ? { 'aria-current': 'page' } : {})}>{label}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="dc-head-actions">
+          {!isReadonly && <button className="btn-primary btn-sm" type="button" onClick={onNewAssessment}>New</button>}
+          {profile?.is_admin && <button className="btn-secondary btn-sm" type="button" onClick={onAdmin}>Admin</button>}
+          <span className="dc-meta">{profile?.full_name || user?.email}</span>
+          {lastAutoSave && <span className="dc-meta">Draft saved {lastAutoSave}</span>}
+          <button className="btn-secondary btn-sm" type="button" onClick={onLogout}>Sign out</button>
+          <button className="btn-secondary btn-sm dc-menu-btn" type="button"
+            aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(v => !v)}>
+            {mobileMenuOpen ? 'Close' : 'Menu'}
+          </button>
+        </div>
       </div>
 
-      {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="dc-mobilemenu md:hidden">
-          {isReadonly && (
-            <div className="px-4 py-2">
-              <span className="text-xs px-2 py-0.5 bg-[#8A8E95] text-white">Read-only Access</span>
-            </div>
-          )}
-          <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
-            Stay Conscious
-          </button>
-          <button onClick={() => { onComparison(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('compare')}>
-            Compare Brands
-          </button>
-          <button onClick={() => { onCompassResults(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('results')}>
-            Results Grid
-          </button>
-          <button onClick={() => { onSavedAssessments(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('saved')}>
-            Saved Assessments
-          </button>
-          {canTeaser(profile) && onTeaser && (
-            <button onClick={() => { onTeaser(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('teaser')}>
-              Teaser
-            </button>
-          )}
-          {!isReadonly && (
-            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#D9442A] text-[#15171A] transition-colors">
-              New Assessment
-            </button>
-          )}
-          
-          {/* Mobile User Controls */}
-          <div className="pt-2 mt-2 border-t border-[#DEDAD2]">
-            <div className="px-4 py-2 text-sm text-[#5B6068]">
-              Signed in as <span className="font-medium">{profile?.full_name || user?.email}</span>
-            </div>
-            {profile?.is_admin && (
-              <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#C23B22] hover:bg-[#DEDAD2] transition-colors">
-                User Management
-              </button>
-            )}
-            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#2E3238] hover:bg-[#DEDAD2] transition-colors">
-              Sign Out
-            </button>
-          </div>
+        <div className="dc-mobilemenu">
+          {items.map(([id, label, fn]) => (
+            <button key={id} type="button" onClick={go(fn)}
+              className={activePage === id ? 'dc-nav-active' : ''}>{label}</button>
+          ))}
+          {!isReadonly && <button type="button" onClick={go(onNewAssessment)}>New assessment</button>}
+          {profile?.is_admin && <button type="button" onClick={go(onAdmin)}>Admin</button>}
+          <button type="button" onClick={go(onLogout)}>Sign out</button>
         </div>
       )}
     </header>

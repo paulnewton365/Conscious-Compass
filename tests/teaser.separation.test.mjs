@@ -324,8 +324,8 @@ test('a CSS comment can never swallow the token block again', () => {
 
 test('the visible furniture is styled by the new system, not left on the old rules', () => {
   const css = read('src/index.css');
-  const cut = css.indexOf('Compass UI system (handoff v1');
-  assert.ok(cut > 0, 'the new system is present');
+  const cut = css.indexOf('app tokens + dc-');
+  assert.ok(cut > 0, 'the design system is present');
   const newRules = css.slice(cut);
   // page titles, rows and score numerals: the things on every screen
   ['dc-h2', 'dc-pagehead', 'dc-standfirst', 'dc-listrow', 'dc-listrow-t', 'dc-results-row',
@@ -380,17 +380,18 @@ test('no default framework colours are left in the app', () => {
 
 test('the shell and form rules match the screen examples', () => {
   const css = read('src/index.css');
-  assert.match(css, /\.dc-header \{[^}]*height: 64px/);
-  assert.match(css, /\.dc-nav-active \{[^}]*border-bottom: 2px solid var\(--cc-rust-text/);
+  assert.match(css, /\.dc-header \{[^}]*height: 64px/s, 'the 64px shell comes from the design system');
+  // the design marks the active nav item with aria-current, not a class
+  assert.match(css, /\.dc-nav-links a\[aria-current="page"\][^}]*border-color: var\(--cc-rust-text\)/);
   assert.match(css, /--cc-gutter: 48px/, "the handoff's build files use 48px page padding");
   // fields: 44px, hairline, 2px radius, everywhere rather than per screen
   assert.match(css, /\.dc-page select \{ height: 44px; \}/);
-  assert.match(css, /border: 1px solid var\(--cc-faint, #8A8E95\)/);
+  assert.match(css, /border: 1px solid var\(--cc-faint\)/, 'fields take the hairline border');
 });
 
 test('the designer\'s type rules are not overridden by later blocks', () => {
   const css = read('src/index.css');
-  const start = css.indexOf('Compass UI system (handoff v1');
+  const start = css.indexOf('app tokens + dc-');
   const mine = css.indexOf('Phase two: classes still carrying');
   const designer = css.slice(start, mine);
   const later = css.slice(mine);

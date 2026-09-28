@@ -109,7 +109,7 @@ test('unscored teaser shows no client view and offers Score', async () => {
 
 test('Teaser nav appears for admins and business users only', () => {
   const props = (profile, onTeaser = () => {}) => ({ onNewAssessment() {}, onGoHome() {}, onSavedAssessments() {}, onCompassResults() {}, onComparison() {}, onStayConscious() {}, onTeaser, activePage: null, user: { email: 'a@b.c' }, profile, onLogout() {}, onAdmin() {} });
-  const count = (html) => (html.match(/Teaser<\/button>/g) || []).length;
+  const count = (html) => (html.match(/>Teaser</g) || []).length;
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: true })))), 1);
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: false })))), 0);
   assert.equal(count(server.renderToStaticMarkup(h(App.Header, props({ is_admin: false, is_readonly: true })))), 0);
@@ -614,7 +614,9 @@ test('the top navigation has no icons, desktop or mobile, and every control keep
   const container = document.createElement('div'); document.body.appendChild(container);
   const root = client.createRoot(container);
   await act(async () => { root.render(h(App.Header, props)); });
-  const navButtons = () => [...container.querySelectorAll('button')].filter(b => !b.querySelector('img'));
+  // the nav is links now, with aria-current on the active one; the controls
+  // beside it are buttons
+  const navButtons = () => [...container.querySelectorAll('button, .dc-nav-links a')].filter(b => !b.querySelector('img'));
   for (const b of navButtons()) {
     assert.equal(b.querySelector('svg'), null, `icon in "${b.textContent.trim()}"`);
     assert.ok(b.textContent.trim().length > 0, 'no unlabelled controls');
@@ -1083,11 +1085,11 @@ test('the header follows the screen examples: 64px shell, full-height nav, rust 
   assert.ok(html.includes('class="dc-header"'), 'the header uses the shell class');
   assert.ok(!html.includes('border-b-2'), 'the heavy 2px rule is gone');
   const doc = new JSDOM(html).window.document;
-  const active = [...doc.querySelectorAll('button')].filter(b => b.className.includes('dc-nav-active'));
+  const active = [...doc.querySelectorAll('.dc-nav-links a[aria-current="page"]')];
   assert.equal(active.length, 1, 'exactly one active nav item');
   assert.ok(active[0].textContent.includes('Saved'));
-  const inactive = [...doc.querySelectorAll('button')].find(b => b.textContent.trim() === 'Compare');
-  assert.ok(inactive.className.includes('text-[13.5px]'), 'nav sits at the size the screens use');
+  assert.ok(doc.querySelector('.dc-wordmark'), 'the wordmark');
+  assert.ok(doc.querySelector('.dc-menu-btn'), 'the Menu button');
 });
 
 // ── Setup, rebuilt to screen D (v3.67) ──
