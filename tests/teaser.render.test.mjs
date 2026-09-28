@@ -1112,3 +1112,25 @@ test('Setup uses the three-column layout with a step rail, not the old stacked f
   assert.ok(!container.textContent.includes('Brand Details'));
   await act(async () => root.unmount());
 });
+
+// ── The read's masthead, to screen A (v3.69) ──
+
+test('the read leads with the headline beside the score, as the screen has it', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+
+  const head = container.querySelector('.dc-readhead');
+  assert.ok(head, 'the two-column masthead');
+  assert.ok(head.querySelector('.dc-display.is-hero').textContent.includes('Acme'), 'brand in the hero serif');
+  assert.ok(head.querySelector('.dc-lead').textContent.length > 10, 'the headline reads as the lead');
+
+  const score = head.querySelector('.dc-readscore');
+  assert.ok(score.querySelector('.dc-stat-n.is-l'), 'the score uses the large serif numeral');
+  assert.ok(score.textContent.includes('/ 100'));
+  assert.ok(score.querySelector('.dc-lens-bar.is-overall'), 'the 6px overall bar');
+  assert.ok(score.querySelector('.dc-chip-outline').textContent.length > 2, 'the stage chip');
+  assert.match(score.textContent, /Sector median \d+/, 'the baseline sits beside the stage');
+  await act(async () => root.unmount());
+});

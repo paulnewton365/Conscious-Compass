@@ -392,10 +392,26 @@ test('the designer\'s type rules are not overridden by later blocks', () => {
   const designer = css.slice(start, mine);
   const later = css.slice(mine);
   const theirs = new Set([...designer.matchAll(/\.(dc-[a-z0-9-]+|btn-[a-z0-9-]+)\s*[,{]/g)].map(m => m[1]));
-  const redefined = [...new Set([...later.matchAll(/\.(dc-[a-z0-9-]+|btn-[a-z0-9-]+)\s*[,{]/g)].map(m => m[1]))].filter(c => theirs.has(c));
-  // Only layout may be re-stated; type and weight belong to the handoff.
-  assert.deepEqual(redefined.sort(), ['dc-listrow', 'dc-page', 'dc-wrap'],
-    `later blocks redefine ${redefined.join(', ')}; type rules must come from the handoff`);
+
+  // Later blocks may re-state layout and clear pre-restyle decoration, but
+  // must not set type on anything the handoff already specifies: that is how
+  // the standfirst became a small-caps label.
+  const offenders = [];
+  const stripped = later.replace(/\/\*[\s\S]*?\*\//g, '');   // comments are not rules
+  for (const m of stripped.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    const body = m[2];
+    if (!/(^|;|\s)(font|font-family|font-size|font-weight)\s*:/.test(body)) continue;
+    for (const part of m[1].split(',')) {
+      // only the subject of the rule counts: ".dc-page input" styles the input
+      const subject = part.trim().split(/\s+|>/).filter(Boolean).pop() || '';
+      [...subject.matchAll(/\.(dc-[a-z0-9-]+|btn-[a-z0-9-]+)/g)]
+        .map(x => x[1]).filter(c => theirs.has(c))
+        .forEach(c => offenders.push(c));
+    }
+  }
+  assert.deepEqual([...new Set(offenders)], [],
+    `later blocks set type on handoff classes: ${[...new Set(offenders)].join(' | ')}`);
+
   // the standfirst is their 19px lead, not a small caps label
   assert.ok(!later.includes('.dc-standfirst {'), 'standfirst left to the handoff');
   assert.match(designer, /\.dc-standfirst, \.dc-lead \{ font-size: var\(--cc-fs-lead\)/);

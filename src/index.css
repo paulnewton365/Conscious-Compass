@@ -1057,3 +1057,96 @@ body { background: var(--cc-paper); color: var(--cc-ink);
   font-weight: var(--cc-w-regular, 400);
   letter-spacing: -.01em;
 }
+
+
+/* ── Buttons, hover and menus, to the handoff ────────────────
+   The pre-restyle rules added uppercase, heavy tracking and a sliding
+   ::before wipe. The handoff's buttons are sentence case at 40px with a
+   flat hover, so those extras are cleared here. */
+
+.btn-primary, .btn-secondary, .btn-arrow {
+  text-transform: none;
+  letter-spacing: normal;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.btn-primary::before, .btn-secondary::before { content: none; display: none; }
+.btn-primary:hover, .btn-secondary:hover, .btn-arrow:hover { transform: none; }
+.btn-primary:hover { background: var(--cc-dark-rule, #33363B); color: var(--cc-paper, #FBFAF7); }
+.btn-secondary:hover { background: var(--cc-hover, #F3F1EC); }
+:is(.btn-primary, .btn-secondary):disabled {
+  background: var(--cc-track, #E7E3DB); border-color: var(--cc-track, #E7E3DB);
+  color: var(--cc-muted, #5B6068); cursor: not-allowed; transform: none;
+}
+:is(.btn-primary, .btn-secondary, .btn-arrow):focus-visible {
+  outline: none; box-shadow: var(--cc-focus, 0 0 0 2px #FBFAF7, 0 0 0 4px #C23B22);
+}
+
+/* Icon-only controls in rows and toolbars share the row hover. */
+.dc-page button:not([class*="btn-"]):not(.dc-tab):hover { background-color: var(--cc-hover, #F3F1EC); }
+.dc-page button:not([class*="btn-"]):focus-visible {
+  outline: none; box-shadow: var(--cc-focus, 0 0 0 2px #FBFAF7, 0 0 0 4px #C23B22);
+}
+
+/* Nav: hover matches the active treatment without the rule. */
+.dc-header button:hover { color: var(--cc-ink, #15171A); }
+.dc-header button:focus-visible {
+  outline: none; box-shadow: var(--cc-focus, 0 0 0 2px #FBFAF7, 0 0 0 4px #C23B22);
+}
+
+/* The mobile menu drops from the header on the same paper and hairlines. */
+.dc-mobilemenu {
+  background: var(--cc-paper, #FBFAF7);
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  padding: var(--cc-s-3, 12px) 0 var(--cc-s-4, 16px);
+  display: flex; flex-direction: column;
+}
+.dc-mobilemenu button {
+  height: 44px; padding: 0 var(--cc-s-2, 8px); text-align: left;
+  font: var(--cc-w-medium, 500) var(--cc-fs-ui, 13.5px) var(--cc-sans, system-ui, sans-serif);
+  color: var(--cc-muted, #5B6068);
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  display: flex; align-items: center; justify-content: flex-start;
+}
+.dc-mobilemenu button:last-child { border-bottom: 0; }
+.dc-mobilemenu button.dc-nav-active {
+  color: var(--cc-ink, #15171A); font-weight: var(--cc-w-semi, 600);
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  box-shadow: inset 3px 0 0 var(--cc-rust-text, #C23B22);
+  padding-left: var(--cc-s-3, 12px);
+}
+
+/* Selects get the caret back, since the field reset removes the native look. */
+.dc-page select {
+  appearance: none; -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--cc-muted, #5B6068) 50%),
+                    linear-gradient(135deg, var(--cc-muted, #5B6068) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+
+
+/* ── The teaser read, to screen A ────────────────────────────── */
+.dc-readhead {
+  display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 80px; align-items: end; padding-bottom: var(--cc-s-12, 48px);
+}
+.dc-readhead-main { display: flex; flex-direction: column; gap: var(--cc-s-6, 24px); }
+.dc-readhead-main .dc-lead { max-width: 640px; }
+.dc-readscore {
+  display: flex; flex-direction: column; gap: 18px;
+  border-top: 1px solid var(--cc-ink, #15171A); padding-top: var(--cc-s-5, 20px);
+}
+.dc-readscore-n { display: flex; align-items: baseline; gap: 10px; }
+.dc-readscore-of { font-size: var(--cc-fs-lead, 19px); color: var(--cc-muted, #5B6068); }
+.dc-readscore-chips { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.dc-chip-outline {
+  border: 1px solid var(--cc-rust-text, #C23B22); color: var(--cc-rust-text, #C23B22);
+  font-size: 12px; font-weight: var(--cc-w-semi, 600); height: 24px; padding: 0 9px;
+  display: inline-flex; align-items: center; border-radius: var(--cc-r-1, 2px);
+  box-sizing: border-box;
+}
+@media (max-width: 1000px) {
+  .dc-readhead { grid-template-columns: minmax(0, 1fr); gap: 32px; align-items: start; }
+}

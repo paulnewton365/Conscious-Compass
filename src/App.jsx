@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.68.0';
+const APP_VERSION = '3.69.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -2392,7 +2392,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-4 pt-4 border-t border-[#DEDAD2] space-y-1">
+        <div className="dc-mobilemenu md:hidden">
           {isReadonly && (
             <div className="px-4 py-2">
               <span className="text-xs px-2 py-0.5 bg-[#8A8E95] text-white">Read-only Access</span>
@@ -14501,7 +14501,7 @@ function ConfidencePill({ level }) {
 
 // The prospect-facing view. Renders ONLY from makeTeaserClientPayload output,
 // so context, evidence text and authorship cannot appear here.
-function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
+function TeaserClientView({ payload, chartRef = null, heroImage = null, baselineChip = null }) {
   if (!payload) return null;
   const { scores } = payload;
   const date = payload.scoredAt ? new Date(payload.scoredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
@@ -14514,11 +14514,27 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
 
   return (
     <div data-teaser-client-view="true">
-      {/* Masthead: the read, the brand, the site. */}
-      <div style={{ paddingBottom: 18 }}>
-        <div className="dc-kicker">Indicative Compass read{date ? ` · ${date}` : ''}</div>
-        <h1 style={{ fontSize: 46, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1.1, marginTop: 6 }}>{payload.brandName}</h1>
-        <div className="text-sm text-[#5B6068]" style={{ marginTop: 2 }}>{payload.websiteUrl}</div>
+      {/* Masthead to screen A: the read beside the score. */}
+      <div className="dc-readhead">
+        <div className="dc-readhead-main">
+          <div className="dc-kicker is-accent">Indicative Compass read{date ? ` \u00B7 ${date}` : ''}</div>
+          <h1 className="dc-display is-hero">{payload.brandName}</h1>
+          {payload.headline && <p className="dc-lead">{payload.headline}</p>}
+          <div className="dc-meta">{payload.websiteUrl}</div>
+        </div>
+
+        <div className="dc-readscore">
+          <div className="dc-kicker">Compass score</div>
+          <div className="dc-readscore-n">
+            <span className="dc-stat-n is-l">{payload.overall}</span>
+            <span className="dc-readscore-of">/ 100</span>
+          </div>
+          <div className="dc-lens-bar is-overall"><i style={{ width: `${Math.max(0, Math.min(100, payload.overall))}%` }} /></div>
+          <div className="dc-readscore-chips">
+            <span className="dc-chip-outline">{payload.stage}</span>
+            {baselineChip && <span className="dc-meta">{baselineChip}</span>}
+          </div>
+        </div>
       </div>
 
       {payload.thinRecord && (
@@ -14921,7 +14937,8 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
       {busy && progress}
 
       {payload ? (
-        <TeaserClientView payload={payload} chartRef={chartRef} heroImage={record.hero_image || null} />
+        <TeaserClientView payload={payload} chartRef={chartRef} heroImage={record.hero_image || null}
+        baselineChip={baseline?.available ? `Sector median ${baseline.avgScore}` : null} />
       ) : !busy && (
         <div className="dc-block text-[#2E3238]">Evidence is stored but this teaser has not been scored yet. {cov.canScore ? 'Use Score to run it.' : 'Too few sources returned evidence to score. Use Refresh evidence.'}</div>
       )}
