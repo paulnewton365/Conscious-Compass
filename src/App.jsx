@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.82.0';
+const APP_VERSION = '3.84.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -8857,15 +8857,18 @@ ${content.slice(0, 8000)}`;
     'Assessment readouts',
   ];
 
-  const SectionHead = ({ label, open, onToggle }) => {
+  // Section head to the export: a rust number, the title in the display serif
+  // and a text Hide/Show, with aria-expanded carrying the state. The uppercase
+  // label and the chevron are retired.
+  const SectionHead = ({ label, open = true, onToggle }) => {
     const idx = sectionOrder.indexOf(label);
     const n = String(idx >= 0 ? idx + 1 : sectionOrder.length + 1).padStart(2, '0');
     return (
-      <button onClick={onToggle}
-        className="w-full flex items-baseline gap-4 pb-3 border-b-2 border-[#15171A] hover:opacity-60 transition-opacity text-left">
-        <span className="text-[11px] font-bold tracking-[0.16em] text-[#5B6068]">{n}</span>
-        <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#15171A] flex-1">{label}</span>
-        {onToggle && <ChevronDown className={`w-4 h-4 text-[#5B6068] transition-transform ${open ? 'rotate-180' : ''}`} />}
+      <button type="button" className="dc-sec-toggle" onClick={onToggle}
+        aria-expanded={onToggle ? !!open : undefined}>
+        <span className="dc-sec-n">{n}</span>
+        <span className="dc-h">{label}</span>
+        {onToggle && <span className="dc-sec-x">{open ? 'Hide' : 'Show'}</span>}
       </button>
     );
   };
@@ -8875,30 +8878,24 @@ ${content.slice(0, 8000)}`;
   return (
     <div className="dc-wrap dc-page animate-fade-in">
       {/* ── Masthead ─────────────────────────────────────────── */}
-      <header className="pt-6">
-        <div className="flex items-start justify-between gap-6">
+      <header className="dc-page-head">
+        <div className="dc-head-row is-baseline">
           <div className="flex items-center gap-4 flex-wrap min-w-0">
             {isReadonly && (
-              <button onClick={onPrev} className="btn-secondary flex items-center gap-2 !text-[11px] !px-4 !py-3">
-                <ArrowLeft className="w-4 h-4" /> Back
-              </button>
+              <button onClick={onPrev} className="btn-arrow">← Back</button>
             )}
           </div>
+          {/* A row of text buttons, as the export has it: five secondary and
+              one primary. The icons and the size overrides are gone. */}
           {!isReadonly ? (
-            <div className="dc-btns flex-shrink-0">
-              <button onClick={copyReportText} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3"><Copy className="w-3.5 h-3.5" /> Copy Full Report</button>
-              <button onClick={() => setShowChallenge(true)} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3" title="Put additional context to the assessment and rescore">
-                <MessageSquareWarning className="w-3.5 h-3.5" /> Challenge
-              </button>
-              <button onClick={() => setShowLanguage(true)} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3" title="Adjust wording and tone without changing results">
-                <Type className="w-3.5 h-3.5" /> Language
-              </button>
-              <button onClick={onSave} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3"><Save className="w-3.5 h-3.5" /> Save</button>
-              <button onClick={() => setShowClientLink(true)} className="btn-secondary flex items-center gap-1.5 !text-[11px] !px-4 !py-3" title="Create a password-protected link for the client">
-                <ExternalLink className="w-3.5 h-3.5" /> Client Link
-              </button>
-              <button onClick={generateDocx} disabled={isGenerating} className="btn-primary flex items-center gap-1.5 !text-[11px] !px-4 !py-3">
-                {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} DOCX
+            <div className="dc-head-actions">
+              <button onClick={copyReportText} className="btn-secondary">Copy full report</button>
+              <button onClick={() => setShowChallenge(true)} className="btn-secondary">Challenge</button>
+              <button onClick={() => setShowLanguage(true)} className="btn-secondary">Language</button>
+              <button onClick={onSave} className="btn-secondary">Save</button>
+              <button onClick={() => setShowClientLink(true)} className="btn-secondary">Client link</button>
+              <button onClick={generateDocx} disabled={isGenerating} className="btn-primary">
+                {isGenerating ? 'Preparing\u2026' : 'Export DOCX'}
               </button>
             </div>
           ) : (
@@ -8924,11 +8921,8 @@ ${content.slice(0, 8000)}`;
             onClick={() => { setExpandedSections(prev => ({ ...prev, challenges: true }));
               setTimeout(() => document.getElementById('dc-challenge-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); }}
             title="This report has been rescored after a challenge. Jump to the history."
-            className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 text-[11px] font-bold hover:opacity-80 transition-opacity"
-            style={{ background: '#D9442A', color: '#15171A', letterSpacing: '.06em' }}>
-            <MessageSquareWarning className="w-3 h-3" />
-            RESCORED AFTER CHALLENGE
-            {scores.challenges.length > 1 ? ` ×${scores.challenges.length}` : ''}
+            className="dc-pill" style={{ marginTop: 12 }}>
+            Rescored after challenge{scores.challenges.length > 1 ? ` \u00d7${scores.challenges.length}` : ''}
           </button>
         )}
 

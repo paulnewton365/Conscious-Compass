@@ -549,3 +549,25 @@ test('the report follows the design notes: neutral tags, ink tiles, one quote, a
   assert.ok(!radar.includes('Centre score'), 'the centre disc is gone');
   assert.ok(radar.includes('Rings as grid lines only'), 'rings are lines, not alternating fills');
 });
+
+test('the report toolbar is a row of text buttons, as the export has it', () => {
+  const start = app.indexOf('<header className="dc-page-head">');
+  const head = app.slice(start, app.indexOf('</div>', app.indexOf('dc-head-actions', start)));
+  assert.ok(head.includes('className="dc-head-actions"'), 'the export\'s action row');
+  assert.ok(head.includes('className="dc-head-row is-baseline"'), 'toolbar and title share a head row');
+  // text only: the icons and the size overrides are gone
+  ['MessageSquareWarning', 'ExternalLink', '!text-[11px]', '!px-4'].forEach(t =>
+    assert.ok(!head.includes(t), `${t} still in the toolbar`));
+  assert.equal((head.match(/className="btn-secondary"/g) || []).length, 5, 'five secondary buttons');
+  assert.equal((head.match(/className="btn-primary"/g) || []).length, 1, 'one primary');
+});
+
+test('section heads follow the export: rust number, serif title, text Hide', () => {
+  const head = app.slice(app.indexOf('const SectionHead ='), app.indexOf('const SectionHead =') + 1200);
+  assert.ok(head.includes('className="dc-sec-toggle"'), 'the export\'s toggle');
+  assert.ok(head.includes('className="dc-sec-n"') && head.includes('className="dc-h"'), 'number and serif title');
+  assert.ok(head.includes("{open ? 'Hide' : 'Show'}"), 'state in words');
+  assert.ok(head.includes('aria-expanded'), 'and announced');
+  assert.ok(!head.includes('ChevronDown'), 'the chevron is gone');
+  assert.ok(!head.includes('uppercase'), 'the uppercase label is retired');
+});
