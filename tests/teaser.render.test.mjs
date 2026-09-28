@@ -988,3 +988,57 @@ test('the report says whether a low lens reflects a problem found or a gap in th
   await act(async () => root.unmount());
 });
 
+
+// ── Setting the stage on an existing teaser (v3.59) ──
+
+test('an existing teaser can be given a stage, which the next rescore uses', async () => {
+  const base = await makeRecord();
+  // an older teaser: scored before stages existed
+  const rec = { ...base, id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1', stage: null,
+    result: { ...base.result, companyStage: null } };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const log = installFetch(await scoringJson());
+  globalThis.__liveVersion = undefined;
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+
+  const select = container.querySelector('[data-field="set-stage"]');
+  assert.ok(select, 'the stage can be set from the report');
+  assert.equal(select.value, '', 'not set on an older teaser');
+  assert.ok(container.textContent.includes('Set the stage and rescore'), 'it says what to do');
+
+  await selectValue(select, 'startup');
+  for (let i = 0; i < 5; i++) await act(flush);
+  const saved = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
+  assert.equal(saved.stage, 'startup', 'saved against the teaser');
+  assert.ok(container.querySelector('[data-field="stage-pending"]'), 'flagged as scored without it');
+
+  // Rescoring now carries the stage rules into the scoring call.
+  stub.calls.length = 0;
+  await click(btn(container, b => b.textContent.trim() === 'Rescore'));
+  for (let i = 0; i < 15; i++) await act(flush);
+  const scoring = log.filter(l => l.url === '/api/claude' && !l.body.useWebSearch).at(-1);
+  assert.ok(scoring, 'a scoring call was made');
+  const prompt = scoring.body.messages[0].content.at(-1).text;
+  assert.match(prompt, /COMPANY STAGE: STARTUP/);
+  assert.match(prompt, /Glassdoor/);
+  const rescored = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
+  assert.equal(rescored.result.companyStage, 'startup', 'the result records the stage it was scored at');
+  assert.ok(!container.querySelector('[data-field="stage-pending"]'), 'the prompt to rescore clears');
+  await act(async () => root.unmount());
+});
+
+test('clearing the stage is allowed and saves as not set', async () => {
+  const base = await makeRecord();
+  const rec = { ...base, id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1', stage: 'leader',
+    result: { ...base.result, companyStage: 'leader' } };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  assert.equal(container.querySelector('[data-field="set-stage"]').value, 'leader');
+  assert.equal(container.querySelector('[data-field="stage-pending"]'), null, 'no prompt when the score matches');
+  await selectValue(container.querySelector('[data-field="set-stage"]'), '');
+  for (let i = 0; i < 5; i++) await act(flush);
+  assert.equal(stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1].stage, null);
+  await act(async () => root.unmount());
+});

@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.58.0';
+const APP_VERSION = '3.59.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -14678,7 +14678,7 @@ function TeaserProgress({ statuses, scoring, elapsed }) {
   );
 }
 
-function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, onHeroImage = () => {}, onStaleCheck = null, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
+function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, onStage = () => {}, onHeroImage = () => {}, onStaleCheck = null, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
   const chartRef = useRef(null);
   const heroRef = useRef(null);
   const payload = makeTeaserClientPayload(record);
@@ -14782,6 +14782,25 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
             <div className="text-sm text-[#68655B]" style={{ lineHeight: 1.5 }}>
               {String(record.business_model || '').toUpperCase()}{industryNameFull ? ` · ${industryNameFull}` : ''}{findStage(record.stage) ? ` · ${findStage(record.stage).name}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? new Date(record.evidence.gatheredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'never'}{record.converted_at ? ` · converted to full assessment ${new Date(record.converted_at).toLocaleDateString('en-US')}` : ''}
             </div>
+          </div>
+
+          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 7 }}>Company stage</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <select value={record.stage || ''} disabled={busy} data-field="set-stage"
+              onChange={e => onStage(e.target.value)} className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm" style={{ width: 'max-content' }}>
+              <option value="">Not set</option>
+              {STAGES.map(st => <option key={st.id} value={st.id}>{st.name} — {st.subtitle}</option>)}
+            </select>
+            <div className="text-sm text-[#68655B]" style={{ lineHeight: 1.5 }}>
+              {record.stage
+                ? `${findStage(record.stage)?.indicator || ''} Rescore to apply it.`
+                : 'Not set, so this read expects everything the rubric asks for. Set the stage and rescore to judge it on what a company this size can fairly show.'}
+            </div>
+            {record.stage && record.result?.companyStage !== record.stage && (
+              <div className="text-sm" data-field="stage-pending" style={{ color: '#C2680C' }}>
+                Scored {record.result?.companyStage ? `at the ${findStage(record.result.companyStage)?.name || record.result.companyStage} stage` : 'without a stage'}. Rescore to use the current setting; it reuses the stored evidence.
+              </div>
+            )}
           </div>
 
           <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 5 }}>Evidence</div>
@@ -15080,6 +15099,14 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     setOpen(data); load();
   };
 
+  // Stage can be set or changed at any time; the next score uses it.
+  const setStage = async (stage) => {
+    setError(null);
+    const { data, error: e } = await saveTeaser({ ...open, stage: stage || null });
+    if (e) { setError(`Could not save the company stage: ${e.message}`); return; }
+    setOpen(data); load();
+  };
+
   const moveTo = async (campaignId) => {
     if (!campaignId || campaignId === open.campaign_id) return;
     setError(null);
@@ -15167,7 +15194,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       <>
       {staleBanner}
       <TeaserReport record={open} busy={busy} progress={progress} error={error}
-        campaigns={campaigns} onMove={moveTo} onHeroImage={saveHero} onStaleCheck={notStale}
+        campaigns={campaigns} onMove={moveTo} onStage={setStage} onHeroImage={saveHero} onStaleCheck={notStale}
         baseline={benchPool ? teaserSectorBaseline(benchPool, { industry: open.industry, brandName: open.brand_name, totalScore: open.result?.overall }) : null}
         baselineError={benchError}
         onBack={() => { setOpen(null); setError(null); }}
