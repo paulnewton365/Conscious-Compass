@@ -1085,3 +1085,30 @@ test('the header follows the screen examples: 64px shell, full-height nav, rust 
   const inactive = [...doc.querySelectorAll('button')].find(b => b.textContent.trim() === 'Compare');
   assert.ok(inactive.className.includes('text-[13.5px]'), 'nav sits at the size the screens use');
 });
+
+// ── Setup, rebuilt to screen D (v3.67) ──
+
+test('Setup uses the three-column layout with a step rail, not the old stacked form', async () => {
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  const project = { brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', companyStage: '', additionalProperties: [] };
+  await act(async () => { root.render(h(App.SetupPage, { project, setProject() {}, apiKey: 'k', setApiKey() {}, onNext() {}, onBack() {} })); });
+
+  assert.ok(container.querySelector('.dc-setup'), 'the three-column grid');
+  const rail = container.querySelector('.dc-steprail');
+  assert.ok(rail, 'the step rail');
+  const rows = [...rail.querySelectorAll('.dc-steprail-row')];
+  assert.equal(rows.length, 5, 'five steps after Welcome');
+  assert.equal(rows[0].getAttribute('data-step-state'), 'now', 'Setup is the step in progress');
+  assert.ok(rows[0].textContent.includes('In progress'));
+  assert.equal(rows[1].getAttribute('data-step-state'), 'todo');
+
+  // the page header pattern from the screen
+  assert.ok(container.textContent.includes('Step 1 of 5'));
+  assert.ok(container.querySelector('.dc-h2').textContent.includes('Set up the assessment'));
+  assert.ok(container.querySelector('.dc-lead'), 'standfirst');
+  assert.ok(container.querySelector('.dc-formstack'), 'fields in the form stack');
+  // and the old heading is gone
+  assert.ok(!container.textContent.includes('Brand Details'));
+  await act(async () => root.unmount());
+});

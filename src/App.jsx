@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.66.0';
+const APP_VERSION = '3.67.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -2800,16 +2800,53 @@ function AdditionalPropertiesInput({ project, setProject }) {
   );
 }
 
+const SETUP_STEPS = [
+  { id: 'welcome', name: 'Welcome' },
+  { id: 'setup', name: 'Setup' },
+  { id: 'website', name: 'Website' },
+  { id: 'social', name: 'Social' },
+  { id: 'ai', name: 'AI reputation' },
+  { id: 'earned', name: 'Earned media' },
+];
+
+// The step rail from screen D: numbered rows with their state, under an ink
+// rule, in place of the horizontal bar on this screen.
+function StepRail({ steps, currentStep }) {
+  return (
+    <nav className="dc-steprail" aria-label="Assessment steps">
+      {steps.slice(1).map((step, i) => {
+        const n = i + 1;
+        const state = n < currentStep ? 'done' : n === currentStep ? 'now' : 'todo';
+        return (
+          <div key={step.id} className={`dc-steprail-row is-${state}`} data-step-state={state}>
+            <span className="dc-steprail-n">{String(n).padStart(2, '0')}</span>
+            <span className="dc-steprail-b">
+              <span className="dc-steprail-name">{step.name}</span>
+              <span className="dc-steprail-state">{state === 'done' ? 'Complete' : state === 'now' ? 'In progress' : 'Not started'}</span>
+            </span>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
 function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
   const canProceed = project.brandName && project.websiteUrl && apiKey;
 
   return (
     <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
-      <h2 className="text-[20px] font-bold tracking-tight text-[#15171A] mb-2">Brand Details</h2>
-      <p className="text-[#2E3238] mb-8">Tell us about the brand you're assessing.</p>
+      <div className="dc-setup">
+        <StepRail steps={SETUP_STEPS} currentStep={1} />
+        <div>
+          <div className="dc-kicker is-accent">Step 1 of 5</div>
+          <h2 className="dc-h2" style={{ marginTop: 10 }}>Set up the assessment</h2>
+          <p className="dc-lead" style={{ marginTop: 14, marginBottom: 40, maxWidth: '58ch' }}>
+            The brand, its market and the stage it is at. The four lenses run from these details.
+          </p>
 
-      <div className="space-y-6">
+          <div className="dc-formstack">
         <div>
           <label className="block text-sm font-medium text-[#15171A] mb-2">Brand Name *</label>
           <input type="text" value={project.brandName} onChange={(e) => setProject({ ...project, brandName: e.target.value })}
@@ -2887,11 +2924,13 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
         )}
       </div>
 
-      <div className="flex items-center justify-between mt-10">
-        <button onClick={onBack} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={onNext} disabled={!canProceed} className="btn-primary flex items-center gap-2">
-          Continue <ArrowRight className="w-4 h-4" />
-        </button>
+          <div className="flex items-center justify-between mt-10">
+            <button onClick={onBack} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
+            <button onClick={onNext} disabled={!canProceed} className="btn-primary flex items-center gap-2">
+              Continue <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -16453,7 +16492,7 @@ function AppContent() {
         )
       ) : (
         <>
-          {currentStep > 0 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
+          {currentStep > 1 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
 
           {/* Draft restore banner */}
           {currentStep === 0 && draftRestoreOffer && (
