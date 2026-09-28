@@ -817,36 +817,37 @@ body { background: var(--cc-paper); color: var(--cc-ink);
   color: var(--cc-dark-label); }
 .dc-skel { background: var(--cc-track); border-radius: var(--cc-r-1); }
 
-/* ── Migration aliases ───────────────────────────────────────
-   The old Antenna variable names still appear in places; they now
-   resolve to the new tokens, so nothing renders in the old palette
-   while the screens are worked through one by one. */
-:root {
-  --antenna-paper:      var(--cc-paper);
-  --antenna-ground:     var(--cc-paper);
-  --antenna-white:      var(--cc-paper);
-  --antenna-ink:        var(--cc-ink);
-  --antenna-body:       var(--cc-body);
-  --antenna-muted:      var(--cc-muted);
-  --antenna-faint:      var(--cc-faint);
-  --antenna-rule:       var(--cc-rule);
-  --antenna-rule-light: var(--cc-rule);
-  --antenna-lime:       var(--cc-rust);
-  --antenna-lime-dark:  var(--cc-rust-text);
-  --antenna-error:      var(--cc-neg);
-}
+/* Alerts (single definition; used by every screen) */
+.dc-alert { border: 1px solid var(--cc-muted); border-radius: var(--cc-r-1);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;
+  font-size: var(--cc-fs-ui); line-height: 1.45; color: var(--cc-body); }
+.dc-alert > strong { color: var(--cc-ink); }
+.dc-alert.is-warn { border-color: var(--cc-warn); }
+.dc-alert.is-warn > strong { color: var(--cc-warn); }
+.dc-alert.is-error { border-color: var(--cc-rust-text); }
+.dc-alert.is-error > strong { color: var(--cc-rust-text); }
+.dc-alert.is-success { border-color: var(--cc-pos); }
+.dc-alert.is-success > strong { color: var(--cc-pos); }
+.dc-alert .btn-secondary { align-self: flex-start; margin-top: 6px; height: 36px; }
+.dc-alert .dc-alert-x { align-self: flex-start; border: 0; background: none;
+  padding: 0; font-size: var(--cc-fs-meta); font-weight: var(--cc-w-semi);
+  color: var(--cc-ink); text-decoration: underline; cursor: pointer; }
+/* Mobile-only elements: declared after every display rule so nothing re-shows them */
+.dc-mobile-only { display: none !important; }
+@media (max-width: 720px) { .dc-mobile-only { display: flex !important; } }
 
-
-/* ═══ Assessment steps (handoff v2) ═══ */
-/* ============================================================
-   Assessment steps (Website, Social, AI Reputation, Earned Media)
-   Shared rules on top of compass-tokens.css. Move into src/index.css.
-   ============================================================ */
-*, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; -webkit-font-smoothing: antialiased; }
-h1, h2, h3, h4, p, ul, ol, pre { margin: 0; }
-button, input, textarea, select { font: inherit; color: inherit; }
-a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
+/* Layout + text helpers (replace inline styles; same meaning everywhere) */
+.dc-stack.is-gap-1 { gap: var(--cc-s-1); }
+.dc-stack.is-gap-2 { gap: var(--cc-s-2); }
+.dc-stack.is-gap-4 { gap: var(--cc-s-4); }
+.dc-stack.is-gap-5 { gap: var(--cc-s-5); }
+.dc-stack.is-gap-6 { gap: var(--cc-s-6); }
+.dc-stack.is-gap-10 { gap: var(--cc-s-10); }
+.dc-body { font-size: 15px; line-height: 1.55; color: var(--cc-body); max-width: 48ch; }
+.dc-body.is-lg { font-size: 17px; line-height: 1.6; }
+.dc-strong { font-weight: var(--cc-w-semi); color: var(--cc-ink); }
+.dc-kicker.is-dark-muted { color: var(--cc-dark-label); }
+.dc-pill[data-state="approved"] { border-color: var(--cc-ink); color: var(--cc-ink); }
 
 /* App header */
 .dc-header { height: 64px; border-bottom: var(--cc-border); }
@@ -860,6 +861,25 @@ a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
 .dc-nav-links a:hover { color: var(--cc-ink); }
 .dc-nav-links a[aria-current="page"] { color: var(--cc-ink); font-weight: var(--cc-w-semi); border-color: var(--cc-rust-text); }
 .dc-menu-btn { display: none; }
+@media (max-width: 900px) {
+  .dc-nav-links { display: none; }
+  .dc-menu-btn { display: inline-flex; }
+}
+@media (max-width: 720px) {
+  .dc-header { height: 56px; }
+}
+
+
+/* ═══ Assessment steps ═══ */
+/* ============================================================
+   Assessment steps (Website, Social, AI Reputation, Earned Media)
+   Shared rules on top of compass-tokens.css. Move into src/index.css.
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, h4, p, ul, ol, pre { margin: 0; }
+button, input, textarea, select { font: inherit; color: inherit; }
+a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
 
 /* Stepper */
 .dc-steps { border-bottom: var(--cc-border); padding: var(--cc-s-4) 0; }
@@ -993,13 +1013,7 @@ a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
 .dc-assess-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--cc-s-4); padding-top: var(--cc-s-6); border-top: var(--cc-border); }
 .dc-assess-foot > div { display: flex; gap: var(--cc-s-3); align-items: center; }
 
-/* Alerts */
-.dc-alert { border: 1px solid var(--cc-muted); border-radius: var(--cc-r-1); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;
-  font-size: var(--cc-fs-ui); line-height: 1.45; color: var(--cc-body); }
-.dc-alert > strong { color: var(--cc-ink); }
-.dc-alert.is-warn { border-color: var(--cc-warn); } .dc-alert.is-warn > strong { color: var(--cc-warn); }
-.dc-alert .dc-alert-x { align-self: flex-start; border: 0; background: none; padding: 0; font-size: var(--cc-fs-meta); font-weight: var(--cc-w-semi); color: var(--cc-ink); text-decoration: underline; cursor: pointer; }
-.dc-mobile-only { display: none; }
+
 
 @media (max-width: 1100px) {
   .dc-assess { grid-template-columns: 1fr; }
@@ -1010,19 +1024,15 @@ a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
   .dc-tiles.is-scores .dc-tile:nth-child(n+4) { border-top: var(--cc-border); }
 }
 @media (max-width: 900px) {
-  .dc-nav-links { display: none; }
-  .dc-menu-btn { display: inline-flex; }
   .dc-engine { grid-template-columns: 1fr; gap: var(--cc-s-3); }
 }
 @media (max-width: 720px) {
-  .dc-header { height: 56px; }
   .dc-steps ol { display: none; }
   .dc-steps-compact { display: flex; flex-direction: column; gap: 8px; }
   .dc-steps-compact > div:first-child { display: flex; justify-content: space-between; }
   .dc-steps-bar { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
   .dc-steps-bar i { height: 3px; border-radius: 3px; background: var(--cc-track); }
   .dc-steps-bar i.is-done { background: var(--cc-ink); } .dc-steps-bar i.is-current { background: var(--cc-rust); }
-  .dc-mobile-only { display: flex; }
   .dc-block-head { flex-direction: column; }
   .dc-drops { grid-template-columns: 1fr; }
   .dc-tiles.is-scores, .dc-tiles.is-scores.is-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
@@ -1033,8 +1043,16 @@ a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
   .dc-assess-foot .btn-primary, .dc-assess-foot .btn-secondary { height: 48px; }
 }
 
+/* Helpers (replace former inline styles) */
+.dc-page.is-form { padding-top: var(--cc-s-12); }
+.dc-block.is-list { gap: 0; }
+.dc-block.is-list > .dc-block-head { padding-bottom: var(--cc-s-4); }
+.dc-acc-list.is-secondary { margin-top: var(--cc-s-4); }
+.dc-action.is-stacked { flex-direction: column; align-items: stretch; }
+.dc-action-foot strong { color: var(--cc-paper); }
 
-/* ═══ Screens 06-12 (handoff v2) ═══ */
+
+/* ═══ Screens ═══ */
 /* ============================================================
    Screens 06–12: Compare, Results, Saved, Stay Conscious, Admin,
    Client report view, Welcome. On top of compass-tokens.css and
@@ -1207,8 +1225,22 @@ a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
   .dc-cover-brand { font-size: 72px; }
 }
 
+/* Helpers (replace former inline styles) */
+.dc-head-row.is-baseline { align-items: baseline; }
+.dc-dot-legend .range { width: 18px; height: 3px; background: var(--cc-track); display: inline-block; }
+.dc-skel.is-label { height: 11px; } .dc-skel.is-h1 { height: 34px; } .dc-skel.is-h3 { height: 22px; }
+.dc-skel.is-line { height: 15px; } .dc-skel.is-small { height: 13px; } .dc-skel.is-media { height: 260px; }
+.dc-skel.is-w24 { width: 24%; } .dc-skel.is-w30 { width: 30%; } .dc-skel.is-w60 { width: 60%; } .dc-skel.is-w70 { width: 70%; }
+.dc-skel.is-w80 { width: 80%; } .dc-skel.is-w90 { width: 90%; } .dc-skel.is-w92 { width: 92%; } .dc-skel.is-w100 { width: 100%; }
+.dc-table.is-static tbody tr { cursor: default; }
+.dc-table.is-static tbody tr:hover { background: none; }
+.dc-table td.is-strong { font-weight: var(--cc-w-semi); }
+.dc-actions-inline { display: inline-flex; gap: var(--cc-s-2); }
+.dc-hero .dc-display { margin-top: var(--cc-s-4); }
+.dc-badge { margin: 0; }
 
-/* ═══ Report components, shared with the client view (handoff v2) ═══ */
+
+/* ═══ Report, shared with the client view ═══ */
 /* ============================================================
    Report components (report page + client report view) — on top of compass-tokens.css
    Move into src/index.css next to the dc-* rules.
@@ -1275,14 +1307,7 @@ button { font: inherit; color: inherit; }
 .dc-attr-card li { font-size: var(--cc-fs-ui); line-height: 1.5; color: var(--cc-body); padding-left: 14px; position: relative; }
 .dc-attr-card li::before { content: ""; position: absolute; left: 0; top: .6em; width: 5px; height: 5px; background: var(--cc-sep); }
 
-/* Alerts */
-.dc-alert { border: 1px solid var(--cc-muted); border-radius: var(--cc-r-1); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;
-  font-size: var(--cc-fs-ui); line-height: 1.45; color: var(--cc-body); max-width: 80ch; }
-.dc-alert > strong { color: var(--cc-ink); }
-.dc-alert.is-warn { border-color: var(--cc-warn); } .dc-alert.is-warn > strong { color: var(--cc-warn); }
-.dc-alert.is-error { border-color: var(--cc-rust-text); } .dc-alert.is-error > strong { color: var(--cc-rust-text); }
-.dc-alert.is-success { border-color: var(--cc-pos); } .dc-alert.is-success > strong { color: var(--cc-pos); }
-.dc-alert .btn-secondary { align-self: flex-start; margin-top: 6px; height: 36px; }
+.dc-section > .dc-alert, .dc-behind .dc-alert { max-width: 80ch; }
 
 /* 06 Trust lens */
 .dc-lens-intro { display: flex; flex-direction: column; gap: var(--cc-s-3); max-width: 78ch; }
@@ -1445,6 +1470,30 @@ button { font: inherit; color: inherit; }
 /* "Who drives it" is carried by the key dot; the column shows only when the table has the full width */
 .dc-fp-table th:nth-child(2), .dc-fp-table td:nth-child(2) { display: none; }
 @media (max-width: 1000px) and (min-width: 721px) { .dc-fp-table th:nth-child(2), .dc-fp-table td:nth-child(2) { display: table-cell; } }
+
+/* Helpers (replace former inline styles) */
+.dc-fp-note.is-body { color: var(--cc-body); }
+.dc-fp-legend .dc-fp-key { margin: 0; }
+
+
+/* ── Migration aliases ───────────────────────────────────────
+   The old Antenna variable names still appear in places; they now
+   resolve to the new tokens, so nothing renders in the old palette
+   while the screens are worked through one by one. */
+:root {
+  --antenna-paper:      var(--cc-paper);
+  --antenna-ground:     var(--cc-paper);
+  --antenna-white:      var(--cc-paper);
+  --antenna-ink:        var(--cc-ink);
+  --antenna-body:       var(--cc-body);
+  --antenna-muted:      var(--cc-muted);
+  --antenna-faint:      var(--cc-faint);
+  --antenna-rule:       var(--cc-rule);
+  --antenna-rule-light: var(--cc-rule);
+  --antenna-lime:       var(--cc-rust);
+  --antenna-lime-dark:  var(--cc-rust-text);
+  --antenna-error:      var(--cc-neg);
+}
 
 
 /* ── Phase two: classes still carrying their pre-restyle geometry ──

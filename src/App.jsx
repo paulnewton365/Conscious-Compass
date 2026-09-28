@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.75.0';
+const APP_VERSION = '3.76.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -2542,65 +2542,39 @@ function ProgressSteps({ currentStep, steps }) {
 }
 
 function WelcomePage({ onStart }) {
-  const [animate, setAnimate] = useState(false);
-
-  useEffect(() => {
-    // Trigger animation after mount
-    const timer = setTimeout(() => setAnimate(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const rise = (delay) => ({
-    opacity: animate ? 1 : 0,
-    transform: animate ? 'translateY(0)' : 'translateY(18px)',
-    transition: 'opacity 800ms ease, transform 800ms cubic-bezier(0.22, 1, 0.36, 1)',
-    transitionDelay: animate ? delay : '0ms',
-  });
-
-  const steps = [
-    ['01', 'Assess', 'Website, social, AI reputation and earned media, from publicly observable evidence only.'],
-    ['02', 'Score', 'Eight attributes, six maturity stages, benchmarked against the sector.'],
-    ['03', 'Act', 'Prioritized recommendations mapped to the work that moves them.'],
-  ];
-
   return (
-    <div className="dc-wrap dc-page relative" style={{ padding: '40px 32px 72px' }}>
-      <div className="dc-split grid gap-12 items-center"
-        style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(220px,320px)' }}>
+    <div className="dc-wrap dc-page animate-fade-in">
+      <section className="dc-hero">
         <div>
-          <h1 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(38px,5vw,68px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)',
-            lineHeight: .95, maxWidth: '20ch', ...rise('150ms') }}>
-            Consequential brands are conscious brands
-          </h1>
-          <p className="dc-lead" style={{ marginTop: 22, ...rise('300ms') }}>
+          <div className="dc-kicker is-accent">The Conscious Compass</div>
+          <h1 className="dc-display is-hero">Consequential brands are conscious brands</h1>
+          <p className="dc-lead">
             They don't just show up, they stand out. They don't follow trends; they shape narratives.
             The Conscious Compass explores your brand's impact across eight essential attributes.
           </p>
-          <div className="dc-btns" style={{ marginTop: 32, ...rise('450ms') }}>
-            <button onClick={onStart} className="btn-primary">Start new assessment</button>
+          <div className="dc-head-actions">
+            <button className="btn-primary" type="button" onClick={onStart}>Start new assessment</button>
           </div>
         </div>
+        <figure className="dc-badge">
+          <img src="/fully-conscious-badge.png" alt="Fully Conscious" />
+          <figcaption className="dc-kicker">Fully Conscious</figcaption>
+        </figure>
+      </section>
 
-        <div className="bg-white" style={{ padding: 20, ...rise('300ms') }}>
-          <img src="/fully-conscious-badge.png" alt="Fully Conscious"
-            style={{ width: '100%', height: 'auto', display: 'block' }} />
-          <div className="dc-stat-l" style={{ marginTop: 14, textAlign: 'center' }}>Fully Conscious</div>
-        </div>
-      </div>
-
-      <div className="dc-tiles" style={{ marginTop: 56, gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', ...rise('600ms') }}>
-        {steps.map(([n, title, body]) => (
-          <div key={n} className="bg-white" style={{ padding: 28, minHeight: 200 }}>
-            <div className="dc-kicker">{n}</div>
-            <h3 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', marginTop: 10 }}>{title}</h3>
-            <p style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--antenna-body)', marginTop: 10 }}>{body}</p>
+      <section className="dc-steps3" aria-label="How it works">
+        {[['01', 'Assess', 'Website, social, AI reputation and earned media, from publicly observable evidence only.'],
+          ['02', 'Score', 'Eight attributes, six maturity stages, benchmarked against the sector.'],
+          ['03', 'Act', 'Prioritized recommendations mapped to the work that moves them.']].map(([n, title, body]) => (
+          <div key={n}>
+            <span className="n">{n}</span>
+            <h2 className="dc-h is-card">{title}</h2>
+            <p>{body}</p>
           </div>
         ))}
-      </div>
+      </section>
 
-      <div className="absolute bottom-4 right-4 text-xs text-[#8A8E95]">
-        v{APP_VERSION}
-      </div>
+      <p className="dc-version">v{APP_VERSION}</p>
     </div>
   );
 }

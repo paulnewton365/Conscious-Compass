@@ -347,7 +347,10 @@ test('headings that set their own type still use the serif, not a stray weight',
   const inline = [...app.matchAll(/fontSize: 'clamp\([^']+\)', fontWeight: (\d+)/g)].map(m => m[1]);
   const heavy = inline.filter(w => Number(w) >= 700);
   assert.deepEqual(heavy, [], 'a display heading is still set in heavy sans');
-  assert.ok((app.match(/fontFamily: 'var\(--cc-serif\)'/g) || []).length >= 4, 'display headings carry the serif');
+  // as pages move onto the design's markup, headings take .dc-display and
+  // .dc-h rather than setting the serif inline; either is acceptable, a
+  // heavy sans heading is not
+  assert.ok((app.match(/className="dc-display/g) || []).length >= 3, 'headings use the display class');
 });
 
 test('no stray palette outside the system', () => {
