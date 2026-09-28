@@ -1,0 +1,1211 @@
+@import "tailwindcss";
+
+/* Self-hosted. Newsreader for display, Hanken Grotesk for UI.
+   The PDF exports embed the same families from public/report as TTF. */
+@font-face { font-family: 'Newsreader'; src: url('/fonts/newsreader-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Newsreader'; src: url('/fonts/newsreader-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url('/fonts/hanken-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url('/fonts/hanken-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url('/fonts/hanken-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url('/fonts/hanken-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+:root {
+  /* ── Antenna redesign, August 2026 ──────────────────────────
+     Square edges throughout, warm paper ground, lime as a marker
+     colour rather than a text colour, and direction carried by the
+     sign rather than by red and green. */
+  --antenna-paper:      #F2F0EA;   /* panel surface */
+  --antenna-ground:     #E4E2DC;   /* page ground behind panels */
+  --antenna-white:      #FFFFFF;   /* panels */
+  --antenna-ink:        #0B0B0B;   /* headings, primary text */
+  --antenna-body:       #4A4840;   /* body copy */
+  --antenna-muted:      #68655B;   /* labels, captions. Darkened when panels
+                                      moved from white to paper: #8A877D fell
+                                      to 3.15:1 on the new surface. */
+  --antenna-faint:      #B3B0A8;   /* axis ticks, disabled */
+  --antenna-rule:       #DCDAD3;   /* borders and rules */
+  --antenna-rule-light: #E4E2DC;   /* secondary rules */
+  --antenna-lime:       #DEE42F;   /* accent: fills, markers, underlines */
+  --antenna-lime-dark:  #CFD32F;
+  --antenna-error:      #B23A3A;   /* form and system errors only */
+
+  /* Legacy aliases. Kept so existing references keep resolving
+     rather than silently falling back to nothing. */
+  --antenna-yellow: var(--antenna-lime);
+  --antenna-yellow-dark: var(--antenna-lime-dark);
+  --antenna-red: var(--antenna-ink);
+  --antenna-black: var(--antenna-ink);
+  --antenna-dark-gray: var(--antenna-body);
+  --antenna-gray: var(--antenna-muted);
+  --antenna-light-gray: var(--antenna-paper);
+  --antenna-cream: var(--antenna-rule-light);
+  --antenna-sand: var(--antenna-rule);
+  --antenna-text: var(--antenna-ink);
+  --antenna-text-muted: var(--antenna-muted);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+  background: var(--antenna-rule-light);
+  color: var(--antenna-ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer base {
+  :where(h1, h2, h3, h4) {
+    font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--antenna-ink);
+  }
+}
+
+/* Section kicker: small, heavily tracked, muted. Used above every
+   major section in place of the old red caps headings. */
+.kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--antenna-muted);
+}
+
+.rule { height: 1px; background: var(--antenna-rule); }
+.rule-strong { height: 2px; background: var(--antenna-ink); }
+
+/* Buttons */
+.btn-primary {
+  background: var(--antenna-lime);
+  color: var(--antenna-ink);
+  font-weight: 700;
+  padding: 12px 16px;
+  border-radius: 0;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--antenna-yellow-dark);
+  transform: translateX(-101%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
+}
+
+.btn-primary:hover::before { 
+  transform: translateX(0);
+}
+
+.btn-primary:disabled { background: #CCCCCC; color: #888888; cursor: not-allowed; transform: none; }
+.btn-primary:disabled::before { display: none; }
+
+.btn-secondary {
+  background: white;
+  color: var(--antenna-text);
+  font-weight: 700;
+  padding: 11px 16px;
+  border-radius: 0;
+  border: 1px solid var(--antenna-ink);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.btn-secondary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--antenna-yellow);
+  transform: translateX(-101%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
+}
+
+.btn-secondary:hover::before { 
+  transform: translateX(0);
+}
+
+.btn-secondary:hover { 
+  border-color: var(--antenna-yellow);
+}
+
+/* Arrow button modifier - adds animated arrow */
+.btn-arrow::after {
+  content: '↗';
+  margin-left: 10px;
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 1.1em;
+}
+
+.btn-arrow:hover::after {
+  transform: translate(3px, -3px);
+}
+
+/* Cards */
+.card {
+  /* Panels are separated by paper, not by borders. The redesign has no
+     outlines and no radius anywhere; whitespace does the dividing. */
+  background: var(--antenna-white);
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  padding: 24px;
+}
+
+/* Inputs */
+@layer base {
+  :where(input, select, textarea) {
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
+    font-size: 14px;
+    border-radius: 0 !important;
+    background: var(--antenna-paper);
+    border: 1px solid var(--antenna-rule);
+    color: var(--antenna-ink);
+  }
+
+  /* Number spinners eat horizontal space inside the tight score inputs,
+     which is what clipped three-digit PageSpeed scores. */
+  :where(input[type='number'])::-webkit-outer-spin-button,
+  :where(input[type='number'])::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+/* App-wide heading scale from the redesign */
+@layer base { :where(h1) { font-size: clamp(30px, 3.6vw, 52px); letter-spacing: -0.032em; line-height: 1; } }
+@layer base { :where(h2) { font-size: clamp(26px, 2.8vw, 38px); letter-spacing: -0.028em; line-height: 1.02; } }
+@layer base { :where(h3) { font-size: 26px; letter-spacing: -0.02em; } }
+
+/* Navigation */
+@layer base { :where(nav) { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--antenna-muted); } }
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--antenna-black);
+  box-shadow: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--antenna-cream); }
+::-webkit-scrollbar-thumb { background: var(--antenna-sand); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #999999; }
+
+/* Spider Chart */
+.spider-chart { font-family: 'Hanken Grotesk', system-ui, sans-serif; }
+
+/* Maturity Scale */
+.maturity-scale {
+  background: linear-gradient(to right, 
+    #9E9E9E 0%, #9E9E9E 25%,
+    #E53935 25%, #E53935 39%,
+    #BF360C 39%, #BF360C 55%,
+    #8D6E63 55%, #8D6E63 69%,
+    #5D4037 69%, #5D4037 84%,
+    #9E9D24 84%, #9E9D24 100%
+  );
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .btn-primary, .btn-secondary {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+  
+  .card {
+    border-radius: 8px;
+  }
+  
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+  
+  input, select, textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  button, a, input, select, textarea {
+    min-height: 44px;
+  }
+  
+  .btn-primary::before,
+  .btn-secondary::before {
+    display: none; /* Disable hover effects on touch */
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: max(0px)) {
+  .min-h-screen {
+    min-height: calc(100vh - env(safe-area-inset-bottom));
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in { animation: none; }
+  .animate-spin { animation: none; }
+  * { transition-duration: 0.01ms !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ANTENNA REDESIGN — structural primitives (v3.0.0)
+   Taken from the Claude Design output. The look comes from layout
+   and type, not colour: display headings, hairline rules, and tile
+   grids separated by 2px of paper rather than boxed cards.
+   ───────────────────────────────────────────────────────────── */
+
+/* Pages are paper panels sitting on the darker app ground. */
+.dc-page      { background: var(--antenna-paper); padding: 40px 32px 72px; }
+.dc-wrap      { max-width: 1180px; margin: 0 auto; }
+
+/* Page header: title with a tracked uppercase standfirst */
+.dc-pagehead  { display: flex; justify-content: space-between; align-items: flex-end;
+                gap: 24px; flex-wrap: wrap; margin-bottom: 32px; }
+.dc-standfirst{ font-size: 13px; font-weight: 600; letter-spacing: 0.06em;
+                text-transform: uppercase; color: var(--antenna-muted); margin-top: 10px; }
+
+/* White blocks separated by 2px of ground, never by borders */
+.dc-stack     { display: grid; gap: 2px; }
+.dc-block     { background: var(--antenna-white); padding: 22px 24px; }
+
+/* Stat: large figure, /100 suffix, tracked label */
+.dc-stat-n    { font-size: 38px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+.dc-stat-suf  { font-size: 15px; font-weight: 500; color: var(--antenna-muted); }
+.dc-stat-l    { font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+                text-transform: uppercase; color: var(--antenna-muted); margin-top: 8px; }
+
+/* Accordion */
+.dc-acc       { background: var(--antenna-white); margin-bottom: 2px; }
+.dc-acc-h     { display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+                border-bottom: 1px solid var(--antenna-rule);
+                font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+
+/* Small bordered meta pill */
+.dc-meta      { font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+                text-transform: uppercase; color: var(--antenna-muted);
+                border: 1px solid var(--antenna-rule); padding: 5px 9px; }
+
+/* Active nav item carries a lime underline rather than a colour change */
+.dc-nav-active{ color: var(--antenna-ink); font-weight: 700;
+                box-shadow: inset 0 -8px 0 var(--antenna-lime); }
+
+/* Lead paragraph */
+.dc-lead      { font-size: 18px; line-height: 1.5; color: var(--antenna-body); max-width: 56ch; }
+
+/* Display type */
+.dc-display   { font-size: clamp(38px, 6vw, 78px); font-weight: 700;
+                letter-spacing: -0.035em; line-height: 0.94; }
+.dc-h2        { font-size: clamp(28px, 4vw, 48px); font-weight: 700;
+                letter-spacing: -0.032em; line-height: 1; }
+.dc-kicker    { font-size: 11px; font-weight: 700; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--antenna-muted); }
+.dc-kicker-sm { font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+                text-transform: uppercase; color: var(--antenna-muted); }
+
+/* Section rhythm: a tracked label over a hard rule */
+.dc-sec       { margin-top: 56px; }
+.dc-sec-head  { display: flex; align-items: center; justify-content: space-between;
+                gap: 16px; width: 100%; padding-bottom: 10px;
+                border-bottom: 2px solid var(--antenna-ink);
+                font-size: 13px; font-weight: 700; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--antenna-ink);
+                background: none; border-left: 0; border-right: 0; border-top: 0;
+                cursor: pointer; text-align: left; }
+
+/* Tiles: separated by paper, never by borders or radius */
+.dc-tiles     { display: grid; gap: 2px; border-top: 2px solid var(--antenna-ink);
+                padding-top: 2px; }
+.dc-tile      { background: var(--antenna-white); padding: 18px 16px;
+                display: flex; flex-direction: column; gap: 10px; }
+.dc-tile-dark { background: var(--antenna-ink); color: #FFFFFF; }
+
+/* Hairline ledger rows */
+.dc-row       { padding: 16px 0; border-top: 1px solid var(--antenna-rule); }
+.dc-row-b     { padding: 18px 0; border-bottom: 1px solid var(--antenna-rule); }
+
+/* Pull quote */
+.dc-quote     { border-left: 6px solid var(--antenna-lime); padding: 6px 0 6px 20px;
+                font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+
+/* Pills */
+.dc-pill      { font-size: 11px; font-weight: 700; background: var(--antenna-lime);
+                color: var(--antenna-ink); padding: 4px 8px; white-space: nowrap; }
+.dc-pill-o    { font-size: 11px; font-weight: 700; border: 1px solid var(--antenna-rule);
+                color: var(--antenna-muted); padding: 4px 8px; white-space: nowrap; }
+
+/* Big muted ordinals used down the recommendation list */
+.dc-ord       { font-size: 22px; font-weight: 700; color: var(--antenna-faint);
+                letter-spacing: -0.02em; }
+
+.dc-panel     { background: var(--antenna-white); padding: 24px; }
+.dc-panel-dark{ background: var(--antenna-ink); color: #FFFFFF; padding: 24px 28px; }
+.dc-panel-dark p, .dc-panel-dark .muted { color: var(--antenna-faint); }
+/* Inside a dark panel a secondary button inverts rather than disappearing */
+.dc-panel-dark .btn-secondary { background: transparent; color: #FFFFFF; border-color: #FFFFFF; }
+.dc-panel-dark .text-\[\#8A877D\] { color: var(--antenna-faint); }
+.dc-panel-dark .text-\[\#0B0B0B\] { color: #FFFFFF; }
+.dc-panel-dark .text-\[\#4A4840\] { color: var(--antenna-faint); }
+
+/* Form fields keep their own colours inside a dark panel. The panel's white
+   text was cascading into inputs and textareas, which stay white-backed, so
+   typed content and placeholders rendered white on white. */
+.dc-panel-dark input,
+.dc-panel-dark textarea,
+.dc-panel-dark select {
+  color: var(--antenna-ink);
+  background: var(--antenna-white);
+  border-color: var(--antenna-rule);
+}
+.dc-panel-dark input::placeholder,
+.dc-panel-dark textarea::placeholder { color: #A9A69E; }
+/* Labels above those fields need to read on ink, not on the field. */
+.dc-panel-dark label { color: var(--antenna-faint); }
+
+input::placeholder, textarea::placeholder { color: #A9A69E; }
+a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; text-underline-offset: 2px; }
+
+/* ── Ledger tables (Results) ────────────────────────────────
+   Hairline rows on the paper ground rather than a bordered table. */
+.dc-ledger-h  { display: grid; gap: 20px; padding: 10px 0;
+                font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+                text-transform: uppercase; color: var(--antenna-muted); }
+.dc-ledger-r  { display: grid; gap: 20px; padding: 16px 0; align-items: center;
+                border-top: 1px solid var(--antenna-rule); }
+.dc-ledger-top{ height: 2px; background: var(--antenna-ink); margin-top: 28px; }
+
+/* ── Saved list rows ────────────────────────────────────────*/
+.dc-listrow   { background: var(--antenna-white); padding: 24px 28px; margin-top: 2px;
+                display: flex; justify-content: space-between; align-items: center;
+                gap: 24px; flex-wrap: wrap; }
+.dc-listrow-t { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.dc-listrow-m { font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+                text-transform: uppercase; color: var(--antenna-muted); margin-top: 5px; }
+
+/* Filter bar inputs butt together on the ground */
+.dc-filters   { display: flex; gap: 2px; margin-top: 24px; flex-wrap: wrap; }
+.dc-filters input, .dc-filters select { background: var(--antenna-white); margin: 0; }
+
+/* Service links: ink with a lime underline, never red italics */
+.svc-link { color: var(--antenna-ink) !important; font-style: normal !important;
+            text-decoration: underline; text-decoration-color: var(--antenna-lime);
+            text-decoration-thickness: 2px; text-underline-offset: 2px; }
+
+/* ── Tabs ───────────────────────────────────────────────────
+   The design uses filled chips butted together on the ground:
+   lime for the active tab, white for the rest. */
+.dc-tabs   { display: flex; gap: 2px; flex-wrap: wrap; }
+.dc-tab    { font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+             text-transform: uppercase; background: var(--antenna-white);
+             color: var(--antenna-muted); padding: 9px 16px; border: none;
+             cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+.dc-tab:hover { color: var(--antenna-ink); }
+.dc-tab-on { background: var(--antenna-lime); color: var(--antenna-ink); }
+
+/* ── Sector / brand spread rows ─────────────────────────────*/
+.dc-spread-r { display: grid; grid-template-columns: 200px minmax(0,1fr) 60px;
+               gap: 20px; align-items: center; padding: 13px 0;
+               border-bottom: 1px solid var(--antenna-rule); }
+.dc-spread-n { font-size: 14px; font-weight: 700; }
+.dc-spread-t { position: relative; height: 22px; }
+.dc-spread-t::before { content: ''; position: absolute; left: 0; right: 0; top: 10px;
+               height: 2px; background: var(--antenna-rule-light); }
+.dc-spread-band { position: absolute; top: 7px; height: 8px; background: var(--antenna-rule); }
+.dc-spread-mark { position: absolute; top: 2px; width: 2px; height: 18px; background: var(--antenna-ink); }
+.dc-spread-v { text-align: right; font-size: 16px; font-weight: 700; }
+
+/* Button groups butt together with 2px of ground between them.
+   Restored: an earlier edit that replaced the tail of this file removed it,
+   which is why report action buttons were stacking instead of sitting in a row. */
+.dc-btns { display: flex; flex-wrap: nowrap; gap: 2px; align-items: stretch; }
+.dc-btns > button { white-space: nowrap; }
+@media (max-width: 900px) { .dc-btns { flex-wrap: wrap; } }
+
+/* Accordion blocks in the assessment flow */
+.acc-white { background: var(--antenna-white); margin-bottom: 2px; }
+
+/* ── Section reveal ─────────────────────────────────────────
+   Each report section lifts and fades once it enters the viewport.
+   Honours reduced-motion, since this runs the length of a long report. */
+.dc-reveal { opacity: 0; transform: translateY(18px);
+             transition: opacity 700ms ease, transform 700ms cubic-bezier(0.22, 1, 0.36, 1); }
+.dc-reveal.is-in { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .dc-reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE — report layouts
+   The reports are built on asymmetric grids and ledger rows with
+   fixed side columns. Below 900px the two-column splits stack; below
+   640px the ledgers collapse so the label, the track and the value
+   each get the full width instead of being crushed into 80px.
+   ───────────────────────────────────────────────────────────── */
+
+/* Two-column splits: glance, benchmark, welcome */
+@media (max-width: 900px) {
+  .dc-split { grid-template-columns: minmax(0, 1fr) !important; gap: 32px !important; }
+  .dc-page  { padding: 28px 20px 56px; }
+  .dc-sec-head { font-size: 12px; }
+}
+
+/* Ledger rows: attribute spread, recommendations, results, adjustment */
+@media (max-width: 640px) {
+  .dc-ledger-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 4px 12px !important;
+  }
+  /* The track spans the full width on its own line */
+  .dc-ledger-row > .dc-ledger-track { grid-column: 1 / -1; order: 3; }
+  .dc-ledger-row > .dc-ledger-value { text-align: right; }
+
+  /* Recommendation rows: ordinal above, chips below */
+  .dc-rec-row { grid-template-columns: minmax(0, 1fr) !important; gap: 10px !important; }
+  .dc-rec-row > .dc-rec-ord { font-size: 16px; }
+  .dc-rec-row > .dc-rec-tags { text-align: left !important; }
+
+  /* Results ledger drops the sector and date columns on a phone */
+  .dc-results-row, .dc-results-head {
+    grid-template-columns: minmax(0, 1fr) 64px 24px !important;
+    gap: 12px !important;
+  }
+  .dc-results-row > .dc-col-hide, .dc-results-head > .dc-col-hide { display: none; }
+
+  /* Score adjustment: three numbers keep their columns but tighten */
+  .dc-adj-row { gap: 6px !important; }
+
+  .dc-page { padding: 22px 16px 48px; }
+  .dc-display { font-size: clamp(30px, 9vw, 46px); }
+  .dc-h2 { font-size: clamp(24px, 7vw, 32px); }
+  .dc-sec { margin-top: 48px; }
+}
+
+/* Tile grids: never below two across, never crushed */
+@media (max-width: 520px) {
+  .dc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+/* The footprint map keeps a fixed viewBox, so on a phone it scales down until
+   the ring labels are unreadable. Widening the viewBox is not possible from
+   CSS, so the labels scale up relative to the drawing instead. */
+@media (max-width: 640px) {
+  .dc-fpmap text { font-size: 15px !important; }
+  .dc-fpmap { min-height: 320px; }
+}
+
+/* Maturity band labels: the columns are proportional to each band's width, so
+   the narrow bands cannot hold their names on a phone. Below 640px the row
+   drops the proportional alignment and becomes a plain two-column legend,
+   which stays readable. The bar above still carries the proportions. */
+@media (max-width: 760px) {
+  /* One column, in order. Two columns read as two unrelated lists: the eye
+     goes down the first column and gets Pre-Foundational, Establishing,
+     Leading, which is every other stage rather than the sequence. */
+  .dc-maturity-labels {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0 !important;
+    margin-top: 14px !important;
+  }
+  .dc-maturity-labels > div {
+    font-size: 12px;
+    line-height: 1.3;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--antenna-rule);
+  }
+  .dc-maturity-labels > div:last-child { border-bottom: 0; }
+}
+
+/* Overall Position pill: absolutely positioned at the score, so a long brand
+   name pushes past the track edge on a phone. Keep the score, drop the name. */
+@media (max-width: 640px) {
+  .dc-pill-brand { display: none; }
+}
+
+/* Trust lens: the weight and reach rows are eight columns of code-plus-number.
+   Below 640px eight columns give each about 34px, so they wrap to four. */
+@media (max-width: 640px) {
+  .dc-lens-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+}
+
+/* Trust lens: the eight attribute bar columns must shrink and wrap rather than
+   overflow at 375px. Below 640px they run four across on two rows, and the
+   left description column takes the full width above them. */
+@media (max-width: 760px) {
+  .dc-lens-row { gap: 24px !important; }
+  .dc-lens-row > div:first-child { flex: 1 1 100% !important; width: 100% !important; }
+}
+@media (max-width: 640px) {
+  .dc-lens-bars { flex-wrap: wrap !important; }
+  .dc-lens-bars > button { flex: 0 0 calc(25% - 2px) !important; }
+}
+
+/* Findings cards drop to a single column on a phone: 420px minimum would
+   otherwise force a horizontal overflow below that width. */
+@media (max-width: 520px) {
+  .dc-findings-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+/* ── Report ground ──────────────────────────────────────────
+   The report pages alone run panels on paper against a darker ground. Every
+   other page keeps white panels on paper. Three sections opt back out, because
+   their content reads better on white: results at a glance, attribute analysis
+   and recommendations.
+   Unlayered rules, so they beat Tailwind's bg-white utility. */
+.dc-report-ground { background: var(--antenna-ground); }
+.dc-report-ground .bg-white,
+.dc-report-ground .card,
+.dc-report-ground .dc-tile { background-color: var(--antenna-paper) !important; }
+
+.dc-report-ground .dc-keep-white,
+.dc-report-ground .dc-keep-white .bg-white,
+.dc-report-ground .dc-keep-white .card,
+.dc-report-ground .dc-keep-white .dc-tile { background-color: #FFFFFF !important; }
+
+/* Attribute cards carry a hairline so each one is bounded on any ground.
+   Previously the separation was only the 2px grid gap showing through, which
+   disappeared whenever the card and the section behind it resolved to the
+   same colour. */
+.dc-attr-card { border: 1px solid var(--antenna-rule); }
+
+/* Band ranges only appear once the labels stack: at full width each label
+   already sits beneath its own segment of the bar. */
+.dc-band-range { display: none; }
+@media (max-width: 760px) { .dc-band-range { display: inline; } }
+
+/* ── Loading skeletons ──────────────────────────────────────
+   Shown while saved work is being fetched. An empty list and a not yet
+   loaded list look identical, and on a page of saved assessments that reads
+   as data loss, so the wait is made visible instead.
+   Square, on the paper palette, no radius: same rules as everything else. */
+.dc-skel {
+  background: linear-gradient(90deg,
+    var(--antenna-rule-light) 0%,
+    #EEECE6 40%,
+    var(--antenna-rule-light) 80%);
+  background-size: 300% 100%;
+  animation: dc-skel-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes dc-skel-shimmer {
+  0%   { background-position: 120% 0; }
+  100% { background-position: -40% 0; }
+}
+
+/* A pulsing placeholder is exactly the kind of motion this setting is for. */
+@media (prefers-reduced-motion: reduce) {
+  .dc-skel { animation: none; background: var(--antenna-rule-light); }
+}
+
+/* Visually hidden, still read aloud. The skeleton means nothing to a screen
+   reader without it. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   Compass UI system (handoff v1, direction 1b: rust on screen).
+   Tokens plus the dc- and btn- rules. Appended, so these win over the
+   rules above while the screens are migrated.
+   ═══════════════════════════════════════════════════════════ */
+/* Conscious Compass — app tokens + dc-* rules (direction 1b)
+   Paste into src/index.css. Self-host Newsreader 400 and Hanken Grotesk 400/500/600/700 from public/. */
+
+/* ---------- Tokens ---------- */
+:root {
+  /* colour */
+  --cc-paper: #FBFAF7;        --cc-hover: #F3F1EC;
+  --cc-ink: #15171A;          --cc-body: #2E3238;
+  --cc-muted: #5B6068;        --cc-faint: #8A8E95;
+  --cc-rule: #DEDAD2;         --cc-track: #E7E3DB;
+  --cc-sep: #C9C4BA;
+  --cc-rust: #D9442A;         /* fills, strokes, >=24px type */
+  --cc-rust-text: #C23B22;    /* text + links on paper */
+  --cc-rust-dark: #F06A4E;    /* rust on dark panel */
+  --cc-pos: #2F6B55;          --cc-neg: #C23B22;
+  --cc-warn: #8C5A0B;
+  --cc-dark: #15171A;         --cc-dark-rule: #33363B;
+  --cc-dark-label: #B9BCC1;
+
+  /* type */
+  --cc-serif: 'Newsreader', Georgia, serif;
+  --cc-sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --cc-fs-hero: 68px;   --cc-fs-title: 52px;
+  --cc-fs-section: 34px; --cc-fs-card: 26px;
+  --cc-fs-num-l: 132px; --cc-fs-num-m: 44px;
+  --cc-fs-lead: 19px;   --cc-fs-body: 15px;
+  --cc-fs-ui: 13.5px;   --cc-fs-meta: 12.5px;
+  --cc-fs-label: 11.5px; --cc-fs-th: 11px;
+  --cc-lh-display: 1.08; --cc-lh-heading: 1.2;
+  --cc-lh-body: 1.55;   --cc-lh-ui: 1.35;
+  --cc-w-regular: 400; --cc-w-medium: 500;
+  --cc-w-semi: 600;    --cc-w-bold: 700;
+  --cc-tracking-label: .1em;
+  --cc-tracking-display: -.01em;
+
+  /* space */
+  --cc-s-1: 4px;  --cc-s-2: 8px;  --cc-s-3: 12px;
+  --cc-s-4: 16px; --cc-s-5: 20px; --cc-s-6: 24px;
+  --cc-s-8: 32px; --cc-s-10: 40px; --cc-s-12: 48px;
+  --cc-s-16: 64px; --cc-s-24: 96px;
+
+  /* shape */
+  --cc-r-0: 0; --cc-r-1: 2px; --cc-r-bar: 3px;
+  --cc-border: 1px solid var(--cc-rule);
+  --cc-border-sep: 1px solid var(--cc-sep);
+  --cc-border-field: 1px solid var(--cc-faint);
+  --cc-border-strong: 1px solid var(--cc-ink);
+  --cc-bar: 3px; --cc-bar-overall: 6px;
+  --cc-focus: 0 0 0 2px var(--cc-paper), 0 0 0 4px var(--cc-rust-text);
+  --cc-page-max: 1440px; --cc-gutter: 80px;
+}
+@media (max-width: 720px) {
+  :root { --cc-gutter: 20px; --cc-fs-hero: 44px;
+    --cc-fs-title: 34px; --cc-fs-section: 26px;
+    --cc-fs-num-l: 88px; --cc-fs-num-m: 34px;
+    --cc-fs-lead: 17px; }
+}
+
+/* ---------- dc-* / btn-* rules ---------- */
+body { background: var(--cc-paper); color: var(--cc-ink);
+  font: var(--cc-w-regular) var(--cc-fs-body)/var(--cc-lh-body) var(--cc-sans);
+  font-variant-numeric: tabular-nums; }
+.dc-wrap { max-width: var(--cc-page-max, 1280px); margin: 0 auto;
+  padding: 0 var(--cc-gutter, 48px); }
+.dc-page { padding: var(--cc-s-16, 64px) 0 var(--cc-s-24, 96px);
+  display: flex; flex-direction: column; gap: var(--cc-s-12); }
+.dc-stack { display: flex; flex-direction: column; gap: var(--cc-s-4); }
+.dc-block { background: var(--cc-paper); border: var(--cc-border);
+  border-radius: var(--cc-r-1); padding: var(--cc-s-6); }
+.dc-panel { border-top: var(--cc-border-strong); padding-top: var(--cc-s-6); }
+.dc-panel-dark { background: var(--cc-dark); color: var(--cc-paper);
+  border-radius: var(--cc-r-1); padding: var(--cc-s-6); }
+.dc-panel-dark .dc-kicker { color: var(--cc-rust-dark); }
+.dc-panel-dark .dc-meta { color: var(--cc-dark-label); }
+.dc-kicker { font: var(--cc-w-semi) var(--cc-fs-label)/1.3 var(--cc-sans);
+  letter-spacing: var(--cc-tracking-label); text-transform: uppercase;
+  color: var(--cc-muted); }
+.dc-kicker.is-accent { color: var(--cc-rust-text); }
+.dc-kicker-sm { /* retire: use .dc-kicker */ }
+.dc-display { font: var(--cc-w-regular) var(--cc-fs-title)/var(--cc-lh-display)
+  var(--cc-serif); letter-spacing: var(--cc-tracking-display);
+  text-wrap: balance; }
+.dc-display.is-hero { font-size: var(--cc-fs-hero); }
+.dc-h { font: var(--cc-w-regular) var(--cc-fs-section)/var(--cc-lh-heading)
+  var(--cc-serif); }
+.dc-h.is-card { font-size: var(--cc-fs-card); }
+.dc-standfirst, .dc-lead { font-size: var(--cc-fs-lead); line-height: 1.5;
+  color: var(--cc-body); max-width: 62ch; }
+.dc-meta { font-size: var(--cc-fs-meta); color: var(--cc-muted); }
+.dc-sec-head { display: flex; justify-content: space-between;
+  align-items: baseline; border-top: var(--cc-border-strong);
+  padding-top: var(--cc-s-5); }
+.dc-pill { display: inline-flex; align-items: center; height: 24px;
+  padding: 0 9px; border: var(--cc-border-sep); border-radius: var(--cc-r-1);
+  font: var(--cc-w-semi) 12px/1 var(--cc-sans); color: var(--cc-muted); }
+.dc-pill[data-band="developing"] { border-color: var(--cc-rust-text);
+  color: var(--cc-rust-text); }
+.dc-pill[data-band="established"] { border-color: var(--cc-ink);
+  color: var(--cc-ink); }
+.dc-pill[data-band="leading"] { background: var(--cc-pos);
+  border-color: var(--cc-pos); color: var(--cc-paper); }
+.dc-tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+  border-block: var(--cc-border); }
+.dc-tile { padding: var(--cc-s-6) var(--cc-s-6) var(--cc-s-6) 0;
+  display: flex; flex-direction: column; gap: var(--cc-s-3); }
+.dc-tile + .dc-tile { border-left: var(--cc-border);
+  padding-left: var(--cc-s-6); }
+.dc-stat-n { font: var(--cc-w-regular) var(--cc-fs-num-m)/1 var(--cc-serif); }
+.dc-stat-n.is-l { font-size: var(--cc-fs-num-l); line-height: .9; }
+.dc-stat-n.is-s { font: var(--cc-w-semi) 15px/1 var(--cc-sans); }
+.dc-tabs { display: flex; gap: var(--cc-s-8);
+  border-bottom: var(--cc-border); }
+.dc-tab { height: 44px; display: flex; align-items: center;
+  font: var(--cc-w-medium) var(--cc-fs-ui) var(--cc-sans);
+  color: var(--cc-muted); border-bottom: 2px solid transparent;
+  margin-bottom: -1px; }
+.dc-tab:hover { color: var(--cc-ink); }
+.dc-tab[aria-selected="true"] { color: var(--cc-ink);
+  font-weight: var(--cc-w-semi); border-color: var(--cc-rust-text); }
+.dc-listrow { display: grid; align-items: center; gap: var(--cc-s-5);
+  min-height: 64px; border-bottom: var(--cc-border); }
+.dc-listrow:hover { background: var(--cc-hover); }
+.dc-ledger-table { width: 100%; border-collapse: collapse;
+  font-size: var(--cc-fs-ui); }
+.dc-ledger-table th { font: var(--cc-w-semi) var(--cc-fs-th)/1 var(--cc-sans);
+  letter-spacing: .08em; text-transform: uppercase; color: var(--cc-muted);
+  text-align: left; padding: 10px 12px; border-bottom: var(--cc-border-strong); }
+.dc-ledger-table td { padding: 11px 12px; border-bottom: var(--cc-border);
+  vertical-align: top; }
+.dc-ledger-table td.num, .dc-ledger-table th.num { text-align: right; }
+.dc-ledger-table.is-compact td { padding-block: 7px; }
+.dc-lens-bar { height: var(--cc-bar); background: var(--cc-track);
+  border-radius: var(--cc-r-bar); }
+.dc-lens-bar > i { display: block; height: 100%; background: var(--cc-ink);
+  border-radius: inherit; }
+.dc-lens-bar.is-overall { height: var(--cc-bar-overall); }
+.dc-lens-bar.is-overall > i { background: var(--cc-rust); }
+.dc-spread-axis { height: 1px; background: var(--cc-sep); position: relative; }
+.dc-reveal { border-top: var(--cc-border-strong); }
+.btn-primary, .btn-secondary { height: 40px; padding: 0 18px;
+  border-radius: var(--cc-r-1); font: var(--cc-w-semi) var(--cc-fs-ui) var(--cc-sans);
+  display: inline-flex; align-items: center; gap: var(--cc-s-2); }
+.btn-primary { background: var(--cc-ink); color: var(--cc-paper); }
+.btn-primary:hover { background: var(--cc-dark-rule); }
+.btn-secondary { border: var(--cc-border-strong); color: var(--cc-ink);
+  background: transparent; }
+.btn-secondary:hover { background: var(--cc-hover); }
+.btn-arrow { color: var(--cc-rust-text); font-weight: var(--cc-w-semi); }
+.btn-arrow:hover { color: var(--cc-ink); }
+:is(.btn-primary,.btn-secondary,.btn-arrow):focus-visible {
+  outline: none; box-shadow: var(--cc-focus); }
+:is(.btn-primary,.btn-secondary):disabled { background: var(--cc-track);
+  border-color: var(--cc-track); color: var(--cc-muted); }
+.btn-primary[aria-busy="true"] { background: var(--cc-dark-rule);
+  color: var(--cc-dark-label); }
+.dc-skel { background: var(--cc-track); border-radius: var(--cc-r-1); }
+
+
+/* ── Migration aliases ───────────────────────────────────────
+   The old Antenna variable names still appear in places; they now
+   resolve to the new tokens, so nothing renders in the old palette
+   while the screens are worked through one by one. */
+:root {
+  --antenna-paper:      var(--cc-paper);
+  --antenna-ground:     var(--cc-paper);
+  --antenna-white:      var(--cc-paper);
+  --antenna-ink:        var(--cc-ink);
+  --antenna-body:       var(--cc-body);
+  --antenna-muted:      var(--cc-muted);
+  --antenna-faint:      var(--cc-faint);
+  --antenna-rule:       var(--cc-rule);
+  --antenna-rule-light: var(--cc-rule);
+  --antenna-lime:       var(--cc-rust);
+  --antenna-lime-dark:  var(--cc-rust-text);
+  --antenna-error:      var(--cc-neg);
+}
+
+
+/* ── Phase two: classes still carrying their pre-restyle geometry ──
+   Page heads, list rows, ledger rows, results rows and stats, brought
+   onto the new scale. Appended last, so these are the rules that win. */
+
+.dc-pagehead {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--cc-s-6, 24px); flex-wrap: wrap;
+  padding-bottom: var(--cc-s-5, 20px); margin-bottom: var(--cc-s-8, 32px);
+  border-bottom: 1px solid var(--cc-ink, #15171A);
+}
+.dc-h2 {
+  font: var(--cc-w-regular, 400) var(--cc-fs-title, 52px)/var(--cc-lh-display, 1.08) var(--cc-serif, Georgia, serif);
+  letter-spacing: var(--cc-tracking-display, -.01em);
+  color: var(--cc-ink, #15171A); text-wrap: balance;
+}
+/* dc-standfirst is the designer's 19px lead. Left to their rule. */
+.dc-split { display: grid; gap: var(--cc-s-6, 24px); }
+
+/* list and results rows */
+.dc-listrow, .dc-results-row {
+  display: flex; align-items: center; gap: var(--cc-s-5, 20px);
+  padding: var(--cc-s-4, 16px) 0;
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  background: transparent;
+}
+.dc-listrow:hover, .dc-results-row:hover { background: var(--cc-hover, #F3F1EC); }
+.dc-listrow-t {
+  font: var(--cc-w-semi, 600) var(--cc-fs-lead, 19px)/1.25 var(--cc-sans, system-ui, sans-serif);
+  color: var(--cc-ink, #15171A);
+}
+.dc-listrow-m {
+  font-size: var(--cc-fs-meta, 12.5px); color: var(--cc-muted, #5B6068);
+  margin-top: 2px;
+}
+.dc-results-head {
+  font-size: var(--cc-fs-th, 11px); font-weight: var(--cc-w-semi, 600);
+  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
+  color: var(--cc-muted, #5B6068);
+  padding-bottom: var(--cc-s-2, 8px);
+  border-bottom: 1px solid var(--cc-ink, #15171A);
+}
+
+/* score numerals: the serif carries them, as on the read */
+.dc-ledger-value {
+  font: var(--cc-w-regular, 400) var(--cc-fs-num-m, 44px)/1 var(--cc-serif, Georgia, serif);
+}
+.dc-stat-l {
+  font-size: var(--cc-fs-label, 11.5px); font-weight: var(--cc-w-semi, 600);
+  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
+  color: var(--cc-muted, #5B6068); margin-top: var(--cc-s-2, 8px);
+}
+
+/* ledger */
+.dc-ledger-row, .dc-ledger-r {
+  display: grid; grid-template-columns: 88px 1fr; gap: var(--cc-s-6, 24px);
+  align-items: start; padding: var(--cc-s-5, 20px) 0;
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+}
+.dc-ledger-h {
+  font-size: var(--cc-fs-th, 11px); font-weight: var(--cc-w-semi, 600);
+  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
+  color: var(--cc-muted, #5B6068);
+}
+.dc-ledger-track { height: var(--cc-bar, 3px); background: var(--cc-track, #E7E3DB); }
+.dc-ledger-track > * { height: var(--cc-bar, 3px); background: var(--cc-ink, #15171A); display: block; }
+
+/* tabs */
+.dc-tab-on {
+  color: var(--cc-ink, #15171A);
+  border-bottom: 2px solid var(--cc-rust, #D9442A);
+}
+
+/* attribute cards and recommendation rows */
+.dc-attr-card {
+  background: var(--cc-paper, #FBFAF7);
+  border: 1px solid var(--cc-rule, #DEDAD2);
+  border-radius: var(--cc-r-1, 2px);
+  padding: var(--cc-s-6, 24px);
+}
+.dc-rec-row {
+  display: grid; grid-template-columns: 56px 1fr; gap: var(--cc-s-5, 20px);
+  padding: var(--cc-s-4, 16px) 0;
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+}
+.dc-rec-ord {
+  font-family: var(--cc-serif, Georgia, serif);
+  font-size: var(--cc-fs-section, 34px); line-height: 1;
+  color: var(--cc-rust, #D9442A);
+}
+.dc-rec-tags { display: flex; gap: var(--cc-s-2, 8px); flex-wrap: wrap; }
+.dc-keep-white { background: var(--cc-paper, #FBFAF7); }
+
+
+/* ── Rhythm and row geometry, from QA on the built app ──────── */
+
+/* The page stack was too airy once sections carried their own margins. */
+.dc-page { gap: var(--cc-s-12, 48px); }
+.dc-pagehead { margin-bottom: var(--cc-s-6, 24px); }
+
+/* A list row is: content, then actions hard right. The score sits at the
+   right of the content column rather than floating beside the name. */
+.dc-listrow, .dc-results-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; column-gap: var(--cc-s-6, 24px); row-gap: var(--cc-s-3, 12px);
+  padding: var(--cc-s-5, 20px) 0; min-height: 64px;
+}
+.dc-listrow > *:last-child, .dc-results-row > *:last-child { justify-self: end; }
+@media (max-width: 720px) {
+  .dc-listrow, .dc-results-row { grid-template-columns: minmax(0, 1fr); }
+  .dc-listrow > *:last-child, .dc-results-row > *:last-child { justify-self: start; }
+}
+
+
+/* ── Shell and forms, from the four screen examples ──────────── */
+
+/* Header: 64px, hairline rule, the nav sitting full height so the active
+   item's rust underline reads as a tab. */
+.dc-header {
+  height: 64px; background: var(--cc-paper, #FBFAF7);
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  position: sticky; top: 0; z-index: 30;
+}
+.dc-header .dc-wrap { height: 64px; }
+.dc-nav-active {
+  color: var(--cc-ink, #15171A); font-weight: var(--cc-w-semi, 600);
+  border-bottom: 2px solid var(--cc-rust-text, #C23B22);
+  padding-top: 2px;
+}
+@media (max-width: 720px) { .dc-header, .dc-header .dc-wrap { height: 56px; } }
+
+/* Page rhythm: the screens run 56 to 96 top, 80 sides, 96 bottom. */
+:root { --cc-gutter: 80px; }
+@media (max-width: 1100px) { :root { --cc-gutter: 40px; } }
+@media (max-width: 720px)  { :root { --cc-gutter: 20px; } }
+.dc-page { padding: var(--cc-s-16, 64px) 0 var(--cc-s-24, 96px); }
+
+/* Fields: 44px, hairline, 2px radius, consistent everywhere. Unlayered, so
+   these win over the utility classes the markup still carries. */
+.dc-page input[type="text"], .dc-page input[type="url"], .dc-page input[type="email"],
+.dc-page input[type="password"], .dc-page input[type="search"], .dc-page input:not([type]),
+.dc-page select, .dc-page textarea {
+  background: var(--cc-paper, #FBFAF7);
+  border: 1px solid var(--cc-faint, #8A8E95);
+  border-radius: var(--cc-r-1, 2px);
+  color: var(--cc-ink, #15171A);
+  font: var(--cc-w-regular, 400) var(--cc-fs-ui, 13.5px)/1.4 var(--cc-sans, system-ui, sans-serif);
+  padding: 0 12px;
+}
+.dc-page input[type="text"], .dc-page input[type="url"], .dc-page input[type="email"],
+.dc-page input[type="password"], .dc-page input[type="search"], .dc-page input:not([type]),
+.dc-page select { height: 44px; }
+.dc-page textarea { padding: 12px; line-height: var(--cc-lh-body, 1.55); }
+.dc-page input:focus-visible, .dc-page select:focus-visible, .dc-page textarea:focus-visible {
+  outline: none; border-color: var(--cc-rust-text, #C23B22);
+  box-shadow: var(--cc-focus, 0 0 0 2px #FBFAF7, 0 0 0 4px #C23B22);
+}
+.dc-page label { font-size: var(--cc-fs-ui, 13.5px); font-weight: var(--cc-w-semi, 600); color: var(--cc-ink, #15171A); }
+
+/* Form groups: the screens stack fields 14px apart and groups 40px apart. */
+.dc-formgroup { display: flex; flex-direction: column; gap: var(--cc-s-3, 14px); }
+.dc-formstack { display: flex; flex-direction: column; gap: var(--cc-s-10, 40px); }
+
+
+/* ── Setup, to screen D ─────────────────────────────────────── */
+.dc-setup {
+  display: grid; grid-template-columns: 240px minmax(0, 720px) minmax(0, 1fr);
+  gap: 64px; align-items: start;
+}
+@media (max-width: 1100px) { .dc-setup { grid-template-columns: 200px minmax(0, 1fr); gap: 40px; } }
+@media (max-width: 820px)  { .dc-setup { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
+
+.dc-steprail { display: flex; flex-direction: column; border-top: 1px solid var(--cc-ink, #15171A); }
+.dc-steprail-row {
+  display: grid; grid-template-columns: 28px 1fr; gap: 8px;
+  padding: 14px 0; border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  font-size: var(--cc-fs-ui, 13.5px); align-items: baseline;
+}
+.dc-steprail-n { font-weight: var(--cc-w-bold, 700); color: var(--cc-faint, #8A8E95); }
+.dc-steprail-b { display: flex; flex-direction: column; gap: 2px; }
+.dc-steprail-name { color: var(--cc-muted, #5B6068); }
+.dc-steprail-state { font-size: var(--cc-fs-meta, 12.5px); color: var(--cc-faint, #8A8E95); }
+.dc-steprail-row.is-now .dc-steprail-n { color: var(--cc-rust-text, #C23B22); }
+.dc-steprail-row.is-now .dc-steprail-name { color: var(--cc-ink, #15171A); font-weight: var(--cc-w-semi, 600); }
+.dc-steprail-row.is-done .dc-steprail-n,
+.dc-steprail-row.is-done .dc-steprail-name { color: var(--cc-ink, #15171A); }
+@media (max-width: 820px) { .dc-steprail { display: none; } }
+
+/* Form groups inside the setup column */
+.dc-formstack > div { display: flex; flex-direction: column; gap: 10px; }
+.dc-formstack > div > label { margin-bottom: 0; }
+
+
+/* ── Setup, to screen D ─────────────────────────────────────── */
+.dc-setup {
+  display: grid; grid-template-columns: 240px minmax(0, 720px) minmax(0, 1fr);
+  gap: 64px; align-items: start;
+}
+@media (max-width: 1100px) { .dc-setup { grid-template-columns: 200px minmax(0, 1fr); gap: 40px; } }
+@media (max-width: 820px)  { .dc-setup { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
+
+.dc-steprail { display: flex; flex-direction: column; border-top: 1px solid var(--cc-ink, #15171A); }
+.dc-steprail-row {
+  display: grid; grid-template-columns: 28px 1fr; gap: 8px;
+  padding: 14px 0; border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  font-size: var(--cc-fs-ui, 13.5px); align-items: baseline;
+}
+.dc-steprail-n { font-weight: var(--cc-w-bold, 700); color: var(--cc-faint, #8A8E95); }
+.dc-steprail-b { display: flex; flex-direction: column; gap: 2px; }
+.dc-steprail-name { color: var(--cc-muted, #5B6068); }
+.dc-steprail-state { font-size: var(--cc-fs-meta, 12.5px); color: var(--cc-faint, #8A8E95); }
+.dc-steprail-row.is-now .dc-steprail-n { color: var(--cc-rust-text, #C23B22); }
+.dc-steprail-row.is-now .dc-steprail-name { color: var(--cc-ink, #15171A); font-weight: var(--cc-w-semi, 600); }
+.dc-steprail-row.is-done .dc-steprail-n,
+.dc-steprail-row.is-done .dc-steprail-name { color: var(--cc-ink, #15171A); }
+@media (max-width: 820px) { .dc-steprail { display: none; } }
+
+/* The form column: fields 10px under their label, groups 40px apart. */
+.dc-formstack { display: flex; flex-direction: column; gap: var(--cc-s-10, 40px); }
+.dc-formstack > div > label { display: block; margin-bottom: 10px; }
+
+
+/* Any score drawn in the markup rather than through .dc-stat-n: the serif
+   carries numerals, at regular weight, as in the design. */
+.dc-numeral {
+  font-family: var(--cc-serif, Georgia, serif);
+  font-weight: var(--cc-w-regular, 400);
+  letter-spacing: -.01em;
+}
+
+
+/* ── Buttons, hover and menus, to the handoff ────────────────
+   The pre-restyle rules added uppercase, heavy tracking and a sliding
+   ::before wipe. The handoff's buttons are sentence case at 40px with a
+   flat hover, so those extras are cleared here. */
+
+.btn-primary, .btn-secondary, .btn-arrow {
+  text-transform: none;
+  letter-spacing: normal;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.btn-primary::before, .btn-secondary::before { content: none; display: none; }
+.btn-primary:hover, .btn-secondary:hover, .btn-arrow:hover { transform: none; }
+.btn-primary:hover { background: var(--cc-dark-rule, #33363B); color: var(--cc-paper, #FBFAF7); }
+.btn-secondary:hover { background: var(--cc-hover, #F3F1EC); }
+:is(.btn-primary, .btn-secondary):disabled {
+  background: var(--cc-track, #E7E3DB); border-color: var(--cc-track, #E7E3DB);
+  color: var(--cc-muted, #5B6068); cursor: not-allowed; transform: none;
+}
+:is(.btn-primary, .btn-secondary, .btn-arrow):focus-visible {
+  outline: none; box-shadow: var(--cc-focus, 0 0 0 2px #FBFAF7, 0 0 0 4px #C23B22);
+}
+
+/* Icon-only controls in rows and toolbars share the row hover. */
+.dc-page button:not([class*="btn-"]):not(.dc-tab):hover { background-color: var(--cc-hover, #F3F1EC); }
+.dc-page button:not([class*="btn-"]):focus-visible {
+  outline: none; box-shadow: var(--cc-focus, 0 0 0 2px #FBFAF7, 0 0 0 4px #C23B22);
+}
+
+/* Nav: hover matches the active treatment without the rule. */
+.dc-header button:hover { color: var(--cc-ink, #15171A); }
+.dc-header button:focus-visible {
+  outline: none; box-shadow: var(--cc-focus, 0 0 0 2px #FBFAF7, 0 0 0 4px #C23B22);
+}
+
+/* The mobile menu drops from the header on the same paper and hairlines. */
+.dc-mobilemenu {
+  background: var(--cc-paper, #FBFAF7);
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  padding: var(--cc-s-3, 12px) 0 var(--cc-s-4, 16px);
+  display: flex; flex-direction: column;
+}
+.dc-mobilemenu button {
+  height: 44px; padding: 0 var(--cc-s-2, 8px); text-align: left;
+  font: var(--cc-w-medium, 500) var(--cc-fs-ui, 13.5px) var(--cc-sans, system-ui, sans-serif);
+  color: var(--cc-muted, #5B6068);
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  display: flex; align-items: center; justify-content: flex-start;
+}
+.dc-mobilemenu button:last-child { border-bottom: 0; }
+.dc-mobilemenu button.dc-nav-active {
+  color: var(--cc-ink, #15171A); font-weight: var(--cc-w-semi, 600);
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  box-shadow: inset 3px 0 0 var(--cc-rust-text, #C23B22);
+  padding-left: var(--cc-s-3, 12px);
+}
+
+/* Selects get the caret back, since the field reset removes the native look. */
+.dc-page select {
+  appearance: none; -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--cc-muted, #5B6068) 50%),
+                    linear-gradient(135deg, var(--cc-muted, #5B6068) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+
+
+/* ── The teaser read, to screen A ────────────────────────────── */
+.dc-readhead {
+  display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 80px; align-items: end; padding-bottom: var(--cc-s-12, 48px);
+}
+.dc-readhead-main { display: flex; flex-direction: column; gap: var(--cc-s-6, 24px); }
+.dc-readhead-main .dc-lead { max-width: 640px; }
+.dc-readscore {
+  display: flex; flex-direction: column; gap: 18px;
+  border-top: 1px solid var(--cc-ink, #15171A); padding-top: var(--cc-s-5, 20px);
+}
+.dc-readscore-n { display: flex; align-items: baseline; gap: 10px; }
+.dc-readscore-of { font-size: var(--cc-fs-lead, 19px); color: var(--cc-muted, #5B6068); }
+.dc-readscore-chips { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.dc-chip-outline {
+  border: 1px solid var(--cc-rust-text, #C23B22); color: var(--cc-rust-text, #C23B22);
+  font-size: 12px; font-weight: var(--cc-w-semi, 600); height: 24px; padding: 0 9px;
+  display: inline-flex; align-items: center; border-radius: var(--cc-r-1, 2px);
+  box-sizing: border-box;
+}
+@media (max-width: 1000px) {
+  .dc-readhead { grid-template-columns: minmax(0, 1fr); gap: 32px; align-items: start; }
+}
+
+
+/* ── Compass Results, to screen C ────────────────────────────
+   Dense by design: 40px rows, hairline separators, the serif kept for
+   headings while the table itself stays in the sans so the numbers line up. */
+.dc-results-head {
+  display: grid; align-items: center; gap: var(--cc-s-3, 12px);
+  font: var(--cc-w-semi, 600) var(--cc-fs-th, 11px)/1 var(--cc-sans, system-ui, sans-serif);
+  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
+  color: var(--cc-muted, #5B6068);
+  padding: 0 0 8px; border-bottom: 1px solid var(--cc-ink, #15171A);
+}
+.dc-results-row {
+  display: grid; align-items: center; gap: var(--cc-s-3, 12px);
+  min-height: 40px; padding: 0; font-size: var(--cc-fs-ui, 13.5px);
+  border-bottom: 1px solid var(--cc-sep, #C9C4BA);
+}
+.dc-results-row:hover { background: var(--cc-hover, #F3F1EC); }
+.dc-rescell-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dc-mark { width: 7px; height: 7px; transform: rotate(45deg); flex: none; }
+.dc-rescell-score { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.dc-resnum {
+  font: var(--cc-w-semi, 600) 15px/1 var(--cc-sans, system-ui, sans-serif);
+  min-width: 22px; text-align: right; font-variant-numeric: tabular-nums;
+}
+.dc-resbar {
+  flex: 1; max-width: 88px; height: 3px; background: var(--cc-track, #E7E3DB);
+  border-radius: var(--cc-r-bar, 3px); display: block;
+}
+.dc-resbar > i { display: block; height: 3px; border-radius: var(--cc-r-bar, 3px); }
+@media (max-width: 720px) { .dc-resbar { display: none; } }
+
+
+/* Controls on the dense screens: 36px, hairline, square-ish, sitting beside
+   the title rather than stacked above the table. */
+.dc-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.dc-controls select,
+.dc-page .dc-controls select,
+.dc-controls input[type="search"],
+.dc-page .dc-controls input[type="search"] {
+  height: 36px; font-size: 13px; padding: 0 12px;
+  border: 1px solid var(--cc-faint, #8A8E95); border-radius: var(--cc-r-1, 2px);
+}
+.dc-seg {
+  display: flex; border: 1px solid var(--cc-faint, #8A8E95);
+  border-radius: var(--cc-r-1, 2px); height: 36px; overflow: hidden;
+  font-size: 13px; font-weight: var(--cc-w-semi, 600);
+}
+.dc-seg > button { padding: 0 14px; display: flex; align-items: center; background: transparent; color: var(--cc-muted, #5B6068); }
+.dc-seg > button.is-on { background: var(--cc-ink, #15171A); color: var(--cc-paper, #FBFAF7); }
+.dc-seg > button:hover:not(.is-on) { background: var(--cc-hover, #F3F1EC); }
+
+/* The summary strip above a dense table: four cells under an ink rule. */
+.dc-summary4 {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px;
+  border-top: 1px solid var(--cc-ink, #15171A); padding-top: var(--cc-s-5, 20px);
+}
+@media (max-width: 900px) { .dc-summary4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; } }
+.dc-summary4 > div { display: flex; flex-direction: column; gap: 10px; }

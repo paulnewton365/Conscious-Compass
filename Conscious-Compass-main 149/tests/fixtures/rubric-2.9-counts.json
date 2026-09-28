@@ -1,0 +1,42 @@
+{
+ "AWAKE": {
+  "strong": 5,
+  "weak": 4,
+  "moderate": 5
+ },
+ "AWARE": {
+  "strong": 6,
+  "weak": 5,
+  "moderate": 5
+ },
+ "REFLECTIVE": {
+  "strong": 6,
+  "weak": 5,
+  "moderate": 5
+ },
+ "ATTENTIVE": {
+  "strong": 6,
+  "weak": 5,
+  "moderate": 5
+ },
+ "COGENT": {
+  "strong": 7,
+  "weak": 5,
+  "moderate": 6
+ },
+ "SENTIENT": {
+  "strong": 6,
+  "weak": 6,
+  "moderate": 6
+ },
+ "VISIONARY": {
+  "strong": 6,
+  "weak": 5,
+  "moderate": 5
+ },
+ "INTENTIONAL": {
+  "strong": 7,
+  "weak": 6,
+  "moderate": 6
+ }
+}
