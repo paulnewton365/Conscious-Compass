@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.69.0';
+const APP_VERSION = '3.71.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -9004,12 +9004,17 @@ ${content.slice(0, 8000)}`;
           )}
         </div>
 
-        <h1 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(40px,6vw,88px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)',
-          lineHeight: .92, margin: '28px 0 0', maxWidth: '18ch', textWrap: 'balance' }}>
-          {project.brandName}
+        <div className="dc-kicker is-accent" style={{ marginTop: 28 }}>
+          Compass report \u00B7 {project.brandName}
+        </div>
+        <h1 className="dc-display" style={{ marginTop: 16, maxWidth: 900 }}>
+          {scores?.headline || project.brandName}
         </h1>
-        <p className="text-[14px] font-semibold text-[#5B6068] mt-5" style={{ letterSpacing: '.04em' }}>
-          Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
+        <p className="dc-meta" style={{ marginTop: 16 }}>
+          Run {new Date(project.date || Date.now()).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {' \u00B7 '}{industryName}
+          {project.companyStage ? ` \u00B7 ${findStage(project.companyStage)?.name}` : ''}
+          {' \u00B7 '}Framework v{FRAMEWORK_VERSION}
         </p>
 
         {scores?.challenges?.length > 0 && (
@@ -9832,8 +9837,10 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     style={{ gridTemplateColumns: '2fr 1.2fr .8fr 1fr .8fr 24px' }}
                     onClick={() => toggleRow(r.id || i)}
                   >
-                    <div className="min-w-0">
-                      <div className="text-[16px] font-bold truncate">{r.brandName}</div>
+                    <div className="min-w-0 dc-rescell-brand">
+                      <div className="dc-mark" style={{ background: scoreColor(r.totalScore) }} />
+                      <div className="min-w-0">
+                      <div className="text-[15px] font-semibold truncate">{r.brandName}</div>
                       <div className="text-[11px] text-[#8A8E95] mt-0.5">
                         {r.businessModel?.toUpperCase()} · v{r.rubricVersion || '2.3'}
                         {r.isManual ? ' · Manual' : ''}
@@ -9845,9 +9852,13 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                           </span>
                         ) : ''}
                       </div>
+                      </div>
                     </div>
                     <div className="dc-col-hide text-[13px] text-[#2E3238] truncate">{r.industry}</div>
-                    <div className="text-[20px] font-semibold text-right" style={{ color: scoreColor(r.totalScore) }}>{r.totalScore}</div>
+                    <div className="dc-rescell-score">
+                      <span className="dc-resnum" style={{ color: scoreColor(r.totalScore) }}>{r.totalScore}</span>
+                      <span className="dc-resbar"><i style={{ width: `${Math.max(0, Math.min(100, r.totalScore))}%`, background: scoreColor(r.totalScore) }} /></span>
+                    </div>
                     <div className="dc-col-hide text-[13px] font-semibold">{r.maturityLevel}</div>
                     <div className="dc-col-hide text-[13px] text-[#5B6068] text-right">
                       {assessmentDate ? assessmentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}

@@ -347,7 +347,7 @@ test('headings that set their own type still use the serif, not a stray weight',
   const inline = [...app.matchAll(/fontSize: 'clamp\([^']+\)', fontWeight: (\d+)/g)].map(m => m[1]);
   const heavy = inline.filter(w => Number(w) >= 700);
   assert.deepEqual(heavy, [], 'a display heading is still set in heavy sans');
-  assert.ok((app.match(/fontFamily: 'var\(--cc-serif\)'/g) || []).length >= 6, 'display headings carry the serif');
+  assert.ok((app.match(/fontFamily: 'var\(--cc-serif\)'/g) || []).length >= 4, 'display headings carry the serif');
 });
 
 test('no stray palette outside the system', () => {
@@ -421,4 +421,31 @@ test('numerals are set in the serif at regular weight, never heavy sans', () => 
   assert.ok(!/text-\[(3[0-9]|[4-9][0-9]|1[0-9]{2})px\] font-bold/.test(app), 'a large numeral is still heavy sans');
   const css = read('src/index.css');
   assert.match(css, /\.dc-numeral \{[\s\S]*?--cc-serif/);
+});
+
+test('the results table follows screen C: dense rows, a brand mark and a bar beside the score', () => {
+  const css = read('src/index.css');
+  assert.match(css, /\.dc-results-row \{[^}]*min-height: 40px/, '40px rows, as the screen specifies');
+  assert.match(css, /\.dc-mark \{[^}]*width: 7px[^}]*rotate\(45deg\)/, 'the 7px diamond');
+  assert.match(css, /\.dc-resnum \{[^}]*tabular-nums/, 'numbers line up');
+  assert.match(css, /\.dc-resbar \{[^}]*height: 3px/);
+  assert.match(css, /\.dc-results-head \{[^}]*border-bottom: 1px solid var\(--cc-ink/);
+  // the table stays in the sans; the serif is for headings
+  const row = css.slice(css.indexOf('.dc-resnum'), css.indexOf('.dc-resbar'));
+  assert.ok(row.includes('--cc-sans'), 'table numerals stay in the sans so columns align');
+  // and the markup carries the mark and the bar
+  assert.ok(app.includes('dc-rescell-brand'), 'the brand cell carries the mark');
+  assert.ok(app.includes('dc-resbar'), 'the score carries a bar');
+});
+
+test('the report masthead follows screen B', () => {
+  const head = app.slice(app.indexOf('{/* \u2500\u2500 Masthead'), app.indexOf('01 Results at a glance'));
+  assert.ok(head.includes('Compass report'), 'a rust eyebrow naming the report');
+  assert.ok(head.includes('dc-kicker is-accent'), 'the eyebrow is the accent one');
+  assert.ok(head.includes('scores?.headline || project.brandName'), 'the verdict is the title, with the brand as fallback');
+  assert.ok(head.includes('className="dc-display"'), 'set in the display serif');
+  assert.ok(head.includes('Run ') && head.includes('Framework v'), 'a provenance line under it');
+  // the old treatment is gone
+  assert.ok(!head.includes('Conscious Compass Assessment \u00B7'), 'the old subtitle is replaced');
+  assert.ok(!head.includes("clamp(40px,6vw,88px)"), 'the hand-set hero size is gone');
 });

@@ -1150,3 +1150,94 @@ body { background: var(--cc-paper); color: var(--cc-ink);
 @media (max-width: 1000px) {
   .dc-readhead { grid-template-columns: minmax(0, 1fr); gap: 32px; align-items: start; }
 }
+
+
+/* ── Compass Results, to screen C ────────────────────────────
+   Dense by design: 40px rows, hairline separators, the serif kept for
+   headings while the table itself stays in the sans so the numbers line up. */
+.dc-results-head {
+  display: grid; align-items: center; gap: var(--cc-s-3, 12px);
+  font: var(--cc-w-semi, 600) var(--cc-fs-th, 11px)/1 var(--cc-sans, system-ui, sans-serif);
+  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
+  color: var(--cc-muted, #5B6068);
+  padding: 0 0 8px; border-bottom: 1px solid var(--cc-ink, #15171A);
+}
+.dc-results-row {
+  display: grid; align-items: center; gap: var(--cc-s-3, 12px);
+  min-height: 40px; padding: 0; font-size: var(--cc-fs-ui, 13.5px);
+  border-bottom: 1px solid var(--cc-sep, #C9C4BA);
+}
+.dc-results-row:hover { background: var(--cc-hover, #F3F1EC); }
+.dc-rescell-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dc-mark { width: 7px; height: 7px; transform: rotate(45deg); flex: none; }
+.dc-rescell-score { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.dc-resnum {
+  font: var(--cc-w-semi, 600) 15px/1 var(--cc-sans, system-ui, sans-serif);
+  min-width: 22px; text-align: right; font-variant-numeric: tabular-nums;
+}
+.dc-resbar {
+  flex: 1; max-width: 88px; height: 3px; background: var(--cc-track, #E7E3DB);
+  border-radius: var(--cc-r-bar, 3px); display: block;
+}
+.dc-resbar > i { display: block; height: 3px; border-radius: var(--cc-r-bar, 3px); }
+@media (max-width: 720px) { .dc-resbar { display: none; } }
+
+
+/* Controls on the dense screens: 36px, hairline, square-ish, sitting beside
+   the title rather than stacked above the table. */
+.dc-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.dc-controls select,
+.dc-page .dc-controls select,
+.dc-controls input[type="search"],
+.dc-page .dc-controls input[type="search"] {
+  height: 36px; font-size: 13px; padding: 0 12px;
+  border: 1px solid var(--cc-faint, #8A8E95); border-radius: var(--cc-r-1, 2px);
+}
+.dc-seg {
+  display: flex; border: 1px solid var(--cc-faint, #8A8E95);
+  border-radius: var(--cc-r-1, 2px); height: 36px; overflow: hidden;
+  font-size: 13px; font-weight: var(--cc-w-semi, 600);
+}
+.dc-seg > button { padding: 0 14px; display: flex; align-items: center; background: transparent; color: var(--cc-muted, #5B6068); }
+.dc-seg > button.is-on { background: var(--cc-ink, #15171A); color: var(--cc-paper, #FBFAF7); }
+.dc-seg > button:hover:not(.is-on) { background: var(--cc-hover, #F3F1EC); }
+
+/* The summary strip above a dense table: four cells under an ink rule. */
+.dc-summary4 {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px;
+  border-top: 1px solid var(--cc-ink, #15171A); padding-top: var(--cc-s-5, 20px);
+}
+@media (max-width: 900px) { .dc-summary4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; } }
+.dc-summary4 > div { display: flex; flex-direction: column; gap: 10px; }
+
+
+/* ── Report, to screen B ────────────────────────────────────── */
+
+/* The masthead: verdict, provenance line, actions on the same baseline. */
+.dc-page > header { display: flex; flex-direction: column; }
+.dc-page > header .dc-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* Section rules: the screen runs sections 48px apart under a 44px tab row. */
+.dc-reveal { border-top: 1px solid var(--cc-ink, #15171A); }
+.dc-sec-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: var(--cc-s-6, 24px); padding: var(--cc-s-5, 20px) 0 var(--cc-s-4, 16px);
+}
+.dc-sec-head .dc-ord {
+  font: var(--cc-w-semi, 600) var(--cc-fs-th, 11px)/1 var(--cc-sans, system-ui, sans-serif);
+  letter-spacing: var(--cc-tracking-label, .1em); color: var(--cc-muted, #5B6068);
+}
+
+/* Tabs: the handoff already sets the row and its type. Only the active
+   state is added, sitting on the hairline as the screen shows. */
+.dc-tab-on {
+  color: var(--cc-ink, #15171A); font-weight: var(--cc-w-semi, 600);
+  border-bottom: 2px solid var(--cc-rust-text, #C23B22); margin-bottom: -1px;
+}
+
+/* The two-column body the screen uses for the overview: narrative beside the
+   chart, at 64px. */
+.dc-report-split {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 64px;
+}
+@media (max-width: 1000px) { .dc-report-split { grid-template-columns: minmax(0, 1fr); gap: 32px; } }

@@ -1134,3 +1134,4 @@ test('the read leads with the headline beside the score, as the screen has it', 
   assert.match(score.textContent, /Sector median \d+/, 'the baseline sits beside the stage');
   await act(async () => root.unmount());
 });
+
