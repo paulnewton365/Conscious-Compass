@@ -1,5 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
+
+/* Self-hosted. Newsreader for display, Hanken Grotesk for UI.
+   The PDF exports embed the same families from public/report as TTF. */
+@font-face { font-family: 'Newsreader'; src: url('/fonts/newsreader-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Newsreader'; src: url('/fonts/newsreader-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url('/fonts/hanken-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url('/fonts/hanken-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url('/fonts/hanken-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Hanken Grotesk'; src: url('/fonts/hanken-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
 
 :root {
   /* ── Antenna redesign, August 2026 ──────────────────────────
@@ -39,7 +47,7 @@
 * { box-sizing: border-box; }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
   background: var(--antenna-rule-light);
   color: var(--antenna-ink);
   line-height: 1.5;
@@ -48,7 +56,7 @@ body {
 
 @layer base {
   :where(h1, h2, h3, h4) {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
     font-weight: 700;
     line-height: 1.15;
     letter-spacing: -0.02em;
@@ -172,7 +180,7 @@ body {
 /* Inputs */
 @layer base {
   :where(input, select, textarea) {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
     font-size: 14px;
     border-radius: 0 !important;
     background: var(--antenna-paper);
@@ -221,7 +229,7 @@ input:focus, select:focus, textarea:focus {
 ::-webkit-scrollbar-thumb:hover { background: #999999; }
 
 /* Spider Chart */
-.spider-chart { font-family: 'Inter', sans-serif; }
+.spider-chart { font-family: 'Hanken Grotesk', system-ui, sans-serif; }
 
 /* Maturity Scale */
 .maturity-scale {
@@ -635,4 +643,187 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
   position: absolute; width: 1px; height: 1px;
   padding: 0; margin: -1px; overflow: hidden;
   clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   Compass UI system (handoff v1, direction 1b: rust on screen).
+   Tokens and dc-*/btn-* rules. Appended, so these win over the
+   rules above while the screens are migrated.
+   ═══════════════════════════════════════════════════════════ */
+/* Conscious Compass — app tokens + dc-* rules (direction 1b)
+   Paste into src/index.css. Self-host Newsreader 400 and Hanken Grotesk 400/500/600/700 from public/. */
+
+/* ---------- Tokens ---------- */
+:root {
+  /* colour */
+  --cc-paper: #FBFAF7;        --cc-hover: #F3F1EC;
+  --cc-ink: #15171A;          --cc-body: #2E3238;
+  --cc-muted: #5B6068;        --cc-faint: #8A8E95;
+  --cc-rule: #DEDAD2;         --cc-track: #E7E3DB;
+  --cc-sep: #C9C4BA;
+  --cc-rust: #D9442A;         /* fills, strokes, >=24px type */
+  --cc-rust-text: #C23B22;    /* text + links on paper */
+  --cc-rust-dark: #F06A4E;    /* rust on dark panel */
+  --cc-pos: #2F6B55;          --cc-neg: #C23B22;
+  --cc-warn: #8C5A0B;
+  --cc-dark: #15171A;         --cc-dark-rule: #33363B;
+  --cc-dark-label: #B9BCC1;
+
+  /* type */
+  --cc-serif: 'Newsreader', Georgia, serif;
+  --cc-sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --cc-fs-hero: 68px;   --cc-fs-title: 52px;
+  --cc-fs-section: 34px; --cc-fs-card: 26px;
+  --cc-fs-num-l: 132px; --cc-fs-num-m: 44px;
+  --cc-fs-lead: 19px;   --cc-fs-body: 15px;
+  --cc-fs-ui: 13.5px;   --cc-fs-meta: 12.5px;
+  --cc-fs-label: 11.5px; --cc-fs-th: 11px;
+  --cc-lh-display: 1.08; --cc-lh-heading: 1.2;
+  --cc-lh-body: 1.55;   --cc-lh-ui: 1.35;
+  --cc-w-regular: 400; --cc-w-medium: 500;
+  --cc-w-semi: 600;    --cc-w-bold: 700;
+  --cc-tracking-label: .1em;
+  --cc-tracking-display: -.01em;
+
+  /* space */
+  --cc-s-1: 4px;  --cc-s-2: 8px;  --cc-s-3: 12px;
+  --cc-s-4: 16px; --cc-s-5: 20px; --cc-s-6: 24px;
+  --cc-s-8: 32px; --cc-s-10: 40px; --cc-s-12: 48px;
+  --cc-s-16: 64px; --cc-s-24: 96px;
+
+  /* shape */
+  --cc-r-0: 0; --cc-r-1: 2px; --cc-r-bar: 3px;
+  --cc-border: 1px solid var(--cc-rule);
+  --cc-border-sep: 1px solid var(--cc-sep);
+  --cc-border-field: 1px solid var(--cc-faint);
+  --cc-border-strong: 1px solid var(--cc-ink);
+  --cc-bar: 3px; --cc-bar-overall: 6px;
+  --cc-focus: 0 0 0 2px var(--cc-paper), 0 0 0 4px var(--cc-rust-text);
+  --cc-page-max: 1280px; --cc-gutter: 48px;
+}
+@media (max-width: 720px) {
+  :root { --cc-gutter: 20px; --cc-fs-hero: 44px;
+    --cc-fs-title: 34px; --cc-fs-section: 26px;
+    --cc-fs-num-l: 88px; --cc-fs-num-m: 34px;
+    --cc-fs-lead: 17px; }
+}
+
+/* ---------- dc-* / btn-* rules ---------- */
+body { background: var(--cc-paper); color: var(--cc-ink);
+  font: var(--cc-w-regular) var(--cc-fs-body)/var(--cc-lh-body) var(--cc-sans);
+  font-variant-numeric: tabular-nums; }
+.dc-wrap { max-width: var(--cc-page-max); margin: 0 auto;
+  padding: 0 var(--cc-gutter); }
+.dc-page { padding: var(--cc-s-16) 0 var(--cc-s-24);
+  display: flex; flex-direction: column; gap: var(--cc-s-12); }
+.dc-stack { display: flex; flex-direction: column; gap: var(--cc-s-4); }
+.dc-block { background: var(--cc-paper); border: var(--cc-border);
+  border-radius: var(--cc-r-1); padding: var(--cc-s-6); }
+.dc-panel { border-top: var(--cc-border-strong); padding-top: var(--cc-s-6); }
+.dc-panel-dark { background: var(--cc-dark); color: var(--cc-paper);
+  border-radius: var(--cc-r-1); padding: var(--cc-s-6); }
+.dc-panel-dark .dc-kicker { color: var(--cc-rust-dark); }
+.dc-panel-dark .dc-meta { color: var(--cc-dark-label); }
+.dc-kicker { font: var(--cc-w-semi) var(--cc-fs-label)/1.3 var(--cc-sans);
+  letter-spacing: var(--cc-tracking-label); text-transform: uppercase;
+  color: var(--cc-muted); }
+.dc-kicker.is-accent { color: var(--cc-rust-text); }
+.dc-kicker-sm { /* retire: use .dc-kicker */ }
+.dc-display { font: var(--cc-w-regular) var(--cc-fs-title)/var(--cc-lh-display)
+  var(--cc-serif); letter-spacing: var(--cc-tracking-display);
+  text-wrap: balance; }
+.dc-display.is-hero { font-size: var(--cc-fs-hero); }
+.dc-h { font: var(--cc-w-regular) var(--cc-fs-section)/var(--cc-lh-heading)
+  var(--cc-serif); }
+.dc-h.is-card { font-size: var(--cc-fs-card); }
+.dc-standfirst, .dc-lead { font-size: var(--cc-fs-lead); line-height: 1.5;
+  color: var(--cc-body); max-width: 62ch; }
+.dc-meta { font-size: var(--cc-fs-meta); color: var(--cc-muted); }
+.dc-sec-head { display: flex; justify-content: space-between;
+  align-items: baseline; border-top: var(--cc-border-strong);
+  padding-top: var(--cc-s-5); }
+.dc-pill { display: inline-flex; align-items: center; height: 24px;
+  padding: 0 9px; border: var(--cc-border-sep); border-radius: var(--cc-r-1);
+  font: var(--cc-w-semi) 12px/1 var(--cc-sans); color: var(--cc-muted); }
+.dc-pill[data-band="developing"] { border-color: var(--cc-rust-text);
+  color: var(--cc-rust-text); }
+.dc-pill[data-band="established"] { border-color: var(--cc-ink);
+  color: var(--cc-ink); }
+.dc-pill[data-band="leading"] { background: var(--cc-pos);
+  border-color: var(--cc-pos); color: var(--cc-paper); }
+.dc-tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+  border-block: var(--cc-border); }
+.dc-tile { padding: var(--cc-s-6) var(--cc-s-6) var(--cc-s-6) 0;
+  display: flex; flex-direction: column; gap: var(--cc-s-3); }
+.dc-tile + .dc-tile { border-left: var(--cc-border);
+  padding-left: var(--cc-s-6); }
+.dc-stat-n { font: var(--cc-w-regular) var(--cc-fs-num-m)/1 var(--cc-serif); }
+.dc-stat-n.is-l { font-size: var(--cc-fs-num-l); line-height: .9; }
+.dc-stat-n.is-s { font: var(--cc-w-semi) 15px/1 var(--cc-sans); }
+.dc-tabs { display: flex; gap: var(--cc-s-8);
+  border-bottom: var(--cc-border); }
+.dc-tab { height: 44px; display: flex; align-items: center;
+  font: var(--cc-w-medium) var(--cc-fs-ui) var(--cc-sans);
+  color: var(--cc-muted); border-bottom: 2px solid transparent;
+  margin-bottom: -1px; }
+.dc-tab:hover { color: var(--cc-ink); }
+.dc-tab[aria-selected="true"] { color: var(--cc-ink);
+  font-weight: var(--cc-w-semi); border-color: var(--cc-rust-text); }
+.dc-listrow { display: grid; align-items: center; gap: var(--cc-s-5);
+  min-height: 64px; border-bottom: var(--cc-border); }
+.dc-listrow:hover { background: var(--cc-hover); }
+.dc-ledger-table { width: 100%; border-collapse: collapse;
+  font-size: var(--cc-fs-ui); }
+.dc-ledger-table th { font: var(--cc-w-semi) var(--cc-fs-th)/1 var(--cc-sans);
+  letter-spacing: .08em; text-transform: uppercase; color: var(--cc-muted);
+  text-align: left; padding: 10px 12px; border-bottom: var(--cc-border-strong); }
+.dc-ledger-table td { padding: 11px 12px; border-bottom: var(--cc-border);
+  vertical-align: top; }
+.dc-ledger-table td.num, .dc-ledger-table th.num { text-align: right; }
+.dc-ledger-table.is-compact td { padding-block: 7px; }
+.dc-lens-bar { height: var(--cc-bar); background: var(--cc-track);
+  border-radius: var(--cc-r-bar); }
+.dc-lens-bar > i { display: block; height: 100%; background: var(--cc-ink);
+  border-radius: inherit; }
+.dc-lens-bar.is-overall { height: var(--cc-bar-overall); }
+.dc-lens-bar.is-overall > i { background: var(--cc-rust); }
+.dc-spread-axis { height: 1px; background: var(--cc-sep); position: relative; }
+.dc-reveal { border-top: var(--cc-border-strong); }
+.btn-primary, .btn-secondary { height: 40px; padding: 0 18px;
+  border-radius: var(--cc-r-1); font: var(--cc-w-semi) var(--cc-fs-ui) var(--cc-sans);
+  display: inline-flex; align-items: center; gap: var(--cc-s-2); }
+.btn-primary { background: var(--cc-ink); color: var(--cc-paper); }
+.btn-primary:hover { background: var(--cc-dark-rule); }
+.btn-secondary { border: var(--cc-border-strong); color: var(--cc-ink);
+  background: transparent; }
+.btn-secondary:hover { background: var(--cc-hover); }
+.btn-arrow { color: var(--cc-rust-text); font-weight: var(--cc-w-semi); }
+.btn-arrow:hover { color: var(--cc-ink); }
+:is(.btn-primary,.btn-secondary,.btn-arrow):focus-visible {
+  outline: none; box-shadow: var(--cc-focus); }
+:is(.btn-primary,.btn-secondary):disabled { background: var(--cc-track);
+  border-color: var(--cc-track); color: var(--cc-muted); }
+.btn-primary[aria-busy="true"] { background: var(--cc-dark-rule);
+  color: var(--cc-dark-label); }
+.dc-skel { background: var(--cc-track); border-radius: var(--cc-r-1); }
+
+
+/* ── Migration aliases ───────────────────────────────────────
+   The old Antenna variable names still appear in places; they now
+   resolve to the new tokens, so nothing renders in the old palette
+   while the screens are worked through one by one. */
+:root {
+  --antenna-paper:      var(--cc-paper);
+  --antenna-ground:     var(--cc-paper);
+  --antenna-white:      var(--cc-paper);
+  --antenna-ink:        var(--cc-ink);
+  --antenna-body:       var(--cc-body);
+  --antenna-muted:      var(--cc-muted);
+  --antenna-faint:      var(--cc-faint);
+  --antenna-rule:       var(--cc-rule);
+  --antenna-rule-light: var(--cc-rule);
+  --antenna-lime:       var(--cc-rust);
+  --antenna-lime-dark:  var(--cc-rust-text);
+  --antenna-error:      var(--cc-neg);
 }

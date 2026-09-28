@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.60.0';
+const APP_VERSION = '3.61.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -72,11 +72,11 @@ class ErrorBoundary extends React.Component {
       return (
         <div className="min-h-screen bg-[#FAF9F7] flex items-center justify-center p-8">
           <div className="max-w-md text-center">
-            <div className="w-16 h-16 bg-[#F2F0EA] flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-8 h-8 text-[#B23A3A]" />
+            <div className="w-16 h-16 bg-[#FBFAF7] flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-[#C23B22]" />
             </div>
-            <h1 className="text-[22px] font-bold tracking-tight text-[#0B0B0B] mb-2">Something went wrong</h1>
-            <p className="text-[#68655B] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
+            <h1 className="text-[22px] font-bold tracking-tight text-[#15171A] mb-2">Something went wrong</h1>
+            <p className="text-[#5B6068] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
             <button 
               onClick={() => window.location.reload()} 
               className="btn-primary"
@@ -133,13 +133,13 @@ function AuthPage({ onAuthSuccess }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#E4E2DC] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#DEDAD2] flex items-center justify-center p-6">
       <div className="max-w-md w-full">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-7">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6" style={{ filter: 'brightness(0)' }} />
-            <span className="w-px h-4 bg-[#DCDAD3]" />
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B0B0B]">The Conscious Compass</span>
+            <span className="w-px h-4 bg-[#DEDAD2]" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#15171A]">The Conscious Compass</span>
           </div>
           <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
             {isLogin ? 'Sign in' : 'Create account'}
@@ -150,51 +150,51 @@ function AuthPage({ onAuthSuccess }) {
         <form onSubmit={handleSubmit} className="card">
           {!isLogin && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Full Name</label>
+              <label className="block text-sm font-medium text-[#15171A] mb-2">Full Name</label>
               <input 
                 type="text" 
                 value={fullName} 
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Your name"
-                className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]"
+                className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]"
                 required={!isLogin}
               />
             </div>
           )}
           
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Email</label>
+            <label className="block text-sm font-medium text-[#15171A] mb-2">Email</label>
             <input 
               type="email" 
               value={email} 
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
-              className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]"
+              className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]"
               required
             />
           </div>
           
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Password</label>
+            <label className="block text-sm font-medium text-[#15171A] mb-2">Password</label>
             <input 
               type="password" 
               value={password} 
               onChange={(e) => setPassword(e.target.value)}
               placeholder={isLogin ? "Enter password" : "Create password (min 6 chars)"}
-              className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]"
+              className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]"
               required
               minLength={6}
             />
           </div>
           
           {error && (
-            <div className="mb-4 p-3 bg-[#F2F0EA] border border-[#DCDAD3] text-[#B23A3A] text-sm">
+            <div className="mb-4 p-3 bg-[#FBFAF7] border border-[#DEDAD2] text-[#C23B22] text-sm">
               {error}
             </div>
           )}
           
           {message && (
-            <div className="mb-4 p-3 bg-[#F2F0EA] border border-[#DCDAD3] text-[#059669] text-sm">
+            <div className="mb-4 p-3 bg-[#FBFAF7] border border-[#DEDAD2] text-[#2F6B55] text-sm">
               {message}
             </div>
           )}
@@ -211,14 +211,14 @@ function AuthPage({ onAuthSuccess }) {
             <button 
               type="button"
               onClick={() => { setIsLogin(!isLogin); setError(''); setMessage(''); }}
-              className="text-sm text-[#B23A3A] hover:underline"
+              className="text-sm text-[#C23B22] hover:underline"
             >
               {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
             </button>
           </div>
         </form>
         
-        <p className="text-center text-xs text-[#B3B0A8] mt-6">
+        <p className="text-center text-xs text-[#8A8E95] mt-6">
           Antenna Group | Brand Consciousness Assessment
         </p>
       </div>
@@ -320,22 +320,22 @@ function AdminPage({ currentUser, onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F2F0EA]">
+    <div className="min-h-screen bg-[#FBFAF7]">
       <div className="dc-wrap dc-page pt-8">
         <div className="flex items-center gap-4 mb-8">
           <button onClick={onBack} className="btn-secondary flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div>
-            <h1 className="dc-h2 text-[#0B0B0B]">User management</h1>
-            <p className="text-sm text-[#68655B]">Approve users and manage access</p>
+            <h1 className="dc-h2 text-[#15171A]">User management</h1>
+            <p className="text-sm text-[#5B6068]">Approve users and manage access</p>
           </div>
         </div>
 
         {loading ? (
           <div className="card text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#B23A3A]" />
-            <p className="mt-4 text-[#68655B]">Loading users...</p>
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#C23B22]" />
+            <p className="mt-4 text-[#5B6068]">Loading users...</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -343,21 +343,21 @@ function AdminPage({ currentUser, onBack }) {
             {/* Pending Users */}
             {users.filter(u => !u.is_approved).length > 0 && (
               <div>
-                <h2 className="text-sm font-semibold text-[#68655B] uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-[#68655B]" />
+                <h2 className="text-sm font-semibold text-[#5B6068] uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-[#5B6068]" />
                   Pending Approval ({users.filter(u => !u.is_approved).length})
                 </h2>
                 <div className="space-y-3">
                   {users.filter(u => !u.is_approved).map(user => (
-                    <div key={user.id} className="bg-[#F2F0EA] border border-[#DCDAD3] p-5">
+                    <div key={user.id} className="bg-[#FBFAF7] border border-[#DEDAD2] p-5">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-[#DEE42F] flex items-center justify-center text-[#0B0B0B] font-bold flex-shrink-0">
+                        <div className="w-10 h-10 bg-[#D9442A] flex items-center justify-center text-[#15171A] font-bold flex-shrink-0">
                           {(user.full_name || user.email || '?')[0].toUpperCase()}
                         </div>
                         <div>
-                          <div className="font-semibold text-[#0B0B0B]">{user.full_name || 'No name'}</div>
-                          <div className="text-sm text-[#68655B]">{user.email}</div>
-                          <div className="text-xs text-[#B3B0A8] mt-0.5">Signed up {formatDate(user.created_at)}</div>
+                          <div className="font-semibold text-[#15171A]">{user.full_name || 'No name'}</div>
+                          <div className="text-sm text-[#5B6068]">{user.email}</div>
+                          <div className="text-xs text-[#8A8E95] mt-0.5">Signed up {formatDate(user.created_at)}</div>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -369,7 +369,7 @@ function AdminPage({ currentUser, onBack }) {
                           Approve (Full Access)
                         </button>
                         <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                          className="text-sm px-3 py-2 border border-[#DCDAD3] text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors ml-auto">
+                          className="text-sm px-3 py-2 border border-[#DEDAD2] text-[#C23B22] hover:bg-[#FBFAF7] transition-colors ml-auto">
                           <Trash2 className="w-4 h-4 inline mr-1" />Delete
                         </button>
                       </div>
@@ -381,17 +381,17 @@ function AdminPage({ currentUser, onBack }) {
 
             {/* Active Users */}
             <div>
-              <h2 className="text-sm font-semibold text-[#68655B] uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#059669]" />
+              <h2 className="text-sm font-semibold text-[#5B6068] uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#2F6B55]" />
                 Active Users ({users.filter(u => u.is_approved).length})
               </h2>
               <div className="space-y-3">
                 {users.filter(u => u.is_approved).map(user => {
                   const isSelf = user.id === currentUser.id;
-                  const roleColor = user.is_admin ? 'bg-[#DEE42F]' : user.is_readonly ? 'bg-[#B3B0A8]' : user.is_biz ? 'bg-[#0B6E4F]' : 'bg-[#059669]';
+                  const roleColor = user.is_admin ? 'bg-[#D9442A]' : user.is_readonly ? 'bg-[#8A8E95]' : user.is_biz ? 'bg-[#0B6E4F]' : 'bg-[#2F6B55]';
                   const roleLabel = user.is_admin ? 'Admin' : user.is_readonly ? 'Read-only' : user.is_biz ? 'Business' : 'Full Access';
                   return (
-                    <div key={user.id} className="bg-white border border-[#DCDAD3] p-5">
+                    <div key={user.id} className="bg-white border border-[#DEDAD2] p-5">
                       {/* User info row */}
                       <div className="flex items-start gap-3 mb-4">
                         <div className={`w-10 h-10 flex items-center justify-center text-white font-semibold flex-shrink-0 ${roleColor}`}>
@@ -399,17 +399,17 @@ function AdminPage({ currentUser, onBack }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-[#0B0B0B]">{user.full_name || 'No name'}</span>
+                            <span className="font-semibold text-[#15171A]">{user.full_name || 'No name'}</span>
                             <span className={`text-xs px-2 py-0.5 text-white ${roleColor}`}>{roleLabel}</span>
-                            {isSelf && <span className="text-xs text-[#B3B0A8]">(you)</span>}
+                            {isSelf && <span className="text-xs text-[#8A8E95]">(you)</span>}
                           </div>
-                          <div className="text-sm text-[#68655B] mt-0.5 truncate">{user.email}</div>
+                          <div className="text-sm text-[#5B6068] mt-0.5 truncate">{user.email}</div>
                           <div className="flex gap-3 mt-1">
-                            <span className="text-xs text-[#B3B0A8]">
+                            <span className="text-xs text-[#8A8E95]">
                               Joined {formatDate(user.created_at)}
                             </span>
                             {user.last_login && (
-                              <span className="text-xs text-[#B3B0A8]">
+                              <span className="text-xs text-[#8A8E95]">
                                 · Last login {formatDate(user.last_login)}
                               </span>
                             )}
@@ -421,13 +421,13 @@ function AdminPage({ currentUser, onBack }) {
                       </div>
                       {/* Actions row */}
                       {!isSelf && (
-                        <div className="flex flex-wrap gap-2 pt-3 border-t border-[#E4E2DC]">
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-[#DEDAD2]">
                           {!user.is_admin && (
                             <button onClick={() => handleToggleReadonly(user.id, user.is_readonly)}
                               className={`text-sm px-3 py-1.5  border transition-colors ${
                                 user.is_readonly
-                                  ? 'border-[#059669] text-[#059669] hover:bg-[#059669]/10'
-                                  : 'border-[#9CA3AF] text-[#B3B0A8] hover:bg-[#B3B0A8]/10'
+                                  ? 'border-[#2F6B55] text-[#2F6B55] hover:bg-[#2F6B55]/10'
+                                  : 'border-[#9CA3AF] text-[#8A8E95] hover:bg-[#8A8E95]/10'
                               }`}>
                               {user.is_readonly ? 'Grant Full Access' : 'Set Read-only'}
                             </button>
@@ -438,7 +438,7 @@ function AdminPage({ currentUser, onBack }) {
                               className={`text-sm px-3 py-1.5 border transition-colors ${
                                 user.is_biz
                                   ? 'border-[#0B6E4F] text-[#0B6E4F] hover:bg-[#0B6E4F]/10'
-                                  : 'border-[#DCDAD3] text-[#68655B] hover:border-[#0B0B0B]'
+                                  : 'border-[#DEDAD2] text-[#5B6068] hover:border-[#15171A]'
                               }`}>
                               {user.is_biz ? 'Remove Teaser Access' : 'Grant Teaser Access'}
                             </button>
@@ -446,19 +446,19 @@ function AdminPage({ currentUser, onBack }) {
                           <button onClick={() => handleToggleAdmin(user.id, user.is_admin)}
                             className={`text-sm px-3 py-1.5  border transition-colors ${
                               user.is_admin
-                                ? 'border-[#0B0B0B] text-[#B23A3A] hover:bg-[#DEE42F]/10'
-                                : 'border-[#DCDAD3] text-[#68655B] hover:border-[#0B0B0B]'
+                                ? 'border-[#15171A] text-[#C23B22] hover:bg-[#D9442A]/10'
+                                : 'border-[#DEDAD2] text-[#5B6068] hover:border-[#15171A]'
                             }`}>
                             <Shield className="w-3.5 h-3.5 inline mr-1" />
                             {user.is_admin ? 'Remove Admin' : 'Make Admin'}
                           </button>
                           <div className="flex gap-2 ml-auto">
                             <button onClick={() => handleRevoke(user.id)}
-                              className="text-sm px-3 py-1.5 border border-[#DCDAD3] text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
+                              className="text-sm px-3 py-1.5 border border-[#DEDAD2] text-[#C23B22] hover:bg-[#FBFAF7] transition-colors">
                               <UserX className="w-3.5 h-3.5 inline mr-1" />Revoke
                             </button>
                             <button onClick={() => handleDelete(user.id, user.full_name || user.email)}
-                              className="text-sm px-3 py-1.5 border border-[#DCDAD3] text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors">
+                              className="text-sm px-3 py-1.5 border border-[#DEDAD2] text-[#C23B22] hover:bg-[#FBFAF7] transition-colors">
                               <Trash2 className="w-3.5 h-3.5 inline mr-1" />Delete
                             </button>
                           </div>
@@ -683,9 +683,9 @@ function buildBenchmarkSnapshot(results, { industry, industryName, brandName, to
 // band is set at the AA-large threshold and every score figure is rendered at
 // 19px bold or larger, which is where that threshold applies. Contrast on
 // paper: green 4.70, orange 3.49, red 4.50.
-const SCORE_GREEN  = '#0F7A4F';   // 70-100, hue 156
-const SCORE_ORANGE = '#C2680C';   // 45-69,  hue 30
-const SCORE_RED    = '#D42528';   // 0-44,   hue 359
+const SCORE_GREEN  = '#2F6B55';   // 70-100, hue 156
+const SCORE_ORANGE = '#8C5A0B';   // 45-69,  hue 30
+const SCORE_RED    = '#C23B22';   // 0-44,   hue 359
 // Hue separation between orange and red is now 31 degrees, up from 26, and the
 // red is a true red rather than the previous brick.
 
@@ -693,7 +693,7 @@ const SCORE_RED    = '#D42528';   // 0-44,   hue 359
 // red; on orange it drops to 3.98, so that one takes ink instead (4.95).
 function onScoreColor(n) {
   const v = Number(n) || 0;
-  return (v >= 45 && v < 70) ? '#0B0B0B' : '#FFFFFF';
+  return (v >= 45 && v < 70) ? '#15171A' : '#FBFAF7';
 }
 
 function scoreColor(n) {
@@ -734,7 +734,7 @@ function compressImage(dataUrl, maxSizeMB = 3.5) {
         canvas.height = height;
         
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = '#FBFAF7';
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
         
@@ -754,7 +754,7 @@ function compressImage(dataUrl, maxSizeMB = 3.5) {
         while (result.length * 0.75 > maxBytes && dimensionScale > 0.3) {
           canvas.width = Math.round(width * dimensionScale);
           canvas.height = Math.round(height * dimensionScale);
-          ctx.fillStyle = '#FFFFFF';
+          ctx.fillStyle = '#FBFAF7';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           result = canvas.toDataURL('image/jpeg', 0.6);
@@ -765,7 +765,7 @@ function compressImage(dataUrl, maxSizeMB = 3.5) {
         if (result.length * 0.75 > maxBytes) {
           canvas.width = Math.round(width * 0.25);
           canvas.height = Math.round(height * 0.25);
-          ctx.fillStyle = '#FFFFFF';
+          ctx.fillStyle = '#FBFAF7';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           result = canvas.toDataURL('image/jpeg', 0.5);
@@ -978,10 +978,10 @@ function SpiderChart({ scores, size = 400, animate = true }) {
         ))}
 
         {/* Data shape */}
-        <polygon points={pointsString} fill="#E2E65A" stroke="#CFD32F" strokeWidth="1" />
+        <polygon points={pointsString} fill="#E2E65A" stroke="#C23B22" strokeWidth="1" />
 
         {/* Grid outlines */}
-        <path d={RING_PATHS.join('')} stroke="#111720" strokeWidth="1.5" fill="none" />
+        <path d={RING_PATHS.join('')} stroke="#15171A" strokeWidth="1.5" fill="none" />
 
         {/* Centre axis lines */}
         {data.map((_, i) => {
@@ -989,14 +989,14 @@ function SpiderChart({ scores, size = 400, animate = true }) {
           return (
             <line key={`axis-${i}`} x1="226" y1="226"
               x2={226 + 225 * Math.cos(angle)} y2={226 + 225 * Math.sin(angle)}
-              stroke="#111720" strokeOpacity="0.1" strokeWidth="1.5" />
+              stroke="#15171A" strokeOpacity="0.1" strokeWidth="1.5" />
           );
         })}
 
         {/* Data point circles */}
         {dataPoints.map((point, i) => (
           <circle key={`pt-${i}`} cx={point.x} cy={point.y} r="4"
-            fill="#CFD32F" stroke="white" strokeWidth="1.5"
+            fill="#C23B22" stroke="white" strokeWidth="1.5"
             style={{ opacity: progress }} />
         ))}
 
@@ -1021,16 +1021,16 @@ function SpiderChart({ scores, size = 400, animate = true }) {
           return (
             <text key={`label-${i}`} x={pos.x} y={pos.y}
               textAnchor={pos.textAnchor} dy={pos.dy}
-              fill="#111720" style={{ fontSize: '15px', fontWeight: '500' }}>
+              fill="#15171A" style={{ fontSize: '15px', fontWeight: '500' }}>
               {item.name}
             </text>
           );
         })}
 
         {/* Centre score */}
-        <circle cx="226" cy="226" r="36" fill="#CFD32F" />
+        <circle cx="226" cy="226" r="36" fill="#C23B22" />
         <text x="226" y="226" textAnchor="middle" dominantBaseline="middle"
-          style={{ fontSize: '28px', fontWeight: '700', fill: '#111720' }}>
+          style={{ fontSize: '28px', fontWeight: '700', fill: '#15171A' }}>
           {overall}
         </text>
 
@@ -1066,11 +1066,11 @@ function MiniSpiderChart({ scores, size = 120 }) {
           const r = (level / 100) * radius;
           return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
         });
-        return <polygon key={level} points={pts.join(' ')} fill="none" stroke="#DCDAD3" strokeWidth="0.5" />;
+        return <polygon key={level} points={pts.join(' ')} fill="none" stroke="#DEDAD2" strokeWidth="0.5" />;
       })}
       {attrs.map((_, i) => {
         const angle = angleStep * i - Math.PI / 2;
-        return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#DCDAD3" strokeWidth="0.5" />;
+        return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#DEDAD2" strokeWidth="0.5" />;
       })}
       <path d={pathD} fill="rgba(158, 157, 36, 0.35)" stroke="#9E9D24" strokeWidth="1.5" />
       {dataPoints.map((p, i) => (
@@ -1083,10 +1083,10 @@ function MiniSpiderChart({ scores, size = 120 }) {
 // Comparison Spider Chart — multi-brand overlapping radar, max 4 brands
 // Ink first, lime second, then two neutral steps. Distinguishable without
 // reintroducing the primary palette the redesign removed.
-const COMPARISON_COLORS = ['#0B0B0B', '#DEE42F', '#68655B', '#B3B0A8'];
+const COMPARISON_COLORS = ['#15171A', '#D9442A', '#5B6068', '#8A8E95'];
 
 const LANDSCAPE_SECTOR_COLORS = [
-  '#E53935', '#1976D2', '#F57C00', '#388E3C',
+  '#C23B22', '#1976D2', '#F57C00', '#388E3C',
   '#7B1FA2', '#0097A7', '#C2185B', '#5D4037',
   '#1565C0', '#2E7D32', '#E65100', '#4527A0',
 ];
@@ -1124,16 +1124,16 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
             const r = (level / 100) * radius;
             return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
           });
-          return <polygon key={level} points={pts.join(' ')} fill="none" stroke={level === 100 ? '#DCDAD3' : '#DCDAD3'} strokeWidth={level === 100 ? 1.5 : 1} />;
+          return <polygon key={level} points={pts.join(' ')} fill="none" stroke={level === 100 ? '#DEDAD2' : '#DEDAD2'} strokeWidth={level === 100 ? 1.5 : 1} />;
         })}
         {/* Grid value labels */}
         {[20, 40, 60, 80].map(level => (
-          <text key={`lbl-${level}`} x={center} y={center - (level / 100) * radius - 4} textAnchor="middle" style={{ fontSize: '8px', fill: '#B3B0A8' }}>{level}</text>
+          <text key={`lbl-${level}`} x={center} y={center - (level / 100) * radius - 4} textAnchor="middle" style={{ fontSize: '8px', fill: '#8A8E95' }}>{level}</text>
         ))}
         {/* Axis lines */}
         {attrs.map((_, i) => {
           const angle = angleStep * i - Math.PI / 2;
-          return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#DCDAD3" strokeWidth="1" />;
+          return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#DEDAD2" strokeWidth="1" />;
         })}
         {/* Industry average overlay (dashed) */}
         {industryAvg && (() => {
@@ -1155,7 +1155,7 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
           const x = center + labelR * Math.cos(angle);
           const y = center + labelR * Math.sin(angle);
           return (
-            <text key={attr.id} x={x} y={y} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '11px', fontWeight: '600', fill: '#0B0B0B' }}>
+            <text key={attr.id} x={x} y={y} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '11px', fontWeight: '600', fill: '#15171A' }}>
               {attr.name}
             </text>
           );
@@ -1166,14 +1166,14 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
         {brands.map((brand, bi) => (
           <div key={brand.id || bi} className="flex items-center gap-1.5">
             <div className="w-3 h-3 flex-shrink-0" style={{ backgroundColor: COMPARISON_COLORS[bi % COMPARISON_COLORS.length] }} />
-            <span className="text-xs font-medium text-[#0B0B0B]">{brand.brandName}</span>
-            <span className="text-xs text-[#68655B]">({brand.totalScore})</span>
+            <span className="text-xs font-medium text-[#15171A]">{brand.brandName}</span>
+            <span className="text-xs text-[#5B6068]">({brand.totalScore})</span>
           </div>
         ))}
         {industryAvg && (
           <div className="flex items-center gap-1.5">
-            <div className="w-5 h-0.5 bg-[#B3B0A8] border-t border-dashed" style={{ borderTop: '2px dashed #9CA3AF' }} />
-            <span className="text-xs text-[#B3B0A8]">{avgLabel}</span>
+            <div className="w-5 h-0.5 bg-[#8A8E95] border-t border-dashed" style={{ borderTop: '2px dashed #9CA3AF' }} />
+            <span className="text-xs text-[#8A8E95]">{avgLabel}</span>
           </div>
         )}
       </div>
@@ -1269,10 +1269,10 @@ function PositionBands({ stageName }) {
     <div ref={ref} className="grid gap-[2px]"
       style={{ gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), height: 14 }}>
       {MATURITY_STAGES.map((st, i) => (
-        <div key={st.id} style={{ background: '#E4E2DC', overflow: 'hidden' }}>
+        <div key={st.id} style={{ background: '#FBFAF7', overflow: 'hidden' }}>
           <div style={{
             height: '100%',
-            background: st.name === stageName ? '#DEE42F' : '#DCDAD3',
+            background: st.name === stageName ? '#D9442A' : '#DEDAD2',
             transform: `scaleX(${inView ? 1 : 0})`,
             transformOrigin: 'left',
             transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)',
@@ -1291,10 +1291,10 @@ function StatBlock({ value, suffix = '/100', label }) {
   return (
     <div className="bg-white" style={{ flex: '1 1 160px', minWidth: 0, padding: '20px 22px' }}>
       <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1,
-        color: has ? scoreColor(value) : '#B3B0A8' }}>
+        color: has ? scoreColor(value) : '#8A8E95' }}>
         {has ? value : '—'}
         {has && suffix && (
-          <span style={{ fontSize: 15, fontWeight: 500, color: '#68655B', letterSpacing: 0 }}>{suffix}</span>
+          <span style={{ fontSize: 15, fontWeight: 500, color: '#5B6068', letterSpacing: 0 }}>{suffix}</span>
         )}
       </div>
       <div className="dc-kicker-sm" style={{ marginTop: 8 }}>{label}</div>
@@ -1343,9 +1343,9 @@ function CampaignLadder({ level }) {
       <div className="flex gap-1 mb-1">
         {CAMPAIGN_LADDER.filter(l => l.level > 0).map((l, i) => (
           <div key={l.level} className="flex-1 text-center">
-            <div className="h-1.5 mb-1 bg-[#F2F0EA] overflow-hidden">
+            <div className="h-1.5 mb-1 bg-[#FBFAF7] overflow-hidden">
               <div
-                className="h-full bg-[#DEE42F] origin-left"
+                className="h-full bg-[#D9442A] origin-left"
                 style={{
                   transform: `scaleX(${inView && lvl >= l.level ? 1 : 0})`,
                   transition: 'transform 520ms cubic-bezier(0.22, 1, 0.36, 1)',
@@ -1354,7 +1354,7 @@ function CampaignLadder({ level }) {
               />
             </div>
             <div
-              className={`text-[9px] leading-tight ${l.level === lvl ? 'text-[#0B0B0B] font-semibold' : 'text-[#999]'}`}
+              className={`text-[9px] leading-tight ${l.level === lvl ? 'text-[#15171A] font-semibold' : 'text-[#999]'}`}
               style={{
                 opacity: inView ? 1 : 0,
                 transition: 'opacity 400ms ease',
@@ -1367,7 +1367,7 @@ function CampaignLadder({ level }) {
         ))}
       </div>
       {lvl === 0 && (
-        <p className="text-[10px] text-[#B23A3A] font-semibold mb-2">
+        <p className="text-[10px] text-[#C23B22] font-semibold mb-2">
           No campaign detected. The brand sits below the first rung.
         </p>
       )}
@@ -1389,11 +1389,11 @@ function CampaignLadder({ level }) {
 // ─────────────────────────────────────────────────────────────
 // White inside the report, matching every other section. The empty-tile tone
 // steps to the page ground so the unfilled state still reads on white.
-const FP_PAPER = '#FFFFFF';
-const FP_INK   = '#0B0B0B';
-const FP_LIME  = '#DEE42F';
-const FP_EMPTY = '#E4E2DC';
-const FP_MUTED = '#68655B';
+const FP_PAPER = '#FBFAF7';
+const FP_INK   = '#15171A';
+const FP_LIME  = '#D9442A';
+const FP_EMPTY = '#DEDAD2';
+const FP_MUTED = '#5B6068';
 
 
 // ── Trust & credibility lens ─────────────────────────────────
@@ -1404,15 +1404,15 @@ const FP_MUTED = '#68655B';
 // One component for every place the thesis read appears: full report, client
 // link, shared report and teaser. Renders nothing when there is no read.
 const THESIS_CHIP = {
-  buried: { background: 'transparent', color: '#68655B', border: '1px dashed #B3B0A8' },
-  surfacing: { background: '#F8E6D2', color: '#8A4A08', border: '1px solid #F8E6D2' },
-  breaking: { background: '#DEE42F', color: '#0B0B0B', border: '1px solid #DEE42F' },
+  buried: { background: 'transparent', color: '#5B6068', border: '1px dashed #8A8E95' },
+  surfacing: { background: '#F8E6D2', color: '#8C5A0B', border: '1px solid #F8E6D2' },
+  breaking: { background: '#D9442A', color: '#15171A', border: '1px solid #D9442A' },
 };
 
 function ThesisPanel({ thesis, onRegenerate = null }) {
   if (!thesis) {
     return onRegenerate ? (
-      <div className="dc-block text-sm text-[#4A4840]" data-thesis-panel="missing">
+      <div className="dc-block text-sm text-[#2E3238]" data-thesis-panel="missing">
         This report was scored before the sustainability narrative read existed, or the scoring pass did not return it.
         <div style={{ marginTop: 10 }}><button onClick={onRegenerate} className="btn-secondary text-xs py-1.5 px-3">Regenerate report</button></div>
       </div>
@@ -1422,15 +1422,15 @@ function ThesisPanel({ thesis, onRegenerate = null }) {
     <div data-thesis-panel="true">
       {thesis.summary && <div className="dc-block" style={{ marginBottom: 2 }}><p className="dc-lead" style={{ fontSize: 16, maxWidth: '72ch' }}>{thesis.summary}</p></div>}
       {!thesis.present ? (
-        <div className="dc-block text-sm text-[#68655B]">No sustainability narrative is observable for this brand.</div>
+        <div className="dc-block text-sm text-[#5B6068]">No sustainability narrative is observable for this brand.</div>
       ) : (
         <>
           {thesis.verdict && (
-            <div className="bg-[#0B0B0B] text-white" style={{ padding: '18px 22px', marginBottom: 2, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
-              <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', color: '#DEE42F' }}>{thesis.verdict.label}</div>
+            <div className="bg-[#15171A] text-white" style={{ padding: '18px 22px', marginBottom: 2, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', color: '#D9442A' }}>{thesis.verdict.label}</div>
               <div style={{ flex: '1 1 260px' }}>
                 <div style={{ fontSize: 15 }}>{thesis.verdict.meaning}</div>
-                <div className="dc-kicker-sm" style={{ color: '#9A9A94', marginTop: 6 }}>Progress {thesis.progress} · Voice {thesis.voice}</div>
+                <div className="dc-kicker-sm" style={{ color: '#B9BCC1', marginTop: 6 }}>Progress {thesis.progress} · Voice {thesis.voice}</div>
               </div>
             </div>
           )}
@@ -1445,7 +1445,7 @@ function ThesisPanel({ thesis, onRegenerate = null }) {
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700 }}>{t.name}</div>
-                    {e?.reason && <p className="text-sm text-[#4A4840]" style={{ marginTop: 4, lineHeight: 1.5 }}>{e.reason}</p>}
+                    {e?.reason && <p className="text-sm text-[#2E3238]" style={{ marginTop: 4, lineHeight: 1.5 }}>{e.reason}</p>}
                   </div>
                 </div>
               );
@@ -1465,9 +1465,9 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
 
   // Inside the report the page ground is paper and blocks are white, matching
   // every other section. These are deliberately not the standalone-page
-  // values (#F2F0EA cards on #E4E2DC), which render as a grey slab here.
-  const INK = '#0B0B0B', LIME = '#DEE42F', CARD = '#FFFFFF', GROUND = '#F2F0EA';
-  const MUTED = '#68655B', RULE = '#DCDAD3';
+  // values (#FBFAF7 cards on #DEDAD2), which render as a grey slab here.
+  const INK = '#15171A', LIME = '#D9442A', CARD = '#FBFAF7', GROUND = '#FBFAF7';
+  const MUTED = '#5B6068', RULE = '#DEDAD2';
 
   const toggle = (id) => setSpotlight(prev => (prev === id ? null : id));
   const lit = (id) => spotlight === id;
@@ -1476,7 +1476,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const reachFill = (count, total) => {
     if (count === 0) return RULE;
     if (count === total) return LIME;
-    return count >= total - 1 ? INK : '#68655B';
+    return count >= total - 1 ? INK : '#5B6068';
   };
 
   // Eight columns of bars, shared by the reach panel and every lens row.
@@ -1497,10 +1497,10 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
             }} />
           </div>
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', marginTop: 8,
-            color: dark ? (it.value ? '#FFFFFF' : '#6E6E68') : (it.value ? INK : '#B3B0A8') }}>
+            color: dark ? (it.value ? '#FBFAF7' : '#6E6E68') : (it.value ? INK : '#8A8E95') }}>
             {it.code}
           </div>
-          <div style={{ fontSize: 10, marginTop: 2, color: dark ? '#9A9A94' : MUTED }}>{it.label}</div>
+          <div style={{ fontSize: 10, marginTop: 2, color: dark ? '#B9BCC1' : MUTED }}>{it.label}</div>
         </button>
       ))}
       {caption}
@@ -1535,15 +1535,15 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
           )}
           <div style={{
             position: 'absolute', left: `${rowInView ? at(score) : 0}%`, top: 3,
-            width: 14, height: 14, borderRadius: 0, background: dark ? '#FFFFFF' : INK,
+            width: 14, height: 14, borderRadius: 0, background: dark ? '#FBFAF7' : INK,
             transform: 'translateX(-50%)', transition: 'left 700ms cubic-bezier(0.22,1,0.36,1)',
           }} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginTop: 2,
-          color: dark ? '#7A7A74' : '#B3B0A8' }}>
+          color: dark ? '#7A7A74' : '#8A8E95' }}>
           <span>{RLO}</span><span>{RMID}</span><span>{RHI}</span>
         </div>
-        <div style={{ fontSize: 10, marginTop: 6, color: dark ? '#9A9A94' : MUTED }}>
+        <div style={{ fontSize: 10, marginTop: 6, color: dark ? '#B9BCC1' : MUTED }}>
           {RLO}&ndash;{RHI} scale · <span style={{ color: LIME, fontWeight: 700 }}>lime</span> = compass overall {overall}
         </div>
       </div>
@@ -1575,19 +1575,19 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
     }));
     return (
       <div ref={rowRef}
-        style={{ background: dark ? INK : CARD, color: dark ? '#FFFFFF' : INK, padding: '32px 40px', marginBottom: 2 }}>
+        style={{ background: dark ? INK : CARD, color: dark ? '#FBFAF7' : INK, padding: '32px 40px', marginBottom: 2 }}>
         {dark && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', color: LIME, marginBottom: 14 }}>FOUNDATION</div>}
         <div className="dc-lens-row" style={{ display: 'flex', gap: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ width: 280, minWidth: 240, flex: '0 1 280px' }}>
             <LensScore row={row} dark={dark} rowInView={rowInView} />
             <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-.02em', marginTop: 10 }}>{row.name}</div>
-            <div style={{ fontSize: 13, color: dark ? '#9A9A94' : MUTED, marginTop: 2 }}>{row.def}</div>
+            <div style={{ fontSize: 13, color: dark ? '#B9BCC1' : MUTED, marginTop: 2 }}>{row.def}</div>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase',
-              color: dark ? '#9A9A94' : MUTED, marginTop: 12 }}>
+              color: dark ? '#B9BCC1' : MUTED, marginTop: 12 }}>
               Led by {row.leadName}, {row.leadPct}%
             </div>
             {showFindings && row.findingsCount > 0 && (
-              <div style={{ fontSize: 11, color: dark ? '#9A9A94' : MUTED, marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: dark ? '#B9BCC1' : MUTED, marginTop: 4 }}>
                 {row.findingsCount} finding{row.findingsCount === 1 ? '' : 's'} below bear on this
               </div>
             )}
@@ -1656,7 +1656,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
       {showFindings && findings.length === 0 && (
         <div style={{ background: CARD, padding: '32px 40px', marginTop: 2 }}>
           <h4 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.025em' }}>What sits behind these scores</h4>
-          <p style={{ fontSize: 14, color: '#4A4840', marginTop: 10, maxWidth: '80ch', lineHeight: 1.6,
+          <p style={{ fontSize: 14, color: '#2E3238', marginTop: 10, maxWidth: '80ch', lineHeight: 1.6,
             borderLeft: `6px solid ${LIME}`, paddingLeft: 18 }}>
             These scores were produced before the supporting findings were captured. Regenerate the report
             to list the publicly observable evidence behind each lens.
@@ -1688,7 +1688,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10 }}>
                       {(f.tags || []).map(t => (
                         <span key={t} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em',
-                          textTransform: 'uppercase', background: GROUND, padding: '4px 8px', color: '#4A4840' }}>{t}</span>
+                          textTransform: 'uppercase', background: GROUND, padding: '4px 8px', color: '#2E3238' }}>{t}</span>
                       ))}
                     </div>
                   </div>
@@ -1813,7 +1813,7 @@ function FootprintMap({ footprint, brandName }) {
           const p = pos[r.id]; const has = r.level > 0;
           return (
             <line key={'s' + r.id} x1={cx} y1={cy} x2={p.x} y2={p.y}
-              stroke={has ? '#C9C6BE' : '#E4E2DC'} strokeWidth={has ? 1.5 : 1}
+              stroke={has ? '#C9C6BE' : '#DEDAD2'} strokeWidth={has ? 1.5 : 1}
               strokeDasharray={has ? '' : '3 4'}
               style={{ opacity: inView ? 1 : 0, transition: 'opacity 500ms ease' }} />
           );
@@ -1879,7 +1879,7 @@ function FootprintMap({ footprint, brandName }) {
               </circle>
               {has && (
                 <text x={p.x} y={p.y + 5} textAnchor="middle"
-                  style={{ fontSize: 14, fontWeight: 700, fill: brandVoice ? '#FFFFFF' : FP_INK }}>
+                  style={{ fontSize: 14, fontWeight: 700, fill: brandVoice ? '#FBFAF7' : FP_INK }}>
                   {r.level}
                 </text>
               )}
@@ -1931,10 +1931,10 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
   if (!benchmark) return null;
 
   return (
-    <div className="bg-white border border-[#DCDAD3] p-5" ref={revealRef}>
+    <div className="bg-white border border-[#DEDAD2] p-5" ref={revealRef}>
       <div className="mb-4">
-        {!hideTitle && <h3 className="font-semibold text-[#0B0B0B] text-sm">Attribute Benchmark Spread</h3>}
-        <p className="text-xs text-[#68655B] mt-1">
+        {!hideTitle && <h3 className="font-semibold text-[#15171A] text-sm">Attribute Benchmark Spread</h3>}
+        <p className="text-xs text-[#5B6068] mt-1">
           {brandName} against {benchmark.cohortLabel.toLowerCase()}. The band is the range across those brands, the line is their average, the dot is {brandName}.
         </p>
       </div>
@@ -1949,20 +1949,20 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
           return (
             <div key={attr.id}
-              className={`dc-ledger-row grid items-center gap-3 px-2 py-1 -mx-2 transition-colors ${isHovered ? 'bg-[#F2F0EA]' : ''}`}
+              className={`dc-ledger-row grid items-center gap-3 px-2 py-1 -mx-2 transition-colors ${isHovered ? 'bg-[#FBFAF7]' : ''}`}
               style={{ gridTemplateColumns: '104px 1fr 56px' }}
               onMouseEnter={() => setHovered(attr.id)}
               onMouseLeave={() => setHovered(null)}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-2 h-2 flex-shrink-0" style={{ backgroundColor: attr.color }} />
-                <span className="text-xs font-semibold text-[#0B0B0B] truncate">{attr.name}</span>
+                <span className="text-xs font-semibold text-[#15171A] truncate">{attr.name}</span>
               </div>
 
               <div className="relative h-7 flex items-center" style={{ overflow: 'visible' }}>
-                <div className="absolute left-0 right-0 h-0.5 bg-[#E4E2DC]" />
+                <div className="absolute left-0 right-0 h-0.5 bg-[#DEDAD2]" />
                 {[25, 40, 56, 70, 85].map(mark => (
-                  <div key={mark} className="absolute w-px h-2.5 bg-[#DCDAD3]"
+                  <div key={mark} className="absolute w-px h-2.5 bg-[#DEDAD2]"
                     style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
                 ))}
                 {/* Cohort range */}
@@ -1980,7 +1980,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
                   style={{
                     left: `${avg}%`,
                     transform: 'translateX(-50%)',
-                    backgroundColor: '#CFD32F',
+                    backgroundColor: '#C23B22',
                     opacity: inView ? 1 : 0,
                     transition: 'opacity 400ms ease',
                     transitionDelay: `${i * 70 + 260}ms`,
@@ -2002,7 +2002,7 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
               <div className="text-right">
                 <div className="text-xs font-bold tabular-nums" style={{ color: attr.color }}>{brandScore}</div>
-                <div className={`text-[10px] tabular-nums font-medium ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#B23A3A]' : 'text-[#999]'}`}>
+                <div className={`text-[10px] tabular-nums font-medium ${delta > 0 ? 'text-[#2F6B55]' : delta < 0 ? 'text-[#C23B22]' : 'text-[#999]'}`}>
                   {delta > 0 ? `+${delta}` : delta}
                 </div>
               </div>
@@ -2012,24 +2012,24 @@ function BenchmarkSpread({ benchmark, brandName, hideTitle = false }) {
 
         <div className="dc-ledger-row grid items-center gap-3 mt-1" style={{ gridTemplateColumns: '104px 1fr 56px' }}>
           <div />
-          <div className="flex justify-between text-[10px] text-[#B3B0A8] select-none">
+          <div className="flex justify-between text-[10px] text-[#8A8E95] select-none">
             {['0', '25', '50', '75', '100'].map(v => <span key={v}>{v}</span>)}
           </div>
           <div />
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-[#DCDAD3] flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-[#68655B]">
+      <div className="mt-4 pt-3 border-t border-[#DEDAD2] flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-[#5B6068]">
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 bg-[#0B0B0B] ring-2 ring-white" />
+          <div className="w-2.5 h-2.5 bg-[#15171A] ring-2 ring-white" />
           <span>{brandName}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-0.5 h-3 bg-[#CFD32F] " />
+          <div className="w-0.5 h-3 bg-[#C23B22] " />
           <span>{benchmark.scope === 'industry' ? 'Sector' : 'All brands'} average</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-6 h-1.5 bg-[#0B0B0B]/20" />
+          <div className="w-6 h-1.5 bg-[#15171A]/20" />
           <span>{benchmark.scope === 'industry' ? 'Sector' : 'All brands'} range</span>
         </div>
       </div>
@@ -2056,10 +2056,10 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
   const pillTransform = pillAnchor === 'left' ? 'translateX(0)' : pillAnchor === 'right' ? 'translateX(-100%)' : 'translateX(-50%)';
 
   return (
-    <div className="bg-white border border-[#DCDAD3] p-5">
+    <div className="bg-white border border-[#DEDAD2] p-5">
       <div className="mb-4">
-        <h3 className="font-semibold text-[#0B0B0B] text-sm">Overall Position</h3>
-        <p className="text-xs text-[#68655B] mt-1">
+        <h3 className="font-semibold text-[#15171A] text-sm">Overall Position</h3>
+        <p className="text-xs text-[#5B6068] mt-1">
           Where {brandName} sits against {benchmark.cohortLabel.toLowerCase()}{isSector ? ' and against every brand assessed' : ''}.
         </p>
       </div>
@@ -2084,7 +2084,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
 
         {/* Sector average, first label row */}
         <div className="absolute z-10" style={{ left: `${cohort}%`, top: 34, transform: 'translateX(-50%)' }}>
-          <div className="w-0.5 h-5 bg-[#CFD32F] mx-auto" />
+          <div className="w-0.5 h-5 bg-[#C23B22] mx-auto" />
           <div className="text-[10px] font-semibold text-[#6B6B00] whitespace-nowrap text-center mt-0.5">
             {isSector ? 'sector' : 'average'} {cohort}
           </div>
@@ -2104,26 +2104,26 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 pt-3 mt-2 border-t border-[#DCDAD3]">
+      <div className="grid grid-cols-3 gap-3 pt-3 mt-2 border-t border-[#DEDAD2]">
         <div>
-          <div className={`text-lg font-bold ${delta > 0 ? 'text-[#059669]' : delta < 0 ? 'text-[#B23A3A]' : 'text-[#0B0B0B]'}`}>
+          <div className={`text-lg font-bold ${delta > 0 ? 'text-[#2F6B55]' : delta < 0 ? 'text-[#C23B22]' : 'text-[#15171A]'}`}>
             {delta > 0 ? `+${delta}` : delta}
           </div>
-          <div className="text-[10px] text-[#68655B] leading-tight">vs {scopeNoun} average</div>
+          <div className="text-[10px] text-[#5B6068] leading-tight">vs {scopeNoun} average</div>
         </div>
         <div>
-          <div className="text-lg font-bold text-[#0B0B0B]">
+          <div className="text-lg font-bold text-[#15171A]">
             {benchmark.rank ? `${ordinal(benchmark.rank)} of ${benchmark.count}` : `${benchmark.count}`}
           </div>
-          <div className="text-[10px] text-[#68655B] leading-tight">
+          <div className="text-[10px] text-[#5B6068] leading-tight">
             {benchmark.rank ? `rank in ${scopeNoun}` : 'brands compared'}
           </div>
         </div>
         <div>
-          <div className="text-lg font-bold text-[#0B0B0B]">
+          <div className="text-lg font-bold text-[#15171A]">
             {benchmark.percentile != null ? ordinal(benchmark.percentile) : '—'}
           </div>
-          <div className="text-[10px] text-[#68655B] leading-tight">percentile</div>
+          <div className="text-[10px] text-[#5B6068] leading-tight">percentile</div>
         </div>
       </div>
     </div>
@@ -2141,8 +2141,8 @@ function BenchmarkProvenance({ benchmark }) {
   const span = from && to ? (from === to ? from : `${from} to ${to}`) : null;
 
   return (
-    <div className="text-[11px] text-[#68655B] bg-[#F2F0EA] border border-[#DCDAD3] px-3 py-2 leading-relaxed">
-      <span className="font-medium text-[#0B0B0B]">Benchmark basis:</span>{' '}
+    <div className="text-[11px] text-[#5B6068] bg-[#FBFAF7] border border-[#DEDAD2] px-3 py-2 leading-relaxed">
+      <span className="font-medium text-[#15171A]">Benchmark basis:</span>{' '}
       {benchmark.cohortLabel}, n={benchmark.count}
       {span ? `, assessed ${span}` : ''}
       {benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}.
@@ -2201,7 +2201,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
   
   return (
     <div ref={containerRef} className="card overflow-hidden">
-      {!hideTitle && <h3 className="dc-kicker text-[#0B0B0B] mb-6">Brand Consciousness Maturity</h3>}
+      {!hideTitle && <h3 className="dc-kicker text-[#15171A] mb-6">Brand Consciousness Maturity</h3>}
       
       {/* Progress Track */}
       <div className="relative mb-4">
@@ -2248,10 +2248,10 @@ function MaturityContinuum({ score, hideTitle = false }) {
       
       {/* Score display */}
       <div className="flex justify-between items-center mb-6">
-        <div className="text-sm text-[#68655B]">Progress</div>
+        <div className="text-sm text-[#5B6068]">Progress</div>
         <div className="flex items-baseline gap-1">
           <span className="text-2xl font-bold" style={{ color: stage.color }}>{animatedScore}</span>
-          <span className="text-lg text-[#B3B0A8]">/100</span>
+          <span className="text-lg text-[#8A8E95]">/100</span>
         </div>
       </div>
       
@@ -2274,7 +2274,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
                     borderColor: s.color
                   }}
                 />
-                <span className={`text-[10px] text-center leading-tight hidden sm:block ${isCurrent ? 'font-bold text-[#0B0B0B]' : 'text-[#68655B]'}`}>
+                <span className={`text-[10px] text-center leading-tight hidden sm:block ${isCurrent ? 'font-bold text-[#15171A]' : 'text-[#5B6068]'}`}>
                   {s.name}
                 </span>
               </div>
@@ -2293,11 +2293,11 @@ function MaturityContinuum({ score, hideTitle = false }) {
         }}
       >
         <div className="text-xl font-bold mb-1" style={{ color: stage.color }}>{stage.name}</div>
-        <p className="text-sm text-[#4A4840] mb-3">{stage.description}</p>
+        <p className="text-sm text-[#2E3238] mb-3">{stage.description}</p>
         
         {/* Progress to next stage */}
         {score < 100 && (
-          <div className="text-xs text-[#68655B]">
+          <div className="text-xs text-[#5B6068]">
             <span className="font-medium" style={{ color: stage.color }}>{Math.min(100, MATURITY_STAGES.find(s => s.min > score)?.min || 100) - score} points</span> to next level
           </div>
         )}
@@ -2317,23 +2317,23 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
     `flex items-center gap-2 px-1 py-1 transition-colors text-[12px] font-semibold tracking-[0.04em] ${
       activePage === page
         ? 'dc-nav-active'
-        : 'text-[#68655B] hover:text-[#0B0B0B]'
+        : 'text-[#5B6068] hover:text-[#15171A]'
     }`;
 
   const mobileNavBtnClass = (page) =>
     `w-full flex items-center gap-3 px-4 py-3  transition-colors ${
       activePage === page
-        ? 'bg-[#0B0B0B] text-white font-medium'
-        : 'text-[#4A4840] hover:bg-[#E4E2DC]'
+        ? 'bg-[#15171A] text-white font-medium'
+        : 'text-[#2E3238] hover:bg-[#DEDAD2]'
     }`;
   
   return (
-    <header className="bg-white border-b-2 border-[#0B0B0B] py-4 md:py-[18px] px-4 md:px-6">
+    <header className="bg-white border-b-2 border-[#15171A] py-4 md:py-[18px] px-4 md:px-6">
       <div className="dc-wrap flex items-center justify-between gap-6 flex-wrap">
         <button onClick={onGoHome || onNewAssessment} className="flex items-center gap-2 md:gap-4 hover:opacity-75 transition-opacity">
           <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 md:h-8" style={{ filter: 'brightness(0)' }} />
-          <div className="hidden lg:block h-6 w-px bg-[#0B0B0B]" />
-          <span className="hidden lg:block dc-kicker text-[#0B0B0B]">Conscious Compass</span>
+          <div className="hidden lg:block h-6 w-px bg-[#15171A]" />
+          <span className="hidden lg:block dc-kicker text-[#15171A]">Conscious Compass</span>
         </button>
         
         {/* Desktop Navigation */}
@@ -2357,25 +2357,25 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             </button>
           )}
           {!isReadonly && (
-            <button onClick={onNewAssessment} className="flex items-center gap-2 bg-[#DEE42F] text-[#0B0B0B] hover:bg-[#CBD11F] px-4 py-2.5 ml-2 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors">
+            <button onClick={onNewAssessment} className="flex items-center gap-2 bg-[#D9442A] text-[#15171A] hover:bg-[#CBD11F] px-4 py-2.5 ml-2 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors">
               New
             </button>
           )}
           
           {/* User Menu */}
-          <div className="ml-2 pl-3 border-l border-[#DCDAD3] flex items-center gap-3">
+          <div className="ml-2 pl-3 border-l border-[#DEDAD2] flex items-center gap-3">
             {profile?.is_admin && (
-              <button onClick={onAdmin} className="flex items-center gap-1.5 text-sm text-[#B23A3A] hover:text-[#C62828] transition-colors font-medium">
+              <button onClick={onAdmin} className="flex items-center gap-1.5 text-sm text-[#C23B22] hover:text-[#C62828] transition-colors font-medium">
                 Admin
               </button>
             )}
             {isReadonly && (
-              <span className="text-xs px-2 py-0.5 bg-[#B3B0A8] text-white">Read-only</span>
+              <span className="text-xs px-2 py-0.5 bg-[#8A8E95] text-white">Read-only</span>
             )}
-            <span className="text-xs text-[#68655B] max-w-[120px] truncate" title={user?.email}>
+            <span className="text-xs text-[#5B6068] max-w-[120px] truncate" title={user?.email}>
               {profile?.full_name || user?.email?.split('@')[0]}
             </span>
-            <button onClick={onLogout} className="text-sm text-[#68655B] hover:text-[#0B0B0B] transition-colors">
+            <button onClick={onLogout} className="text-sm text-[#5B6068] hover:text-[#15171A] transition-colors">
               Sign out
             </button>
           </div>
@@ -2384,7 +2384,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
         {/* Mobile Menu Button */}
         <button 
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 text-[#0B0B0B]"
+          className="md:hidden p-2 text-[#15171A]"
         >
           <span className="text-[11px] font-bold uppercase tracking-[0.12em]">{mobileMenuOpen ? 'Close' : 'Menu'}</span>
         </button>
@@ -2392,10 +2392,10 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-4 pt-4 border-t border-[#DCDAD3] space-y-1">
+        <div className="md:hidden mt-4 pt-4 border-t border-[#DEDAD2] space-y-1">
           {isReadonly && (
             <div className="px-4 py-2">
-              <span className="text-xs px-2 py-0.5 bg-[#B3B0A8] text-white">Read-only Access</span>
+              <span className="text-xs px-2 py-0.5 bg-[#8A8E95] text-white">Read-only Access</span>
             </div>
           )}
           <button onClick={() => { onStayConscious(); setMobileMenuOpen(false); }} className={mobileNavBtnClass('stay-conscious')}>
@@ -2416,22 +2416,22 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             </button>
           )}
           {!isReadonly && (
-            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#DEE42F] text-[#0B0B0B] transition-colors">
+            <button onClick={() => { onNewAssessment(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-[#D9442A] text-[#15171A] transition-colors">
               New Assessment
             </button>
           )}
           
           {/* Mobile User Controls */}
-          <div className="pt-2 mt-2 border-t border-[#DCDAD3]">
-            <div className="px-4 py-2 text-sm text-[#68655B]">
+          <div className="pt-2 mt-2 border-t border-[#DEDAD2]">
+            <div className="px-4 py-2 text-sm text-[#5B6068]">
               Signed in as <span className="font-medium">{profile?.full_name || user?.email}</span>
             </div>
             {profile?.is_admin && (
-              <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#B23A3A] hover:bg-[#E4E2DC] transition-colors">
+              <button onClick={() => { onAdmin(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[#C23B22] hover:bg-[#DEDAD2] transition-colors">
                 User Management
               </button>
             )}
-            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#4A4840] hover:bg-[#E4E2DC] transition-colors">
+            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[#2E3238] hover:bg-[#DEDAD2] transition-colors">
               Sign Out
             </button>
           </div>
@@ -2448,14 +2448,14 @@ function CompletionIndicator({ items }) {
   const percentage = Math.round((completed / total) * 100);
   
   return (
-    <div className="bg-white border border-[#DCDAD3] p-3 mb-6">
+    <div className="bg-white border border-[#DEDAD2] p-3 mb-6">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-[#68655B] uppercase tracking-wide">Progress</span>
-        <span className="text-xs font-medium text-[#0B0B0B]">{completed}/{total} complete</span>
+        <span className="text-xs font-medium text-[#5B6068] uppercase tracking-wide">Progress</span>
+        <span className="text-xs font-medium text-[#15171A]">{completed}/{total} complete</span>
       </div>
-      <div className="h-1.5 bg-[#F2F0EA] overflow-hidden mb-3">
+      <div className="h-1.5 bg-[#FBFAF7] overflow-hidden mb-3">
         <div 
-          className="h-full bg-[#DEE42F] transition-all duration-300"
+          className="h-full bg-[#D9442A] transition-all duration-300"
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -2465,8 +2465,8 @@ function CompletionIndicator({ items }) {
             key={i}
             className={`text-xs px-2 py-1 flex items-center gap-1 ${
               item.done 
-                ? 'bg-[#DEE42F]/10 text-[#B23A3A]' 
-                : 'bg-[#E4E2DC] text-[#4A4840]'
+                ? 'bg-[#D9442A]/10 text-[#C23B22]' 
+                : 'bg-[#DEDAD2] text-[#2E3238]'
             }`}
           >
             {item.done ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 border border-current" />}
@@ -2481,18 +2481,18 @@ function CompletionIndicator({ items }) {
 // Progress Steps
 function ProgressSteps({ currentStep, steps, assessments }) {
   return (
-    <div className="bg-white border-b border-[#DCDAD3] py-3 md:py-4 px-4 md:px-6">
+    <div className="bg-white border-b border-[#DEDAD2] py-3 md:py-4 px-4 md:px-6">
       <div className="dc-wrap">
         {/* Desktop Progress */}
         {/* Steps read as a tracked ledger with a lime rule under the
             completed span, not as numbered circles. */}
         <div className="hidden md:grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0,1fr))` }}>
           {steps.map((step, i) => (
-            <div key={step.id} className="pt-2" style={{ borderTop: `3px solid ${i <= currentStep ? '#DEE42F' : '#DCDAD3'}` }}>
+            <div key={step.id} className="pt-2" style={{ borderTop: `3px solid ${i <= currentStep ? '#D9442A' : '#DEDAD2'}` }}>
               <div className="flex items-center gap-1.5">
-                {i < currentStep && <Check className="w-3 h-3 text-[#0B0B0B]" />}
+                {i < currentStep && <Check className="w-3 h-3 text-[#15171A]" />}
                 <span className={`text-[10px] font-bold tracking-[0.12em] uppercase ${
-                  i === currentStep ? 'text-[#0B0B0B]' : i < currentStep ? 'text-[#4A4840]' : 'text-[#B3B0A8]'
+                  i === currentStep ? 'text-[#15171A]' : i < currentStep ? 'text-[#2E3238]' : 'text-[#8A8E95]'
                 }`}>{step.label || step.name || step.id}</span>
               </div>
             </div>
@@ -2501,14 +2501,14 @@ function ProgressSteps({ currentStep, steps, assessments }) {
         
         {/* Mobile Progress */}
         <div className="md:hidden flex items-center justify-between">
-          <span className="text-sm font-medium text-[#0B0B0B]">
+          <span className="text-sm font-medium text-[#15171A]">
             Step {currentStep} of {steps.length - 1}: {steps[currentStep]?.name}
           </span>
           <div className="flex items-center gap-1">
             {steps.slice(1).map((_, i) => (
               <div 
                 key={i}
-                className={`w-2 h-0.5 ${i < currentStep ? 'bg-[#DEE42F]' : i === currentStep - 1 ? 'bg-[#DEE42F]' : 'bg-[#DCDAD3]'}`}
+                className={`w-2 h-0.5 ${i < currentStep ? 'bg-[#D9442A]' : i === currentStep - 1 ? 'bg-[#D9442A]' : 'bg-[#DEDAD2]'}`}
               />
             ))}
           </div>
@@ -2576,7 +2576,7 @@ function WelcomePage({ onStart }) {
         ))}
       </div>
 
-      <div className="absolute bottom-4 right-4 text-xs text-[#B3B0A8]">
+      <div className="absolute bottom-4 right-4 text-xs text-[#8A8E95]">
         v{APP_VERSION}
       </div>
     </div>
@@ -2610,7 +2610,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
 
         {/* Headline */}
         <h1 
-          className={`text-5xl md:text-6xl font-bold text-[#0B0B0B] mb-6 leading-tight transition-all duration-1000 ease-out ${
+          className={`text-5xl md:text-6xl font-bold text-[#15171A] mb-6 leading-tight transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
           style={{ transitionDelay: animate ? '200ms' : '0ms' }}
@@ -2621,7 +2621,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
         
         {/* Subtitle */}
         <p 
-          className={`text-xl text-[#4A4840] mb-4 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
+          className={`text-xl text-[#2E3238] mb-4 leading-relaxed max-w-2xl mx-auto transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
           style={{ transitionDelay: animate ? '400ms' : '0ms' }}
@@ -2630,7 +2630,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
         </p>
         
         <p 
-          className={`text-sm text-[#68655B] mb-8 transition-all duration-1000 ease-out ${
+          className={`text-sm text-[#5B6068] mb-8 transition-all duration-1000 ease-out ${
             animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
           style={{ transitionDelay: animate ? '500ms' : '0ms' }}
@@ -2657,7 +2657,7 @@ function ReadOnlyWelcomePage({ onCompassResults, onComparison, onSavedAssessment
         </div>
       </div>
       
-      <div className="absolute bottom-4 right-4 text-xs text-[#B3B0A8]">
+      <div className="absolute bottom-4 right-4 text-xs text-[#8A8E95]">
         v{APP_VERSION} · Read-only
       </div>
     </div>
@@ -2711,30 +2711,30 @@ function AdditionalPropertiesInput({ project, setProject }) {
   };
 
   return (
-    <div className="border border-[#DCDAD3] overflow-hidden">
+    <div className="border border-[#DEDAD2] overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-[#FFFFFF] hover:bg-[#F2F0EA] transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-3 bg-[#FBFAF7] hover:bg-[#FBFAF7] transition-colors text-left"
       >
         <div className="flex items-center gap-2">
-          <Plus className="w-4 h-4 text-[#68655B]" />
-          <span className="text-sm font-medium text-[#0B0B0B]">Additional Properties</span>
+          <Plus className="w-4 h-4 text-[#5B6068]" />
+          <span className="text-sm font-medium text-[#15171A]">Additional Properties</span>
           {props.length > 0 && (
-            <span className="text-xs font-semibold px-2 py-0.5 bg-[#0B0B0B] text-white">{props.length}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 bg-[#15171A] text-white">{props.length}</span>
           )}
         </div>
-        <ChevronDown className={`w-4 h-4 text-[#68655B] transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-[#5B6068] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="p-4 space-y-4 border-t border-[#DCDAD3]">
-          <p className="text-xs text-[#68655B]">
+        <div className="p-4 space-y-4 border-t border-[#DEDAD2]">
+          <p className="text-xs text-[#5B6068]">
             Add regional sites, translated versions, microsites or other digital properties owned by this brand. Leave blank to assess the primary URL only.
           </p>
 
           {/* Primary language */}
-          <div className="flex items-center gap-3 p-3 bg-[#E4E2DC] ">
+          <div className="flex items-center gap-3 p-3 bg-[#DEDAD2] ">
             <span className="text-xs font-semibold text-[#666] w-4">✦</span>
             <div className="flex-1 text-xs text-[#444] font-medium">Primary site</div>
             <input
@@ -2742,22 +2742,22 @@ function AdditionalPropertiesInput({ project, setProject }) {
               value={project.primaryLanguage || ''}
               onChange={e => setProject({ ...project, primaryLanguage: e.target.value })}
               placeholder="Language (e.g. English)"
-              className="px-2 py-1.5 text-xs border border-[#DCDAD3] bg-white w-40"
+              className="px-2 py-1.5 text-xs border border-[#DEDAD2] bg-white w-40"
             />
           </div>
 
           {props.map((prop, i) => (
-            <div key={i} className="p-3 bg-[#F2F0EA] space-y-2">
+            <div key={i} className="p-3 bg-[#FBFAF7] space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#68655B] w-4">{i + 1}</span>
+                <span className="text-xs font-semibold text-[#5B6068] w-4">{i + 1}</span>
                 <input
                   type="url"
                   value={prop.url}
                   onChange={e => updateProperty(i, 'url', e.target.value)}
                   placeholder="https://de.example.com"
-                  className="flex-1 px-3 py-2 text-sm border border-[#DCDAD3] bg-white"
+                  className="flex-1 px-3 py-2 text-sm border border-[#DEDAD2] bg-white"
                 />
-                <button type="button" onClick={() => removeProperty(i)} className="text-[#999] hover:text-[#0B0B0B] transition-colors flex-shrink-0">
+                <button type="button" onClick={() => removeProperty(i)} className="text-[#999] hover:text-[#15171A] transition-colors flex-shrink-0">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -2765,7 +2765,7 @@ function AdditionalPropertiesInput({ project, setProject }) {
                 <select
                   value={prop.type}
                   onChange={e => updateProperty(i, 'type', e.target.value)}
-                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] bg-white flex-1"
+                  className="px-2 py-1.5 text-xs border border-[#DEDAD2] bg-white flex-1"
                 >
                   {PROPERTY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
@@ -2774,14 +2774,14 @@ function AdditionalPropertiesInput({ project, setProject }) {
                   value={prop.language}
                   onChange={e => updateProperty(i, 'language', e.target.value)}
                   placeholder="Language (e.g. German)"
-                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] bg-white flex-1"
+                  className="px-2 py-1.5 text-xs border border-[#DEDAD2] bg-white flex-1"
                 />
                 <input
                   type="text"
                   value={prop.label}
                   onChange={e => updateProperty(i, 'label', e.target.value)}
                   placeholder="Label (e.g. DACH)"
-                  className="px-2 py-1.5 text-xs border border-[#DCDAD3] bg-white flex-1"
+                  className="px-2 py-1.5 text-xs border border-[#DEDAD2] bg-white flex-1"
                 />
               </div>
             </div>
@@ -2790,7 +2790,7 @@ function AdditionalPropertiesInput({ project, setProject }) {
           <button
             type="button"
             onClick={addProperty}
-            className="flex items-center gap-2 text-sm text-[#0B0B0B] font-medium hover:text-[#0B0B0B] transition-colors"
+            className="flex items-center gap-2 text-sm text-[#15171A] font-medium hover:text-[#15171A] transition-colors"
           >
             <Plus className="w-4 h-4" /> Add property
           </button>
@@ -2806,80 +2806,80 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
   return (
     <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
-      <h2 className="text-[20px] font-bold tracking-tight text-[#0B0B0B] mb-2">Brand Details</h2>
-      <p className="text-[#4A4840] mb-8">Tell us about the brand you're assessing.</p>
+      <h2 className="text-[20px] font-bold tracking-tight text-[#15171A] mb-2">Brand Details</h2>
+      <p className="text-[#2E3238] mb-8">Tell us about the brand you're assessing.</p>
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Brand Name *</label>
+          <label className="block text-sm font-medium text-[#15171A] mb-2">Brand Name *</label>
           <input type="text" value={project.brandName} onChange={(e) => setProject({ ...project, brandName: e.target.value })}
-            placeholder="e.g., Antenna Group" className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]" />
+            placeholder="e.g., Antenna Group" className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]" />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Website URL *</label>
+          <label className="block text-sm font-medium text-[#15171A] mb-2">Website URL *</label>
           <input type="url" value={project.websiteUrl} onChange={(e) => setProject({ ...project, websiteUrl: e.target.value })}
-            placeholder="https://www.example.com" className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]" />
+            placeholder="https://www.example.com" className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]" />
         </div>
 
         <AdditionalPropertiesInput project={project} setProject={setProject} />
 
         <div>
-          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Business Model</label>
+          <label className="block text-sm font-medium text-[#15171A] mb-2">Business Model</label>
           <select value={project.businessModel} onChange={(e) => setProject({ ...project, businessModel: e.target.value })}
-            className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]">
+            className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]">
             {BUSINESS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Company Stage</label>
+          <label className="block text-sm font-medium text-[#15171A] mb-2">Company Stage</label>
           <select value={project.companyStage || ''} onChange={(e) => setProject({ ...project, companyStage: e.target.value })}
             data-field="company-stage"
-            className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]">
+            className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]">
             <option value="">Not set</option>
             {STAGES.map((st) => <option key={st.id} value={st.id}>{st.name} — {st.subtitle}</option>)}
           </select>
-          <p className="text-xs text-[#68655B] mt-1">
+          <p className="text-xs text-[#5B6068] mt-1">
             {findStage(project.companyStage)?.indicator
               || 'Decides what evidence is fair to expect. A startup is not marked down for having no Glassdoor reviews or analyst coverage.'}
           </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Industry</label>
+          <label className="block text-sm font-medium text-[#15171A] mb-2">Industry</label>
           <select value={project.industry || 'other'} onChange={(e) => setProject({ ...project, industry: e.target.value })}
-            className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]">
+            className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]">
             {INDUSTRIES.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-          <p className="text-xs text-[#68655B] mt-1">Used for industry context in the assessment</p>
+          <p className="text-xs text-[#5B6068] mt-1">Used for industry context in the assessment</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Assessor Context</label>
+          <label className="block text-sm font-medium text-[#15171A] mb-2">Assessor Context</label>
           <textarea
             value={project.assessorContext || ''}
             onChange={(e) => setProject({ ...project, assessorContext: e.target.value })}
             rows={5}
             placeholder={`State what the brand wants to achieve, and the report will assess its readiness to get there. For example:\n\n- Strategic goals and aspirations (repositioning, new audience, new market, launch)\n- What the client has told you about their challenges\n- Key competitors: [names]\n- Known sensitivities or live issues to be aware of\n- The purpose of this assessment (new business, existing client review, benchmark)`}
-            className="w-full px-4 py-3 border border-[#DCDAD3] bg-white text-sm leading-relaxed resize-y"
+            className="w-full px-4 py-3 border border-[#DEDAD2] bg-white text-sm leading-relaxed resize-y"
             style={{ minHeight: '120px' }}
           />
-          <p className="text-xs text-[#68655B] mt-1">Optional. This is the lens for the whole report. State what the brand wants, for example to reposition, reach a new audience, or launch, and the assessment will judge how ready the brand is to get there. It is not quoted in the report, only reflected as the brand's stated ambition. Leave it blank and this lens is not applied.</p>
+          <p className="text-xs text-[#5B6068] mt-1">Optional. This is the lens for the whole report. State what the brand wants, for example to reposition, reach a new audience, or launch, and the assessment will judge how ready the brand is to get there. It is not quoted in the report, only reflected as the brand's stated ambition. Leave it blank and this lens is not applied.</p>
         </div>
 
         {/* Only show API key field if no default is configured */}
         {!DEFAULT_API_KEY && (
-          <div className="pt-4 border-t border-[#DCDAD3]">
-            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Claude API Key *</label>
+          <div className="pt-4 border-t border-[#DEDAD2]">
+            <label className="block text-sm font-medium text-[#15171A] mb-2">Claude API Key *</label>
             <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#DCDAD3] bg-white font-mono text-sm" />
-            <p className="text-xs text-[#68655B] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#B23A3A] hover:underline">console.anthropic.com</a></p>
+              placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#DEDAD2] bg-white font-mono text-sm" />
+            <p className="text-xs text-[#5B6068] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#C23B22] hover:underline">console.anthropic.com</a></p>
           </div>
         )}
         {DEFAULT_API_KEY && (
-          <div className="pt-4 border-t border-[#DCDAD3]">
-            <div className="flex items-center gap-2 text-sm text-[#059669]">
+          <div className="pt-4 border-t border-[#DEDAD2]">
+            <div className="flex items-center gap-2 text-sm text-[#2F6B55]">
               <Check className="w-4 h-4" />
               <span>API key configured</span>
             </div>
@@ -3063,17 +3063,17 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
 
   // Score colour helper
   const scoreColor = (s) => {
-    if (s == null) return '#DCDAD3';
-    if (s >= 80) return '#059669';
+    if (s == null) return '#DEDAD2';
+    if (s >= 80) return '#2F6B55';
     if (s >= 50) return '#F59E0B';
-    return '#E53935';
+    return '#C23B22';
   };
 
   const riskColor = (text) => {
     if (!text) return null;
     const m = text.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i);
     if (!m) return null;
-    return m[1].toLowerCase() === 'low' ? '#059669' : m[1].toLowerCase() === 'medium' ? '#F59E0B' : '#E53935';
+    return m[1].toLowerCase() === 'low' ? '#2F6B55' : m[1].toLowerCase() === 'medium' ? '#F59E0B' : '#C23B22';
   };
 
   const extractRisk = (text) => {
@@ -3085,12 +3085,12 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
     <div className="dc-panel-dark mb-[2px]">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="text-sm font-medium text-[#0B0B0B] mb-1 flex items-center gap-2">
+          <h3 className="text-sm font-medium text-[#15171A] mb-1 flex items-center gap-2">
             <Globe className="w-4 h-4 text-[#1976D2]" />
             Digital Property Consistency
-            <span className="text-xs font-normal text-[#68655B]">— {additionalProperties.length} additional {additionalProperties.length === 1 ? 'property' : 'properties'}</span>
+            <span className="text-xs font-normal text-[#5B6068]">— {additionalProperties.length} additional {additionalProperties.length === 1 ? 'property' : 'properties'}</span>
           </h3>
-          <p className="text-xs text-[#68655B]">Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis.</p>
+          <p className="text-xs text-[#5B6068]">Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis.</p>
         </div>
         {extractRisk(propertyData.consistencyAnalysis) && (
           <span className="text-xs font-bold px-3 py-1 text-white flex-shrink-0"
@@ -3104,7 +3104,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
       <div className="overflow-x-auto mb-4">
         <table className="w-full text-xs border-collapse">
           <thead>
-            <tr className="border-b border-[#DCDAD3]">
+            <tr className="border-b border-[#DEDAD2]">
               <th className="text-left py-2 pr-3 font-semibold text-[#666] w-32">Property</th>
               <th className="text-left py-2 pr-3 font-semibold text-[#666]">URL</th>
               <th className="text-left py-2 pr-3 font-semibold text-[#666] w-20">Type</th>
@@ -3117,11 +3117,11 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
           <tbody>
             {allProperties.map((prop, i) => {
               return (
-                <tr key={i} className={i % 2 === 0 ? 'bg-[#FFFFFF]' : ''}>
-                  <td className="py-2 pr-3 font-semibold text-[#0B0B0B]">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
+                <tr key={i} className={i % 2 === 0 ? 'bg-[#FBFAF7]' : ''}>
+                  <td className="py-2 pr-3 font-semibold text-[#15171A]">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
                   <td className="py-2 pr-3 text-[#666] max-w-[180px] truncate" title={prop.url}>{prop.url}</td>
                   <td className="py-2 pr-3">
-                    <span className="px-2 py-0.5 text-[10px] font-semibold bg-[#F2F0EA] text-[#444]">
+                    <span className="px-2 py-0.5 text-[10px] font-semibold bg-[#FBFAF7] text-[#444]">
                       {PROPERTY_TYPES.find(t => t.id === prop.type)?.label || prop.type}
                     </span>
                   </td>
@@ -3140,7 +3140,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
                             {val}
                           </span>
                         ) : hasError && i > 0 ? (
-                          <span className="text-[#B23A3A] text-[10px]">err</span>
+                          <span className="text-[#C23B22] text-[10px]">err</span>
                         ) : i === 0 ? (
                           <span className="text-[10px] text-[#BBB]" title="Run Technical Performance Audit above">—</span>
                         ) : (
@@ -3179,21 +3179,21 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
       </div>
 
       {scrapedCount > 0 && (
-        <p className="text-xs text-[#68655B] mt-2">
+        <p className="text-xs text-[#5B6068] mt-2">
           Homepage content read from {scrapedCount} of {allProperties.length} properties.
           {scrapedCount < allProperties.length && ' Properties that could not be read are excluded from the comparison rather than guessed at.'}
         </p>
       )}
       {scrapedCount === 0 && !isRunning && (
-        <p className="text-xs text-[#68655B] mt-2">
+        <p className="text-xs text-[#5B6068] mt-2">
           Fetch scores and content first. Without the page text the analysis can only describe risks in general terms.
         </p>
       )}
 
-      {error && <p className="text-xs text-[#B23A3A] mt-2">{error}</p>}
+      {error && <p className="text-xs text-[#C23B22] mt-2">{error}</p>}
 
       {propertyData.consistencyAnalysis && (
-        <div className="mt-4 bg-[#E4E2DC] p-4">
+        <div className="mt-4 bg-[#DEDAD2] p-4">
           <div className="text-[10px] font-semibold text-[#666] uppercase tracking-wider mb-2">Consistency Analysis</div>
           <pre className="text-sm text-[#333] whitespace-pre-wrap font-sans leading-relaxed">{propertyData.consistencyAnalysis}</pre>
         </div>
@@ -3212,9 +3212,9 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
 
   // Helper function to get color based on PageSpeed score
   const getScoreColor = (score) => {
-    if (score === '' || score === undefined || score === null) return '#68655B';
+    if (score === '' || score === undefined || score === null) return '#5B6068';
     const num = parseInt(score);
-    if (num >= 90) return '#059669'; // Green - Good
+    if (num >= 90) return '#2F6B55'; // Green - Good
     if (num >= 50) return '#D97706'; // Amber - Needs Improvement
     return '#DC2626'; // Red - Poor
   };
@@ -3312,8 +3312,8 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
     <div className="card mb-[2px]">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-medium text-[#0B0B0B]">Technical Performance Audit</h3>
-          <p className="text-xs text-[#68655B]">PageSpeed scores impact ATTENTIVE & COGENT</p>
+          <h3 className="text-sm font-medium text-[#15171A]">Technical Performance Audit</h3>
+          <p className="text-xs text-[#5B6068]">PageSpeed scores impact ATTENTIVE & COGENT</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -3337,13 +3337,13 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       </div>
 
       {fetchError && (
-        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3 mb-4 text-xs text-[#B23A3A]">
+        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4 text-xs text-[#C23B22]">
           {fetchError} — Try the Manual button instead.
         </div>
       )}
 
       {!fetchError && (
-        <p className="text-[12px] text-[#4A4840]" style={{ marginBottom: 16 }}>
+        <p className="text-[12px] text-[#2E3238]" style={{ marginBottom: 16 }}>
           Auto-fetch pulls the scores, or verify them manually on Google PageSpeed.
         </p>
       )}
@@ -3368,12 +3368,12 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
                 className="bg-transparent border-0 p-0 focus:outline-none"
                 style={{ width: '3.4ch', fontSize: 34, fontWeight: 700, letterSpacing: '-.03em',
                   lineHeight: 1, MozAppearance: 'textfield', appearance: 'textfield',
-                  color: techAudit.scores[item.key] === '' ? '#B3B0A8' : scoreColor(techAudit.scores[item.key]) }}
+                  color: techAudit.scores[item.key] === '' ? '#8A8E95' : scoreColor(techAudit.scores[item.key]) }}
               />
-              <span style={{ fontSize: 15, fontWeight: 500, color: '#68655B' }}>/100</span>
+              <span style={{ fontSize: 15, fontWeight: 500, color: '#5B6068' }}>/100</span>
             </div>
             <div className="dc-kicker-sm" style={{ marginTop: 8 }}>{item.label}</div>
-            <div className="text-[10px] font-bold" style={{ marginTop: 3, color: '#68655B' }}>
+            <div className="text-[10px] font-bold" style={{ marginTop: 3, color: '#5B6068' }}>
               {getScoreLabel(techAudit.scores[item.key])}
             </div>
           </div>
@@ -3381,9 +3381,9 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
       </div>
 
       {hasAnyScore && (
-        <div className="mt-3 pt-3 border-t border-[#DCDAD3] flex items-center gap-2">
-          <Check className="w-4 h-4 text-[#059669]" />
-          <span className="text-xs text-[#68655B]">Scores will be included in assessment</span>
+        <div className="mt-3 pt-3 border-t border-[#DEDAD2] flex items-center gap-2">
+          <Check className="w-4 h-4 text-[#2F6B55]" />
+          <span className="text-xs text-[#5B6068]">Scores will be included in assessment</span>
         </div>
       )}
     </div>
@@ -3870,11 +3870,11 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       <div className="dc-panel-dark mb-[2px]">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <div className="flex items-center gap-2" style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.01em', color: '#FFFFFF' }}>
-              <Sparkles className="w-4 h-4" style={{ color: '#DEE42F' }} />
+            <div className="flex items-center gap-2" style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.01em', color: '#FBFAF7' }}>
+              <Sparkles className="w-4 h-4" style={{ color: '#D9442A' }} />
               Auto-Assess Website
             </div>
-            <p className="text-[13px] text-[#B3B0A8] mt-1.5">
+            <p className="text-[13px] text-[#8A8E95] mt-1.5">
               AI-powered comprehensive analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization.
             </p>
           </div>
@@ -3890,11 +3890,11 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         {assessmentData.autoAssessContent && (
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#0F7A4F]" />
-              <span className="text-sm font-medium text-[#0B0B0B]">Website Assessment Complete</span>
+              <Check className="w-4 h-4 text-[#2F6B55]" />
+              <span className="text-sm font-medium text-[#15171A]">Website Assessment Complete</span>
             </div>
-            <div className="bg-[#E4E2DC] p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
+            <div className="bg-[#DEDAD2] p-4 max-h-80 overflow-y-auto">
+              <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
             </div>
           </div>
         )}
@@ -3903,13 +3903,13 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       {/* Pages Reviewed */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Pages Reviewed</div>
-        <p className="text-sm text-[#68655B] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
+        <p className="text-sm text-[#5B6068] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
         <input 
           type="text" 
           value={pagesReviewed} 
           onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ pagesReviewed: e.target.value }); }}
           placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact"
-          className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]"
+          className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]"
         />
       </div>
 
@@ -3920,7 +3920,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           <button 
             onClick={runCredentialsAssess} 
             disabled={isAssessingCredentials || !project.brandName}
-            className="px-3 py-1.5 bg-[#0B0B0B] text-white text-xs font-medium hover:bg-[#0B0B0B] transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-1.5 bg-[#15171A] text-white text-xs font-medium hover:bg-[#15171A] transition-colors flex items-center gap-1.5 disabled:opacity-50"
           >
             {isAssessingCredentials ? (
               <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</>
@@ -3929,15 +3929,15 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
             )}
           </button>
         </div>
-        <p className="text-sm text-[#68655B] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
+        <p className="text-sm text-[#5B6068] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
         <textarea 
           value={credentialsContent} 
           onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ credentialsContent: e.target.value }); }}
           placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor..."
-          className={`w-full h-24 px-4 py-3 border border-[#DCDAD3]  bg-white resize-none ${credentialsContent ? 'bg-[#E4E2DC]' : ''}`}
+          className={`w-full h-24 px-4 py-3 border border-[#DEDAD2]  bg-white resize-none ${credentialsContent ? 'bg-[#DEDAD2]' : ''}`}
         />
         {credentialsContent && (
-          <p className="text-xs text-[#059669] mt-1">✓ Recognition data captured</p>
+          <p className="text-xs text-[#2F6B55] mt-1">✓ Recognition data captured</p>
         )}
       </div>
 
@@ -3946,19 +3946,19 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         <div className="dc-kicker flex items-center gap-2" style={{ marginBottom: 14 }}>
           <Image className="w-4 h-4" /> Screenshots (up to 2)
         </div>
-        <p className="text-sm text-[#68655B] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
+        <p className="text-sm text-[#5B6068] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
         
         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
         
         <div className="grid grid-cols-2 gap-4 mb-4">
           {images.map((img, index) => (
             <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DCDAD3]" />
+              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DEDAD2]" />
               <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white p-1 hover:bg-[#E4E2DC]">
+                className="absolute top-2 right-2 bg-white p-1 hover:bg-[#DEDAD2]">
                 <X className="w-4 h-4" />
               </button>
-              <div className="absolute bottom-2 left-2 bg-[#0B0B0B] text-white text-xs px-2 py-1 ">
+              <div className="absolute bottom-2 left-2 bg-[#15171A] text-white text-xs px-2 py-1 ">
                 {index + 1}
               </div>
             </div>
@@ -3966,18 +3966,18 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
           
           {images.length < 2 && (
             <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#0B0B0B] flex flex-col items-center justify-center gap-2 hover:bg-[#DEE42F]/5 transition-colors">
+              className="h-40 border-2 border-dashed border-[#15171A] flex flex-col items-center justify-center gap-2 hover:bg-[#D9442A]/5 transition-colors">
               {isCompressing ? (
-                <><Loader2 className="w-6 h-6 text-[#B23A3A] animate-spin" /><span className="text-sm text-[#B23A3A]">Compressing...</span></>
+                <><Loader2 className="w-6 h-6 text-[#C23B22] animate-spin" /><span className="text-sm text-[#C23B22]">Compressing...</span></>
               ) : (
-                <><Upload className="w-6 h-6 text-[#0B0B0B]" /><span className="text-sm text-[#0B0B0B] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#68655B]">{2 - images.length} remaining</span></>
+                <><Upload className="w-6 h-6 text-[#15171A]" /><span className="text-sm text-[#15171A] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#5B6068]">{2 - images.length} remaining</span></>
               )}
             </button>
           )}
         </div>
         
         {images.length > 0 && (
-          <div className="text-sm text-[#059669]">
+          <div className="text-sm text-[#2F6B55]">
             {images.length} screenshot(s) ready for analysis
           </div>
         )}
@@ -3986,7 +3986,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       {/* Website Content */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="flex items-start justify-between gap-4" style={{ marginBottom: 14 }}>
-          <div className="dc-kicker">Website Content <span className="text-[#B23A3A]">*</span></div>
+          <div className="dc-kicker">Website Content <span className="text-[#C23B22]">*</span></div>
           {project.websiteUrl && (
             <a
               href={`https://r.jina.ai/${project.websiteUrl.startsWith('http') ? project.websiteUrl : 'https://' + project.websiteUrl}`}
@@ -3998,10 +3998,10 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
             </a>
           )}
         </div>
-        <p className="text-sm text-[#68655B] mb-2">Paste key content from the website: headlines, taglines, about text, value propositions, etc. Required to proceed.</p>
-        <p className="text-xs text-[#68655B] mb-3">
+        <p className="text-sm text-[#5B6068] mb-2">Paste key content from the website: headlines, taglines, about text, value propositions, etc. Required to proceed.</p>
+        <p className="text-xs text-[#5B6068] mb-3">
           To pull clean text from any page, put{' '}
-          <a href="https://r.jina.ai/" target="_blank" rel="noopener noreferrer" className="text-[#0B0B0B] underline">https://r.jina.ai/</a>
+          <a href="https://r.jina.ai/" target="_blank" rel="noopener noreferrer" className="text-[#15171A] underline">https://r.jina.ai/</a>
           {' '}in front of its URL. The button above does this for the primary site homepage only.
         </p>
         <textarea 
@@ -4015,7 +4015,7 @@ TAGLINE: 'Enterprise solutions for the modern era'
 ABOUT: 'Founded in 2015, we help companies...'
 VALUE PROP: 'Reduce costs by 40% while improving...'
 ..."
-          className="w-full h-28 px-4 py-3 border border-[#DCDAD3] bg-white resize-none text-sm"
+          className="w-full h-28 px-4 py-3 border border-[#DEDAD2] bg-white resize-none text-sm"
         />
       </div>
 
@@ -4024,18 +4024,18 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="dc-kicker">SEO Visibility Assessment</div>
-            <p className="text-sm text-[#68655B]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
+            <p className="text-sm text-[#5B6068]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
           </div>
         </div>
 
         {!seoAssessment ? (
           <div>
-            <p className="text-sm text-[#68655B] mb-4">
+            <p className="text-sm text-[#5B6068] mb-4">
               Claude will analyze {project.brandName}'s likely SEO visibility based on brand name uniqueness, 
               industry competitiveness, content signals, and identify target keywords they should rank for.
             </p>
-            <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3 mb-4">
-              <p className="text-sm text-[#0B0B0B]">
+            <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4">
+              <p className="text-sm text-[#15171A]">
                 <strong>💡 Tip:</strong> Run this before the main Website Analysis for best results. 
                 SEO insights will be automatically integrated into the full assessment.
               </p>
@@ -4055,21 +4055,21 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         ) : (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[20px] font-bold tracking-tight text-[#0B0B0B] flex items-center gap-2">
-                <Check className="w-4 h-4 text-[#059669]" /> SEO Assessment Complete
-                <span className="text-xs text-[#68655B] font-normal">(will be included in Website Analysis)</span>
+              <span className="text-[20px] font-bold tracking-tight text-[#15171A] flex items-center gap-2">
+                <Check className="w-4 h-4 text-[#2F6B55]" /> SEO Assessment Complete
+                <span className="text-xs text-[#5B6068] font-normal">(will be included in Website Analysis)</span>
               </span>
               <button 
                 onClick={runSeoAssessment} 
                 disabled={isAssessingSeo}
-                className="text-sm text-[#B23A3A] hover:underline flex items-center gap-1"
+                className="text-sm text-[#C23B22] hover:underline flex items-center gap-1"
               >
                 {isAssessingSeo ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                 Regenerate Analysis
               </button>
             </div>
-            <div className="bg-[#E4E2DC] p-4 max-h-64 overflow-y-auto">
-              <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{seoAssessment}</pre>
+            <div className="bg-[#DEDAD2] p-4 max-h-64 overflow-y-auto">
+              <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{seoAssessment}</pre>
             </div>
           </div>
         )}
@@ -4093,7 +4093,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
       {/* Assessor Observations */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
-        <p className="text-sm text-[#68655B] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
+        <p className="text-sm text-[#5B6068] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
           placeholder="Add your observations about:
 - Brand alignment issues
@@ -4101,7 +4101,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
 - Consistency across pages
 - Navigation or UX concerns
 - Content gaps
-- Competitive positioning..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
+- Competitive positioning..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -4112,13 +4112,13 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         </button>
       )}
 
-      {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-6 text-[#B23A3A]">{error}</div>}
+      {error && <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-6 text-[#C23B22]">{error}</div>}
 
       {isComplete && (
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#B23A3A]" /> Analysis Complete
+            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#C23B22]" /> Analysis Complete
             </h3>
             <button 
               onClick={() => {
@@ -4131,20 +4131,20 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#E4E2DC] p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#DEDAD2] p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
       {proceedError && (
-        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-4 text-[#0B0B0B] text-sm flex items-center gap-2">
+        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-4 text-[#15171A] text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#DCDAD3]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#DEDAD2]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -4174,20 +4174,20 @@ const CHANNEL_RELEVANCE = {
 function SocialAutoPanel({ content, isEditing, isEdited, onStartEdit, onDoneEdit, onChange }) {
   if (!content && !isEditing) return null;
   return (
-    <div className="bg-[#FFFFFF] border border-[#DCDAD3] p-3">
+    <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
-          {isEdited ? <Pencil className="w-3.5 h-3.5 text-[#C2680C]" /> : <Check className="w-3.5 h-3.5 text-[#059669]" />}
+          {isEdited ? <Pencil className="w-3.5 h-3.5 text-[#8C5A0B]" /> : <Check className="w-3.5 h-3.5 text-[#2F6B55]" />}
           <span
             className="text-[10px] font-semibold uppercase tracking-wider"
-            style={{ color: isEdited ? '#C2680C' : '#059669' }}
+            style={{ color: isEdited ? '#8C5A0B' : '#2F6B55' }}
           >
             {isEdited ? 'Auto-checked, corrected' : 'Auto-checked'}
           </span>
         </div>
         <button
           onClick={isEditing ? onDoneEdit : onStartEdit}
-          className="px-2 py-0.5 bg-[#E4E2DC] text-[#0B0B0B] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1"
+          className="px-2 py-0.5 bg-[#DEDAD2] text-[#15171A] text-[10px] font-medium hover:bg-[#DEDAD2] transition-colors flex items-center gap-1"
         >
           {isEditing ? <><Check className="w-2.5 h-2.5" /> Done</> : <><Pencil className="w-2.5 h-2.5" /> Correct</>}
         </button>
@@ -4197,10 +4197,10 @@ function SocialAutoPanel({ content, isEditing, isEdited, onStartEdit, onDoneEdit
           value={content}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Correct anything the auto-check got wrong. Delete what is not true."
-          className="w-full h-44 px-3 py-2 border border-[#DCDAD3] bg-white resize-y text-xs leading-relaxed"
+          className="w-full h-44 px-3 py-2 border border-[#DEDAD2] bg-white resize-y text-xs leading-relaxed"
         />
       ) : (
-        <pre className="text-xs text-[#4A4840] whitespace-pre-wrap font-sans leading-relaxed max-h-44 overflow-y-auto">{content}</pre>
+        <pre className="text-xs text-[#2E3238] whitespace-pre-wrap font-sans leading-relaxed max-h-44 overflow-y-auto">{content}</pre>
       )}
     </div>
   );
@@ -4877,15 +4877,15 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
   const AccordionHeader = ({ title, icon: Icon, isOpen, onClick, badge, hasContent }) => (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center justify-between px-5 py-4 bg-white transition-colors ${isOpen ? 'border-b border-[#DCDAD3]' : 'hover:bg-[#F2F0EA]'}`}
+      className={`w-full flex items-center justify-between px-5 py-4 bg-white transition-colors ${isOpen ? 'border-b border-[#DEDAD2]' : 'hover:bg-[#FBFAF7]'}`}
     >
       <div className="flex items-center gap-3">
-        <Icon className="w-4 h-4 text-[#68655B]" />
-        <span className="text-[17px] font-bold tracking-tight text-[#0B0B0B]">{title}</span>
+        <Icon className="w-4 h-4 text-[#5B6068]" />
+        <span className="text-[17px] font-bold tracking-tight text-[#15171A]">{title}</span>
         {badge && <span className="dc-meta">{badge}</span>}
-        {hasContent && <Check className="w-4 h-4 text-[#059669]" />}
+        {hasContent && <Check className="w-4 h-4 text-[#2F6B55]" />}
       </div>
-      <ChevronDown className={`w-4 h-4 text-[#68655B] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      <ChevronDown className={`w-4 h-4 text-[#5B6068] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
     </button>
   );
 
@@ -4916,10 +4916,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             className="mt-1 w-4 h-4 flex-shrink-0"
           />
           <span>
-            <span className="text-[15px] font-semibold text-[#0B0B0B] flex items-center gap-2">
-              <Ban className="w-4 h-4 text-[#68655B]" /> No social presence found
+            <span className="text-[15px] font-semibold text-[#15171A] flex items-center gap-2">
+              <Ban className="w-4 h-4 text-[#5B6068]" /> No social presence found
             </span>
-            <span className="block text-sm text-[#68655B] mt-1">
+            <span className="block text-sm text-[#5B6068] mt-1">
               Tick this only when the brand has no meaningful social presence to assess. Channel coverage, screenshots and campaign signals stop being required. WIPO and the analysis are still required, and the absence will be scored as an absence.
             </span>
           </span>
@@ -4927,7 +4927,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
         {noSocialPresence && (
           <div className="mt-4">
-            <div className="dc-kicker" style={{ marginBottom: 10 }}>What you checked <span className="text-[#B23A3A]">*</span></div>
+            <div className="dc-kicker" style={{ marginBottom: 10 }}>What you checked <span className="text-[#C23B22]">*</span></div>
             <textarea
               value={noSocialNote}
               onChange={(e) => {
@@ -4935,10 +4935,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
                 setAssessmentData({ noSocialPresence: true, noSocialNote: e.target.value });
               }}
               placeholder={`Record which platforms you searched for ${project.brandName} and what you found. Note any dormant, abandoned or unofficial accounts, employee or founder accounts standing in for the brand, and anything that suggests a presence exists but could not be verified.`}
-              className="w-full h-24 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
+              className="w-full h-24 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm"
             />
             {!noSocialNote.trim() && (
-              <p className="text-xs text-[#B23A3A] mt-2">Required. An unexplained absence cannot be scored.</p>
+              <p className="text-xs text-[#C23B22] mt-2">Required. An unexplained absence cannot be scored.</p>
             )}
           </div>
         )}
@@ -4949,10 +4949,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
           <div className="min-w-0">
             <h3 className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#B23A3A]" />
+              <Sparkles className="w-4 h-4 text-[#C23B22]" />
               Run Everything
             </h3>
-            <p className="text-[13px] text-[#B3B0A8] mt-1">Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
+            <p className="text-[13px] text-[#8A8E95] mt-1">Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
           </div>
           <button
             onClick={runEverything}
@@ -4964,10 +4964,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </div>
         {isRunningAll && (
           <div className="mt-3">
-            <div className="w-full bg-[#F2F0EA] h-2 mb-1.5">
-              <div className="bg-[#DEE42F] h-2 transition-all duration-500 ease-out" style={{ width: `${runAllProgress}%` }} />
+            <div className="w-full bg-[#FBFAF7] h-2 mb-1.5">
+              <div className="bg-[#D9442A] h-2 transition-all duration-500 ease-out" style={{ width: `${runAllProgress}%` }} />
             </div>
-            <p className="text-xs text-[#68655B]">{runAllStage}</p>
+            <p className="text-xs text-[#5B6068]">{runAllStage}</p>
           </div>
         )}
       </div>
@@ -4977,10 +4977,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#0B0B0B]" />
+              <Sparkles className="w-4 h-4 text-[#15171A]" />
               Social Media Health Check
             </h3>
-            <p className="text-[13px] text-[#B3B0A8] mt-1">Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes.</p>
+            <p className="text-[13px] text-[#8A8E95] mt-1">Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes.</p>
           </div>
           <button 
             onClick={() => runAutoCheck()} 
@@ -4992,13 +4992,13 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </div>
         
         {socialHealthCheck && (
-          <div className="mt-3 border-t border-[#DCDAD3] pt-3">
+          <div className="mt-3 border-t border-[#DEDAD2] pt-3">
             <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#059669]" />
-              <span className="text-sm font-medium text-[#0B0B0B]">Health Check Complete</span>
+              <Check className="w-4 h-4 text-[#2F6B55]" />
+              <span className="text-sm font-medium text-[#15171A]">Health Check Complete</span>
             </div>
-            <div className="bg-[#E4E2DC] p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{socialHealthCheck}</pre>
+            <div className="bg-[#DEDAD2] p-4 max-h-80 overflow-y-auto">
+              <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{socialHealthCheck}</pre>
             </div>
           </div>
         )}
@@ -5007,9 +5007,9 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {/* Screenshots - Matching Website Style */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker flex items-center gap-2" style={{ marginBottom: 14 }}>
-          <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) {!noSocialDeclared && <span className="text-[#B23A3A]">*</span>}
+          <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) {!noSocialDeclared && <span className="text-[#C23B22]">*</span>}
         </div>
-        <p className="text-sm text-[#68655B] mb-4">
+        <p className="text-sm text-[#5B6068] mb-4">
           {noSocialDeclared
             ? 'Not required. No social presence has been declared for this brand. Upload anything you did find, such as a dormant or unofficial account, if it helps evidence the finding.'
             : 'Upload screenshots of key social profiles for visual analysis. Required to proceed.'}
@@ -5020,12 +5020,12 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         <div className="grid grid-cols-2 gap-4 mb-4">
           {images.map((img, index) => (
             <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DCDAD3]" />
+              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DEDAD2]" />
               <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white p-1 hover:bg-[#E4E2DC]">
+                className="absolute top-2 right-2 bg-white p-1 hover:bg-[#DEDAD2]">
                 <X className="w-4 h-4" />
               </button>
-              <div className="absolute bottom-2 left-2 bg-[#0B0B0B] text-white text-xs px-2 py-1 ">
+              <div className="absolute bottom-2 left-2 bg-[#15171A] text-white text-xs px-2 py-1 ">
                 {index + 1}
               </div>
             </div>
@@ -5033,18 +5033,18 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           
           {images.length < SOCIAL_SCREENSHOT_MAX && (
             <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#0B0B0B] flex flex-col items-center justify-center gap-2 hover:bg-[#DEE42F]/5 transition-colors">
+              className="h-40 border-2 border-dashed border-[#15171A] flex flex-col items-center justify-center gap-2 hover:bg-[#D9442A]/5 transition-colors">
               {isCompressing ? (
-                <><Loader2 className="w-6 h-6 text-[#B23A3A] animate-spin" /><span className="text-sm text-[#B23A3A]">Compressing...</span></>
+                <><Loader2 className="w-6 h-6 text-[#C23B22] animate-spin" /><span className="text-sm text-[#C23B22]">Compressing...</span></>
               ) : (
-                <><Upload className="w-6 h-6 text-[#0B0B0B]" /><span className="text-sm text-[#0B0B0B] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#68655B]">{SOCIAL_SCREENSHOT_MAX - images.length} remaining</span></>
+                <><Upload className="w-6 h-6 text-[#15171A]" /><span className="text-sm text-[#15171A] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#5B6068]">{SOCIAL_SCREENSHOT_MAX - images.length} remaining</span></>
               )}
             </button>
           )}
         </div>
         
         {images.length > 0 && (
-          <div className="text-sm text-[#059669]">
+          <div className="text-sm text-[#2F6B55]">
             {images.length} screenshot(s) ready for analysis
           </div>
         )}
@@ -5062,11 +5062,11 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.linkedinAuto || inputs.linkedinAbout || inputs.linkedinPosts)}
         />
         {expanded.linkedin && (
-          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
             <AutoPanel field="linkedinAuto" />
             <div className="flex gap-2">
               <input type="url" value={inputs.linkedinUrl} onChange={(e) => updateInput('linkedinUrl', e.target.value)}
-                placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#DCDAD3] bg-white text-sm" />
+                placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#DEDAD2] bg-white text-sm" />
               {inputs.linkedinUrl && (
                 <a href={inputs.linkedinUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#0A66C2] text-white text-xs hover:bg-[#004182] flex items-center gap-1">
                   <ExternalLink className="w-3 h-3" /> Open
@@ -5076,12 +5076,12 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             <div>
               <label className="dc-kicker-sm mb-2 block">Company Profile & About Section</label>
               <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
-                placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
+                placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
             </div>
             <div>
               <label className="dc-kicker-sm mb-2 block">Recent Posts & Engagement</label>
               <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
-                placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
+                placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -5100,19 +5100,19 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.xAuto || inputs.xContent)}
         />
         {expanded.x && (
-          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
             <AutoPanel field="xAuto" />
             <div className="flex gap-2">
               <input type="url" value={inputs.xUrl} onChange={(e) => updateInput('xUrl', e.target.value)}
-                placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#DCDAD3] bg-white text-sm" />
+                placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#DEDAD2] bg-white text-sm" />
               {inputs.xUrl && (
-                <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#0B0B0B] text-white text-xs hover:bg-[#333] flex items-center gap-1">
+                <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#15171A] text-white text-xs hover:bg-[#333] flex items-center gap-1">
                   <ExternalLink className="w-3 h-3" /> Open
                 </a>
               )}
             </div>
             <textarea value={inputs.xContent} onChange={(e) => updateInput('xContent', e.target.value)}
-              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
+              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
           </div>
         )}
       </div>
@@ -5130,10 +5130,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.instagramAuto || inputs.instagramContent)}
         />
         {expanded.instagram && (
-          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
             <AutoPanel field="instagramAuto" />
             <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
-              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
+              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
           </div>
         )}
       </div>
@@ -5151,17 +5151,17 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.youtubeAuto || inputs.youtubeContent)}
         />
         {expanded.other && (
-          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
             <AutoPanel field="youtubeAuto" />
             <div>
               <div className="flex items-center justify-end mb-1">
                 <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-0.5 bg-[#F2F0EA] text-[#B23A3A] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1">
+                   className="px-2 py-0.5 bg-[#FBFAF7] text-[#C23B22] text-[10px] font-medium hover:bg-[#DEDAD2] transition-colors flex items-center gap-1">
                   Verify <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               </div>
               <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
-                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
+                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -5180,7 +5180,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       {relevance.secondary.length > 0 && (
         <button
           onClick={() => setShowAllChannels(v => !v)}
-          className="text-xs text-[#68655B] hover:text-[#0B0B0B] transition-colors mb-4 flex items-center gap-1.5"
+          className="text-xs text-[#5B6068] hover:text-[#15171A] transition-colors mb-4 flex items-center gap-1.5"
         >
           <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAllChannels ? 'rotate-180' : ''}`} />
           {showAllChannels ? 'Show priority channels only' : `Show all channels (${relevance.secondary.length} more)`}
@@ -5198,27 +5198,27 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.glassdoorContent || inputs.wipoContent)}
         />
         {expanded.reputation && (
-          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
+          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#68655B]">Glassdoor <span className="text-[#4A4840]">(→ Reflective)</span></label>
+                <label className="text-xs font-medium text-[#5B6068]">Glassdoor <span className="text-[#2E3238]">(→ Reflective)</span></label>
                 <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-0.5 bg-[#E4E2DC] text-[#4A4840] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1">
+                   className="px-2 py-0.5 bg-[#DEDAD2] text-[#2E3238] text-[10px] font-medium hover:bg-[#DEDAD2] transition-colors flex items-center gap-1">
                   Verify <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               </div>
               {inputs.glassdoorAuto && <div className="mb-2"><AutoPanel field="glassdoorAuto" /></div>}
               <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
-                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
+                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
             </div>
-            <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3">
+            <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-[#0B0B0B]">WIPO Trademark <span className="font-normal">(→ Intentional)</span></label>
+                <label className="text-xs font-medium text-[#15171A]">WIPO Trademark <span className="font-normal">(→ Intentional)</span></label>
                 <div className="flex gap-2">
                   <button
                     onClick={runWipoSearch}
                     disabled={isSearchingWipo || !project.brandName}
-                    className="px-3 py-1 bg-[#0B0B0B] text-white text-xs font-medium hover:bg-[#0B0B0B] transition-colors flex items-center gap-1 disabled:opacity-50"
+                    className="px-3 py-1 bg-[#15171A] text-white text-xs font-medium hover:bg-[#15171A] transition-colors flex items-center gap-1 disabled:opacity-50"
                   >
                     {isSearchingWipo ? <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</> : <><Sparkles className="w-3 h-3" /> Auto-Search</>}
                   </button>
@@ -5229,11 +5229,11 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
                 </div>
               </div>
               {inputs.wipoContent?.includes('[Auto-searched]') && (
-                <p className="text-xs text-[#059669] mb-2">✓ Trademark data auto-searched</p>
+                <p className="text-xs text-[#2F6B55] mb-2">✓ Trademark data auto-searched</p>
               )}
               <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
                 placeholder={`Trademark status for ${project.brandName}: registrations found, jurisdictions covered, any similar/conflicting marks, protection status...`}
-                className={`w-full h-20 px-3 py-2 border border-[#DCDAD3]  bg-white resize-none text-sm ${inputs.wipoContent ? 'bg-[#F2F0EA]' : ''}`} />
+                className={`w-full h-20 px-3 py-2 border border-[#DEDAD2]  bg-white resize-none text-sm ${inputs.wipoContent ? 'bg-[#FBFAF7]' : ''}`} />
             </div>
           </div>
         )}
@@ -5250,8 +5250,8 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
           hasContent={!!(inputs.campaignAuto || inputs.campaignContent)}
         />
         {expanded.campaign && (
-          <div className="border border-t-0 border-[#DCDAD3] -b-lg p-4 bg-white space-y-3">
-            <p className="text-xs text-[#68655B]">
+          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
+            <p className="text-xs text-[#5B6068]">
               This is what drives the Campaign Coherence score. What matters is whether a strategy and a creative idea thread the activity together, not how much activity there is.
               {project.businessModel === 'b2b'
                 ? ' For B2B, LinkedIn Ads and Google Search usually carry the weight.'
@@ -5278,7 +5278,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
                   <span>LinkedIn{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#B3B0A8] hover:bg-[#68655B]' : project.businessModel === 'b2c' ? 'bg-black hover:bg-[#0B0B0B] ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-[#0B0B0B]'}`}>
+                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#8A8E95] hover:bg-[#5B6068]' : project.businessModel === 'b2c' ? 'bg-black hover:bg-[#15171A] ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-[#15171A]'}`}>
                   <span>TikTok{project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -5288,7 +5288,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Hashtag search</div>
               <div className="grid grid-cols-2 gap-2">
                 <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-gradient-to-r from-[#68655B] to-pink-500 text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
+                   className="px-2 py-1.5 bg-gradient-to-r from-[#5B6068] to-pink-500 text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
                   <span>Instagram #</span> <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href={`https://www.linkedin.com/search/results/content/?keywords=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
@@ -5307,7 +5307,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 • Whether one idea threads them together, or they are separate bursts
 • Whether paid creative matches the organic work
 • Whether anyone outside the brand has picked the idea up`} 
-                className="w-full h-28 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
+                className="w-full h-28 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
             </div>
           </div>
         )}
@@ -5325,7 +5325,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Notes</div>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
-          placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm" />
+          placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
       </div>
 
       {/* Analysis Button & Results */}
@@ -5335,13 +5335,13 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         </button>
       )}
 
-      {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3 mb-4 text-[#B23A3A] text-sm">{error}</div>}
+      {error && <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4 text-[#C23B22] text-sm">{error}</div>}
 
       {isComplete && (
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#0B0B0B]" /> Analysis Complete
+            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#15171A]" /> Analysis Complete
             </h3>
             <button 
               onClick={() => { runAnalysis(); if (onClearScores) onClearScores(); }} 
@@ -5351,20 +5351,20 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#E4E2DC] p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#DEDAD2] p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
       {proceedError && (
-        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-4 text-[#0B0B0B] text-sm flex items-center gap-2">
+        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-4 text-[#15171A] text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-4 border-t border-[#DCDAD3]">
+      <div className="flex items-center justify-between pt-4 border-t border-[#DEDAD2]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -5465,7 +5465,7 @@ ${reputationFlags}` : ''}`;
 
   // AI engines config
   const engines = [
-    { key: 'claude',      name: 'Claude',             brand: 'Anthropic',       url: 'https://claude.ai/new',          color: '#0B0B0B', hover: '#0B0B0B' },
+    { key: 'claude',      name: 'Claude',             brand: 'Anthropic',       url: 'https://claude.ai/new',          color: '#15171A', hover: '#15171A' },
     { key: 'chatgpt',     name: 'ChatGPT',            brand: 'OpenAI',          url: 'https://chatgpt.com/',           color: '#10A37F', hover: '#0D8A6A' },
     { key: 'gemini',      name: 'Gemini',             brand: 'Google',          url: 'https://gemini.google.com/app',  color: '#4285F4', hover: '#3367D6' },
     { key: 'perplexity',  name: 'Perplexity',         brand: 'Perplexity AI',   url: 'https://www.perplexity.ai/',     color: '#20B2AA', hover: '#178C84' },
@@ -5612,30 +5612,30 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       <div className="dc-panel-dark mb-[2px]">
         <div className="flex items-start justify-between mb-2">
           <div>
-            <h3 className="text-sm font-medium text-[#0B0B0B] mb-0.5">AI Brand Research Prompt</h3>
-            <p className="text-xs text-[#68655B]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
+            <h3 className="text-sm font-medium text-[#15171A] mb-0.5">AI Brand Research Prompt</h3>
+            <p className="text-xs text-[#5B6068]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
           </div>
         </div>
-        <div className="bg-[#F2F0EA] p-3 max-h-32 overflow-y-auto mb-2">
-          <pre className="text-xs text-[#4A4840] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 400)}...</pre>
+        <div className="bg-[#FBFAF7] p-3 max-h-32 overflow-y-auto mb-2">
+          <pre className="text-xs text-[#2E3238] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 400)}...</pre>
         </div>
-        <p className="text-xs text-[#B3B0A8]">Customised for <strong>{project.brandName}</strong> · {industryName}</p>
+        <p className="text-xs text-[#8A8E95]">Customised for <strong>{project.brandName}</strong> · {industryName}</p>
       </div>
 
-      {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3 mb-4 text-[#B23A3A] text-sm">{error}</div>}
+      {error && <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4 text-[#C23B22] text-sm">{error}</div>}
 
       {/* AI Engine Cards — uniform pattern */}
       <div className="space-y-3 mb-4">
         {engines.map(engine => (
-          <div key={engine.key} className={`card p-4 ${manualInput[engine.key] ? 'bg-[#E4E2DC]' : ''}`}>
+          <div key={engine.key} className={`card p-4 ${manualInput[engine.key] ? 'bg-[#DEDAD2]' : ''}`}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#DEE42F] text-[#0B0B0B]' : 'bg-[#E4E2DC]'}`}>
-                  {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-[#B3B0A8]" />}
+                <div className={`w-10 h-10 flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#D9442A] text-[#15171A]' : 'bg-[#DEDAD2]'}`}>
+                  {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-[#8A8E95]" />}
                 </div>
                 <div>
                   <h4 className="font-medium">{engine.name}</h4>
-                  <p className="text-sm text-[#68655B]">{engine.brand}</p>
+                  <p className="text-sm text-[#5B6068]">{engine.brand}</p>
                 </div>
               </div>
               <a
@@ -5659,7 +5659,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 setAssessmentData({ [`${engine.key}Manual`]: val });
               }}
               placeholder={`Paste ${engine.name}'s response here...`}
-              className={`w-full h-24 px-3 py-2 border border-[#DCDAD3]  text-sm ${manualInput[engine.key] ? 'bg-[#E4E2DC]' : 'bg-white'}`}
+              className={`w-full h-24 px-3 py-2 border border-[#DEDAD2]  text-sm ${manualInput[engine.key] ? 'bg-[#DEDAD2]' : 'bg-white'}`}
             />
           </div>
         ))}
@@ -5667,15 +5667,15 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
 
       {/* AI Training Sources */}
       <div className="dc-panel-dark mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">AI Training Sources</h3>
-        <p className="text-xs text-[#68655B] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
+        <h3 className="text-sm font-medium text-[#15171A] mb-1">AI Training Sources</h3>
+        <p className="text-xs text-[#5B6068] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
         <div className="space-y-3">
           {/* Wikipedia */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#68655B]">Wikipedia</label>
+              <label className="text-xs font-medium text-[#5B6068]">Wikipedia</label>
               <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer"
-                 className="px-2 py-0.5 bg-[#E4E2DC] text-[#4A4840] text-[10px] font-medium hover:bg-[#DCDAD3] transition-colors flex items-center gap-1">
+                 className="px-2 py-0.5 bg-[#DEDAD2] text-[#2E3238] text-[10px] font-medium hover:bg-[#DEDAD2] transition-colors flex items-center gap-1">
                 Search Wikipedia <ExternalLink className="w-2.5 h-2.5" />
               </a>
             </div>
@@ -5683,13 +5683,13 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               value={wikipediaContent}
               onChange={(e) => { setWikipediaContent(e.target.value); setAssessmentData({ wikipediaContent: e.target.value }); }}
               placeholder={`Does ${project.brandName} have a Wikipedia page? Record what it says — or note its absence.`}
-              className="w-full h-16 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
+              className="w-full h-16 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm"
             />
           </div>
           {/* Reddit Answers */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#0B0B0B]">Reddit Answers <span className="text-[#68655B] font-normal">(AI search visibility)</span></label>
+              <label className="text-xs font-medium text-[#15171A]">Reddit Answers <span className="text-[#5B6068] font-normal">(AI search visibility)</span></label>
               <button
                 onClick={handleRedditPromptAndOpen}
                 className="px-2 py-0.5 bg-[#FF4500] text-white text-[10px] font-medium hover:bg-[#E03D00] transition-colors flex items-center gap-1"
@@ -5703,7 +5703,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               value={redditContent}
               onChange={(e) => { setRedditContent(e.target.value); setAssessmentData({ redditAnswersContent: e.target.value }); }}
               placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation and community perception...`}
-              className="w-full h-24 px-3 py-2 border border-[#DCDAD3] bg-[#F2F0EA] resize-none text-sm"
+              className="w-full h-24 px-3 py-2 border border-[#DEDAD2] bg-[#FBFAF7] resize-none text-sm"
             />
           </div>
         </div>
@@ -5711,8 +5711,8 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
 
       {/* Third-Party & Search Signals (auto-fetched, NOT AI engines) */}
       <div className="dc-panel-dark mb-[2px]">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-1">Third-Party &amp; Search Signals</h3>
-        <p className="text-xs text-[#68655B] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
+        <h3 className="text-sm font-medium text-[#15171A] mb-1">Third-Party &amp; Search Signals</h3>
+        <p className="text-xs text-[#5B6068] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
         <div className="space-y-3">
           {[
             { key: 'news', label: 'Google News', value: googleNewsContent, setter: setGoogleNewsContent, field: 'googleNewsContent', run: fetchGoogleNews, placeholder: `Recent press and news coverage of ${project.brandName}...` },
@@ -5721,11 +5721,11 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
           ].map(row => (
             <div key={row.key}>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#68655B]">{row.label} {row.sub && <span className="font-normal text-[#999]">{row.sub}</span>}</label>
+                <label className="text-xs font-medium text-[#5B6068]">{row.label} {row.sub && <span className="font-normal text-[#999]">{row.sub}</span>}</label>
                 <button
                   onClick={row.run}
                   disabled={!!fetching[row.label]}
-                  className="px-2 py-0.5 bg-[#DEE42F] text-[#0B0B0B] text-[10px] font-bold hover:bg-[#CBD11F] transition-colors flex items-center gap-1 disabled:opacity-50"
+                  className="px-2 py-0.5 bg-[#D9442A] text-[#15171A] text-[10px] font-bold hover:bg-[#CBD11F] transition-colors flex items-center gap-1 disabled:opacity-50"
                 >
                   {fetching[row.label] ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Fetching</> : <><Search className="w-2.5 h-2.5" /> Auto-fetch</>}
                 </button>
@@ -5734,7 +5734,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
                 value={row.value}
                 onChange={(e) => { row.setter(e.target.value); setAssessmentData({ [row.field]: e.target.value }); }}
                 placeholder={row.placeholder}
-                className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
+                className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm"
               />
             </div>
           ))}
@@ -5744,9 +5744,9 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       {/* Assessor Observations */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
-        <p className="text-sm text-[#68655B] mb-3">Your observations will be included in the synthesis.</p>
+        <p className="text-sm text-[#5B6068] mb-3">Your observations will be included in the synthesis.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
-          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
+          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none" />
       </div>
 
       {canSynthesize && !isComplete && (
@@ -5758,8 +5758,8 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       {isComplete && (
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#0B0B0B]" /> Synthesis Complete
+            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#15171A]" /> Synthesis Complete
             </h3>
             <button
               onClick={() => { generateSynthesis(); if (onClearScores) onClearScores(); }}
@@ -5769,18 +5769,18 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
               {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#E4E2DC] p-4 max-h-64 overflow-y-auto text-sm text-[#4A4840]">{assessmentData.content}</div>
+          <div className="bg-[#DEDAD2] p-4 max-h-64 overflow-y-auto text-sm text-[#2E3238]">{assessmentData.content}</div>
         </div>
       )}
 
       {proceedError && (
-        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-4 text-[#0B0B0B] text-sm flex items-center gap-2">
+        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-4 text-[#15171A] text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#DCDAD3]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#DEDAD2]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -5983,7 +5983,7 @@ Write in flowing prose with specific examples. End with priority recommendations
       {/* Coverage Paste Field */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Media Coverage (Last 3 Months)</div>
-        <p className="text-sm text-[#68655B] mb-4">
+        <p className="text-sm text-[#5B6068] mb-4">
           Paste any press coverage, news articles, mentions, or media clips from the last 3 months.
         </p>
         <textarea 
@@ -5999,9 +5999,9 @@ Example:
 - Gartner Cool Vendor 2025: Named in category report
 - Inc. 5000 (2025): Ranked #234 fastest growing
 ..."
-          className="w-full h-28 px-3 py-2 border border-[#DCDAD3] bg-white resize-none text-sm"
+          className="w-full h-28 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm"
         />
-        <p className="text-xs text-[#68655B] mt-2">
+        <p className="text-xs text-[#5B6068] mt-2">
           Include: news articles, podcast appearances, conference keynotes, analyst mentions, awards announcements, industry rankings
         </p>
       </div>
@@ -6011,10 +6011,10 @@ Example:
         <div className="flex items-start justify-between mb-3">
           <div>
             <div className="dc-kicker" style={{ marginBottom: 6 }}>
-              <Sparkles className="w-4 h-4 text-[#0F7A4F]" />
+              <Sparkles className="w-4 h-4 text-[#2F6B55]" />
               Auto-Assess Earned Media Performance
             </div>
-            <p className="text-xs text-[#68655B]">
+            <p className="text-xs text-[#5B6068]">
               Web-searched analysis across 10 dimensions: Outlet Caliber, Announcement-Driven vs Third-Party Earned, Reach, Sentiment, Share of Voice, Audience Relevance, Thought Leadership &amp; Executive Visibility, Narrative Influence, Contradictions, and Credibility Built.
             </p>
           </div>
@@ -6030,11 +6030,11 @@ Example:
         {assessmentData.autoAssessContent && (
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#0F7A4F]" />
-              <span className="text-sm font-medium text-[#0B0B0B]">Performance Assessment Complete</span>
+              <Check className="w-4 h-4 text-[#2F6B55]" />
+              <span className="text-sm font-medium text-[#15171A]">Performance Assessment Complete</span>
             </div>
-            <div className="bg-[#E4E2DC] p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
+            <div className="bg-[#DEDAD2] p-4 max-h-80 overflow-y-auto">
+              <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
             </div>
           </div>
         )}
@@ -6043,9 +6043,9 @@ Example:
       {/* Assessor Observations - before analysis button */}
       <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
         <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
-        <p className="text-sm text-[#68655B] mb-3">Your observations will be included in the analysis and final report.</p>
+        <p className="text-sm text-[#5B6068] mb-3">Your observations will be included in the analysis and final report.</p>
         <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
-          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white resize-none" />
+          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none" />
       </div>
 
       {!isComplete && (
@@ -6054,13 +6054,13 @@ Example:
         </button>
       )}
 
-      {error && <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-6 text-[#B23A3A]">{error}</div>}
+      {error && <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-6 text-[#C23B22]">{error}</div>}
 
       {isComplete && (
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#0F7A4F]" /> Analysis Complete
+            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
+              <Check className="w-5 h-5 text-[#2F6B55]" /> Analysis Complete
             </h3>
             <button 
               onClick={() => {
@@ -6073,20 +6073,20 @@ Example:
               {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
             </button>
           </div>
-          <div className="bg-[#E4E2DC] p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
+          <div className="bg-[#DEDAD2] p-4 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
           </div>
         </div>
       )}
 
       {proceedError && (
-        <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-4 mb-4 text-[#0B0B0B] text-sm flex items-center gap-2">
+        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-4 text-[#15171A] text-sm flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {proceedError}
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#DCDAD3]">
+      <div className="flex items-center justify-between pt-6 border-t border-[#DEDAD2]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
         <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
       </div>
@@ -6129,33 +6129,33 @@ function ReportGlanceSection({ project, scores, overall, stage, sortedAttrs, cha
                 <div className="flex gap-6 items-start">
                   <div className="flex-shrink-0">
                     <div className="flex items-center justify-center"
-                      style={{ width: 96, height: 96, background: '#0B0B0B', color: '#DEE42F',
+                      style={{ width: 96, height: 96, background: '#15171A', color: '#D9442A',
                         fontSize: 44, fontWeight: 700, letterSpacing: '-.03em' }}>
                       {shown}
                     </div>
-                    <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#68655B] text-center mt-2">out of 100</div>
+                    <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#5B6068] text-center mt-2">out of 100</div>
                   </div>
                   <div>
                     <h3 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.025em', lineHeight: 1.05 }}>{stage.name}</h3>
-                    <p className="text-[15px] leading-relaxed text-[#4A4840] mt-2.5" style={{ maxWidth: '44ch' }}>{stage.description}</p>
+                    <p className="text-[15px] leading-relaxed text-[#2E3238] mt-2.5" style={{ maxWidth: '44ch' }}>{stage.description}</p>
                   </div>
                 </div>
 
                 {scores.headline && (
-                  <blockquote style={{ margin: '36px 0 0', borderLeft: '6px solid #DEE42F', padding: '2px 0 2px 22px',
+                  <blockquote style={{ margin: '36px 0 0', borderLeft: '6px solid #D9442A', padding: '2px 0 2px 22px',
                     fontSize: 'clamp(21px,2.1vw,27px)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.25 }}>
                     &ldquo;{scores.headline}&rdquo;
                   </blockquote>
                 )}
 
-                <div style={{ height: 1, background: '#DCDAD3', margin: '36px 0 26px' }} />
+                <div style={{ height: 1, background: '#DEDAD2', margin: '36px 0 26px' }} />
 
                 <p className="text-[16px]" style={{ maxWidth: '52ch', lineHeight: 1.75 }}>
                   <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
-                  <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #DEE42F' }}>
+                  <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #D9442A' }}>
                     {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}
                   </span>, with opportunities to grow in{' '}
-                  <span className="font-bold" style={{ borderBottom: '2px dotted #68655B' }}>
+                  <span className="font-bold" style={{ borderBottom: '2px dotted #5B6068' }}>
                     {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}
                   </span>.
                 </p>
@@ -6199,14 +6199,14 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                     <div key={attr.id} className="bg-white dc-attr-card" style={{ padding: 24 }}>
                       {/* Header: figure, name, delta chip */}
                       <div className="flex items-start gap-4"
-                        style={{ borderBottom: '1px solid #DCDAD3', paddingBottom: 14 }}>
+                        style={{ borderBottom: '1px solid #DEDAD2', paddingBottom: 14 }}>
                         <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9,
                           color: scoreColor(sc.score) }}>
                           {sc.score || 0}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{attr.name}</h4>
-                          <p className="text-[11px] font-semibold text-[#68655B] mt-0.5" style={{ letterSpacing: '.04em' }}>
+                          <p className="text-[11px] font-semibold text-[#5B6068] mt-0.5" style={{ letterSpacing: '.04em' }}>
                             {attr.fullName}
                           </p>
                         </div>
@@ -6235,7 +6235,7 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                         </p>
                       </div>
 
-                      <p className="text-[13px] text-[#4A4840]" style={{ lineHeight: 1.55, marginTop: 12 }}>
+                      <p className="text-[13px] text-[#2E3238]" style={{ lineHeight: 1.55, marginTop: 12 }}>
                         {sc.findings || sc.summary || attr.description}
                       </p>
                       {sc.impact && (
@@ -6245,7 +6245,7 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                       )}
                       {showInternal && sc.actions && (
                         <p className="text-[13px]"
-                          style={{ lineHeight: 1.55, marginTop: 14, borderLeft: '4px solid #DEE42F', paddingLeft: 12 }}>
+                          style={{ lineHeight: 1.55, marginTop: 14, borderLeft: '4px solid #D9442A', paddingLeft: 12 }}>
                           <b className="font-bold">To improve:</b> {String(sc.actions).replace(/^To improve( the score)?:?\s*/i, '')}
                         </p>
                       )}
@@ -6261,7 +6261,7 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                 {campaignAffected.length > 0 && campaignStage && (
                   <div className="bg-white" style={{ padding: 24 }}>
                     <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>Score adjustment</h4>
-                    <p className="text-[12px] text-[#68655B]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DCDAD3' }}>
+                    <p className="text-[12px] text-[#5B6068]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DEDAD2' }}>
                       Attribute scores judge the quality of the work. Campaign coherence is scored
                       separately and applied here, so the two are never counted twice.
                     </p>
@@ -6278,11 +6278,11 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                         const adj = campaignAdjustment(attr.id);
                         return (
                           <div key={attr.id} className="flex items-center justify-between"
-                            style={{ padding: '9px 0', borderBottom: '1px solid #E4E2DC' }}>
+                            style={{ padding: '9px 0', borderBottom: '1px solid #DEDAD2' }}>
                             <span className="text-[13px] font-bold truncate">{attr.name}</span>
                             <span className="dc-adj-row grid items-baseline flex-shrink-0 tabular-nums"
                               style={{ gridTemplateColumns: '34px 30px 34px', gap: 10, textAlign: 'right' }}>
-                              <span className="text-[12px] text-[#68655B]">
+                              <span className="text-[12px] text-[#5B6068]">
                                 {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
                               </span>
                               <span className="text-[12px] font-bold" style={{ color: adj > 0 ? SCORE_GREEN : SCORE_RED }}>
@@ -6317,7 +6317,7 @@ function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, be
                   {/* Overall position */}
                   <div className="bg-white" style={{ marginTop: 24, padding: '28px 32px' }} ref={benchmarkPositionRef}>
                     <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Overall Position</h4>
-                    <p className="text-[13px] text-[#68655B] mt-1">
+                    <p className="text-[13px] text-[#5B6068] mt-1">
                       Where {project.brandName} sits against {benchmark.cohortLabel.toLowerCase()}.
                     </p>
 
@@ -6327,28 +6327,28 @@ function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, be
                         {/* The pill is absolutely positioned at the score, so a long
                             brand name overflows the track on a phone. The name drops
                             below 640px; the score always stays. */}
-                        <div style={{ background: '#0B0B0B', color: '#FFFFFF', fontSize: 11, fontWeight: 700, letterSpacing: '.02em', padding: '5px 9px', whiteSpace: 'nowrap' }}>
+                        <div style={{ background: '#15171A', color: '#FBFAF7', fontSize: 11, fontWeight: 700, letterSpacing: '.02em', padding: '5px 9px', whiteSpace: 'nowrap' }}>
                           <span className="dc-pill-brand">{project.brandName} </span>{overall}
                         </div>
-                        <div style={{ width: 2, height: 14, background: '#0B0B0B' }} />
+                        <div style={{ width: 2, height: 14, background: '#15171A' }} />
                       </div>
 
                       <PositionBands stageName={stage.name} />
 
                       <div className="absolute flex flex-col items-center gap-1"
                         style={{ left: `${benchmark.avgScore}%`, top: 70, transform: 'translateX(-50%)' }}>
-                        <div style={{ width: 2, height: 14, background: '#68655B' }} />
-                        <div className="text-[11px] font-bold text-[#68655B]" style={{ whiteSpace: 'nowrap' }}>
+                        <div style={{ width: 2, height: 14, background: '#5B6068' }} />
+                        <div className="text-[11px] font-bold text-[#5B6068]" style={{ whiteSpace: 'nowrap' }}>
                           sector {benchmark.avgScore}
                         </div>
                       </div>
 
-                      <div className="flex justify-between text-[10px] font-semibold text-[#B3B0A8]" style={{ marginTop: 48 }}>
+                      <div className="flex justify-between text-[10px] font-semibold text-[#8A8E95]" style={{ marginTop: 48 }}>
                         {[0, 25, 50, 75, 100].map(v => <span key={v}>{v}</span>)}
                       </div>
                     </div>
 
-                    <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #0B0B0B', paddingTop: 20 }}>
+                    <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #15171A', paddingTop: 20 }}>
                       {[
                         /* Rank and percentile need the whole cohort, so a link
                            issued before they were added to the payload cannot
@@ -6377,10 +6377,10 @@ function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, be
                   <div className="dc-split grid gap-[2px] items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 2 }}>
                     <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkSpreadRef}>
                       <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
-                      <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
+                      <p className="text-[13px] leading-relaxed text-[#5B6068] mt-1" style={{ maxWidth: '52ch' }}>
                         The band is the range across those brands, the line is their average, the dot is {project.brandName}.
                       </p>
-                      <div style={{ marginTop: 24, borderTop: '1px solid #DCDAD3' }} ref={spreadRef}>
+                      <div style={{ marginTop: 24, borderTop: '1px solid #DEDAD2' }} ref={spreadRef}>
                         {ATTRIBUTES.map((attr, ri) => {
                           const v = scores[attr.id]?.score || 0;
                           const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
@@ -6388,22 +6388,22 @@ function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, be
                           const d = v - avg;
                           return (
                             <div key={attr.id} className="dc-ledger-row grid gap-4 items-center"
-                              style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0', borderBottom: '1px solid #DCDAD3' }}>
+                              style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0', borderBottom: '1px solid #DEDAD2' }}>
                               <div className="text-[13px] font-bold">{attr.name}</div>
                               <div className="dc-ledger-track relative" style={{ height: 22 }}>
-                                <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#E4E2DC' }} />
-                                <div className="absolute origin-left" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DCDAD3',
+                                <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#FBFAF7' }} />
+                                <div className="absolute origin-left" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DEDAD2',
                                   transform: `scaleX(${spreadIn ? 1 : 0})`,
                                   transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: `${ri * 70}ms` }} />
-                                <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#68655B',
+                                <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#5B6068',
                                   opacity: spreadIn ? 1 : 0, transition: 'opacity 400ms ease', transitionDelay: `${ri * 70 + 260}ms` }} />
-                                <div className="absolute" style={{ left: `${spreadIn ? v : rng.min}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#0B0B0B', border: '2px solid #FFFFFF',
+                                <div className="absolute" style={{ left: `${spreadIn ? v : rng.min}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#15171A', border: '2px solid #FBFAF7',
                                   opacity: spreadIn ? 1 : 0,
                                   transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease', transitionDelay: `${ri * 70 + 120}ms` }} />
                               </div>
                               <div className="dc-ledger-value text-right">
                                 <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
-                                <span className="block text-[10px] font-bold" style={{ color: '#0B0B0B', background: d > 0 ? '#DEE42F' : 'transparent', border: d > 0 ? 'none' : '1px solid #DCDAD3', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
+                                <span className="block text-[10px] font-bold" style={{ color: '#15171A', background: d > 0 ? '#D9442A' : 'transparent', border: d > 0 ? 'none' : '1px solid #DEDAD2', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
                                   {d > 0 ? '+' : ''}{d}
                                 </span>
                               </div>
@@ -6415,7 +6415,7 @@ function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, be
 
                     <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkRadarRef}>
                       <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
-                      <p className="text-[13px] leading-relaxed text-[#68655B] mt-1" style={{ maxWidth: '52ch' }}>
+                      <p className="text-[13px] leading-relaxed text-[#5B6068] mt-1" style={{ maxWidth: '52ch' }}>
                         {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
                       </p>
                       <div style={{ marginTop: 20 }}>
@@ -7180,48 +7180,48 @@ Return the complete revised readout as prose. No preamble, no notes about what y
     return (
       <div className="dc-wrap dc-page pt-8 animate-fade-in">
         <div className="flex items-start gap-4 mb-8">
-          <div className="w-14 h-14 bg-[#DEE42F]/10 flex items-center justify-center flex-shrink-0">
-            <BarChart3 className="w-7 h-7 text-[#B23A3A]" />
+          <div className="w-14 h-14 bg-[#D9442A]/10 flex items-center justify-center flex-shrink-0">
+            <BarChart3 className="w-7 h-7 text-[#C23B22]" />
           </div>
           <div>
-            <h2 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">Generate Brand Report</h2>
-            <p className="text-[#4A4840] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
+            <h2 className="text-[22px] font-bold tracking-tight text-[#15171A]">Generate Brand Report</h2>
+            <p className="text-[#2E3238] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
           </div>
         </div>
 
         <div className="card text-center mb-[2px]">
           {isScoring ? (
             <div className="max-w-lg mx-auto">
-              <Loader2 className="w-16 h-16 text-[#B23A3A] mx-auto mb-6 animate-spin" />
-              <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Generating Report...</h3>
-              <p className="text-[#68655B] mb-6">{scoringStage}</p>
+              <Loader2 className="w-16 h-16 text-[#C23B22] mx-auto mb-6 animate-spin" />
+              <h3 className="text-xl font-semibold text-[#15171A] mb-2">Generating Report...</h3>
+              <p className="text-[#5B6068] mb-6">{scoringStage}</p>
               
               {/* Progress bar */}
-              <div className="w-full bg-[#F2F0EA] h-3 mb-2">
+              <div className="w-full bg-[#FBFAF7] h-3 mb-2">
                 <div 
-                  className="bg-[#DEE42F] h-3 transition-all duration-500 ease-out"
+                  className="bg-[#D9442A] h-3 transition-all duration-500 ease-out"
                   style={{ width: `${scoringProgress}%` }}
                 />
               </div>
-              <p className="text-sm text-[#68655B] mb-8">{scoringProgress}% complete</p>
+              <p className="text-sm text-[#5B6068] mb-8">{scoringProgress}% complete</p>
               
               {/* Progress steps - centered */}
               <div className="space-y-3">
                 {/* Data Collection */}
                 <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 25 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 25 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
                     {scoringProgress >= 25 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Website</span>
                   </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 40 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 40 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
                     {scoringProgress >= 40 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Social</span>
                   </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 55 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 55 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
                     {scoringProgress >= 55 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>AI Rep</span>
                   </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 70 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 70 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
                     {scoringProgress >= 70 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Earned</span>
                   </div>
@@ -7229,11 +7229,11 @@ Return the complete revised readout as prose. No preamble, no notes about what y
                 
                 {/* Processing */}
                 <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 85 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 85 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
                     {scoringProgress >= 85 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Scoring</span>
                   </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 95 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>
+                  <div className={`flex items-center gap-2 ${scoringProgress >= 95 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
                     {scoringProgress >= 95 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
                     <span>Recommendations</span>
                   </div>
@@ -7241,17 +7241,17 @@ Return the complete revised readout as prose. No preamble, no notes about what y
               </div>
 
               {waitingStories.length > 0 && (
-                <div className="mt-8 pt-6 border-t border-[#DCDAD3]">
-                  <p className="text-xs font-semibold text-[#B3B0A8] uppercase tracking-wider text-center">While you're waiting</p>
-                  <p className="text-xs text-[#68655B] mb-4 text-center">The latest from Stay Conscious</p>
+                <div className="mt-8 pt-6 border-t border-[#DEDAD2]">
+                  <p className="text-xs font-semibold text-[#8A8E95] uppercase tracking-wider text-center">While you're waiting</p>
+                  <p className="text-xs text-[#5B6068] mb-4 text-center">The latest from Stay Conscious</p>
                   <div className="space-y-3">
                     {waitingStories.map((s, i) => (
                       <div key={i} className="card text-left">
                         {s.category && (
-                          <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-[#B23A3A] mb-1">{s.category}</span>
+                          <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-[#C23B22] mb-1">{s.category}</span>
                         )}
-                        <div className="font-semibold text-sm text-[#0B0B0B] leading-snug">{s.headline}</div>
-                        {s.summary && <div className="text-xs text-[#68655B] mt-1 leading-relaxed">{s.summary}</div>}
+                        <div className="font-semibold text-sm text-[#15171A] leading-snug">{s.headline}</div>
+                        {s.summary && <div className="text-xs text-[#5B6068] mt-1 leading-relaxed">{s.summary}</div>}
                       </div>
                     ))}
                   </div>
@@ -7260,9 +7260,9 @@ Return the complete revised readout as prose. No preamble, no notes about what y
             </div>
           ) : (
             <>
-              <Compass className="w-16 h-16 text-[#B23A3A] mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Assessment Complete</h3>
-              <p className="text-[#68655B] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
+              <Compass className="w-16 h-16 text-[#C23B22] mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-[#15171A] mb-2">Assessment Complete</h3>
+              <p className="text-[#5B6068] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
               
               <button 
                 onClick={() => runScoring()} 
@@ -7275,7 +7275,7 @@ Return the complete revised readout as prose. No preamble, no notes about what y
           )}
           
           {scoringError && (
-            <div className="mt-4 bg-[#F2F0EA] border border-[#DCDAD3] p-4 text-[#B23A3A] text-sm">
+            <div className="mt-4 bg-[#FBFAF7] border border-[#DEDAD2] p-4 text-[#C23B22] text-sm">
               {scoringError}
             </div>
           )}
@@ -7299,15 +7299,15 @@ Return the complete revised readout as prose. No preamble, no notes about what y
     return (
       <div className="dc-wrap dc-page">
         <div className="card text-center">
-          <AlertCircle className="w-12 h-12 text-[#68655B] mx-auto mb-4" />
-          <h3 className="dc-kicker text-[#0B0B0B] mb-2">Report Generation Issue</h3>
-          <p className="text-[#68655B] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
+          <AlertCircle className="w-12 h-12 text-[#5B6068] mx-auto mb-4" />
+          <h3 className="dc-kicker text-[#15171A] mb-2">Report Generation Issue</h3>
+          <p className="text-[#5B6068] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
           <button onClick={() => setScores(null)} className="btn-primary">
             Try Again
           </button>
-          <details className="mt-4 text-left text-xs text-[#B3B0A8]">
+          <details className="mt-4 text-left text-xs text-[#8A8E95]">
             <summary className="cursor-pointer">Debug Info</summary>
-            <pre className="mt-2 p-2 bg-[#E4E2DC] overflow-auto max-h-40">
+            <pre className="mt-2 p-2 bg-[#DEDAD2] overflow-auto max-h-40">
               {JSON.stringify(scores, null, 2)}
             </pre>
           </details>
@@ -8159,7 +8159,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
           const c = document.createElement('canvas');
           c.width = w; c.height = h;
           const ctx = c.getContext('2d');
-          ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = '#FBFAF7'; ctx.fillRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0, w, h);
           URL.revokeObjectURL(url);
           res(c.toDataURL('image/png').split(',')[1]);
@@ -8205,14 +8205,14 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         const rings = [...RING_PATHS].reverse().map((p, i) =>
           `<path d="${shift(p)}" fill="${i % 2 === 0 ? '#e1dfda' : '#f7f6f4'}" stroke="none"/>`).join('');
         const gridPath = RING_PATHS.map(p => shift(p)).join('');
-        const grid = `<path d="${gridPath}" stroke="#111720" stroke-width="1.5" fill="none"/>`;
+        const grid = `<path d="${gridPath}" stroke="#15171A" stroke-width="1.5" fill="none"/>`;
         const axes = data.map((_, i) => {
           const a = (i * 2 * Math.PI / data.length) - Math.PI / 2;
           const x2 = (226 + 225 * Math.cos(a) + 100).toFixed(2);
           const y2 = (226 + 225 * Math.sin(a) + 50).toFixed(2);
-          return `<line x1="${(226+100).toFixed(2)}" y1="${(226+50).toFixed(2)}" x2="${x2}" y2="${y2}" stroke="#111720" stroke-opacity="0.1" stroke-width="1.5"/>`;
+          return `<line x1="${(226+100).toFixed(2)}" y1="${(226+50).toFixed(2)}" x2="${x2}" y2="${y2}" stroke="#15171A" stroke-opacity="0.1" stroke-width="1.5"/>`;
         }).join('');
-        const dots = pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#CFD32F" stroke="white" stroke-width="1.5"/>`).join('');
+        const dots = pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#C23B22" stroke="white" stroke-width="1.5"/>`).join('');
         const scoreLabels = pts.map((pt, i) => {
           const a = (i * 2 * Math.PI / data.length) - Math.PI / 2;
           const sx = (+pt.x + 18 * Math.cos(a)).toFixed(2), sy = (+pt.y + 18 * Math.sin(a)).toFixed(2);
@@ -8220,12 +8220,12 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         }).join('');
         const attrLabels = data.map((item, i) => {
           const p = calcLabel(i, data.length, 260);
-          return `<text x="${p.x.toFixed(2)}" y="${(p.y + p.dy).toFixed(2)}" text-anchor="${p.ta}" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="500" fill="#111720">${item.name}</text>`;
+          return `<text x="${p.x.toFixed(2)}" y="${(p.y + p.dy).toFixed(2)}" text-anchor="${p.ta}" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="500" fill="#15171A">${item.name}</text>`;
         }).join('');
         const cx = (226 + 100).toFixed(2), cy = (226 + 50).toFixed(2);
-        const centre = `<circle cx="${cx}" cy="${cy}" r="36" fill="#CFD32F"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="26" font-weight="700" fill="#111720">${overall}</text>`;
+        const centre = `<circle cx="${cx}" cy="${cy}" r="36" fill="#C23B22"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="26" font-weight="700" fill="#15171A">${overall}</text>`;
         // viewBox starts at 0,0 — total size 652x552
-        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 652 552" width="652" height="552"><rect width="652" height="552" fill="#efede9"/>${rings}<polygon points="${ptStr}" fill="#E2E65A" stroke="#CFD32F" stroke-width="1"/>${grid}${axes}${dots}${scoreLabels}${attrLabels}${centre}</svg>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 652 552" width="652" height="552"><rect width="652" height="552" fill="#efede9"/>${rings}<polygon points="${ptStr}" fill="#E2E65A" stroke="#C23B22" stroke-width="1"/>${grid}${axes}${dots}${scoreLabels}${attrLabels}${centre}</svg>`;
       };
 
       // ── Maturity bar SVG ───────────────────────────────────────
@@ -8921,10 +8921,10 @@ ${content.slice(0, 8000)}`;
     const n = String(idx >= 0 ? idx + 1 : sectionOrder.length + 1).padStart(2, '0');
     return (
       <button onClick={onToggle}
-        className="w-full flex items-baseline gap-4 pb-3 border-b-2 border-[#0B0B0B] hover:opacity-60 transition-opacity text-left">
-        <span className="text-[11px] font-bold tracking-[0.16em] text-[#68655B]">{n}</span>
-        <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#0B0B0B] flex-1">{label}</span>
-        {onToggle && <ChevronDown className={`w-4 h-4 text-[#68655B] transition-transform ${open ? 'rotate-180' : ''}`} />}
+        className="w-full flex items-baseline gap-4 pb-3 border-b-2 border-[#15171A] hover:opacity-60 transition-opacity text-left">
+        <span className="text-[11px] font-bold tracking-[0.16em] text-[#5B6068]">{n}</span>
+        <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#15171A] flex-1">{label}</span>
+        {onToggle && <ChevronDown className={`w-4 h-4 text-[#5B6068] transition-transform ${open ? 'rotate-180' : ''}`} />}
       </button>
     );
   };
@@ -8969,7 +8969,7 @@ ${content.slice(0, 8000)}`;
           lineHeight: .92, margin: '28px 0 0', maxWidth: '18ch', textWrap: 'balance' }}>
           {project.brandName}
         </h1>
-        <p className="text-[14px] font-semibold text-[#68655B] mt-5" style={{ letterSpacing: '.04em' }}>
+        <p className="text-[14px] font-semibold text-[#5B6068] mt-5" style={{ letterSpacing: '.04em' }}>
           Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
         </p>
 
@@ -8979,7 +8979,7 @@ ${content.slice(0, 8000)}`;
               setTimeout(() => document.getElementById('dc-challenge-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); }}
             title="This report has been rescored after a challenge. Jump to the history."
             className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 text-[11px] font-bold hover:opacity-80 transition-opacity"
-            style={{ background: '#DEE42F', color: '#0B0B0B', letterSpacing: '.06em' }}>
+            style={{ background: '#D9442A', color: '#15171A', letterSpacing: '.06em' }}>
             <MessageSquareWarning className="w-3 h-3" />
             RESCORED AFTER CHALLENGE
             {scores.challenges.length > 1 ? ` ×${scores.challenges.length}` : ''}
@@ -9009,7 +9009,7 @@ ${content.slice(0, 8000)}`;
             <div className="absolute flex flex-col items-center gap-1"
               style={{ left: `${overall}%`, top: -30, transform: 'translateX(-50%)' }}>
               <div className="text-[11px] font-bold" style={{ letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{overall}</div>
-              <div style={{ width: 2, height: 12, background: '#0B0B0B' }} />
+              <div style={{ width: 2, height: 12, background: '#15171A' }} />
             </div>
 
             <PositionBands stageName={stage.name} />
@@ -9022,9 +9022,9 @@ ${content.slice(0, 8000)}`;
               {MATURITY_STAGES.map(st => (
                 <div key={st.id} className="text-[11px] flex justify-between gap-2"
                   style={{ fontWeight: st.name === stage.name ? 700 : 600,
-                    color: st.name === stage.name ? '#0B0B0B' : '#68655B' }}>
+                    color: st.name === stage.name ? '#15171A' : '#5B6068' }}>
                   <span>{st.name}</span>
-                  <span className="dc-band-range" style={{ color: '#B3B0A8', fontWeight: 600 }}>
+                  <span className="dc-band-range" style={{ color: '#8A8E95', fontWeight: 600 }}>
                     {st.min}&ndash;{st.max}
                   </span>
                 </div>
@@ -9032,10 +9032,10 @@ ${content.slice(0, 8000)}`;
             </div>
           </div>
 
-          <div style={{ marginTop: 28, borderLeft: '6px solid #DEE42F', padding: '6px 0 6px 20px',
+          <div style={{ marginTop: 28, borderLeft: '6px solid #D9442A', padding: '6px 0 6px 20px',
             fontSize: 18, fontWeight: 600, letterSpacing: '-.01em' }}>
             <b className="font-bold">{stage.name}</b>
-            {nextStage && <span style={{ color: '#68655B', fontWeight: 500 }}> · {nextStage.min - overall} points to {nextStage.name}</span>}
+            {nextStage && <span style={{ color: '#5B6068', fontWeight: 500 }}> · {nextStage.min - overall} points to {nextStage.name}</span>}
           </div>
         </div>
       </section>
@@ -9068,8 +9068,8 @@ ${content.slice(0, 8000)}`;
       {!campaignStage && (
         <div className="dc-reveal" style={{ marginTop: 80 }}>
           <SectionHead label="Campaign coherence" />
-          <div className="card border-l-4 border-[#DEE42F]">
-            <p className="text-sm text-[#4A4840] leading-relaxed">
+          <div className="card border-l-4 border-[#D9442A]">
+            <p className="text-sm text-[#2E3238] leading-relaxed">
               These scores were produced before campaign coherence existed, or the scoring pass did not return it.
               Regenerate the report to score campaign coherence and apply the framework {FRAMEWORK_VERSION} adjustment.
             </p>
@@ -9091,31 +9091,31 @@ ${content.slice(0, 8000)}`;
               <div className="card">
                 <div className="flex flex-wrap items-start gap-4 mb-4">
                   <div className="text-center flex-shrink-0">
-                    <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
+                    <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#15171A]">
                       {campaignStage.level === 0 ? '—' : campaignStage.level}
                     </div>
-                    <div className="text-[10px] text-[#68655B] mt-1">{campaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
+                    <div className="text-[10px] text-[#5B6068] mt-1">{campaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-lg font-bold text-[#0B0B0B]">{campaignStage.name}</div>
-                    <p className="text-sm text-[#68655B] leading-relaxed mb-2">{campaignStage.summary}</p>
+                    <div className="text-lg font-bold text-[#15171A]">{campaignStage.name}</div>
+                    <p className="text-sm text-[#5B6068] leading-relaxed mb-2">{campaignStage.summary}</p>
                     {campaign.verdict && (
-                      <p className="text-sm text-[#0B0B0B] font-medium leading-relaxed">{campaign.verdict}</p>
+                      <p className="text-sm text-[#15171A] font-medium leading-relaxed">{campaign.verdict}</p>
                     )}
                   </div>
                 </div>
 
                 <CampaignLadder level={campaignStage.level} />
 
-                <p className="text-xs text-[#4A4840] leading-relaxed">{campaignStage.description}</p>
+                <p className="text-xs text-[#2E3238] leading-relaxed">{campaignStage.description}</p>
 
                 {campaign.rationale && (
-                  <p className="text-xs text-[#4A4840] mt-2 leading-relaxed">
+                  <p className="text-xs text-[#2E3238] mt-2 leading-relaxed">
                     <span className="font-semibold">Why this level:</span> {campaign.rationale}
                   </p>
                 )}
                 {campaign.toNextLevel && (
-                  <p className="text-xs text-[#4A4840] mt-2 leading-relaxed">
+                  <p className="text-xs text-[#2E3238] mt-2 leading-relaxed">
                     <span className="font-semibold">To reach level {Math.min(5, campaignStage.level + 1)}:</span> {campaign.toNextLevel}
                   </p>
                 )}
@@ -9129,16 +9129,16 @@ ${content.slice(0, 8000)}`;
                 <div className="grid md:grid-cols-2 gap-3">
                   {campaign.campaigns.map((c, i) => (
                     <div key={i} className="card">
-                      <h4 className="font-semibold text-[#0B0B0B] text-sm mb-1">{c.name}</h4>
+                      <h4 className="font-semibold text-[#15171A] text-sm mb-1">{c.name}</h4>
                       {Array.isArray(c.channels) && c.channels.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-2">
                           {c.channels.map((ch, j) => (
-                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#E4E2DC] text-[#4A4840]">{ch}</span>
+                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEDAD2] text-[#2E3238]">{ch}</span>
                           ))}
                         </div>
                       )}
-                      {c.idea && <p className="text-xs text-[#4A4840] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
-                      {c.evidence && <p className="text-xs text-[#68655B] leading-relaxed">{c.evidence}</p>}
+                      {c.idea && <p className="text-xs text-[#2E3238] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
+                      {c.evidence && <p className="text-xs text-[#5B6068] leading-relaxed">{c.evidence}</p>}
                     </div>
                   ))}
                 </div>
@@ -9176,8 +9176,8 @@ ${content.slice(0, 8000)}`;
       {benchmarkUnavailableReason && (
         <div className="dc-reveal" style={{ marginTop: 80 }}>
           <SectionHead label="Benchmark comparison" />
-          <div className="card border-l-4 border-[#DEE42F]">
-            <p className="text-sm text-[#4A4840] leading-relaxed">{benchmarkUnavailableReason}</p>
+          <div className="card border-l-4 border-[#D9442A]">
+            <p className="text-sm text-[#2E3238] leading-relaxed">{benchmarkUnavailableReason}</p>
           </div>
         </div>
       )}
@@ -9201,16 +9201,16 @@ ${content.slice(0, 8000)}`;
             {recommendations.map((r, i) => (
               <div key={i} className="dc-rec-row dc-reveal grid gap-6 items-baseline"
                 style={{ gridTemplateColumns: '56px minmax(0,1fr) 150px', padding: '22px 0',
-                  borderBottom: '1px solid #DCDAD3' }}>
-                <div className="dc-rec-ord" style={{ fontSize: 22, fontWeight: 700, color: '#B3B0A8', letterSpacing: '-.02em' }}>
+                  borderBottom: '1px solid #DEDAD2' }}>
+                <div className="dc-rec-ord" style={{ fontSize: 22, fontWeight: 700, color: '#8A8E95', letterSpacing: '-.02em' }}>
                   {String(i + 1).padStart(2, '0')}
                 </div>
                 <div className="min-w-0">
                   <h4 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.02em' }}>{r.title}</h4>
-                  <p className="text-[14px] text-[#4A4840] mt-1">{r.description}</p>
+                  <p className="text-[14px] text-[#2E3238] mt-1">{r.description}</p>
                   {r.impact && (
-                    <p className="text-[13px] text-[#4A4840] mt-2.5"
-                      style={{ borderLeft: '4px solid #DEE42F', paddingLeft: 12, lineHeight: 1.55 }}>
+                    <p className="text-[13px] text-[#2E3238] mt-2.5"
+                      style={{ borderLeft: '4px solid #D9442A', paddingLeft: 12, lineHeight: 1.55 }}>
                       <b className="font-bold">Benefit:</b> {r.impact}
                     </p>
                   )}
@@ -9218,7 +9218,7 @@ ${content.slice(0, 8000)}`;
                 <div className="dc-rec-tags text-right" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em' }}>
                   {r.attributes.slice(0, 2).map((attr, j) => (
                     <span key={j} className="inline-block uppercase"
-                      style={{ background: '#DEE42F', padding: '4px 7px', marginLeft: 4, marginBottom: 4 }}>
+                      style={{ background: '#D9442A', padding: '4px 7px', marginLeft: 4, marginBottom: 4 }}>
                       {attr}
                     </span>
                   ))}
@@ -9235,7 +9235,7 @@ ${content.slice(0, 8000)}`;
           onToggle={() => toggleSection('conclusions')} />
         {expandedSections.conclusions && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
-            <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
+            <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
               {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
             </p>
           </div>
@@ -9249,7 +9249,7 @@ ${content.slice(0, 8000)}`;
           onToggle={() => toggleSection('justification')} />
           {expandedSections.justification && (
             <div className="animate-fade-in" style={{ marginTop: 32 }}>
-              <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
+              <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
                 {scores.justification}
               </p>
             </div>
@@ -9278,7 +9278,7 @@ ${content.slice(0, 8000)}`;
           onToggle={() => toggleSection('evaluated')} />
         {expandedSections.evaluated && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
-            <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
+            <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
               This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
           </div>
@@ -9295,42 +9295,42 @@ ${content.slice(0, 8000)}`;
             <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutWebsite')} 
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#DEE42F]/10 flex items-center justify-center">
-                    <Globe className="w-5 h-5 text-[#B23A3A]" />
+                  <div className="w-10 h-10 bg-[#D9442A]/10 flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-[#C23B22]" />
                   </div>
                   <div className="text-left">
-                    <h4 className="font-medium text-[#0B0B0B]">Website Assessment</h4>
-                    <p className="text-xs text-[#68655B]">Auto-assess, SEO visibility, and full analysis</p>
+                    <h4 className="font-medium text-[#15171A]">Website Assessment</h4>
+                    <p className="text-xs text-[#5B6068]">Auto-assess, SEO visibility, and full analysis</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#68655B] transition-transform ${expandedSections.readoutWebsite ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#5B6068] transition-transform ${expandedSections.readoutWebsite ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutWebsite && (
-                <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
+                <div className="border-t border-[#DEDAD2] p-4 space-y-4 bg-[#FBFAF7]">
                   {assessments.website?.autoAssessContent && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#B23A3A] mb-2">Auto-Assess Analysis</h5>
+                      <h5 className="text-sm font-medium text-[#C23B22] mb-2">Auto-Assess Analysis</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.website.autoAssessContent}</pre>
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.website.autoAssessContent}</pre>
                       </div>
                     </div>
                   )}
                   {assessments.website?.seoAssessment && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#B23A3A] mb-2">SEO Visibility Assessment</h5>
+                      <h5 className="text-sm font-medium text-[#C23B22] mb-2">SEO Visibility Assessment</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.website.seoAssessment}</pre>
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.website.seoAssessment}</pre>
                       </div>
                     </div>
                   )}
                   {assessments.website?.content && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#B23A3A] mb-2">Full Website Analysis</h5>
+                      <h5 className="text-sm font-medium text-[#C23B22] mb-2">Full Website Analysis</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.website.content}</pre>
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.website.content}</pre>
                       </div>
                     </div>
                   )}
@@ -9342,34 +9342,34 @@ ${content.slice(0, 8000)}`;
             <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutSocial')} 
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#0B0B0B]/10 flex items-center justify-center">
-                    <Users className="w-5 h-5 text-[#0B0B0B]" />
+                  <div className="w-10 h-10 bg-[#15171A]/10 flex items-center justify-center">
+                    <Users className="w-5 h-5 text-[#15171A]" />
                   </div>
                   <div className="text-left">
-                    <h4 className="font-medium text-[#0B0B0B]">Social Media Assessment</h4>
-                    <p className="text-xs text-[#68655B]">Platform analysis and Reddit Answers AI visibility</p>
+                    <h4 className="font-medium text-[#15171A]">Social Media Assessment</h4>
+                    <p className="text-xs text-[#5B6068]">Platform analysis and Reddit Answers AI visibility</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#68655B] transition-transform ${expandedSections.readoutSocial ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#5B6068] transition-transform ${expandedSections.readoutSocial ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutSocial && (
-                <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
+                <div className="border-t border-[#DEDAD2] p-4 space-y-4 bg-[#FBFAF7]">
                   {assessments.social?.redditAnswersContent && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#0B0B0B] mb-2">Reddit Answers (AI Search Visibility)</h5>
+                      <h5 className="text-sm font-medium text-[#15171A] mb-2">Reddit Answers (AI Search Visibility)</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.social.redditAnswersContent}</pre>
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.social.redditAnswersContent}</pre>
                       </div>
                     </div>
                   )}
                   {assessments.social?.content && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#0B0B0B] mb-2">Full Social Media Analysis</h5>
+                      <h5 className="text-sm font-medium text-[#15171A] mb-2">Full Social Media Analysis</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.social.content}</pre>
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.social.content}</pre>
                       </div>
                     </div>
                   )}
@@ -9381,27 +9381,27 @@ ${content.slice(0, 8000)}`;
             <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutAI')} 
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#0B0B0B]/10 flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-[#0B0B0B]" />
+                  <div className="w-10 h-10 bg-[#15171A]/10 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-[#15171A]" />
                   </div>
                   <div className="text-left">
-                    <h4 className="font-medium text-[#0B0B0B]">AI Reputation Assessment</h4>
-                    <p className="text-xs text-[#68655B]">AI engine reputation synthesis</p>
+                    <h4 className="font-medium text-[#15171A]">AI Reputation Assessment</h4>
+                    <p className="text-xs text-[#5B6068]">AI engine reputation synthesis</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#68655B] transition-transform ${expandedSections.readoutAI ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#5B6068] transition-transform ${expandedSections.readoutAI ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutAI && (
-                <div className="border-t border-[#DCDAD3] p-4 bg-[#F2F0EA]">
+                <div className="border-t border-[#DEDAD2] p-4 bg-[#FBFAF7]">
                   {assessments.aiReputation?.content ? (
                     <div className="bg-white p-4 max-h-64 overflow-y-auto">
-                      <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
+                      <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.aiReputation.content}</pre>
                     </div>
                   ) : (
-                    <p className="text-sm text-[#68655B]">No synthesis generated yet.</p>
+                    <p className="text-sm text-[#5B6068]">No synthesis generated yet.</p>
                   )}
                 </div>
               )}
@@ -9411,34 +9411,34 @@ ${content.slice(0, 8000)}`;
             <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutEarned')} 
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F2F0EA] transition-colors text-[17px] font-bold tracking-tight"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-bold tracking-tight"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#0F7A4F]/10 flex items-center justify-center">
-                    <Newspaper className="w-5 h-5 text-[#0F7A4F]" />
+                  <div className="w-10 h-10 bg-[#2F6B55]/10 flex items-center justify-center">
+                    <Newspaper className="w-5 h-5 text-[#2F6B55]" />
                   </div>
                   <div className="text-left">
-                    <h4 className="font-medium text-[#0B0B0B]">Earned Media Assessment</h4>
-                    <p className="text-xs text-[#68655B]">Auto-assess performance and coverage analysis</p>
+                    <h4 className="font-medium text-[#15171A]">Earned Media Assessment</h4>
+                    <p className="text-xs text-[#5B6068]">Auto-assess performance and coverage analysis</p>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-[#68655B] transition-transform ${expandedSections.readoutEarned ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-[#5B6068] transition-transform ${expandedSections.readoutEarned ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutEarned && (
-                <div className="border-t border-[#DCDAD3] p-4 space-y-4 bg-[#F2F0EA]">
+                <div className="border-t border-[#DEDAD2] p-4 space-y-4 bg-[#FBFAF7]">
                   {assessments.earnedMedia?.autoAssessContent && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#0F7A4F] mb-2">Auto-Assess Earned Media Performance</h5>
+                      <h5 className="text-sm font-medium text-[#2F6B55] mb-2">Auto-Assess Earned Media Performance</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.earnedMedia.autoAssessContent}</pre>
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.earnedMedia.autoAssessContent}</pre>
                       </div>
                     </div>
                   )}
                   {assessments.earnedMedia?.content && (
                     <div>
-                      <h5 className="text-sm font-medium text-[#0F7A4F] mb-2">Full Earned Media Analysis</h5>
+                      <h5 className="text-sm font-medium text-[#2F6B55] mb-2">Full Earned Media Analysis</h5>
                       <div className="bg-white p-4 max-h-64 overflow-y-auto">
-                        <pre className="text-sm text-[#4A4840] whitespace-pre-wrap font-sans">{assessments.earnedMedia.content}</pre>
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.earnedMedia.content}</pre>
                       </div>
                     </div>
                   )}
@@ -9449,7 +9449,7 @@ ${content.slice(0, 8000)}`;
         )}
       </div>
 
-      <div className="flex items-center justify-start pt-6 border-t border-[#DCDAD3]">
+      <div className="flex items-center justify-start pt-6 border-t border-[#DEDAD2]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
       </div>
 
@@ -9650,7 +9650,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
   };
 
   return (
-    <div className="min-h-screen bg-[#F2F0EA]">
+    <div className="min-h-screen bg-[#FBFAF7]">
       <div className="dc-wrap dc-page pt-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-4">
@@ -9658,8 +9658,8 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
             <div>
-              <h1 className="dc-h2 text-[#0B0B0B]">Compass Results</h1>
-              <span className="text-sm text-[#68655B]">{results.length} assessments</span>
+              <h1 className="dc-h2 text-[#15171A]">Compass Results</h1>
+              <span className="text-sm text-[#5B6068]">{results.length} assessments</span>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -9680,13 +9680,13 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
             <div className="flex flex-wrap items-center gap-3">
               {/* Search */}
               <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#B3B0A8]" />
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8E95]" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search brands..."
-                  className="w-full pl-9 pr-4 py-2 border border-[#DCDAD3] bg-white text-sm"
+                  className="w-full pl-9 pr-4 py-2 border border-[#DEDAD2] bg-white text-sm"
                 />
               </div>
 
@@ -9694,7 +9694,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <select
                 value={filterIndustry}
                 onChange={(e) => setFilterIndustry(e.target.value)}
-                className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm"
+                className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm"
               >
                 <option value="all">All Industries</option>
                 {uniqueIndustries.map(ind => (
@@ -9706,7 +9706,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <select
                 value={filterMaturity}
                 onChange={(e) => setFilterMaturity(e.target.value)}
-                className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm"
+                className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm"
               >
                 <option value="all">All Maturity Levels</option>
                 {uniqueMaturityLevels.map(level => (
@@ -9718,7 +9718,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               <select
                 value={filterBusinessModel}
                 onChange={(e) => setFilterBusinessModel(e.target.value)}
-                className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm"
+                className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm"
               >
                 <option value="all">All Models</option>
                 <option value="b2b">B2B</option>
@@ -9730,7 +9730,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
-                  className="px-3 py-2 text-sm text-[#B23A3A] hover:bg-[#DEE42F]/10 transition-colors flex items-center gap-1"
+                  className="px-3 py-2 text-sm text-[#C23B22] hover:bg-[#D9442A]/10 transition-colors flex items-center gap-1"
                 >
                   <X className="w-4 h-4" /> Clear
                 </button>
@@ -9739,7 +9739,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
             {/* Results count */}
             {hasActiveFilters && (
-              <div className="mt-3 text-sm text-[#68655B]">
+              <div className="mt-3 text-sm text-[#5B6068]">
                 Showing {filteredResults.length} of {results.length} results
               </div>
             )}
@@ -9752,9 +9752,9 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
           <LoadFailed message={loadError} onRetry={onRetry} />
         ) : results.length === 0 ? (
           <div className="card text-center">
-            <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results Yet</h3>
-            <p className="text-[#68655B] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
+            <BarChart3 className="w-16 h-16 text-[#DEDAD2] mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-[#15171A] mb-2">No Results Yet</h3>
+            <p className="text-[#5B6068] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
             {profile?.is_admin && (
               <button onClick={() => setShowAddModal(true)} className="btn-primary">
                 Add Manual Entry
@@ -9763,9 +9763,9 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
           </div>
         ) : filteredResults.length === 0 ? (
           <div className="card text-center">
-            <Search className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Matching Results</h3>
-            <p className="text-[#68655B] mb-4">Try adjusting your search or filters.</p>
+            <Search className="w-16 h-16 text-[#DEDAD2] mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-[#15171A] mb-2">No Matching Results</h3>
+            <p className="text-[#5B6068] mb-4">Try adjusting your search or filters.</p>
             <button onClick={clearFilters} className="btn-secondary">
               Clear Filters
             </button>
@@ -9795,11 +9795,11 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                   >
                     <div className="min-w-0">
                       <div className="text-[16px] font-bold truncate">{r.brandName}</div>
-                      <div className="text-[11px] text-[#B3B0A8] mt-0.5">
+                      <div className="text-[11px] text-[#8A8E95] mt-0.5">
                         {r.businessModel?.toUpperCase()} · v{r.rubricVersion || '2.3'}
                         {r.isManual ? ' · Manual' : ''}
                         {r.scores?.challenge?.count ? (
-                          <span style={{ color: '#68655B', fontWeight: 700 }}>
+                          <span style={{ color: '#5B6068', fontWeight: 700 }}>
                             {' · '}Challenged{r.scores.challenge.count > 1 ? ` ×${r.scores.challenge.count}` : ''}
                             {Number.isFinite(r.scores.challenge.netDelta) && r.scores.challenge.netDelta !== 0
                               ? ` (${r.scores.challenge.netDelta > 0 ? '+' : ''}${r.scores.challenge.netDelta})` : ''}
@@ -9807,18 +9807,18 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                         ) : ''}
                       </div>
                     </div>
-                    <div className="dc-col-hide text-[13px] text-[#4A4840] truncate">{r.industry}</div>
+                    <div className="dc-col-hide text-[13px] text-[#2E3238] truncate">{r.industry}</div>
                     <div className="text-[20px] font-bold text-right" style={{ color: scoreColor(r.totalScore) }}>{r.totalScore}</div>
                     <div className="dc-col-hide text-[13px] font-semibold">{r.maturityLevel}</div>
-                    <div className="dc-col-hide text-[13px] text-[#68655B] text-right">
+                    <div className="dc-col-hide text-[13px] text-[#5B6068] text-right">
                       {assessmentDate ? assessmentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-[#68655B] transition-transform justify-self-end ${isExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-[#5B6068] transition-transform justify-self-end ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
                   
                   {/* Expanded Details */}
                   {isExpanded && (
-                    <div className="border-t border-[#DCDAD3] bg-[#F2F0EA] p-4 animate-fade-in">
+                    <div className="border-t border-[#DEDAD2] bg-[#FBFAF7] p-4 animate-fade-in">
                       <div className="flex flex-col md:flex-row gap-4 mb-4">
                         {/* Mini Spider Chart */}
                         <div className="flex-shrink-0 flex justify-center md:justify-start">
@@ -9830,7 +9830,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                             {ATTRIBUTES.map(attr => (
                               <div key={attr.id} className="text-center p-2 bg-white ">
                                 <div className="text-lg font-bold" style={{ color: attr.color }}>{r.scores?.[attr.id] || 0}</div>
-                                <div className="text-[10px] text-[#68655B] truncate">{attr.name}</div>
+                                <div className="text-[10px] text-[#5B6068] truncate">{attr.name}</div>
                               </div>
                             ))}
                           </div>
@@ -9838,13 +9838,13 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       </div>
                       
                       {/* Meta Info */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#68655B]">
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#5B6068]">
                         <span><strong>Assessor:</strong> {r.assessorName || 'Unknown'}</span>
                         <span><strong>Full Date:</strong> {r.savedAt ? new Date(r.savedAt).toLocaleString() : '-'}</span>
                         {profile?.is_admin && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} 
-                            className="text-[#B23A3A] hover:text-[#B23A3A] flex items-center gap-1 ml-auto"
+                            className="text-[#C23B22] hover:text-[#C23B22] flex items-center gap-1 ml-auto"
                           >
                             <Trash2 className="w-3.5 h-3.5" /> Delete
                           </button>
@@ -9863,30 +9863,30 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-[#DCDAD3]">
+            <div className="flex items-center justify-between p-6 border-b border-[#DEDAD2]">
               <h3 className="text-[17px] font-bold tracking-tight">Add Manual Entry</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-[#68655B] hover:text-[#0B0B0B]">
+              <button onClick={() => setShowAddModal(false)} className="text-[#5B6068] hover:text-[#15171A]">
                 <X className="w-6 h-6" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#0B0B0B] mb-1">Brand Name *</label>
+                <label className="block text-sm font-medium text-[#15171A] mb-1">Brand Name *</label>
                 <input
                   type="text"
                   value={manualEntry.brandName}
                   onChange={(e) => setManualEntry({ ...manualEntry, brandName: e.target.value })}
                   placeholder="Enter brand name"
-                  className="w-full px-3 py-2 border border-[#DCDAD3] "
+                  className="w-full px-3 py-2 border border-[#DEDAD2] "
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#0B0B0B] mb-1">Business Model</label>
+                  <label className="block text-sm font-medium text-[#15171A] mb-1">Business Model</label>
                   <select
                     value={manualEntry.businessModel}
                     onChange={(e) => setManualEntry({ ...manualEntry, businessModel: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#DCDAD3] "
+                    className="w-full px-3 py-2 border border-[#DEDAD2] "
                   >
                     <option value="b2b">B2B</option>
                     <option value="b2c">B2C</option>
@@ -9894,11 +9894,11 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#0B0B0B] mb-1">Industry</label>
+                  <label className="block text-sm font-medium text-[#15171A] mb-1">Industry</label>
                   <select
                     value={manualEntry.industry}
                     onChange={(e) => setManualEntry({ ...manualEntry, industry: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#DCDAD3] "
+                    className="w-full px-3 py-2 border border-[#DEDAD2] "
                   >
                     {industries.map(ind => (
                       <option key={ind.id} value={ind.id}>{ind.name}</option>
@@ -9908,8 +9908,8 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
               </div>
               
               {/* Total Compass Score */}
-              <div className="bg-[#E4E2DC] p-4">
-                <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Total Compass Score (0-100) *</label>
+              <div className="bg-[#DEDAD2] p-4">
+                <label className="block text-sm font-medium text-[#15171A] mb-2">Total Compass Score (0-100) *</label>
                 <div className="flex items-center gap-4">
                   <input
                     type="number"
@@ -9917,21 +9917,21 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     max="100"
                     value={manualEntry.totalScore}
                     onChange={(e) => setManualEntry({ ...manualEntry, totalScore: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
-                    className="w-24 px-3 py-2 border border-[#DCDAD3] text-center text-lg font-bold"
+                    className="w-24 px-3 py-2 border border-[#DEDAD2] text-center text-lg font-bold"
                   />
-                  <span className="text-sm text-[#68655B]">
+                  <span className="text-sm text-[#5B6068]">
                     Weighted score (not auto-calculated from attributes)
                   </span>
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-[#0B0B0B] mb-3">Attribute Scores (0-100)</label>
+                <label className="block text-sm font-medium text-[#15171A] mb-3">Attribute Scores (0-100)</label>
                 <div className="grid grid-cols-2 gap-3">
                   {ATTRIBUTES.map(attr => (
                     <div key={attr.id} className="flex items-center gap-2">
                       <span className="w-3 h-3" style={{ backgroundColor: attr.color }}></span>
-                      <span className="text-sm text-[#68655B] w-24">{attr.name}</span>
+                      <span className="text-sm text-[#5B6068] w-24">{attr.name}</span>
                       <input
                         type="number"
                         min="0"
@@ -9941,20 +9941,20 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                           ...manualEntry,
                           scores: { ...manualEntry.scores, [attr.id]: parseInt(e.target.value) || 0 }
                         })}
-                        className="w-20 px-2 py-1 border border-[#DCDAD3] text-center"
+                        className="w-20 px-2 py-1 border border-[#DEDAD2] text-center"
                       />
                     </div>
                   ))}
                 </div>
               </div>
               
-              <div className="bg-[#F2F0EA] border border-[#DCDAD3] p-3">
-                <p className="text-sm text-[#0B0B0B]">
+              <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3">
+                <p className="text-sm text-[#15171A]">
                   <strong>Note:</strong> Manual entries will be flagged as such in the results grid.
                 </p>
               </div>
             </div>
-            <div className="p-6 border-t border-[#DCDAD3] flex justify-end gap-3">
+            <div className="p-6 border-t border-[#DEDAD2] flex justify-end gap-3">
               <button onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
               <button onClick={handleAddManual} className="btn-primary">Add Entry</button>
             </div>
@@ -10002,21 +10002,21 @@ function OnboardingTour({ onComplete }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#0B0B0B] max-w-lg w-full overflow-hidden animate-fade-in">
-        <div className="bg-[#DEE42F] p-8 text-center">
-          <Icon className="w-16 h-16 text-[#0B0B0B] mx-auto mb-4" />
-          <h2 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">{currentStep.title}</h2>
+      <div className="bg-[#15171A] max-w-lg w-full overflow-hidden animate-fade-in">
+        <div className="bg-[#D9442A] p-8 text-center">
+          <Icon className="w-16 h-16 text-[#15171A] mx-auto mb-4" />
+          <h2 className="text-[22px] font-bold tracking-tight text-[#15171A]">{currentStep.title}</h2>
         </div>
         
         <div className="p-6">
-          <p className="text-[#B3B0A8] text-center mb-6">{currentStep.description}</p>
+          <p className="text-[#8A8E95] text-center mb-6">{currentStep.description}</p>
           
           {/* Progress dots */}
           <div className="flex justify-center gap-2 mb-6">
             {steps.map((_, i) => (
               <div 
                 key={i} 
-                className={`w-2 h-2 transition-colors ${i === step ? 'bg-[#DEE42F]' : 'bg-[#666666]'}`}
+                className={`w-2 h-2 transition-colors ${i === step ? 'bg-[#D9442A]' : 'bg-[#666666]'}`}
               />
             ))}
           </div>
@@ -10025,7 +10025,7 @@ function OnboardingTour({ onComplete }) {
             {step > 0 && (
               <button 
                 onClick={() => setStep(step - 1)} 
-                className="flex-1 bg-transparent border border-[#0B0B0B] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#DEE42F] hover:text-[#0B0B0B] transition-colors"
+                className="flex-1 bg-transparent border border-[#15171A] text-[#15171A] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D9442A] hover:text-[#15171A] transition-colors"
               >
                 Back
               </button>
@@ -10033,7 +10033,7 @@ function OnboardingTour({ onComplete }) {
             {step < steps.length - 1 ? (
               <button 
                 onClick={() => setStep(step + 1)} 
-                className="flex-1 bg-[#DEE42F] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
+                className="flex-1 bg-[#D9442A] text-[#15171A] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
               >
                 Next
               </button>
@@ -10043,7 +10043,7 @@ function OnboardingTour({ onComplete }) {
                   localStorage.setItem('conscious-compass-onboarded', 'true');
                   onComplete();
                 }} 
-                className="flex-1 bg-[#DEE42F] text-[#0B0B0B] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
+                className="flex-1 bg-[#D9442A] text-[#15171A] font-semibold py-3 px-6 uppercase text-sm tracking-wide hover:bg-[#D4E800] transition-colors"
               >
                 Get Started
               </button>
@@ -10056,7 +10056,7 @@ function OnboardingTour({ onComplete }) {
                 localStorage.setItem('conscious-compass-onboarded', 'true');
                 onComplete();
               }}
-              className="w-full text-center text-sm text-[#68655B] mt-4 hover:text-[#E8FF00] transition-colors"
+              className="w-full text-center text-sm text-[#5B6068] mt-4 hover:text-[#E8FF00] transition-colors"
             >
               Skip tour
             </button>
@@ -10125,7 +10125,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
       { range: '0-25', label: 'Pre-Foundational', count: results.filter(r => r.totalScore <= 25).length, color: '#94A3B8' },
       { range: '26-39', label: 'Foundational', count: results.filter(r => r.totalScore > 25 && r.totalScore <= 39).length, color: '#F59E0B' },
       { range: '40-55', label: 'Establishing', count: results.filter(r => r.totalScore > 39 && r.totalScore <= 55).length, color: '#D97706' },
-      { range: '56-69', label: 'Differentiating', count: results.filter(r => r.totalScore > 55 && r.totalScore <= 69).length, color: '#059669' },
+      { range: '56-69', label: 'Differentiating', count: results.filter(r => r.totalScore > 55 && r.totalScore <= 69).length, color: '#2F6B55' },
       { range: '70-84', label: 'Leading', count: results.filter(r => r.totalScore > 69 && r.totalScore <= 84).length, color: '#0D9488' },
       { range: '85-100', label: 'Transforming', count: results.filter(r => r.totalScore > 84).length, color: '#6366F1' },
     ];
@@ -10189,9 +10189,9 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
   if (!portfolioStats) {
     return (
       <div className="card text-center">
-        <TrendingUp className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Data for Insights</h3>
-        <p className="text-[#68655B]">Add some brand assessments to see portfolio insights.</p>
+        <TrendingUp className="w-16 h-16 text-[#DEDAD2] mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-[#15171A] mb-2">No Data for Insights</h3>
+        <p className="text-[#5B6068]">Add some brand assessments to see portfolio insights.</p>
       </div>
     );
   }
@@ -10203,40 +10203,40 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
       {/* Portfolio Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card text-center">
-          <div className="text-4xl font-bold text-[#0B0B0B] mb-1">{portfolioStats.totalBrands}</div>
-          <div className="text-sm text-[#68655B]">Brands Assessed</div>
+          <div className="text-4xl font-bold text-[#15171A] mb-1">{portfolioStats.totalBrands}</div>
+          <div className="text-sm text-[#5B6068]">Brands Assessed</div>
         </div>
         <div className="card text-center">
           <div className="text-4xl font-bold mb-1" style={{ color: getMaturityStage(portfolioStats.avgScore).color }}>
             {portfolioStats.avgScore}
           </div>
-          <div className="text-sm text-[#68655B]">Portfolio Average</div>
+          <div className="text-sm text-[#5B6068]">Portfolio Average</div>
         </div>
         <div className="card text-center">
-          <div className="text-lg font-bold text-[#059669] mb-1 flex items-center justify-center gap-1">
+          <div className="text-lg font-bold text-[#2F6B55] mb-1 flex items-center justify-center gap-1">
             <TrendingUp className="w-5 h-5" />
             {ATTRIBUTES.find(a => a.id === portfolioStats.strongestAttr[0])?.name}
           </div>
-          <div className="text-sm text-[#68655B]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
+          <div className="text-sm text-[#5B6068]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
         </div>
         <div className="card text-center">
           <div className="text-lg font-bold text-[#F59E0B] mb-1 flex items-center justify-center gap-1">
             <TrendingDown className="w-5 h-5" />
             {ATTRIBUTES.find(a => a.id === portfolioStats.weakestAttr[0])?.name}
           </div>
-          <div className="text-sm text-[#68655B]">Growth Opportunity ({portfolioStats.weakestAttr[1]})</div>
+          <div className="text-sm text-[#5B6068]">Growth Opportunity ({portfolioStats.weakestAttr[1]})</div>
         </div>
       </div>
 
       {/* Score Distribution Visualization */}
       <div className="card">
-        <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Portfolio Maturity Distribution</h3>
+        <h3 className="text-sm font-medium text-[#15171A] mb-3">Portfolio Maturity Distribution</h3>
         <div className="flex items-end gap-3 mb-4" style={{ height: '160px' }}>
           {portfolioStats.scoreDistribution.map((bucket, idx) => {
             const barHeight = bucket.count > 0 ? Math.max((bucket.count / maxCount) * 140, 16) : 8;
             return (
               <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full">
-                <div className="text-sm font-medium text-[#0B0B0B] mb-2">{bucket.count}</div>
+                <div className="text-sm font-medium text-[#15171A] mb-2">{bucket.count}</div>
                 <div 
                   className="w-full -t-lg transition-all duration-500"
                   style={{ 
@@ -10252,8 +10252,8 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         <div className="flex gap-3">
           {portfolioStats.scoreDistribution.map((bucket, idx) => (
             <div key={idx} className="flex-1 text-center">
-              <div className="text-xs text-[#68655B]">{bucket.label}</div>
-              <div className="text-[10px] text-[#B3B0A8]">{bucket.range}</div>
+              <div className="text-xs text-[#5B6068]">{bucket.label}</div>
+              <div className="text-[10px] text-[#8A8E95]">{bucket.range}</div>
             </div>
           ))}
         </div>
@@ -10263,10 +10263,10 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
       <div className="card">
         <div className="flex items-start justify-between mb-4 gap-4">
           <div>
-            <h3 className="font-semibold text-[#0B0B0B] flex items-center gap-2">
+            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
               <Lightbulb className="w-5 h-5 text-[#E8FF00]" style={{filter: 'drop-shadow(0 0 2px #E8FF00)'}} /> Story Opportunities
             </h3>
-            <p className="text-xs text-[#68655B] mt-1">Thought leadership angles from your assessment data. Refreshes automatically every Sunday night.</p>
+            <p className="text-xs text-[#5B6068] mt-1">Thought leadership angles from your assessment data. Refreshes automatically every Sunday night.</p>
             {refreshedAt && (
               <p className="text-[10px] text-[#999] mt-1">
                 Last updated {refreshedAt.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })} at {refreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -10286,21 +10286,21 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         </div>
 
         {error && (
-          <div className="p-4 bg-[#F2F0EA] text-[#B23A3A] mb-4 text-sm">
+          <div className="p-4 bg-[#FBFAF7] text-[#C23B22] mb-4 text-sm">
             {error}
           </div>
         )}
 
         {loading && (
-          <div className="text-center py-8 text-[#68655B]">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#DCDAD3]" />
+          <div className="text-center py-8 text-[#5B6068]">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#DEDAD2]" />
             <p className="text-sm">Loading story opportunities…</p>
           </div>
         )}
 
         {!aiInsights && !loading && !error && (
-          <div className="text-center py-8 text-[#68655B]">
-            <Lightbulb className="w-12 h-12 mx-auto mb-3 text-[#DCDAD3]" />
+          <div className="text-center py-8 text-[#5B6068]">
+            <Lightbulb className="w-12 h-12 mx-auto mb-3 text-[#DEDAD2]" />
             <p className="text-sm">No stories available yet. They will appear here after the first Sunday night refresh.</p>
             {isAdmin && <p className="text-xs text-[#999] mt-2">As an admin, you can trigger it now using Force Refresh above.</p>}
           </div>
@@ -10309,14 +10309,14 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         {aiInsights && !loading && (
           <div className="space-y-4">
             {aiInsights.map((story, idx) => (
-              <div key={idx} className="p-5 bg-[#0B0B0B] ">
+              <div key={idx} className="p-5 bg-[#15171A] ">
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
+                  <div className="w-8 h-8 bg-[#D9442A] text-[#15171A] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
                     {idx + 1}
                   </div>
                   <div>
                     <div className="font-semibold text-white mb-2 leading-snug">{story.headline}</div>
-                    <div className="text-sm text-[#B3B0A8] leading-relaxed">{story.body}</div>
+                    <div className="text-sm text-[#8A8E95] leading-relaxed">{story.body}</div>
                   </div>
                 </div>
               </div>
@@ -10526,8 +10526,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
     return (
       <div className="card text-center">
         <div className="text-4xl mb-4">🌐</div>
-        <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Landscape Data Yet</h3>
-        <p className="text-[#68655B]">Complete assessments across multiple sectors to see the consciousness landscape.</p>
+        <h3 className="text-xl font-semibold text-[#15171A] mb-2">No Landscape Data Yet</h3>
+        <p className="text-[#5B6068]">Complete assessments across multiple sectors to see the consciousness landscape.</p>
       </div>
     );
   }
@@ -10549,24 +10549,24 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       {/* Controls row */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-[#68655B] uppercase tracking-wide">Year:</span>
+          <span className="text-xs font-semibold text-[#5B6068] uppercase tracking-wide">Year:</span>
           {['all', ...years].map(y => (
             <button
               key={y}
               onClick={() => toggleYear(y)}
               className={`px-3 py-1 text-xs font-medium transition-colors ${
                 (y === 'all' && selectedYears.includes('all')) || (!selectedYears.includes('all') && selectedYears.includes(y))
-                  ? 'bg-[#0B0B0B] text-white'
-                  : 'bg-white border border-[#DCDAD3] text-[#68655B] hover:border-[#0B0B0B]'
+                  ? 'bg-[#15171A] text-white'
+                  : 'bg-white border border-[#DEDAD2] text-[#5B6068] hover:border-[#15171A]'
               }`}
             >
               {y === 'all' ? 'All time' : y}
             </button>
           ))}
         </div>
-        <div className="flex gap-4 text-xs text-[#68655B]">
-          <span><strong className="text-[#0B0B0B]">{filteredResults.length}</strong> assessments</span>
-          <span><strong className="text-[#0B0B0B]">{sectors.length}</strong> sectors</span>
+        <div className="flex gap-4 text-xs text-[#5B6068]">
+          <span><strong className="text-[#15171A]">{filteredResults.length}</strong> assessments</span>
+          <span><strong className="text-[#15171A]">{sectors.length}</strong> sectors</span>
         </div>
       </div>
 
@@ -10580,22 +10580,22 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             label: 'Top attribute',
             value: attrLandscapeData.slice().sort((a, b) => b.mean - a.mean)[0]?.attr.name || '—',
             sub: attrLandscapeData.slice().sort((a, b) => b.mean - a.mean)[0]?.mean,
-            color: '#CFD32F',
+            color: '#C23B22',
           },
         ].map((tile, i) => (
-          <div key={i} className="bg-white border border-[#DCDAD3] p-4 ">
+          <div key={i} className="bg-white border border-[#DEDAD2] p-4 ">
             <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wide mb-1">{tile.label}</div>
-            <div className="font-bold text-lg text-[#0B0B0B] truncate" style={{ color: tile.color }}>{tile.value}</div>
-            {tile.sub !== undefined && <div className="text-xs text-[#68655B]">avg {tile.sub}</div>}
+            <div className="font-bold text-lg text-[#15171A] truncate" style={{ color: tile.color }}>{tile.value}</div>
+            {tile.sub !== undefined && <div className="text-xs text-[#5B6068]">avg {tile.sub}</div>}
           </div>
         ))}
       </div>
 
       {/* Hero: Landscape Octagon + Sector Legend */}
-      <div className="bg-white border border-[#DCDAD3] p-6">
+      <div className="bg-white border border-[#DEDAD2] p-6">
         <div className="mb-5">
           <div className="dc-kicker">Consciousness Landscape</div>
-          <p className="text-xs text-[#68655B] mt-1">
+          <p className="text-xs text-[#5B6068] mt-1">
             Each sector's average brand consciousness — hover a sector to isolate. Dashed yellow = cross-sector mean.
           </p>
         </div>
@@ -10643,7 +10643,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   <polygon
                     points={pStr}
                     fill={showAllAvg ? 'rgba(207,211,47,0.12)' : 'none'}
-                    stroke="#CFD32F"
+                    stroke="#C23B22"
                     strokeWidth={showAllAvg ? 3 : 2.5}
                     strokeDasharray="7 4"
                     opacity={showAllAvg ? 1 : (activeSector ? 0.35 : 1)}
@@ -10653,7 +10653,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
               {/* Ring outlines */}
               {RING_PATHS.map((path, i) => (
-                <path key={`outline-${i}`} d={path} stroke="#111720"
+                <path key={`outline-${i}`} d={path} stroke="#15171A"
                   strokeWidth={i === 3 ? 1.5 : 0.8} fill="none"
                   strokeOpacity={i === 3 ? 0.25 : 0.12} />
               ))}
@@ -10664,7 +10664,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 return (
                   <line key={`axis-${i}`} x1="226" y1="226"
                     x2={226 + 225 * Math.cos(angle)} y2={226 + 225 * Math.sin(angle)}
-                    stroke="#111720" strokeOpacity="0.08" strokeWidth="1.5" />
+                    stroke="#15171A" strokeOpacity="0.08" strokeWidth="1.5" />
                 );
               })}
 
@@ -10673,7 +10673,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 <text key={`pctlbl-${i}`}
                   x={226} y={226 - (pct / 100) * 225 - 5}
                   textAnchor="middle"
-                  style={{ fontSize: '9px', fill: '#999', fontFamily: 'Inter, sans-serif' }}>
+                  style={{ fontSize: '9px', fill: '#999', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>
                   {pct}
                 </text>
               ))}
@@ -10683,8 +10683,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 const pos = getLabelPos(i);
                 return (
                   <text key={`lbl-${i}`} x={pos.x} y={pos.y}
-                    textAnchor={pos.textAnchor} dy={pos.dy} fill="#111720"
-                    style={{ fontSize: '15px', fontWeight: '500', fontFamily: 'Inter, sans-serif' }}>
+                    textAnchor={pos.textAnchor} dy={pos.dy} fill="#15171A"
+                    style={{ fontSize: '15px', fontWeight: '500', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>
                     {attr.name}
                   </text>
                 );
@@ -10701,7 +10701,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     x={x + 16 * Math.cos(angle)} y={y + 16 * Math.sin(angle)}
                     textAnchor="middle" dominantBaseline="middle"
                     style={{ fontSize: '11px', fontWeight: '700', fill: '#6B6B00',
-                      opacity: animProgress, fontFamily: 'Inter, sans-serif' }}>
+                      opacity: animProgress, fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>
                     {overallAvg[attr.id] || 0}
                   </text>
                 );
@@ -10717,16 +10717,16 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     <circle cx="226" cy="226" r="40" fill={sector.color}
                       style={{ cursor: 'pointer' }} onClick={() => handleSectorClick(sector.key)} />
                     <text x="226" y="218" textAnchor="middle" dominantBaseline="middle"
-                      style={{ fontSize: '22px', fontWeight: '700', fill: '#fff', fontFamily: 'Inter, sans-serif', pointerEvents: 'none' }}>
+                      style={{ fontSize: '22px', fontWeight: '700', fill: '#fff', fontFamily: "'Hanken Grotesk', system-ui, sans-serif", pointerEvents: 'none' }}>
                       {sector.avgScore}
                     </text>
                     <text x="226" y="236" textAnchor="middle"
-                      style={{ fontSize: '7.5px', fontWeight: '600', fill: 'rgba(255,255,255,0.8)', fontFamily: 'Inter, sans-serif', pointerEvents: 'none' }}>
+                      style={{ fontSize: '7.5px', fontWeight: '600', fill: 'rgba(255,255,255,0.8)', fontFamily: "'Hanken Grotesk', system-ui, sans-serif", pointerEvents: 'none' }}>
                       {sector.name.slice(0, 12).toUpperCase()}
                     </text>
                     {isPinned && (
                       <text x="226" y="248" textAnchor="middle"
-                        style={{ fontSize: '6.5px', fill: 'rgba(255,255,255,0.55)', fontFamily: 'Inter, sans-serif', pointerEvents: 'none' }}>
+                        style={{ fontSize: '6.5px', fill: 'rgba(255,255,255,0.55)', fontFamily: "'Hanken Grotesk', system-ui, sans-serif", pointerEvents: 'none' }}>
                         ● PINNED
                       </text>
                     )}
@@ -10737,13 +10737,13 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               {/* Default centre */}
               {!activeSector && (
                 <>
-                  <circle cx="226" cy="226" r="38" fill="#CFD32F" />
+                  <circle cx="226" cy="226" r="38" fill="#C23B22" />
                   <text x="226" y="219" textAnchor="middle" dominantBaseline="middle"
-                    style={{ fontSize: '26px', fontWeight: '700', fill: '#111720', fontFamily: 'Inter, sans-serif' }}>
+                    style={{ fontSize: '26px', fontWeight: '700', fill: '#15171A', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>
                     {overallScore}
                   </text>
                   <text x="226" y="237" textAnchor="middle"
-                    style={{ fontSize: '8px', fontWeight: '500', fill: '#666', fontFamily: 'Inter, sans-serif' }}>
+                    style={{ fontSize: '8px', fontWeight: '500', fill: '#666', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>
                     MEAN
                   </text>
                 </>
@@ -10758,13 +10758,13 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             {/* Overall avg legend entry */}
             <div
               className={`flex items-center gap-3 px-3 py-2.5  cursor-pointer select-none transition-all ${
-                showAllAvg ? 'ring-1 ring-[#DCDAD3] bg-[#FFFEF0]' : 'bg-[#FFFFFF] hover:bg-[#F2F0EA]'
+                showAllAvg ? 'ring-1 ring-[#DEDAD2] bg-[#FFFEF0]' : 'bg-[#FBFAF7] hover:bg-[#FBFAF7]'
               }`}
               onClick={handleAllAvgClick}
             >
-              <svg width="20" height="10" className="flex-shrink-0"><line x1="0" y1="5" x2="20" y2="5" stroke="#CFD32F" strokeWidth="2.5" strokeDasharray="5 3"/></svg>
+              <svg width="20" height="10" className="flex-shrink-0"><line x1="0" y1="5" x2="20" y2="5" stroke="#C23B22" strokeWidth="2.5" strokeDasharray="5 3"/></svg>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-[#0B0B0B]">All sectors avg</div>
+                <div className="text-sm font-semibold text-[#15171A]">All sectors avg</div>
                 <div className="text-xs text-[#666]">{filteredResults.length} brands</div>
               </div>
               <span className="text-xl font-bold text-[#6B6B00] tabular-nums">{overallScore}</span>
@@ -10778,7 +10778,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 <div
                   key={sector.key}
                   className={`flex items-center gap-3 px-3 py-2.5  cursor-pointer transition-all select-none ${
-                    isActive ? 'ring-1 ring-[#DCDAD3]' : 'hover:bg-[#FFFFFF]'
+                    isActive ? 'ring-1 ring-[#DEDAD2]' : 'hover:bg-[#FBFAF7]'
                   }`}
                   style={{ backgroundColor: isActive ? sector.color + '15' : '' }}
                   onClick={() => handleSectorClick(sector.key)}
@@ -10787,7 +10787,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 >
                   <div className="w-3 h-3 flex-shrink-0" style={{ backgroundColor: sector.color }} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[#0B0B0B] leading-tight">{sector.name}</div>
+                    <div className="text-sm font-medium text-[#15171A] leading-tight">{sector.name}</div>
                     <div className="text-xs text-[#666]">{sector.count}b{isPinned ? ' · pinned' : ''}</div>
                   </div>
                   <span className="text-xl font-bold tabular-nums" style={{ color: stage.color }}>{sector.avgScore}</span>
@@ -10802,7 +10802,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       <div className="bg-white" style={{ padding: 28 }}>
         <div className="mb-5">
           <h3 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute landscape</h3>
-          <p className="text-xs text-[#68655B] mt-1">
+          <p className="text-xs text-[#5B6068] mt-1">
             Where each sector scores on every attribute — see the legend below to read the chart.
           </p>
         </div>
@@ -10811,13 +10811,13 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           {attrLandscapeData.map(({ attr, sectorScores, min, max, mean }) => (
             <div key={attr.id} className="dc-ledger-row grid items-center gap-3"
               style={{ gridTemplateColumns: '96px 1fr 36px' }}>
-              <div className="text-xs font-semibold text-[#0B0B0B] text-right leading-tight pr-1">{attr.name}</div>
+              <div className="text-xs font-semibold text-[#15171A] text-right leading-tight pr-1">{attr.name}</div>
               <div className="relative h-9 flex items-center" style={{ overflow: 'visible' }}>
                 {/* Background track */}
                 <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6]" />
                 {/* Stage markers */}
                 {[25, 40, 56, 70, 85].map(mark => (
-                  <div key={mark} className="absolute w-px h-3 bg-[#DCDAD3]"
+                  <div key={mark} className="absolute w-px h-3 bg-[#DEDAD2]"
                     style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
                 ))}
                 {/* Range fill */}
@@ -10826,7 +10826,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     style={{ left: `${min}%`, width: `${Math.max(max - min, 0.5)}%`, backgroundColor: 'rgba(229,57,53,0.18)' }} />
                 )}
                 {/* Mean line */}
-                <div className="absolute w-0.5 h-6 bg-[#68655B] z-10"
+                <div className="absolute w-0.5 h-6 bg-[#5B6068] z-10"
                   style={{ left: `${mean}%`, transform: 'translateX(-50%)' }} />
                 {/* Sector dots */}
                 {sectorScores.map((s, si) => {
@@ -10877,7 +10877,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   );
                 })}
               </div>
-              <div className="text-xs font-bold text-[#0B0B0B] tabular-nums">{mean}</div>
+              <div className="text-xs font-bold text-[#15171A] tabular-nums">{mean}</div>
             </div>
           ))}
 
@@ -10891,7 +10891,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           </div>
 
           {/* Legend */}
-          <div className="mt-5 pt-4 border-t border-[#DCDAD3]">
+          <div className="mt-5 pt-4 border-t border-[#DEDAD2]">
             <div className="dc-kicker-sm mb-3">How to read this chart</div>
             <div className="flex flex-col sm:flex-row gap-4">
               {/* Visual example */}
@@ -10902,35 +10902,35 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   {/* range bar */}
                   <rect x="60" y="18" width="100" height="8" rx="4" fill="rgba(229,57,53,0.18)" />
                   {/* mean line */}
-                  <line x1="120" y1="10" x2="120" y2="34" stroke="#CFD32F" strokeWidth="2.5" strokeLinecap="round" />
+                  <line x1="120" y1="10" x2="120" y2="34" stroke="#C23B22" strokeWidth="2.5" strokeLinecap="round" />
                   {/* sector dot A */}
-                  <circle cx="70" cy="22" r="6" fill="#E53935" stroke="white" strokeWidth="2" />
+                  <circle cx="70" cy="22" r="6" fill="#C23B22" stroke="white" strokeWidth="2" />
                   {/* sector dot B */}
                   <circle cx="110" cy="22" r="6" fill="#1976D2" stroke="white" strokeWidth="2" />
                   {/* sector dot C */}
                   <circle cx="155" cy="22" r="6" fill="#388E3C" stroke="white" strokeWidth="2" />
                   {/* annotations */}
-                  <text x="120" y="8" textAnchor="middle" style={{ fontSize: '8px', fill: '#6B6B00', fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>avg</text>
-                  <text x="70" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#E53935', fontFamily: 'Inter, sans-serif' }}>sector</text>
-                  <text x="110" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#1976D2', fontFamily: 'Inter, sans-serif' }}>sector</text>
-                  <text x="155" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#388E3C', fontFamily: 'Inter, sans-serif' }}>sector</text>
+                  <text x="120" y="8" textAnchor="middle" style={{ fontSize: '8px', fill: '#6B6B00', fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontWeight: 700 }}>avg</text>
+                  <text x="70" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#C23B22', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>sector</text>
+                  <text x="110" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#1976D2', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>sector</text>
+                  <text x="155" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#388E3C', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>sector</text>
                 </svg>
               </div>
               {/* Text explanations */}
-              <div className="flex flex-col gap-2 justify-center text-xs text-[#68655B]">
+              <div className="flex flex-col gap-2 justify-center text-xs text-[#5B6068]">
                 <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 mt-0.5 w-3 h-3 bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 12 }} />
-                  <span><strong className="text-[#0B0B0B]">Colored dots</strong> — each dot is one sector's average score for this attribute. Hover the octagon or cards above to match colors to sectors.</span>
+                  <div className="flex-shrink-0 mt-0.5 w-3 h-3 bg-[#D9442A] ring-2 ring-white" style={{ minWidth: 12 }} />
+                  <span><strong className="text-[#15171A]">Colored dots</strong> — each dot is one sector's average score for this attribute. Hover the octagon or cards above to match colors to sectors.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
-                    <div className="w-0.5 h-4 bg-[#68655B] mx-auto" />
+                    <div className="w-0.5 h-4 bg-[#5B6068] mx-auto" />
                   </div>
-                  <span><strong className="text-[#0B0B0B]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
+                  <span><strong className="text-[#15171A]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
                 </div>
                 <div className="flex items-start gap-2">
                 <div className="flex-shrink-0 mt-1.5 w-7 h-2" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
-                  <span><strong className="text-[#0B0B0B]">Light red band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
+                  <span><strong className="text-[#15171A]">Light red band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
                 </div>
               </div>
             </div>
@@ -10941,13 +10941,13 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       {/* Sector Attribute Spread — rows = sectors, tracks = attributes */}
       <div className="bg-white p-7">
         <div className="mb-5">
-          <h3 className="text-[20px] font-bold tracking-tight text-[#0B0B0B]">Sector attribute spread</h3>
-          <p className="text-[13px] text-[#68655B] mt-1.5" style={{ maxWidth: '60ch' }}>
+          <h3 className="text-[20px] font-bold tracking-tight text-[#15171A]">Sector attribute spread</h3>
+          <p className="text-[13px] text-[#5B6068] mt-1.5" style={{ maxWidth: '60ch' }}>
             Each sector's score across all eight attributes. Each dot is one attribute score; the line is that sector's overall average.
           </p>
         </div>
 
-        <div style={{ borderTop: '1px solid #DCDAD3' }}>
+        <div style={{ borderTop: '1px solid #DEDAD2' }}>
           {sectors.map((sector) => {
             const attrScores = ATTRIBUTES.map(attr => ({
               key: attr.id,
@@ -10964,10 +10964,10 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             return (
               <div key={sector.key}
                 className={`grid items-center gap-5 cursor-pointer transition-colors ${
-                  isActive ? 'bg-[#F2F0EA]' : 'hover:bg-[#F7F6F2]'
+                  isActive ? 'bg-[#FBFAF7]' : 'hover:bg-[#F7F6F2]'
                 }`}
                 style={{ gridTemplateColumns: '200px minmax(0,1fr) 60px', padding: '13px 0',
-                  borderBottom: '1px solid #DCDAD3' }}
+                  borderBottom: '1px solid #DEDAD2' }}
                 onClick={() => handleSectorClick(sector.key)}
                 onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
                 onMouseLeave={() => !pinnedSector && setHighlightSector(null)}
@@ -10976,7 +10976,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 <div className="flex items-center gap-2.5 pr-1 min-w-0">
                   <div className="w-2 h-2 flex-shrink-0" style={{ backgroundColor: sector.color }} />
                   <div className="min-w-0">
-                    <div className="text-[14px] font-bold text-[#0B0B0B] truncate leading-tight">{sector.name}</div>
+                    <div className="text-[14px] font-bold text-[#15171A] truncate leading-tight">{sector.name}</div>
                     <div className="dc-kicker-sm mt-0.5">{sector.count} brands</div>
                   </div>
                 </div>
@@ -10987,7 +10987,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6]" />
                   {/* Stage markers */}
                   {[25, 40, 56, 70, 85].map(mark => (
-                    <div key={mark} className="absolute w-px h-3 bg-[#DCDAD3]"
+                    <div key={mark} className="absolute w-px h-3 bg-[#DEDAD2]"
                       style={{ left: `${mark}%`, transform: 'translateX(-50%)' }} />
                   ))}
                   {/* Range fill */}
@@ -11050,39 +11050,39 @@ function LandscapeView({ results, industries, isAdmin = false }) {
           </div>
 
           {/* Legend */}
-          <div className="mt-5 pt-4 border-t border-[#DCDAD3]">
+          <div className="mt-5 pt-4 border-t border-[#DEDAD2]">
             <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-3">How to read this chart</div>
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-shrink-0 flex items-center" style={{ width: 220 }}>
                 <svg width="220" height="44" viewBox="0 0 220 44">
                   <line x1="10" y1="22" x2="210" y2="22" stroke="#ECEAE6" strokeWidth="2" strokeLinecap="round" />
                   <rect x="50" y="18" width="110" height="8" rx="4" fill="rgba(229,57,53,0.18)" />
-                  <line x1="115" y1="10" x2="115" y2="34" stroke="#E53935" strokeWidth="2.5" strokeLinecap="round" />
-                  <circle cx="60" cy="22" r="5" fill="#E53935" stroke="white" strokeWidth="2" />
-                  <circle cx="95" cy="22" r="5" fill="#E53935" stroke="white" strokeWidth="2" />
-                  <circle cx="130" cy="22" r="5" fill="#E53935" stroke="white" strokeWidth="2" />
-                  <circle cx="155" cy="22" r="5" fill="#E53935" stroke="white" strokeWidth="2" />
-                  <text x="115" y="8" textAnchor="middle" style={{ fontSize: '8px', fill: '#E53935', fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>avg</text>
-                  <text x="60" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
-                  <text x="95" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
-                  <text x="130" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
-                  <text x="155" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: 'Inter, sans-serif' }}>attr</text>
+                  <line x1="115" y1="10" x2="115" y2="34" stroke="#C23B22" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="60" cy="22" r="5" fill="#C23B22" stroke="white" strokeWidth="2" />
+                  <circle cx="95" cy="22" r="5" fill="#C23B22" stroke="white" strokeWidth="2" />
+                  <circle cx="130" cy="22" r="5" fill="#C23B22" stroke="white" strokeWidth="2" />
+                  <circle cx="155" cy="22" r="5" fill="#C23B22" stroke="white" strokeWidth="2" />
+                  <text x="115" y="8" textAnchor="middle" style={{ fontSize: '8px', fill: '#C23B22', fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontWeight: 700 }}>avg</text>
+                  <text x="60" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>attr</text>
+                  <text x="95" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>attr</text>
+                  <text x="130" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>attr</text>
+                  <text x="155" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#666', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>attr</text>
                 </svg>
               </div>
-              <div className="flex flex-col gap-2 justify-center text-xs text-[#68655B]">
+              <div className="flex flex-col gap-2 justify-center text-xs text-[#5B6068]">
                 <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 mt-0.5 w-2.5 h-2.5 bg-[#DEE42F] ring-2 ring-white" style={{ minWidth: 10 }} />
-                  <span><strong className="text-[#0B0B0B]">Colored dots</strong> — each dot is one attribute score for that sector. Hover to see the attribute name and score.</span>
+                  <div className="flex-shrink-0 mt-0.5 w-2.5 h-2.5 bg-[#D9442A] ring-2 ring-white" style={{ minWidth: 10 }} />
+                  <span><strong className="text-[#15171A]">Colored dots</strong> — each dot is one attribute score for that sector. Hover to see the attribute name and score.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
-                    <div className="w-0.5 h-4 mx-auto" style={{ backgroundColor: '#DCDAD3' }} />
+                    <div className="w-0.5 h-4 mx-auto" style={{ backgroundColor: '#DEDAD2' }} />
                   </div>
-                  <span><strong className="text-[#0B0B0B]">Colored line</strong> — the sector's overall average score across all eight attributes. The number on the right is this value.</span>
+                  <span><strong className="text-[#15171A]">Colored line</strong> — the sector's overall average score across all eight attributes. The number on the right is this value.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1.5 w-7 h-2" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
-                  <span><strong className="text-[#0B0B0B]">Light band</strong> — spans from the lowest to highest attribute score for that sector, showing how consistent or varied the sector is.</span>
+                  <span><strong className="text-[#15171A]">Light band</strong> — spans from the lowest to highest attribute score for that sector, showing how consistent or varied the sector is.</span>
                 </div>
               </div>
             </div>
@@ -11092,7 +11092,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
       {/* Sector profile cards */}
       <div>
-        <h3 className="font-semibold text-[#0B0B0B] mb-4">Sector Profiles</h3>
+        <h3 className="font-semibold text-[#15171A] mb-4">Sector Profiles</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {sectors.map((sector) => {
             const sorted = ATTRIBUTES
@@ -11104,7 +11104,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             return (
               <div key={sector.key}
                 className={`bg-white border  p-5 transition-all cursor-pointer select-none ${
-                  activeSector === sector.key ? 'border-[#0B0B0B] ' : 'border-[#DCDAD3]'
+                  activeSector === sector.key ? 'border-[#15171A] ' : 'border-[#DEDAD2]'
                 }`}
                 onClick={() => handleSectorClick(sector.key)}
                 onMouseEnter={() => !pinnedSector && !showAllAvg && setHighlightSector(sector.key)}
@@ -11114,7 +11114,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-1.5 self-stretch" style={{ backgroundColor: sector.color }} />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-[#0B0B0B] text-sm leading-tight">{sector.name}</div>
+                    <div className="font-semibold text-[#15171A] text-sm leading-tight">{sector.name}</div>
                     <div className="text-[10px] text-[#666] mt-0.5">{sector.count} brand{sector.count !== 1 ? 's' : ''} · {stage.name}</div>
                   </div>
                   <div className="text-2xl font-bold tabular-nums" style={{ color: sector.color }}>{sector.avgScore}</div>
@@ -11128,11 +11128,11 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     const isBot = bot2.some(t => t.id === attr.id);
                     return (
                       <div key={attr.id}
-                        className={`p-1.5 text-center ${isTop ? 'bg-[#0B0B0B]' : isBot ? 'bg-[#F2F0EA]' : 'bg-[#FFFFFF]'}`}>
+                        className={`p-1.5 text-center ${isTop ? 'bg-[#15171A]' : isBot ? 'bg-[#FBFAF7]' : 'bg-[#FBFAF7]'}`}>
                         <div className={`text-[9px] font-semibold leading-none mb-0.5 ${isTop ? 'text-[#E2E65A]' : 'text-[#999]'}`}>
                           {attr.name.slice(0, 3).toUpperCase()}
                         </div>
-                        <div className={`text-sm font-bold leading-none tabular-nums ${isTop ? 'text-white' : isBot ? 'text-[#BBB]' : 'text-[#0B0B0B]'}`}>
+                        <div className={`text-sm font-bold leading-none tabular-nums ${isTop ? 'text-white' : isBot ? 'text-[#BBB]' : 'text-[#15171A]'}`}>
                           {score}
                         </div>
                       </div>
@@ -11146,8 +11146,8 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wide mb-1.5">Strongest</div>
                     {top2.map(a => (
                       <div key={a.id} className="flex items-center justify-between">
-                        <span className="text-[#0B0B0B] font-medium">{a.name}</span>
-                        <span className="font-bold tabular-nums text-[#0B0B0B]">{a.score}</span>
+                        <span className="text-[#15171A] font-medium">{a.name}</span>
+                        <span className="font-bold tabular-nums text-[#15171A]">{a.score}</span>
                       </div>
                     ))}
                   </div>
@@ -11168,11 +11168,11 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       </div>
 
       {/* AI Landscape Analysis */}
-      <div className="bg-[#0B0B0B] p-6">
+      <div className="bg-[#15171A] p-6">
         <div className="flex items-start justify-between gap-4 mb-2">
           <div>
             <h3 className="font-semibold text-white">Landscape Analysis</h3>
-            <p className="text-xs text-[#B3B0A8] mt-1">
+            <p className="text-xs text-[#8A8E95] mt-1">
               AI-powered read of industry averages, attribute spread, sector strengths and gaps, and what it all means.
               Refreshes automatically every Sunday night.
             </p>
@@ -11187,7 +11187,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               onClick={forceRefreshLandscapeAI}
               disabled={landscapeAIRefreshing || landscapeAILoading}
               className="flex-shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ backgroundColor: '#E8FF00', color: '#0B0B0B' }}
+              style={{ backgroundColor: '#E8FF00', color: '#15171A' }}
             >
               {landscapeAIRefreshing ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Refreshing…</>
@@ -11224,21 +11224,21 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             <div className="p-4 " style={{ backgroundColor: 'rgba(232,255,0,0.08)', border: '1px solid rgba(232,255,0,0.2)' }}>
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#E8FF00' }}>Landscape Summary</div>
               {landscapeAI.headline && (
-                <p className="font-bold leading-snug mb-2" style={{ color: '#FFFFFF', fontSize: '1.05rem' }}>{landscapeAI.headline}</p>
+                <p className="font-bold leading-snug mb-2" style={{ color: '#FBFAF7', fontSize: '1.05rem' }}>{landscapeAI.headline}</p>
               )}
-              <p className="text-sm leading-relaxed" style={{ color: '#DCDAD3' }}>{landscapeAI.summary}</p>
+              <p className="text-sm leading-relaxed" style={{ color: '#DEDAD2' }}>{landscapeAI.summary}</p>
             </div>
 
             {landscapeAI.sectorAnalysis && (
               <div className="p-4 " style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#B3B0A8' }}>Sector Analysis</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#8A8E95' }}>Sector Analysis</div>
                 <div className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#D1D5DB' }}>{landscapeAI.sectorAnalysis}</div>
               </div>
             )}
 
             {landscapeAI.insights && (
               <div className="p-4 " style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#B3B0A8' }}>Key Insights</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#8A8E95' }}>Key Insights</div>
                 <div className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#D1D5DB' }}>{landscapeAI.insights}</div>
               </div>
             )}
@@ -11345,11 +11345,11 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
   };
 
   return (
-    <div className="min-h-screen bg-[#F2F0EA]">
+    <div className="min-h-screen bg-[#FBFAF7]">
       <div className="dc-wrap dc-page pt-8">
         <div className="dc-pagehead">
           <div className="min-w-0">
-            <h1 className="dc-h2 text-[#0B0B0B]">Compare</h1>
+            <h1 className="dc-h2 text-[#15171A]">Compare</h1>
             <p className="dc-standfirst">Compare brands or explore the consciousness landscape</p>
           </div>
           <div className="dc-btns items-center flex-nowrap">
@@ -11406,9 +11406,9 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
           <LoadFailed message={loadError} onRetry={onRetry} />
         ) : results.length === 0 ? (
           <div className="bg-white" style={{ padding: 22 }}>
-            <BarChart3 className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">No Results to Compare</h3>
-            <p className="text-[#68655B]">Complete some assessments first to compare brands.</p>
+            <BarChart3 className="w-16 h-16 text-[#DEDAD2] mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-[#15171A] mb-2">No Results to Compare</h3>
+            <p className="text-[#5B6068]">Complete some assessments first to compare brands.</p>
           </div>
         ) : viewMode === 'insights' ? (
           /* AI Insights View */
@@ -11423,14 +11423,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             <div className="lg:col-span-1 space-y-4">
               {/* Filters */}
               <div className="card">
-                <h3 className="text-[20px] font-bold tracking-tight text-[#0B0B0B] mb-4">Filters</h3>
+                <h3 className="text-[20px] font-bold tracking-tight text-[#15171A] mb-4">Filters</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="dc-kicker-sm mb-2 block">Industry</label>
                     <select
                       value={filterIndustry}
                       onChange={(e) => setFilterIndustry(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#DCDAD3] text-sm"
+                      className="w-full px-3 py-2 border border-[#DEDAD2] text-sm"
                     >
                       {industries.map(ind => (
                         <option key={ind.id} value={ind.id}>{ind.name}</option>
@@ -11442,7 +11442,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     <select
                       value={filterBusinessModel}
                       onChange={(e) => setFilterBusinessModel(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#DCDAD3] text-sm"
+                      className="w-full px-3 py-2 border border-[#DEDAD2] text-sm"
                     >
                       {businessModels.map(bm => (
                         <option key={bm.id} value={bm.id}>{bm.name}</option>
@@ -11453,14 +11453,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                 
                 {/* Quick select by industry */}
                 {industriesWithData.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-[#DCDAD3]">
+                  <div className="mt-4 pt-4 border-t border-[#DEDAD2]">
                     <label className="dc-kicker-sm mb-2 block">Quick select industry</label>
                     <div className="flex flex-wrap gap-1">
                       {industriesWithData.slice(0, 5).map(industry => (
                         <button
                           key={industry}
                           onClick={() => selectAllInIndustry(industry)}
-                          className="text-xs px-2 py-1 bg-[#E4E2DC] hover:bg-[#F2F0EA] transition-colors"
+                          className="text-xs px-2 py-1 bg-[#DEDAD2] hover:bg-[#FBFAF7] transition-colors"
                         >
                           {industries.find(i => i.id === industry)?.name || industry}
                         </button>
@@ -11472,15 +11472,15 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
 
               {/* Brand List */}
               <div className="card">
-                <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">
+                <h3 className="text-sm font-medium text-[#15171A] mb-3">
                   Select Brands ({selectedBrands.length}/{maxComparison})
                   {filteredResults.length !== results.length && (
-                    <span className="text-xs font-normal text-[#68655B] ml-2">
+                    <span className="text-xs font-normal text-[#5B6068] ml-2">
                       Showing {filteredResults.length} of {results.length}
                     </span>
                   )}
                 </h3>
-                <div className="max-h-[50vh] overflow-y-auto" style={{ borderTop: '1px solid #DCDAD3', marginTop: 12 }}>
+                <div className="max-h-[50vh] overflow-y-auto" style={{ borderTop: '1px solid #DEDAD2', marginTop: 12 }}>
                   {filteredResults.map((r) => {
                     const isSelected = selectedBrands.find(b => b.id === r.id);
                     const isDisabled = !isSelected && selectedBrands.length >= maxComparison;
@@ -11490,19 +11490,19 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         onClick={() => toggleBrand(r)}
                         disabled={isDisabled}
                         className={`w-full text-left transition-colors flex items-center gap-3 ${
-                          isDisabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#F2F0EA]'
+                          isDisabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#FBFAF7]'
                         }`}
-                        style={{ padding: '12px 16px', borderBottom: '1px solid #DCDAD3',
-                          background: isSelected ? '#F2F0EA' : 'transparent' }}
+                        style={{ padding: '12px 16px', borderBottom: '1px solid #DEDAD2',
+                          background: isSelected ? '#FBFAF7' : 'transparent' }}
                       >
                         {/* Checkbox, matching the design's selection affordance */}
                         <span style={{ flex: 'none', width: 14, height: 14,
-                          border: `1.5px solid ${isSelected ? '#0B0B0B' : '#B3B0A8'}`,
-                          background: isSelected ? '#DEE42F' : 'transparent' }} />
+                          border: `1.5px solid ${isSelected ? '#15171A' : '#8A8E95'}`,
+                          background: isSelected ? '#D9442A' : 'transparent' }} />
                         <div className="flex items-center justify-between flex-1 min-w-0 gap-3">
                           <div className="min-w-0">
                             <span className="block text-[13px] font-bold truncate" style={{ letterSpacing: '-.01em' }}>{r.brandName}</span>
-                            <div className="text-[10px] font-semibold uppercase text-[#68655B] mt-0.5" style={{ letterSpacing: '.06em' }}>
+                            <div className="text-[10px] font-semibold uppercase text-[#5B6068] mt-0.5" style={{ letterSpacing: '.06em' }}>
                               {r.industry && <span>{industries.find(i => i.id === r.industry)?.name || r.industry}</span>}
                               {r.industry && r.businessModel && <span> · </span>}
                               {r.businessModel && <span>{r.businessModel.toUpperCase()}</span>}
@@ -11518,7 +11518,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     );
                   })}
                   {filteredResults.length === 0 && (
-                    <div className="text-center py-8 text-[#68655B] text-sm">
+                    <div className="text-center py-8 text-[#5B6068] text-sm">
                       No brands match the selected filters
                     </div>
                   )}
@@ -11530,9 +11530,9 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             <div className="lg:col-span-2">
               {selectedBrands.length < 2 ? (
                 <div className="bg-white" style={{ padding: 22 }}>
-                  <Users className="w-16 h-16 text-[#DCDAD3] mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-[#0B0B0B] mb-2">Select Brands to Compare</h3>
-                  <p className="text-[#68655B]">Choose at least 2 brands from the list to see a comparison.</p>
+                  <Users className="w-16 h-16 text-[#DEDAD2] mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-[#15171A] mb-2">Select Brands to Compare</h3>
+                  <p className="text-[#5B6068]">Choose at least 2 brands from the list to see a comparison.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -11561,13 +11561,13 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                         return (
                           <div key={brand.id} className="bg-white"
                             style={{ flex: '1 1 150px', minWidth: 0, padding: '16px 16px 14px',
-                              border: '1px solid #DCDAD3', borderLeft: `4px solid ${color}` }}>
+                              border: '1px solid #DEDAD2', borderLeft: `4px solid ${color}` }}>
                             <div className="flex items-end gap-2">
                               <span style={{ fontSize: 44, fontWeight: 700, letterSpacing: '-.04em', lineHeight: .9,
                                 fontVariantNumeric: 'tabular-nums', color: scoreColor(brand.totalScore) }}>
                                 {brand.totalScore}
                               </span>
-                              <span className="text-[11px] font-bold text-[#68655B]"
+                              <span className="text-[11px] font-bold text-[#5B6068]"
                                 style={{ letterSpacing: '.04em', paddingBottom: 5 }}>
                                 {selectedBrands.length > 1 ? `${d > 0 ? '+' : ''}${d}` : ''}
                               </span>
@@ -11602,7 +11602,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                           {commonIndustry && (
                             <button
                               onClick={() => setShowIndustryAvg(!showIndustryAvg)}
-                              className={`text-xs px-3 py-1.5  border transition-colors ${showIndustryAvg ? 'bg-[#DEE42F] border-[#0B0B0B] text-[#0B0B0B]' : 'border-[#DCDAD3] text-[#B3B0A8] hover:border-[#999999]'}`}
+                              className={`text-xs px-3 py-1.5  border transition-colors ${showIndustryAvg ? 'bg-[#D9442A] border-[#15171A] text-[#15171A]' : 'border-[#DEDAD2] text-[#8A8E95] hover:border-[#999999]'}`}
                             >
                               {showIndustryAvg ? '✓ ' : ''}Industry avg overlay
                             </button>
@@ -11616,17 +11616,17 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                   {/* Bar chart view (always shown when chartType === 'bars', or when > maxRadar brands) */}
                   {(chartType === 'bars' || selectedBrands.length > maxRadar) && (
                     <div className="card">
-                      <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Attribute Comparison</h3>
+                      <h3 className="text-sm font-medium text-[#15171A] mb-3">Attribute Comparison</h3>
                       <div className="overflow-x-auto">
                         <div style={{ minWidth: `${Math.max(400, selectedBrands.length * 80 + 120)}px` }}>
                           {/* Brand labels header */}
-                          <div className="flex items-center gap-2 mb-3 text-xs text-[#68655B]">
+                          <div className="flex items-center gap-2 mb-3 text-xs text-[#5B6068]">
                             <div className="w-24 flex-shrink-0"></div>
                             <div className="flex-1 flex gap-1">
                               {selectedBrands.map((brand, bi) => (
-                                <div key={brand.id} className="flex-1 truncate text-center font-medium" style={{ color: selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#0B0B0B' }}>{brand.brandName}</div>
+                                <div key={brand.id} className="flex-1 truncate text-center font-medium" style={{ color: selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#15171A' }}>{brand.brandName}</div>
                               ))}
-                              <div className="flex-1 text-center font-medium text-[#0B0B0B]">AVG</div>
+                              <div className="flex-1 text-center font-medium text-[#15171A]">AVG</div>
                             </div>
                           </div>
                           <div className="space-y-3">
@@ -11636,14 +11636,14 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                                 <div key={attr.id} className="flex items-center gap-2">
                                   <div className="w-24 flex-shrink-0 flex items-center gap-2">
                                     <div className="w-2.5 h-2.5 flex-shrink-0" style={{ backgroundColor: attr.color }} />
-                                    <span className="text-xs font-medium text-[#0B0B0B] truncate">{attr.name}</span>
+                                    <span className="text-xs font-medium text-[#15171A] truncate">{attr.name}</span>
                                   </div>
                                   <div className="flex-1 flex gap-1">
                                     {selectedBrands.map((brand) => {
                                       const score = brand.scores?.[attr.id] || 0;
                                       return (
                                         <div key={brand.id} className="flex-1 relative">
-                                          <div className="h-5 bg-[#F2F0EA] overflow-hidden">
+                                          <div className="h-5 bg-[#FBFAF7] overflow-hidden">
                                             <div className="h-full transition-all duration-500" style={{ width: `${score}%`, backgroundColor: attr.color }} />
                                           </div>
                                           <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{score}</div>
@@ -11651,8 +11651,8 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                                       );
                                     })}
                                     <div className="flex-1 relative">
-                                      <div className="h-5 bg-[#F2F0EA] overflow-hidden">
-                                        <div className="h-full transition-all duration-500 bg-[#0B0B0B]" style={{ width: `${avgScore}%` }} />
+                                      <div className="h-5 bg-[#FBFAF7] overflow-hidden">
+                                        <div className="h-full transition-all duration-500 bg-[#15171A]" style={{ width: `${avgScore}%` }} />
                                       </div>
                                       <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">{avgScore}</div>
                                     </div>
@@ -11668,10 +11668,10 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
 
                   {/* Consciousness Profile */}
                   <div className="card">
-                    <h3 className="text-sm font-medium text-[#0B0B0B] mb-4">Consciousness Profiles</h3>
+                    <h3 className="text-sm font-medium text-[#15171A] mb-4">Consciousness Profiles</h3>
                     <div className="space-y-4">
                       {selectedBrands.map((brand, bi) => {
-                        const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#0B0B0B';
+                        const color = selectedBrands.length <= maxRadar ? COMPARISON_COLORS[bi] : '#15171A';
                         const attrScores = ATTRIBUTES.map(a => ({ ...a, score: brand.scores?.[a.id] || 0 }));
                         const strongest = attrScores.reduce((a, b) => a.score > b.score ? a : b);
                         const weakest = attrScores.reduce((a, b) => a.score < b.score ? a : b);
@@ -11682,22 +11682,22 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                           return diff > best.diff ? { ...a, diff } : best;
                         }, { diff: -Infinity, name: '-', score: 0 });
                         return (
-                          <div key={brand.id} className="flex items-start gap-3 p-3 bg-[#F2F0EA]">
+                          <div key={brand.id} className="flex items-start gap-3 p-3 bg-[#FBFAF7]">
                             <div className="w-2 h-12 flex-shrink-0 mt-1" style={{ backgroundColor: color }} />
                             <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-sm text-[#0B0B0B] mb-2">{brand.brandName}</div>
+                              <div className="font-semibold text-sm text-[#15171A] mb-2">{brand.brandName}</div>
                               <div className="grid grid-cols-3 gap-2 text-xs">
                                 <div>
-                                  <div className="text-[#B3B0A8] mb-0.5">Strongest</div>
-                                  <div className="font-medium text-[#059669]">{strongest.name} <span className="text-[#B3B0A8]">({strongest.score})</span></div>
+                                  <div className="text-[#8A8E95] mb-0.5">Strongest</div>
+                                  <div className="font-medium text-[#2F6B55]">{strongest.name} <span className="text-[#8A8E95]">({strongest.score})</span></div>
                                 </div>
                                 <div>
-                                  <div className="text-[#B3B0A8] mb-0.5">Weakest</div>
-                                  <div className="font-medium text-[#B23A3A]">{weakest.name} <span className="text-[#B3B0A8]">({weakest.score})</span></div>
+                                  <div className="text-[#8A8E95] mb-0.5">Weakest</div>
+                                  <div className="font-medium text-[#C23B22]">{weakest.name} <span className="text-[#8A8E95]">({weakest.score})</span></div>
                                 </div>
                                 <div>
-                                  <div className="text-[#B3B0A8] mb-0.5">Most distinct</div>
-                                  <div className="font-medium text-[#1976D2]">{mostDiff.name} <span className="text-[#B3B0A8]">(+{Math.round(mostDiff.diff)})</span></div>
+                                  <div className="text-[#8A8E95] mb-0.5">Most distinct</div>
+                                  <div className="font-medium text-[#1976D2]">{mostDiff.name} <span className="text-[#8A8E95]">(+{Math.round(mostDiff.diff)})</span></div>
                                 </div>
                               </div>
                             </div>
@@ -11715,19 +11715,19 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                     const tied = ATTRIBUTES.filter(attr => (a.scores?.[attr.id] || 0) === (b.scores?.[attr.id] || 0));
                     return (
                       <div className="card">
-                        <h3 className="text-sm font-medium text-[#0B0B0B] mb-4">Head to Head</h3>
+                        <h3 className="text-sm font-medium text-[#15171A] mb-4">Head to Head</h3>
                         <div className="grid grid-cols-3 gap-3 text-center mb-4">
-                          <div className="bg-[#E4E2DC] p-3">
+                          <div className="bg-[#DEDAD2] p-3">
                             <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[0] }}>{aWins.length}</div>
-                            <div className="text-xs text-[#68655B] mt-1 truncate">{a.brandName} leads</div>
+                            <div className="text-xs text-[#5B6068] mt-1 truncate">{a.brandName} leads</div>
                           </div>
-                          <div className="bg-[#E4E2DC] p-3">
-                            <div className="text-2xl font-bold text-[#B3B0A8]">{tied.length}</div>
-                            <div className="text-xs text-[#68655B] mt-1">Tied</div>
+                          <div className="bg-[#DEDAD2] p-3">
+                            <div className="text-2xl font-bold text-[#8A8E95]">{tied.length}</div>
+                            <div className="text-xs text-[#5B6068] mt-1">Tied</div>
                           </div>
-                          <div className="bg-[#E4E2DC] p-3">
+                          <div className="bg-[#DEDAD2] p-3">
                             <div className="text-2xl font-bold" style={{ color: COMPARISON_COLORS[1] }}>{bWins.length}</div>
-                            <div className="text-xs text-[#68655B] mt-1 truncate">{b.brandName} leads</div>
+                            <div className="text-xs text-[#5B6068] mt-1 truncate">{b.brandName} leads</div>
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -11739,16 +11739,16 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                             return (
                               <div key={attr.id} className="flex items-center gap-2 text-xs">
                                 <div className="flex-1 text-right">
-                                  <span className={`font-bold ${winner === 0 ? 'text-[#B23A3A]' : 'text-[#B3B0A8]'}`}>{aScore}</span>
+                                  <span className={`font-bold ${winner === 0 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>{aScore}</span>
                                 </div>
                                 <div className="w-20 text-center flex-shrink-0">
                                   <div className="flex items-center gap-1 justify-center">
                                     <div className="w-2 h-2" style={{ backgroundColor: attr.color }} />
-                                    <span className="text-[#68655B]">{attr.name}</span>
+                                    <span className="text-[#5B6068]">{attr.name}</span>
                                   </div>
                                 </div>
                                 <div className="flex-1">
-                                  <span className={`font-bold ${winner === 1 ? 'text-[#1976D2]' : 'text-[#B3B0A8]'}`}>{bScore}</span>
+                                  <span className={`font-bold ${winner === 1 ? 'text-[#1976D2]' : 'text-[#8A8E95]'}`}>{bScore}</span>
                                 </div>
                               </div>
                             );
@@ -11760,17 +11760,17 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
 
                   {/* Quick Insights */}
                   <div className="card">
-                    <h3 className="text-sm font-medium text-[#0B0B0B] mb-3">Quick Insights</h3>
+                    <h3 className="text-sm font-medium text-[#15171A] mb-3">Quick Insights</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                      <div className="bg-[#E4E2DC] p-3">
-                        <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Highest Overall Score</div>
-                        <div className="text-[#B23A3A] font-bold text-sm">
+                      <div className="bg-[#DEDAD2] p-3">
+                        <div className="font-medium text-[#15171A] mb-1 text-xs">Highest Overall Score</div>
+                        <div className="text-[#C23B22] font-bold text-sm">
                           {selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).brandName}
-                          <span className="text-[#68655B] font-normal ml-2 text-xs">({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})</span>
+                          <span className="text-[#5B6068] font-normal ml-2 text-xs">({selectedBrands.reduce((a, b) => a.totalScore > b.totalScore ? a : b).totalScore})</span>
                         </div>
                       </div>
-                      <div className="bg-[#E4E2DC] p-3">
-                        <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Largest Attribute Gap</div>
+                      <div className="bg-[#DEDAD2] p-3">
+                        <div className="font-medium text-[#15171A] mb-1 text-xs">Largest Attribute Gap</div>
                         {(() => {
                           let maxGap = 0, gapAttr = ATTRIBUTES[0];
                           ATTRIBUTES.forEach(attr => {
@@ -11778,29 +11778,29 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
                             const gap = Math.max(...scores) - Math.min(...scores);
                             if (gap > maxGap) { maxGap = gap; gapAttr = attr; }
                           });
-                          return <div className="text-[#B23A3A] font-bold text-sm">{gapAttr.name} <span className="text-[#68655B] font-normal text-xs">({maxGap} pts spread)</span></div>;
+                          return <div className="text-[#C23B22] font-bold text-sm">{gapAttr.name} <span className="text-[#5B6068] font-normal text-xs">({maxGap} pts spread)</span></div>;
                         })()}
                       </div>
-                      <div className="bg-[#E4E2DC] p-3">
-                        <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Collective Strength</div>
+                      <div className="bg-[#DEDAD2] p-3">
+                        <div className="font-medium text-[#15171A] mb-1 text-xs">Collective Strength</div>
                         {(() => {
                           let maxAvg = 0, strongAttr = ATTRIBUTES[0];
                           ATTRIBUTES.forEach(attr => {
                             const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
                             if (avg > maxAvg) { maxAvg = avg; strongAttr = attr; }
                           });
-                          return <div className="text-[#059669] font-bold text-sm">{strongAttr.name} <span className="text-[#68655B] font-normal text-xs">({Math.round(maxAvg)} avg)</span></div>;
+                          return <div className="text-[#2F6B55] font-bold text-sm">{strongAttr.name} <span className="text-[#5B6068] font-normal text-xs">({Math.round(maxAvg)} avg)</span></div>;
                         })()}
                       </div>
-                      <div className="bg-[#E4E2DC] p-3">
-                        <div className="font-medium text-[#0B0B0B] mb-1 text-xs">Collective Weakness</div>
+                      <div className="bg-[#DEDAD2] p-3">
+                        <div className="font-medium text-[#15171A] mb-1 text-xs">Collective Weakness</div>
                         {(() => {
                           let minAvg = 100, weakAttr = ATTRIBUTES[0];
                           ATTRIBUTES.forEach(attr => {
                             const avg = selectedBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / selectedBrands.length;
                             if (avg < minAvg) { minAvg = avg; weakAttr = attr; }
                           });
-                          return <div className="text-[#F57C00] font-bold text-sm">{weakAttr.name} <span className="text-[#68655B] font-normal text-xs">({Math.round(minAvg)} avg)</span></div>;
+                          return <div className="text-[#F57C00] font-bold text-sm">{weakAttr.name} <span className="text-[#5B6068] font-normal text-xs">({Math.round(minAvg)} avg)</span></div>;
                         })()}
                       </div>
                     </div>
@@ -11860,9 +11860,9 @@ function AssessmentStatusIndicator({ assessments }) {
         <div 
           key={key}
           className={`w-2 h-2 ${
-            status === 'complete' ? 'bg-[#059669]' : 
-            status === 'partial' ? 'bg-[#DEE42F]' : 
-            'bg-[#DCDAD3]'
+            status === 'complete' ? 'bg-[#2F6B55]' : 
+            status === 'partial' ? 'bg-[#D9442A]' : 
+            'bg-[#DEDAD2]'
           }`}
           title={`${key}: ${status}`}
         />
@@ -11954,27 +11954,27 @@ function ClientLinksModal({ assessments, profile, onClose }) {
       <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">
+            <h3 className="text-[22px] font-bold tracking-tight text-[#15171A]">
               Client links{links ? ` (${links.length})` : ''}
             </h3>
-            <p className="text-xs text-[#68655B] mt-0.5">
+            <p className="text-xs text-[#5B6068] mt-0.5">
               Active password-protected reports shared with clients.
             </p>
           </div>
-          <button onClick={onClose} className="text-[#999] hover:text-[#0B0B0B]">
+          <button onClick={onClose} className="text-[#999] hover:text-[#15171A]">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
-          {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
+          {error && <p className="text-xs text-[#C23B22] mb-3">{error}</p>}
           {!links && !error && (
-            <p className="text-xs text-[#68655B] flex items-center gap-1.5 py-4">
+            <p className="text-xs text-[#5B6068] flex items-center gap-1.5 py-4">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading links...
             </p>
           )}
           {links && links.length === 0 && !error && (
-            <p className="text-sm text-[#68655B] py-6 text-center">
+            <p className="text-sm text-[#5B6068] py-6 text-center">
               No active client links. Create one from the Client Link button on a report.
             </p>
           )}
@@ -11983,15 +11983,15 @@ function ClientLinksModal({ assessments, profile, onClose }) {
             const mine = link.created_by === profile?.id;
             const canManage = mine || profile?.is_admin;
             return (
-              <div key={link.token} className="py-3 border-b border-[#DCDAD3] last:border-0">
+              <div key={link.token} className="py-3 border-b border-[#DEDAD2] last:border-0">
                 {/* Stacked on a phone, single line from sm up. The old row was
                     flex-wrap with a non-shrinking button group, so one long
                     label tipped the whole group onto its own line and rows
                     with and without "(not yours)" laid out differently. */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="min-w-0 sm:flex-1">
-                    <div className="font-semibold text-sm text-[#0B0B0B] truncate">{link.brand_name}</div>
-                    <div className="text-[11px] text-[#68655B] mt-0.5 truncate">
+                    <div className="font-semibold text-sm text-[#15171A] truncate">{link.brand_name}</div>
+                    <div className="text-[11px] text-[#5B6068] mt-0.5 truncate">
                       Issued by {link.created_by_name || 'unknown'}
                       {link.created_at ? ` on ${new Date(link.created_at).toLocaleDateString()}` : ''}
                       {mine ? '' : ' (not yours)'}
@@ -12014,7 +12014,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                         </button>
                         <button onClick={() => revoke(link)} disabled={busy === link.token}
                           title="Revoke this link"
-                          className="btn-secondary !text-[10px] !px-2.5 !py-0 text-[#B23A3A] whitespace-nowrap flex items-center justify-center"
+                          className="btn-secondary !text-[10px] !px-2.5 !py-0 text-[#C23B22] whitespace-nowrap flex items-center justify-center"
                           style={{ minWidth: 54, height: 28 }}>
                           {busy === link.token ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Revoke'}
                         </button>
@@ -12024,8 +12024,8 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                 </div>
 
                 {resetting === link.token && (
-                  <div className="mt-3 bg-[#F2F0EA] p-3">
-                    <p className="text-[11px] text-[#68655B] mb-2 leading-relaxed">
+                  <div className="mt-3 bg-[#FBFAF7] p-3">
+                    <p className="text-[11px] text-[#5B6068] mb-2 leading-relaxed">
                       The old password cannot be recovered, so the report is rebuilt from the saved
                       assessment and re-encrypted. The URL stays the same, so any link already sent keeps working.
                       Because the report is rebuilt, this also refreshes a link issued before newer
@@ -12036,7 +12036,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
                       <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && doReset(link)}
                         placeholder="New password"
-                        className="flex-1 px-2 py-1.5 border border-[#DCDAD3] bg-white text-xs" />
+                        className="flex-1 px-2 py-1.5 border border-[#DEDAD2] bg-white text-xs" />
                       <button onClick={() => doReset(link)} disabled={busy === link.token || !sourceFor(link)}
                         className="btn-primary text-xs px-3 py-1.5">
                         {busy === link.token ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Set'}
@@ -12049,7 +12049,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
           })}
         </div>
 
-        <div className="flex justify-end pt-4 mt-2 border-t border-[#DCDAD3]">
+        <div className="flex justify-end pt-4 mt-2 border-t border-[#DEDAD2]">
           <button onClick={onClose} className="btn-secondary text-sm px-4 py-2">Close</button>
         </div>
       </div>
@@ -12084,12 +12084,12 @@ function SkeletonRows({ count = 4, variant = 'list' }) {
 function RefreshFailedBanner({ onRetry }) {
   return (
     <div className="bg-white flex items-center justify-between gap-4 mb-2"
-      style={{ padding: '12px 16px', borderLeft: '4px solid #C2680C' }}>
-      <p className="text-xs text-[#4A4840]">
+      style={{ padding: '12px 16px', borderLeft: '4px solid #8C5A0B' }}>
+      <p className="text-xs text-[#2E3238]">
         Could not refresh from the server. The list below may be out of date.
       </p>
       {onRetry && (
-        <button onClick={onRetry} className="text-xs font-semibold text-[#0B0B0B] underline flex-shrink-0">
+        <button onClick={onRetry} className="text-xs font-semibold text-[#15171A] underline flex-shrink-0">
           Retry
         </button>
       )}
@@ -12100,13 +12100,13 @@ function RefreshFailedBanner({ onRetry }) {
 function LoadFailed({ message, onRetry }) {
   return (
     <div className="bg-white" style={{ padding: 32, textAlign: 'center' }}>
-      <AlertCircle className="w-8 h-8 mx-auto mb-3" style={{ color: '#B23A3A' }} />
-      <h3 className="dc-kicker text-[#0B0B0B] mb-2">Could not load your saved work</h3>
-      <p className="text-sm text-[#68655B] mb-1" style={{ maxWidth: '52ch', margin: '0 auto' }}>
+      <AlertCircle className="w-8 h-8 mx-auto mb-3" style={{ color: '#C23B22' }} />
+      <h3 className="dc-kicker text-[#15171A] mb-2">Could not load your saved work</h3>
+      <p className="text-sm text-[#5B6068] mb-1" style={{ maxWidth: '52ch', margin: '0 auto' }}>
         Nothing has been lost. The list could not be fetched, which is usually a
         connection problem.
       </p>
-      {message && <p className="text-xs text-[#B3B0A8] mt-2">{message}</p>}
+      {message && <p className="text-xs text-[#8A8E95] mt-2">{message}</p>}
       {onRetry && (
         <button onClick={onRetry} className="btn-secondary text-sm px-4 py-2 mt-4 inline-flex items-center gap-2">
           <RefreshCw className="w-3.5 h-3.5" /> Try again
@@ -12209,25 +12209,25 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h2 className="dc-h2 text-[#0B0B0B]">Saved Assessments</h2>
-          <p className="text-sm text-[#68655B]">Your assessments are stored securely in the cloud</p>
+          <h2 className="dc-h2 text-[#15171A]">Saved Assessments</h2>
+          <p className="text-sm text-[#5B6068]">Your assessments are stored securely in the cloud</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           {!isReadonly && (
             <>
               <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
               <button onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DEDAD2] bg-white text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors">
                 <Upload className="w-4 h-4" /> Import
               </button>
               <button onClick={() => setShowClientLinks(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DEDAD2] bg-white text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors">
                 <ExternalLink className="w-4 h-4" /> Client Links
               </button>
             </>
           )}
           <button onClick={onBack}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DCDAD3] bg-white text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DEDAD2] bg-white text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
         </div>
@@ -12250,10 +12250,10 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
         <LoadFailed message={loadError} onRetry={onRetry} />
       ) : assessments.length === 0 ? (
         <div className="card text-center">
-          <FileText className="w-12 h-12 text-[#DCDAD3] mx-auto mb-4" />
-          <h3 className="dc-kicker text-[#0B0B0B] mb-2">No Saved Assessments</h3>
-          <p className="text-[#68655B] mb-4">Complete an assessment and click Save to store it here.</p>
-          <p className="text-sm text-[#B3B0A8]">Or import a previously exported assessment using the Import button above.</p>
+          <FileText className="w-12 h-12 text-[#DEDAD2] mx-auto mb-4" />
+          <h3 className="dc-kicker text-[#15171A] mb-2">No Saved Assessments</h3>
+          <p className="text-[#5B6068] mb-4">Complete an assessment and click Save to store it here.</p>
+          <p className="text-sm text-[#8A8E95]">Or import a previously exported assessment using the Import button above.</p>
         </div>
       ) : (
         <>
@@ -12261,16 +12261,16 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
             {/* Search */}
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B3B0A8]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A8E95]" />
               <input
                 type="text"
                 placeholder="Search brands…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-[#DEDAD2] bg-white focus:outline-none focus:border-[#15171A] transition-colors"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#B3B0A8] hover:text-[#0B0B0B]">
+                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8A8E95] hover:text-[#15171A]">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -12278,7 +12278,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             {/* Stage filter */}
             {usedStages.length > 1 && (
               <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
-                className="px-3.5 py-3 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840] min-w-[170px]">
+                className="px-3.5 py-3 text-sm border border-[#DEDAD2] bg-white focus:outline-none focus:border-[#15171A] transition-colors text-[#2E3238] min-w-[170px]">
                 <option value="">All stages</option>
                 {usedStages.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -12286,14 +12286,14 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             {/* Industry filter */}
             {usedIndustries.length > 1 && (
               <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
-                className="px-3.5 py-3 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840] min-w-[170px]">
+                className="px-3.5 py-3 text-sm border border-[#DEDAD2] bg-white focus:outline-none focus:border-[#15171A] transition-colors text-[#2E3238] min-w-[170px]">
                 <option value="">All industries</option>
                 {usedIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
               </select>
             )}
             {/* Sort */}
             <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-              className="px-3.5 py-3 text-sm border border-[#DCDAD3] bg-white focus:outline-none focus:border-[#0B0B0B] transition-colors text-[#4A4840] min-w-[170px]">
+              className="px-3.5 py-3 text-sm border border-[#DEDAD2] bg-white focus:outline-none focus:border-[#15171A] transition-colors text-[#2E3238] min-w-[170px]">
               <option value="date-desc">Newest first</option>
               <option value="date-asc">Oldest first</option>
               <option value="score-desc">Highest score</option>
@@ -12305,15 +12305,15 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           {/* Results count when filtering */}
           {hasFilters && (
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-[#68655B]">{filtered.length} of {assessments.length} assessments</p>
+              <p className="text-xs text-[#5B6068]">{filtered.length} of {assessments.length} assessments</p>
               <button onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); }}
-                className="text-xs text-[#B23A3A] hover:underline">Clear filters</button>
+                className="text-xs text-[#C23B22] hover:underline">Clear filters</button>
             </div>
           )}
 
           {filtered.length === 0 ? (
             <div className="card text-center">
-              <p className="text-[#68655B]">No assessments match your filters.</p>
+              <p className="text-[#5B6068]">No assessments match your filters.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -12327,7 +12327,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                         {challengeCount > 0 && (
                           <span title={`Rescored after ${challengeCount} challenge${challengeCount > 1 ? 's' : ''}`}
                             className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold flex-shrink-0"
-                            style={{ background: '#DEE42F', color: '#0B0B0B', letterSpacing: '.06em' }}>
+                            style={{ background: '#D9442A', color: '#15171A', letterSpacing: '.06em' }}>
                             <MessageSquareWarning className="w-2.5 h-2.5" />
                             CHALLENGED{challengeCount > 1 ? ` ×${challengeCount}` : ''}
                           </span>
@@ -12353,27 +12353,27 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       {!isReadonly && (
                         <>
                           <button onClick={() => onShare(a)} title="Share link"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#68655B] hover:text-[#0B0B0B] hover:bg-[#E5393508] transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#5B6068] hover:text-[#15171A] hover:bg-[#C23B2208] transition-colors">
                             <Share2 className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onExport(a)} title="Export JSON"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#4A4840] hover:text-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#2E3238] hover:text-[#15171A] hover:bg-[#DEDAD2] transition-colors">
                             <Download className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => onRescore(a)}
-                            className="px-3 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors whitespace-nowrap hidden sm:block">
+                            className="px-3 py-1.5 text-xs font-medium border border-[#DEDAD2] text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors whitespace-nowrap hidden sm:block">
                             Rescore
                           </button>
                         </>
                       )}
                       <button onClick={() => onLoad(a)}
-                        className="px-4 py-1.5 text-xs font-semibold bg-[#0B0B0B] text-white hover:bg-[#333333] transition-colors whitespace-nowrap">
+                        className="px-4 py-1.5 text-xs font-semibold bg-[#15171A] text-white hover:bg-[#333333] transition-colors whitespace-nowrap">
                         Load
                       </button>
                       {!isReadonly && (
                         <button onClick={() => handleDeleteClick(a, i)} title="Delete"
                           disabled={deletingKey !== null}
-                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#68655B] hover:text-[#B23A3A] hover:bg-[#F2F0EA] transition-colors disabled:opacity-40">
+                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#5B6068] hover:text-[#C23B22] hover:bg-[#FBFAF7] transition-colors disabled:opacity-40">
                           {deletingKey === i
                             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             : <Trash2 className="w-3.5 h-3.5" />}
@@ -12383,22 +12383,22 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
 
                   {/* Mobile-only secondary actions */}
                   {!isReadonly && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#E4E2DC] sm:hidden">
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#DEDAD2] sm:hidden">
                       <button onClick={() => onShare(a)} title="Share"
-                        className="w-8 h-8 flex items-center justify-center text-[#68655B] hover:text-[#0B0B0B] transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#5B6068] hover:text-[#15171A] transition-colors">
                         <Share2 className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onExport(a)} title="Export"
-                        className="w-8 h-8 flex items-center justify-center text-[#68655B] hover:text-[#0B0B0B] transition-colors">
+                        className="w-8 h-8 flex items-center justify-center text-[#5B6068] hover:text-[#15171A] transition-colors">
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onRescore(a)}
-                        className="px-3 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:border-[#0B0B0B] hover:bg-[#E4E2DC] transition-colors">
+                        className="px-3 py-1.5 text-xs font-medium border border-[#DEDAD2] text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors">
                         Rescore
                       </button>
                       <button onClick={() => handleDeleteClick(a, i)} title="Delete"
                         disabled={deletingKey !== null}
-                        className="w-8 h-8 flex items-center justify-center text-[#68655B] hover:text-[#B23A3A] transition-colors ml-auto disabled:opacity-40">
+                        className="w-8 h-8 flex items-center justify-center text-[#5B6068] hover:text-[#C23B22] transition-colors ml-auto disabled:opacity-40">
                         {deletingKey === i
                           ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           : <Trash2 className="w-3.5 h-3.5" />}
@@ -12410,7 +12410,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             </div>
           )}
 
-          <p className="text-center text-sm text-[#B3B0A8] mt-8">
+          <p className="text-center text-sm text-[#8A8E95] mt-8">
             {assessments.length} assessment{assessments.length !== 1 ? 's' : ''} saved
           </p>
         </>
@@ -12469,18 +12469,18 @@ function ChallengeModal({ brandName, onClose, onSubmit, busy, stage, progress, e
       <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">Challenge the assessment</h3>
-            <p className="text-xs text-[#68655B] mt-0.5">
+            <h3 className="text-[22px] font-bold tracking-tight text-[#15171A]">Challenge the assessment</h3>
+            <p className="text-xs text-[#5B6068] mt-0.5">
               Put additional context to the assessment of {brandName}, then rescore.
             </p>
           </div>
           {!busy && (
-            <button onClick={onClose} className="text-[#999] hover:text-[#0B0B0B]"><X className="w-5 h-5" /></button>
+            <button onClick={onClose} className="text-[#999] hover:text-[#15171A]"><X className="w-5 h-5" /></button>
           )}
         </div>
 
-        <div className="bg-[#F2F0EA] p-3 mb-4">
-          <p className="text-xs text-[#4A4840] leading-relaxed">
+        <div className="bg-[#FBFAF7] p-3 mb-4">
+          <p className="text-xs text-[#2E3238] leading-relaxed">
             Context is weighed as evidence, not followed as instruction. Scores can go up, down,
             or stay exactly where they are. Claims with nothing publicly observable behind them
             will be discounted and flagged as unverified. Only the sections you fill in are revised.
@@ -12493,18 +12493,18 @@ function ChallengeModal({ brandName, onClose, onSubmit, busy, stage, progress, e
               {sections.map(s => (
                 <div key={s.key}>
                   <label className="dc-kicker-sm mb-1 block">{s.label}</label>
-                  <p className="text-[11px] text-[#68655B] mb-1.5">{s.hint}</p>
+                  <p className="text-[11px] text-[#5B6068] mb-1.5">{s.hint}</p>
                   <textarea
                     value={fields[s.key]}
                     onChange={(e) => set(s.key, e.target.value)}
                     placeholder={s.placeholder}
-                    className="w-full h-20 px-3 py-2 border border-[#DCDAD3] bg-white text-sm resize-none"
+                    className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white text-sm resize-none"
                   />
                 </div>
               ))}
             </div>
 
-            {error && <p className="text-xs text-[#B23A3A] mt-3">{error}</p>}
+            {error && <p className="text-xs text-[#C23B22] mt-3">{error}</p>}
 
             <p className="text-[11px] text-[#999] leading-relaxed mt-4 mb-3">
               Submitting revises the readouts for the sections you filled in, then rescores the
@@ -12522,10 +12522,10 @@ function ChallengeModal({ brandName, onClose, onSubmit, busy, stage, progress, e
           </>
         ) : (
           <div className="py-6">
-            <div className="w-full bg-[#F2F0EA] h-2 mb-3">
-              <div className="bg-[#DEE42F] h-2 transition-all duration-500 ease-out" style={{ width: `${progress}%` }} />
+            <div className="w-full bg-[#FBFAF7] h-2 mb-3">
+              <div className="bg-[#D9442A] h-2 transition-all duration-500 ease-out" style={{ width: `${progress}%` }} />
             </div>
-            <p className="text-sm text-[#4A4840] flex items-center gap-2">
+            <p className="text-sm text-[#2E3238] flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" /> {stage || 'Working...'}
             </p>
             <p className="text-[11px] text-[#999] mt-2">Leave this open until it finishes.</p>
@@ -12576,18 +12576,18 @@ function LanguageModal({ brandName, onClose, onApply, onRevert, busy, error, exi
       <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">Language</h3>
-            <p className="text-xs text-[#68655B] mt-0.5">
+            <h3 className="text-[22px] font-bold tracking-tight text-[#15171A]">Language</h3>
+            <p className="text-xs text-[#5B6068] mt-0.5">
               Wording and tone for the {brandName} report. Results are not affected.
             </p>
           </div>
           {!busy && (
-            <button onClick={onClose} className="text-[#999] hover:text-[#0B0B0B]"><X className="w-5 h-5" /></button>
+            <button onClick={onClose} className="text-[#999] hover:text-[#15171A]"><X className="w-5 h-5" /></button>
           )}
         </div>
 
-        <div className="bg-[#F2F0EA] p-3 mb-4">
-          <p className="text-xs text-[#4A4840] leading-relaxed">
+        <div className="bg-[#FBFAF7] p-3 mb-4">
+          <p className="text-xs text-[#2E3238] leading-relaxed">
             This changes how things are said, never what is said. Scores, verdicts and
             conclusions are untouched. A weak finding stays a weak finding, worded differently.
           </p>
@@ -12597,52 +12597,52 @@ function LanguageModal({ brandName, onClose, onApply, onRevert, busy, error, exi
           <>
             <div className="max-h-[45vh] overflow-y-auto pr-1">
               <label className="dc-kicker-sm mb-1 block">Word substitutions</label>
-              <p className="text-[11px] text-[#68655B] mb-2">Applied wherever they fit, including grammatical variants.</p>
+              <p className="text-[11px] text-[#5B6068] mb-2">Applied wherever they fit, including grammatical variants.</p>
               {substitutions.map((s, i) => (
                 <div key={i} className="flex items-center gap-2 mb-2">
                   <input value={s.from} onChange={(e) => setSub(i, 'from', e.target.value)}
-                    placeholder="Instead of" className="flex-1 px-3 py-2 border border-[#DCDAD3] bg-white text-sm" />
-                  <ArrowRight className="w-3.5 h-3.5 text-[#68655B] flex-shrink-0" />
+                    placeholder="Instead of" className="flex-1 px-3 py-2 border border-[#DEDAD2] bg-white text-sm" />
+                  <ArrowRight className="w-3.5 h-3.5 text-[#5B6068] flex-shrink-0" />
                   <input value={s.to} onChange={(e) => setSub(i, 'to', e.target.value)}
-                    placeholder="Use" className="flex-1 px-3 py-2 border border-[#DCDAD3] bg-white text-sm" />
+                    placeholder="Use" className="flex-1 px-3 py-2 border border-[#DEDAD2] bg-white text-sm" />
                   <button onClick={() => removeSub(i)} disabled={substitutions.length === 1}
-                    className="text-[#999] hover:text-[#B23A3A] disabled:opacity-30 flex-shrink-0">
+                    className="text-[#999] hover:text-[#C23B22] disabled:opacity-30 flex-shrink-0">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               ))}
-              <button onClick={addSub} className="text-xs text-[#0B0B0B] underline mb-5">Add another</button>
+              <button onClick={addSub} className="text-xs text-[#15171A] underline mb-5">Add another</button>
 
               <label className="dc-kicker-sm mb-1 block">Terminology and phrasing</label>
-              <p className="text-[11px] text-[#68655B] mb-2">House terms, constructions to avoid, anything the substitutions above cannot express.</p>
+              <p className="text-[11px] text-[#5B6068] mb-2">House terms, constructions to avoid, anything the substitutions above cannot express.</p>
               <textarea value={phrasing} onChange={(e) => setPhrasing(e.target.value)}
                 placeholder={'e.g. Refer to the audience as "specifiers" throughout. Avoid the word "leverage". Prefer "initiative" to "campaign" for anything running over 6 months.'}
-                className="w-full h-24 px-3 py-2 border border-[#DCDAD3] bg-white text-sm resize-none mb-5" />
+                className="w-full h-24 px-3 py-2 border border-[#DEDAD2] bg-white text-sm resize-none mb-5" />
 
               <label className="dc-kicker-sm mb-1 block">Tone</label>
-              <p className="text-[11px] text-[#68655B] mb-3">
+              <p className="text-[11px] text-[#5B6068] mb-3">
                 Small movements only. The house voice holds at every setting; these dial it, they do not replace it.
               </p>
               {dialDefs.map(d => (
                 <div key={d.key} className="mb-4">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-[#0B0B0B]">{d.label}</span>
-                    <span className="text-[11px] text-[#68655B]">
+                    <span className="text-xs font-medium text-[#15171A]">{d.label}</span>
+                    <span className="text-[11px] text-[#5B6068]">
                       {dials[d.key] === 0 ? 'As it is now' : `${Math.abs(dials[d.key])} step${Math.abs(dials[d.key]) > 1 ? 's' : ''} ${dials[d.key] < 0 ? d.low.toLowerCase() : d.high.toLowerCase()}`}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-[#68655B] w-16 flex-shrink-0">{d.low}</span>
+                    <span className="text-[10px] text-[#5B6068] w-16 flex-shrink-0">{d.low}</span>
                     <input type="range" min="-2" max="2" step="1" value={dials[d.key]}
                       onChange={(e) => setDials(prev => ({ ...prev, [d.key]: Number(e.target.value) }))}
                       className="flex-1" />
-                    <span className="text-[10px] text-[#68655B] w-16 text-right flex-shrink-0">{d.high}</span>
+                    <span className="text-[10px] text-[#5B6068] w-16 text-right flex-shrink-0">{d.high}</span>
                   </div>
                 </div>
               ))}
             </div>
 
-            {error && <p className="text-xs text-[#B23A3A] mt-3">{error}</p>}
+            {error && <p className="text-xs text-[#C23B22] mt-3">{error}</p>}
 
             <div className="flex gap-2 mt-4">
               <button onClick={onClose} className="btn-secondary flex-1 text-sm py-2">Cancel</button>
@@ -12655,7 +12655,7 @@ function LanguageModal({ brandName, onClose, onApply, onRevert, busy, error, exi
           </>
         ) : (
           <div className="py-6">
-            <p className="text-sm text-[#4A4840] flex items-center gap-2">
+            <p className="text-sm text-[#2E3238] flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" /> Rewriting the report language...
             </p>
             <p className="text-[11px] text-[#999] mt-2">Results are untouched. Only wording changes.</p>
@@ -12673,7 +12673,7 @@ function ChallengeHistory({ challenges }) {
   return (
     <div className="bg-white" style={{ padding: 32, marginTop: 24 }}>
       <div className="dc-kicker" style={{ marginBottom: 16 }}>Challenge history</div>
-      <p className="text-sm text-[#68655B] mb-5" style={{ maxWidth: '62ch' }}>
+      <p className="text-sm text-[#5B6068] mb-5" style={{ maxWidth: '62ch' }}>
         Additional context put to the assessment after the first scoring pass, and what it moved.
       </p>
       {challenges.map((c, i) => {
@@ -12687,25 +12687,25 @@ function ChallengeHistory({ challenges }) {
           ['Earned media', c.earnedMedia],
         ].filter(([, v]) => v && v.trim());
         return (
-          <div key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid #DCDAD3', paddingTop: i === 0 ? 0 : 20, marginTop: i === 0 ? 0 : 20 }}>
+          <div key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid #DEDAD2', paddingTop: i === 0 ? 0 : 20, marginTop: i === 0 ? 0 : 20 }}>
             <div className="flex items-baseline justify-between gap-4 flex-wrap mb-3">
-              <span className="text-[13px] font-semibold text-[#0B0B0B]">
+              <span className="text-[13px] font-semibold text-[#15171A]">
                 {c.author || 'Assessor'}{when ? ` · ${when}` : ''}
               </span>
-              <span className="text-[13px] font-semibold" style={{ color: delta === 0 ? '#68655B' : delta > 0 ? '#0F7A4F' : '#D42528' }}>
+              <span className="text-[13px] font-semibold" style={{ color: delta === 0 ? '#5B6068' : delta > 0 ? '#2F6B55' : '#C23B22' }}>
                 {c.beforeOverall} to {c.afterOverall}
                 {delta !== 0 && ` (${delta > 0 ? '+' : ''}${delta})`}
                 {delta === 0 && ' (no change)'}
               </span>
             </div>
             {c.sectionsRevised?.length > 0 && (
-              <p className="text-[11px] text-[#68655B] mb-3">Readouts revised: {c.sectionsRevised.join(', ')}</p>
+              <p className="text-[11px] text-[#5B6068] mb-3">Readouts revised: {c.sectionsRevised.join(', ')}</p>
             )}
             <div className="space-y-2">
               {fields.map(([label, v]) => (
                 <div key={label}>
                   <span className="dc-kicker-sm">{label}</span>
-                  <p className="text-[13px] text-[#4A4840] leading-relaxed mt-1" style={{ maxWidth: '70ch', whiteSpace: 'pre-wrap' }}>{v}</p>
+                  <p className="text-[13px] text-[#2E3238] leading-relaxed mt-1" style={{ maxWidth: '70ch', whiteSpace: 'pre-wrap' }}>{v}</p>
                 </div>
               ))}
             </div>
@@ -12716,7 +12716,7 @@ function ChallengeHistory({ challenges }) {
                   if (!d || d.before == null || d.after == null || d.before === d.after) return null;
                   const diff = d.after - d.before;
                   return (
-                    <span key={a.id} className="text-[11px]" style={{ color: diff > 0 ? '#0F7A4F' : '#D42528' }}>
+                    <span key={a.id} className="text-[11px]" style={{ color: diff > 0 ? '#2F6B55' : '#C23B22' }}>
                       {a.id} {d.before}→{d.after}
                     </span>
                   );
@@ -12740,15 +12740,15 @@ function ClientAssessorNote({ note, compact = false }) {
     return isNaN(d) ? null : d.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
   })();
   return (
-    <div className="bg-white" style={{ padding: compact ? '16px 18px' : '28px 32px', borderLeft: '6px solid #DEE42F' }}>
+    <div className="bg-white" style={{ padding: compact ? '16px 18px' : '28px 32px', borderLeft: '6px solid #D9442A' }}>
       <div className="dc-kicker-sm" style={{ marginBottom: 10 }}>
         Note from {note.author || 'Antenna Group'}
       </div>
-      <p style={{ fontSize: compact ? 14 : 17, lineHeight: 1.7, color: '#0B0B0B', maxWidth: '62ch', whiteSpace: 'pre-wrap', margin: 0 }}>
+      <p style={{ fontSize: compact ? 14 : 17, lineHeight: 1.7, color: '#15171A', maxWidth: '62ch', whiteSpace: 'pre-wrap', margin: 0 }}>
         {note.text}
       </p>
       {when && (
-        <p className="text-[11px] text-[#68655B]" style={{ marginTop: 14, letterSpacing: '.04em' }}>
+        <p className="text-[11px] text-[#5B6068]" style={{ marginTop: 14, letterSpacing: '.04em' }}>
           {note.author ? `${note.author} · ` : ''}{when}
         </p>
       )}
@@ -12888,28 +12888,28 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile, existingNo
       <div className="card max-w-lg w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-[22px] font-bold tracking-tight text-[#0B0B0B]">Client link</h3>
-            <p className="text-xs text-[#68655B] mt-0.5">
+            <h3 className="text-[22px] font-bold tracking-tight text-[#15171A]">Client link</h3>
+            <p className="text-xs text-[#5B6068] mt-0.5">
               A cleansed, password-protected report for {brandName}.
             </p>
           </div>
-          <button onClick={onClose} className="text-[#999] hover:text-[#0B0B0B]">
+          <button onClick={onClose} className="text-[#999] hover:text-[#15171A]">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {!url ? (
           <>
-            <div className="bg-[#F2F0EA] p-3 mb-4">
-              <p className="text-xs text-[#4A4840] leading-relaxed">
+            <div className="bg-[#FBFAF7] p-3 mb-4">
+              <p className="text-xs text-[#2E3238] leading-relaxed">
                 The client sees scores, maturity, attribute analysis, campaign coherence,
                 the benchmark profile and the conclusion. They do not see recommendations,
                 channel assessments, or any internal notes.
               </p>
             </div>
 
-            <label className="dc-kicker-sm mb-2 block">Your note to the client <span className="text-[#68655B] font-normal normal-case tracking-normal">(optional)</span></label>
-            <p className="text-[11px] text-[#68655B] leading-relaxed mb-2">
+            <label className="dc-kicker-sm mb-2 block">Your note to the client <span className="text-[#5B6068] font-normal normal-case tracking-normal">(optional)</span></label>
+            <p className="text-[11px] text-[#5B6068] leading-relaxed mb-2">
               Context, framing, or anything you want to say in your own voice. It appears under
               Results at a glance, attributed to you, and is clearly marked as coming from you
               rather than from the assessment.
@@ -12918,13 +12918,13 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile, existingNo
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder={`Add any context you want ${brandName} to read alongside the results.`}
-              className="w-full h-24 px-3 py-2 border border-[#DCDAD3] bg-white text-sm resize-none mb-3"
+              className="w-full h-24 px-3 py-2 border border-[#DEDAD2] bg-white text-sm resize-none mb-3"
             />
 
             {noteText.trim() && (
               <div className="mb-4">
                 <div className="dc-kicker-sm mb-2">Preview</div>
-                <div style={{ background: '#F2F0EA', padding: 12 }}>
+                <div style={{ background: '#FBFAF7', padding: 12 }}>
                   <ClientAssessorNote note={{ text: noteText, author, date: new Date().toISOString() }} compact />
                 </div>
               </div>
@@ -12933,15 +12933,15 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile, existingNo
             <label className="dc-kicker-sm mb-2 block">Password</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder="Set a password for the client"
-              className="w-full px-3 py-2 border border-[#DCDAD3] bg-white text-sm mb-3" />
+              className="w-full px-3 py-2 border border-[#DEDAD2] bg-white text-sm mb-3" />
 
             <label className="dc-kicker-sm mb-2 block">Confirm password</label>
             <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && create()}
               placeholder="Repeat it"
-              className="w-full px-3 py-2 border border-[#DCDAD3] bg-white text-sm mb-3" />
+              className="w-full px-3 py-2 border border-[#DEDAD2] bg-white text-sm mb-3" />
 
-            {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
+            {error && <p className="text-xs text-[#C23B22] mb-3">{error}</p>}
 
             <p className="text-[11px] text-[#999] leading-relaxed mb-4">
               The report is encrypted with this password before it is stored. It cannot be
@@ -12959,14 +12959,14 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile, existingNo
           </>
         ) : (
           <>
-            <div className="bg-[#FFFFFF] border border-[#DCDAD3] p-3 mb-4">
+            <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4">
               <div className="flex items-center gap-1.5 mb-1">
-                <Check className="w-3.5 h-3.5 text-[#059669]" />
-                <span className="text-xs font-semibold text-[#059669]">Link created</span>
+                <Check className="w-3.5 h-3.5 text-[#2F6B55]" />
+                <span className="text-xs font-semibold text-[#2F6B55]">Link created</span>
               </div>
-              <p className="text-xs text-[#4A4840]">Send the password separately.</p>
+              <p className="text-xs text-[#2E3238]">Send the password separately.</p>
             </div>
-            <div className="bg-[#F2F0EA] p-3 mb-3 break-all text-xs text-[#4A4840] font-mono">
+            <div className="bg-[#FBFAF7] p-3 mb-3 break-all text-xs text-[#2E3238] font-mono">
               {url}
             </div>
             <div className="flex gap-2">
@@ -13059,9 +13059,9 @@ function ClientReportView({ payload }) {
       /* Spacing comes from the section wrapper, exactly as in the internal
          report. Carrying it here as well doubled every gap. */
       <div className="w-full flex items-baseline gap-4 pb-3"
-        style={{ borderBottom: '2px solid #0B0B0B' }}>
-        <span className="text-[11px] font-bold tracking-[0.16em] text-[#68655B]">{n}</span>
-        <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#0B0B0B]">{label}</span>
+        style={{ borderBottom: '2px solid #15171A' }}>
+        <span className="text-[11px] font-bold tracking-[0.16em] text-[#5B6068]">{n}</span>
+        <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#15171A]">{label}</span>
       </div>
     );
   };
@@ -13093,14 +13093,14 @@ function ClientReportView({ payload }) {
             lineHeight: .92, margin: '4px 0 0', maxWidth: '18ch', textWrap: 'balance' }}>
             {project.brandName}
           </h1>
-          <p className="text-[14px] font-semibold text-[#68655B] mt-5" style={{ letterSpacing: '.04em' }}>
+          <p className="text-[14px] font-semibold text-[#5B6068] mt-5" style={{ letterSpacing: '.04em' }}>
             Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
           </p>
 
           {/* Client-facing only. Sets expectations that this is a summary of a
               wider study, so the absence of working detail reads as scope
               rather than as omission. */}
-          <p className="text-[15px] text-[#4A4840] mt-6" style={{ lineHeight: 1.6, maxWidth: '62ch' }}>
+          <p className="text-[15px] text-[#2E3238] mt-6" style={{ lineHeight: 1.6, maxWidth: '62ch' }}>
             This is a report summary. It represents a more detailed brand study spanning owned,
             earned, social, paid and GEO.
           </p>
@@ -13129,7 +13129,7 @@ function ClientReportView({ payload }) {
             <div className="absolute flex flex-col items-center gap-1"
               style={{ left: `${overall}%`, top: -30, transform: 'translateX(-50%)' }}>
               <div className="text-[11px] font-bold" style={{ letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{overall}</div>
-              <div style={{ width: 2, height: 12, background: '#0B0B0B' }} />
+              <div style={{ width: 2, height: 12, background: '#15171A' }} />
             </div>
             <PositionBands stageName={stage.name} />
             <div className="dc-maturity-labels grid gap-[2px]" style={{
@@ -13137,9 +13137,9 @@ function ClientReportView({ payload }) {
               {MATURITY_STAGES.map(st => (
                 <div key={st.id} className="text-[11px] flex justify-between gap-2"
                   style={{ fontWeight: st.name === stage.name ? 700 : 600,
-                    color: st.name === stage.name ? '#0B0B0B' : '#68655B' }}>
+                    color: st.name === stage.name ? '#15171A' : '#5B6068' }}>
                   <span>{st.name}</span>
-                  <span className="dc-band-range" style={{ color: '#B3B0A8', fontWeight: 600 }}>
+                  <span className="dc-band-range" style={{ color: '#8A8E95', fontWeight: 600 }}>
                     {st.min}&ndash;{st.max}
                   </span>
                 </div>
@@ -13176,32 +13176,32 @@ function ClientReportView({ payload }) {
             <div className="bg-white" style={{ padding: 24 }}>
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
-                  <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
+                  <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#15171A]">
                     {campaignStage.level === 0 ? '—' : campaignStage.level}
                   </div>
-                  <div className="text-[10px] text-[#68655B] mt-1">
+                  <div className="text-[10px] text-[#5B6068] mt-1">
                     {campaignStage.level === 0 ? 'no tier' : 'of 5'}
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-lg font-bold text-[#0B0B0B]">{campaignStage.name}</div>
-                  <p className="text-sm text-[#68655B] leading-relaxed mb-2">{campaignStage.summary}</p>
+                  <div className="text-lg font-bold text-[#15171A]">{campaignStage.name}</div>
+                  <p className="text-sm text-[#5B6068] leading-relaxed mb-2">{campaignStage.summary}</p>
                   {campaign.verdict && (
-                    <p className="text-sm text-[#0B0B0B] font-medium leading-relaxed">{campaign.verdict}</p>
+                    <p className="text-sm text-[#15171A] font-medium leading-relaxed">{campaign.verdict}</p>
                   )}
                 </div>
               </div>
 
               <CampaignLadder level={campaignStage.level} />
 
-              <p className="text-xs text-[#4A4840] leading-relaxed">{campaignStage.description}</p>
+              <p className="text-xs text-[#2E3238] leading-relaxed">{campaignStage.description}</p>
               {campaign.rationale && (
-                <p className="text-xs text-[#4A4840] mt-2 leading-relaxed">
+                <p className="text-xs text-[#2E3238] mt-2 leading-relaxed">
                   <span className="font-semibold">Why this level: </span>{campaign.rationale}
                 </p>
               )}
               {campaign.toNextLevel && (
-                <p className="text-xs text-[#4A4840] mt-2 leading-relaxed">
+                <p className="text-xs text-[#2E3238] mt-2 leading-relaxed">
                   <span className="font-semibold">To reach level {Math.min(5, campaignStage.level + 1)}: </span>
                   {campaign.toNextLevel}
                 </p>
@@ -13243,7 +13243,7 @@ function ClientReportView({ payload }) {
           <div className="dc-reveal" style={{ marginTop: 80 }}>
             <SectionHead label="Conclusions" />
             <div className="bg-white" style={{ padding: 24 }}>
-              <p className="text-[15px] text-[#4A4840]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>{payload.conclusion}</p>
+              <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>{payload.conclusion}</p>
             </div>
           </div>
         )}
@@ -13294,7 +13294,7 @@ function ClientReportGate({ token }) {
   if (status === 'open' && payload) return <ClientReportView payload={payload} />;
 
   return (
-    <div className="min-h-screen bg-[#F2F0EA] flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-[#FBFAF7] flex flex-col items-center justify-center p-6">
       {/* Wider than the password card so the doubled tagline has room to
           breathe rather than wrapping to five lines. */}
       <div className="w-full mb-8" style={{ maxWidth: 620 }}>
@@ -13313,15 +13313,15 @@ function ClientReportGate({ token }) {
       <div className="card w-full" style={{ maxWidth: 620 }}>
         {status === 'loading' && (
           <div className="text-center">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#B23A3A]" />
-            <p className="mt-3 text-sm text-[#68655B]">Loading report...</p>
+            <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#C23B22]" />
+            <p className="mt-3 text-sm text-[#5B6068]">Loading report...</p>
           </div>
         )}
 
         {status === 'missing' && (
           <div className="text-center">
-            <h1 className="text-lg font-bold text-[#0B0B0B]">Report not found</h1>
-            <p className="text-sm text-[#68655B] mt-2">
+            <h1 className="text-lg font-bold text-[#15171A]">Report not found</h1>
+            <p className="text-sm text-[#5B6068] mt-2">
               This link is no longer active. Contact the person who shared it with you.
             </p>
           </div>
@@ -13330,7 +13330,7 @@ function ClientReportGate({ token }) {
         {status === 'locked' && row && (
           <>
             <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.1 }}>{row.brand_name}</h1>
-            <p className="text-[13px] text-[#68655B] mt-2 mb-6" style={{ lineHeight: 1.5 }}>
+            <p className="text-[13px] text-[#5B6068] mt-2 mb-6" style={{ lineHeight: 1.5 }}>
               Conscious Compass assessment. Enter the password you were given to view this report.
             </p>
             <input
@@ -13340,9 +13340,9 @@ function ClientReportGate({ token }) {
               onKeyDown={(e) => e.key === 'Enter' && unlock()}
               placeholder="Password"
               autoFocus
-              className="w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA] text-sm mb-3"
+              className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7] text-sm mb-3"
             />
-            {error && <p className="text-xs text-[#B23A3A] mb-3">{error}</p>}
+            {error && <p className="text-xs text-[#C23B22] mb-3">{error}</p>}
             <button onClick={unlock} disabled={checking || !password}
               className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-2">
               {checking ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening...</> : 'View report'}
@@ -13403,17 +13403,17 @@ function SharedReportView({ report, onClose }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F2F0EA]">
+    <div className="min-h-screen bg-[#FBFAF7]">
       {/* Header */}
-      <header className="bg-[#F2F0EA] border-b border-[#DCDAD3] py-5 px-6">
+      <header className="bg-[#FBFAF7] border-b border-[#DEDAD2] py-5 px-6">
         <div className="dc-wrap flex items-center justify-between gap-6 flex-wrap">
           <div className="flex items-center gap-4">
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-8" style={{ filter: 'brightness(0)' }} />
-            <div className="h-6 w-px bg-[#0B0B0B]" />
-            <span className="dc-kicker text-[#0B0B0B]">Conscious Compass</span>
+            <div className="h-6 w-px bg-[#15171A]" />
+            <span className="dc-kicker text-[#15171A]">Conscious Compass</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-[#4A4840] bg-[#E4E2DC] px-3 py-1">Shared Report (Read-only)</span>
+            <span className="text-sm text-[#2E3238] bg-[#DEDAD2] px-3 py-1">Shared Report (Read-only)</span>
             <button onClick={onClose} className="btn-secondary text-sm">
               Start New Assessment
             </button>
@@ -13424,20 +13424,20 @@ function SharedReportView({ report, onClose }) {
       <div className="dc-wrap dc-page animate-fade-in">
         {/* Report Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-[#0B0B0B] mb-2">Brand Consciousness Report</h1>
-          <p className="text-xl text-[#4A4840]">{project.brandName}</p>
-          <p className="text-sm text-[#68655B] mt-2">{industryName} | {project.businessModel?.toUpperCase() || 'B2B'} | {project.date || 'No date'}</p>
+          <h1 className="text-4xl font-bold text-[#15171A] mb-2">Brand Consciousness Report</h1>
+          <p className="text-xl text-[#2E3238]">{project.brandName}</p>
+          <p className="text-sm text-[#5B6068] mt-2">{industryName} | {project.businessModel?.toUpperCase() || 'B2B'} | {project.date || 'No date'}</p>
         </div>
 
         {/* Overall Score */}
-        <div className="card mb-8 text-center bg-gradient-to-br from-[#E53935]/5 to-[#E53935]/10">
-          <div className="inline-flex items-center justify-center w-32 h-32 bg-[#DEE42F] text-[#0B0B0B] mb-4">
+        <div className="card mb-8 text-center bg-gradient-to-br from-[#C23B22]/5 to-[#C23B22]/10">
+          <div className="inline-flex items-center justify-center w-32 h-32 bg-[#D9442A] text-[#15171A] mb-4">
             <span className="text-5xl font-bold">{overall}</span>
           </div>
-          <h2 className="text-[20px] font-bold tracking-tight text-[#0B0B0B] mb-2">{stage.name}</h2>
-          <p className="text-[#4A4840] mb-4">{stage.description}</p>
+          <h2 className="text-[20px] font-bold tracking-tight text-[#15171A] mb-2">{stage.name}</h2>
+          <p className="text-[#2E3238] mb-4">{stage.description}</p>
           {scores.headline && (
-            <p className="text-lg italic text-[#0B0B0B] border-t border-[#DCDAD3] pt-4 mt-4">
+            <p className="text-lg italic text-[#15171A] border-t border-[#DEDAD2] pt-4 mt-4">
               "{scores.headline}"
             </p>
           )}
@@ -13445,26 +13445,26 @@ function SharedReportView({ report, onClose }) {
 
         {/* Spider Chart */}
         <div className="card mb-8">
-          <h3 className="dc-kicker text-[#0B0B0B] mb-4 text-center">Brand Consciousness Profile</h3>
+          <h3 className="dc-kicker text-[#15171A] mb-4 text-center">Brand Consciousness Profile</h3>
           <SpiderChart scores={scores} size={450} animate={false} />
         </div>
 
         {/* Executive Summary */}
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <h3 className="dc-kicker text-[#0B0B0B] mb-4">EXECUTIVE SUMMARY</h3>
-          <p className="text-[#4A4840] leading-relaxed">
+          <h3 className="dc-kicker text-[#15171A] mb-4">EXECUTIVE SUMMARY</h3>
+          <p className="text-[#2E3238] leading-relaxed">
             {project.brandName} achieved an overall Brand Consciousness Score of <strong>{overall}/100</strong>, placing them in the "<strong>{stage.name}</strong>" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in {sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.
           </p>
         </div>
 
         {/* Score Summary */}
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <h3 className="dc-kicker text-[#0B0B0B] mb-4">SCORE SUMMARY</h3>
+          <h3 className="dc-kicker text-[#15171A] mb-4">SCORE SUMMARY</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ATTRIBUTES.map(attr => (
-              <div key={attr.id} className="text-center p-3 bg-[#E4E2DC] ">
+              <div key={attr.id} className="text-center p-3 bg-[#DEDAD2] ">
                 <div className="text-2xl font-bold" style={{ color: attr.color }}>{scores[attr.id]?.score || 0}</div>
-                <div className="text-xs text-[#68655B] mt-1">{attr.name}</div>
+                <div className="text-xs text-[#5B6068] mt-1">{attr.name}</div>
               </div>
             ))}
           </div>
@@ -13475,8 +13475,8 @@ function SharedReportView({ report, onClose }) {
 
         {/* Maturity Stage Context */}
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <h3 className="dc-kicker text-[#0B0B0B] mb-4">MATURITY STAGE CONTEXT</h3>
-          <p className="text-[#4A4840] leading-relaxed">
+          <h3 className="dc-kicker text-[#15171A] mb-4">MATURITY STAGE CONTEXT</h3>
+          <p className="text-[#2E3238] leading-relaxed">
             With a score of {overall}/100, {project.brandName} is positioned in the "{stage.name}" stage of brand consciousness maturity. {stage.description}. Brands at this stage typically demonstrate {overall < 40 ? 'foundational elements but significant room for strategic development across multiple dimensions' : overall < 60 ? 'solid fundamentals with clear opportunities to elevate their market presence and differentiation' : overall < 80 ? 'strong brand awareness with potential to become true industry thought leaders' : 'exceptional consciousness and should focus on maintaining their position while innovating'}. The path forward involves targeted investment in the lowest-scoring attributes.
           </p>
         </div>
@@ -13580,9 +13580,9 @@ function SharedReportView({ report, onClose }) {
             <div className="card mb-[2px] border-l-4 border-[#F59E0B]">
               <div className="flex items-center gap-2 mb-4">
                 <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0" />
-                <h3 className="dc-kicker text-[#0B0B0B]">SIGNAL CONFLICTS</h3>
+                <h3 className="dc-kicker text-[#15171A]">SIGNAL CONFLICTS</h3>
               </div>
-              <p className="text-sm text-[#68655B] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
+              <p className="text-sm text-[#5B6068] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
               <div className="space-y-4">
                 {conflicts.map((c, i) => (
                   <div key={i} className="bg-[#FFFBEB] border border-[#FDE68A] p-4">
@@ -13608,7 +13608,7 @@ function SharedReportView({ report, onClose }) {
         {/* Sustainability narrative (framework 2.10) */}
         {scores?.sustainabilityNarrative && (
           <>
-            <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">SUSTAINABILITY NARRATIVE</h3>
+            <h3 className="text-xl font-semibold text-[#15171A] mt-8 mb-4">SUSTAINABILITY NARRATIVE</h3>
             <div className="mb-8"><ThesisPanel thesis={scores.sustainabilityNarrative} /></div>
           </>
         )}
@@ -13616,32 +13616,32 @@ function SharedReportView({ report, onClose }) {
         {/* Campaign Coherence */}
         {sharedCampaignStage && (
           <>
-            <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">CAMPAIGN COHERENCE</h3>
+            <h3 className="text-xl font-semibold text-[#15171A] mt-8 mb-4">CAMPAIGN COHERENCE</h3>
             <div className="card mb-8">
               <div className="flex flex-wrap items-start gap-4 mb-4">
                 <div className="text-center flex-shrink-0">
-                  <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#0B0B0B]">
+                  <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#15171A]">
                     {sharedCampaignStage.level === 0 ? '—' : sharedCampaignStage.level}
                   </div>
-                  <div className="text-[10px] text-[#68655B] mt-1">{sharedCampaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
+                  <div className="text-[10px] text-[#5B6068] mt-1">{sharedCampaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-lg font-bold text-[#0B0B0B]">{sharedCampaignStage.name}</div>
-                  <p className="text-sm text-[#68655B] leading-relaxed mb-2">{sharedCampaignStage.summary}</p>
-                  {sharedCampaign.verdict && <p className="text-sm text-[#0B0B0B] font-medium leading-relaxed">{sharedCampaign.verdict}</p>}
+                  <div className="text-lg font-bold text-[#15171A]">{sharedCampaignStage.name}</div>
+                  <p className="text-sm text-[#5B6068] leading-relaxed mb-2">{sharedCampaignStage.summary}</p>
+                  {sharedCampaign.verdict && <p className="text-sm text-[#15171A] font-medium leading-relaxed">{sharedCampaign.verdict}</p>}
                 </div>
               </div>
               <CampaignLadder level={sharedCampaignStage.level} />
-              <p className="text-xs text-[#4A4840] leading-relaxed">{sharedCampaignStage.description}</p>
-              {sharedCampaign.rationale && <p className="text-xs text-[#4A4840] mt-2 leading-relaxed"><span className="font-semibold">Why this level:</span> {sharedCampaign.rationale}</p>}
-              {sharedCampaign.toNextLevel && <p className="text-xs text-[#4A4840] mt-2 leading-relaxed"><span className="font-semibold">To reach level {Math.min(5, sharedCampaignStage.level + 1)}:</span> {sharedCampaign.toNextLevel}</p>}
+              <p className="text-xs text-[#2E3238] leading-relaxed">{sharedCampaignStage.description}</p>
+              {sharedCampaign.rationale && <p className="text-xs text-[#2E3238] mt-2 leading-relaxed"><span className="font-semibold">Why this level:</span> {sharedCampaign.rationale}</p>}
+              {sharedCampaign.toNextLevel && <p className="text-xs text-[#2E3238] mt-2 leading-relaxed"><span className="font-semibold">To reach level {Math.min(5, sharedCampaignStage.level + 1)}:</span> {sharedCampaign.toNextLevel}</p>}
               {Array.isArray(sharedCampaign.campaigns) && sharedCampaign.campaigns.length > 0 && (
                 <div className="grid md:grid-cols-2 gap-3 mt-4">
                   {sharedCampaign.campaigns.map((c, i) => (
-                    <div key={i} className="bg-[#F2F0EA] p-3">
-                      <h4 className="font-semibold text-[#0B0B0B] text-sm mb-1">{c.name}</h4>
-                      {c.idea && <p className="text-xs text-[#4A4840] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
-                      {c.evidence && <p className="text-xs text-[#68655B] leading-relaxed">{c.evidence}</p>}
+                    <div key={i} className="bg-[#FBFAF7] p-3">
+                      <h4 className="font-semibold text-[#15171A] text-sm mb-1">{c.name}</h4>
+                      {c.idea && <p className="text-xs text-[#2E3238] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
+                      {c.evidence && <p className="text-xs text-[#5B6068] leading-relaxed">{c.evidence}</p>}
                     </div>
                   ))}
                 </div>
@@ -13653,7 +13653,7 @@ function SharedReportView({ report, onClose }) {
         {/* Benchmark */}
         {sharedBenchmark && (
           <>
-            <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">BENCHMARK COMPARISON</h3>
+            <h3 className="text-xl font-semibold text-[#15171A] mt-8 mb-4">BENCHMARK COMPARISON</h3>
             <div className="space-y-3 mb-8">
               <BenchmarkPositionBar benchmark={sharedBenchmark} brandName={project.brandName} />
               <BenchmarkSpread benchmark={sharedBenchmark} brandName={project.brandName} />
@@ -13662,7 +13662,7 @@ function SharedReportView({ report, onClose }) {
         )}
 
         {/* Attribute Analysis */}
-        <h3 className="text-xl font-semibold text-[#0B0B0B] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
+        <h3 className="text-xl font-semibold text-[#15171A] mt-8 mb-4">ATTRIBUTE ANALYSIS</h3>
         <div className="space-y-4 mb-8">
           {ATTRIBUTES.map(attr => (
             <div key={attr.id} className="card">
@@ -13672,17 +13672,17 @@ function SharedReportView({ report, onClose }) {
                     {scores[attr.id]?.score || 0}
                   </div>
                   <div>
-                    <h4 className="font-bold text-[#0B0B0B]">{attr.name}</h4>
-                    <p className="text-sm text-[#68655B]">{attr.fullName}</p>
+                    <h4 className="font-bold text-[#15171A]">{attr.name}</h4>
+                    <p className="text-sm text-[#5B6068]">{attr.fullName}</p>
                   </div>
                 </div>
               </div>
-              <p className="text-sm text-[#4A4840] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
+              <p className="text-sm text-[#2E3238] mb-2">{scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description}</p>
               {scores[attr.id]?.impact && (
-                <p className="text-sm text-[#4A4840] mb-2"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
+                <p className="text-sm text-[#2E3238] mb-2"><span className="font-semibold">What's driving it:</span> {scores[attr.id].impact}</p>
               )}
               {scores[attr.id]?.actions && (
-                <p className="text-sm text-[#4A4840] mb-2"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
+                <p className="text-sm text-[#2E3238] mb-2"><span className="font-semibold">To improve the score:</span> {scores[attr.id].actions}</p>
               )}
               {scores[attr.id]?.opportunity && (
                 <p className="text-sm svc-link">{scores[attr.id].opportunity}</p>
@@ -13692,21 +13692,21 @@ function SharedReportView({ report, onClose }) {
         </div>
 
         {/* Recommendations */}
-        <h3 className="text-xl font-semibold text-[#0B0B0B] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
-        <p className="text-[#68655B] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
+        <h3 className="text-xl font-semibold text-[#15171A] mb-4">INTEGRATED MARKETING RECOMMENDATIONS</h3>
+        <p className="text-[#5B6068] mb-4">Based on the assessment, here are 12 priority recommendations to enhance brand consciousness:</p>
         <div className="space-y-4 mb-6">
           {recommendations.map((r, i) => (
             <div key={i} className="card">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
+                <div className="w-8 h-8 bg-[#D9442A] text-[#15171A] flex items-center justify-center font-bold text-sm flex-shrink-0">{i + 1}</div>
                 <div className="flex-1">
-                  <h4 className="font-semibold text-[#0B0B0B] mb-2">{r.title}</h4>
-                  <p className="text-sm text-[#4A4840] leading-relaxed mb-2">
+                  <h4 className="font-semibold text-[#15171A] mb-2">{r.title}</h4>
+                  <p className="text-sm text-[#2E3238] leading-relaxed mb-2">
                     {r.description} {r.impact}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {r.attributes.map((attr, j) => (
-                      <span key={j} className="text-xs px-2 py-1 bg-[#DEE42F]/10 text-[#B23A3A] font-medium">{attr}</span>
+                      <span key={j} className="text-xs px-2 py-1 bg-[#D9442A]/10 text-[#C23B22] font-medium">{attr}</span>
                     ))}
                   </div>
                 </div>
@@ -13718,29 +13718,29 @@ function SharedReportView({ report, onClose }) {
         {/* Antenna Group Services */}
         {/* Conclusions */}
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <h3 className="dc-kicker text-[#0B0B0B] mb-4">CONCLUSIONS</h3>
-          <p className="text-[#4A4840] leading-relaxed">
+          <h3 className="dc-kicker text-[#15171A] mb-4">CONCLUSIONS</h3>
+          <p className="text-[#2E3238] leading-relaxed">
             {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
           </p>
         </div>
 
         {/* What We Evaluated */}
         <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <h3 className="dc-kicker text-[#0B0B0B] mb-4">WHAT WE EVALUATED</h3>
-          <p className="text-[#4A4840] leading-relaxed mb-4">
+          <h3 className="dc-kicker text-[#15171A] mb-4">WHAT WE EVALUATED</h3>
+          <p className="text-[#2E3238] leading-relaxed mb-4">
             This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model ({project.businessModel?.toUpperCase() || 'B2B'}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
           </p>
           {report.assessmentSummary && (
             <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div className="bg-[#E4E2DC] p-3 ">
-                <h4 className="font-semibold text-[#0B0B0B] mb-2">Website Analysis</h4>
-                <p className="text-[#68655B]">
+              <div className="bg-[#DEDAD2] p-3 ">
+                <h4 className="font-semibold text-[#15171A] mb-2">Website Analysis</h4>
+                <p className="text-[#5B6068]">
                   {report.assessmentSummary.pagesReviewed || 'Key pages reviewed'}
                 </p>
               </div>
-              <div className="bg-[#E4E2DC] p-3 ">
-                <h4 className="font-semibold text-[#0B0B0B] mb-2">Social Media</h4>
-                <p className="text-[#68655B]">
+              <div className="bg-[#DEDAD2] p-3 ">
+                <h4 className="font-semibold text-[#15171A] mb-2">Social Media</h4>
+                <p className="text-[#5B6068]">
                   {[
                     report.assessmentSummary.hasLinkedIn && 'LinkedIn',
                     report.assessmentSummary.hasX && 'X/Twitter',
@@ -13751,9 +13751,9 @@ function SharedReportView({ report, onClose }) {
                   ].filter(Boolean).join(', ') || 'Social platforms reviewed'}
                 </p>
               </div>
-              <div className="bg-[#E4E2DC] p-3 ">
-                <h4 className="font-semibold text-[#0B0B0B] mb-2">AI Reputation</h4>
-                <p className="text-[#68655B]">
+              <div className="bg-[#DEDAD2] p-3 ">
+                <h4 className="font-semibold text-[#15171A] mb-2">AI Reputation</h4>
+                <p className="text-[#5B6068]">
                   {[
                     report.assessmentSummary.hasClaudeAI && 'Claude',
                     report.assessmentSummary.hasGeminiAI && 'Gemini',
@@ -13761,9 +13761,9 @@ function SharedReportView({ report, onClose }) {
                   ].filter(Boolean).join(', ') || 'AI platforms queried'}
                 </p>
               </div>
-              <div className="bg-[#E4E2DC] p-3 ">
-                <h4 className="font-semibold text-[#0B0B0B] mb-2">Earned Media</h4>
-                <p className="text-[#68655B]">
+              <div className="bg-[#DEDAD2] p-3 ">
+                <h4 className="font-semibold text-[#15171A] mb-2">Earned Media</h4>
+                <p className="text-[#5B6068]">
                   {report.assessmentSummary.hasEarnedMedia ? 'Coverage from past 3 months reviewed' : 'Media coverage analyzed'}
                 </p>
               </div>
@@ -13773,20 +13773,20 @@ function SharedReportView({ report, onClose }) {
 
         {/* Score Justification */}
         {scores.justification && (
-          <div className="card mb-[2px] bg-[#F2F0EA]">
-            <h3 className="dc-kicker text-[#0B0B0B] mb-4">SCORE JUSTIFICATION</h3>
-            <p className="text-sm text-[#4A4840] leading-relaxed">
+          <div className="card mb-[2px] bg-[#FBFAF7]">
+            <h3 className="dc-kicker text-[#15171A] mb-4">SCORE JUSTIFICATION</h3>
+            <p className="text-sm text-[#2E3238] leading-relaxed">
               {scores.justification}
             </p>
           </div>
         )}
 
         {/* Footer */}
-        <div className="text-center pt-8 border-t border-[#DCDAD3]">
-          <p className="text-sm text-[#B3B0A8]">
+        <div className="text-center pt-8 border-t border-[#DEDAD2]">
+          <p className="text-sm text-[#8A8E95]">
             This report was generated using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}
           </p>
-          <p className="text-xs text-[#B3B0A8] mt-2">
+          <p className="text-xs text-[#8A8E95] mt-2">
             Shared on {report.sharedAt ? new Date(report.sharedAt).toLocaleDateString() : 'Unknown date'}
           </p>
         </div>
@@ -13801,10 +13801,10 @@ const STAY_CONSCIOUS_CATEGORIES = ['AI Visibility', 'Digital Experience', 'Brand
 const CATEGORY_META = {
   'AI Visibility':      { color: '#6366F1', bg: '#6366F115' },
   'Digital Experience': { color: '#0EA5E9', bg: '#0EA5E915' },
-  'Brand Strategy':     { color: '#E53935', bg: '#E5393515' },
+  'Brand Strategy':     { color: '#C23B22', bg: '#C23B2215' },
   'Earned Media':       { color: '#F59E0B', bg: '#F59E0B15' },
-  'Social Signals':     { color: '#0F7A4F', bg: '#10B98115' },
-  'Assessment Practice':{ color: '#0B0B0B', bg: '#8B5CF615' },
+  'Social Signals':     { color: '#2F6B55', bg: '#10B98115' },
+  'Assessment Practice':{ color: '#15171A', bg: '#8B5CF615' },
 };
 
 const STAY_CONSCIOUS_PROMPT = `You are a brand intelligence analyst advising consultants who use the Conscious Compass framework to evaluate brands based purely on publicly available signals — what audiences, prospects, and partners actually encounter. The framework measures eight attributes: Awake (narrative leadership), Aware (audience understanding), Reflective (authenticity), Attentive (experience quality), Cogent (strategic intelligence), Sentient (emotional resonance), Visionary (purpose), and Intentional (credibility).
@@ -13876,12 +13876,12 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
   const CATEGORY_COLORS = {
     'AI Visibility':       '#6366F1',
     'Digital Experience':  '#0EA5E9',
-    'Brand Strategy':      '#E53935',
+    'Brand Strategy':      '#C23B22',
     'Earned Media':        '#F59E0B',
-    'Social Signals':      '#0F7A4F',
-    'Assessment Practice': '#0B0B0B',
+    'Social Signals':      '#2F6B55',
+    'Assessment Practice': '#15171A',
   };
-  const catColor  = (cat) => CATEGORY_COLORS[cat] || '#68655B';
+  const catColor  = (cat) => CATEGORY_COLORS[cat] || '#5B6068';
   const catBg     = (cat) => (catColor(cat)) + '18';
 
   const clean = (t) => (t || '').replace(/[—–]/g, '-');
@@ -14026,7 +14026,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
           const c = document.createElement('canvas');
           c.width = w; c.height = h;
           const ctx = c.getContext('2d');
-          ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = '#FBFAF7'; ctx.fillRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0, w, h);
           URL.revokeObjectURL(url);
           res(c.toDataURL('image/png').split(',')[1]);
@@ -14046,7 +14046,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
       const body = (text, after = 160) => new Paragraph({ ...sp(0, after), children: [new TextRun({ text: clean(text), font: 'Inter', size: 20, color: '1A1A1A' })] });
       const h2   = (text) => new Paragraph({ heading: HeadingLevel.HEADING_2, ...sp(280, 80), children: [new TextRun({ text, font: 'Inter', bold: true, size: 28, color: '1A1A1A' })] });
       const rule = () => new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D9D6D0', space: 1 } }, ...sp(0, 0) });
-      const label = (text, color) => new Paragraph({ ...sp(0, 60), children: [new TextRun({ text: text.toUpperCase(), font: 'Inter', size: 16, bold: true, color: hex(color || '#68655B') })] });
+      const label = (text, color) => new Paragraph({ ...sp(0, 60), children: [new TextRun({ text: text.toUpperCase(), font: 'Inter', size: 16, bold: true, color: hex(color || '#5B6068') })] });
 
       const doc = new Document({
         styles: {
@@ -14164,20 +14164,20 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
 
   // ── Render ──────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F2F0EA]">
+    <div className="min-h-screen bg-[#FBFAF7]">
       <div className="dc-wrap dc-page pt-8">
 
         {/* Header */}
         <div className="dc-pagehead">
           <div className="min-w-0">
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="dc-h2 text-[#0B0B0B]">Stay Conscious</h1>
+              <h1 className="dc-h2 text-[#15171A]">Stay Conscious</h1>
               {newsletter && (
                 <span className="dc-pill">Issue {newsletter.issueNumber}</span>
               )}
             </div>
             <p className="dc-standfirst">Brand intelligence for assessors. What's shifting, why it matters.</p>
-            <div className="text-[11px] text-[#B3B0A8] mt-2 space-y-0.5">
+            <div className="text-[11px] text-[#8A8E95] mt-2 space-y-0.5">
               {refreshedAt && <p>Updated {fmtDate(refreshedAt)}</p>}
               <p>Next update {fmtDate(nextSunday())}</p>
             </div>
@@ -14235,15 +14235,15 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             <div className="w-12 h-12 bg-[#6366F1]/10 flex items-center justify-center">
               <Loader2 className="w-6 h-6 text-[#6366F1] animate-spin" />
             </div>
-            <p className="text-sm text-[#68655B]">{refreshing ? 'Composing this week\'s edition...' : 'Loading newsletter...'}</p>
+            <p className="text-sm text-[#5B6068]">{refreshing ? 'Composing this week\'s edition...' : 'Loading newsletter...'}</p>
           </div>
         )}
 
         {/* Error */}
         {error && !loading && !refreshing && (
           <div className="card text-center">
-            <AlertCircle className="w-10 h-10 text-[#B23A3A] mx-auto mb-3" />
-            <p className="text-[#68655B] mb-4">{error}</p>
+            <AlertCircle className="w-10 h-10 text-[#C23B22] mx-auto mb-3" />
+            <p className="text-[#5B6068] mb-4">{error}</p>
             <button onClick={loadNewsletter} className="btn-primary">Try Again</button>
           </div>
         )}
@@ -14251,9 +14251,9 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
         {/* Empty */}
         {!newsletter && !loading && !error && (
           <div className="card text-center">
-            <Sparkles className="w-10 h-10 text-[#DCDAD3] mx-auto mb-3" />
-            <p className="text-[#68655B]">No newsletter available yet.</p>
-            {isAdmin && <p className="text-sm text-[#B3B0A8] mt-2">Use Force Refresh to generate the first edition.</p>}
+            <Sparkles className="w-10 h-10 text-[#DEDAD2] mx-auto mb-3" />
+            <p className="text-[#5B6068]">No newsletter available yet.</p>
+            {isAdmin && <p className="text-sm text-[#8A8E95] mt-2">Use Force Refresh to generate the first edition.</p>}
           </div>
         )}
 
@@ -14262,7 +14262,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
           <div className="space-y-6">
 
             {/* Lead Story */}
-            <div className="bg-[#0B0B0B] p-6 md:p-8">
+            <div className="bg-[#15171A] p-6 md:p-8">
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1"
                   style={{ backgroundColor: catColor(newsletter.leadStory?.category) + '30', color: catColor(newsletter.leadStory?.category) }}>
@@ -14278,14 +14278,14 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
               <p className="text-[#D1D5DB] leading-relaxed mb-4">{newsletter.leadStory?.insight}</p>
               <div className="border-t border-white/10 pt-4">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280]">Why it matters for assessment</span>
-                <p className="text-sm text-[#B3B0A8] leading-relaxed mt-1">{newsletter.leadStory?.whyItMatters}</p>
+                <p className="text-sm text-[#8A8E95] leading-relaxed mt-1">{newsletter.leadStory?.whyItMatters}</p>
               </div>
             </div>
 
             {/* Intelligence items */}
             {newsletter.intelligenceItems?.length > 0 && (
               <div>
-                <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Brand Intelligence</h2>
+                <h2 className="text-sm font-semibold text-[#15171A] uppercase tracking-wider mb-4">Brand Intelligence</h2>
                 <div className="space-y-4">
                   {newsletter.intelligenceItems.map((item, i) => (
                     <div key={i} className="card">
@@ -14298,13 +14298,13 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
                             </span>
                             <div className="w-1.5 h-1.5 flex-shrink-0" style={{ backgroundColor: catColor(item.category) }} />
                           </div>
-                          <h3 className="font-semibold text-[#0B0B0B] leading-snug mb-2">{item.headline}</h3>
-                          <p className="text-sm text-[#4A4840] leading-relaxed">{item.insight}</p>
+                          <h3 className="font-semibold text-[#15171A] leading-snug mb-2">{item.headline}</h3>
+                          <p className="text-sm text-[#2E3238] leading-relaxed">{item.insight}</p>
                         </div>
                       </div>
-                      <div className="border-t border-[#DCDAD3] pt-3 mt-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#B3B0A8] mb-1">Why it matters for assessment</div>
-                        <p className="text-xs text-[#68655B] leading-relaxed">{item.whyItMatters}</p>
+                      <div className="border-t border-[#DEDAD2] pt-3 mt-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#8A8E95] mb-1">Why it matters for assessment</div>
+                        <p className="text-xs text-[#5B6068] leading-relaxed">{item.whyItMatters}</p>
                       </div>
                     </div>
                   ))}
@@ -14315,15 +14315,15 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             {/* Landscape Insights */}
             {newsletter.landscapeAnalysis?.summary && (
               <div>
-                <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Landscape Insights</h2>
-                <div className="bg-white border border-[#DCDAD3] p-6">
+                <h2 className="text-sm font-semibold text-[#15171A] uppercase tracking-wider mb-4">Landscape Insights</h2>
+                <div className="bg-white border border-[#DEDAD2] p-6">
                   {newsletter.landscapeAnalysis.brandCount && (
                     <p className="text-xs text-[#999] mb-3">
                       Based on {newsletter.landscapeAnalysis.brandCount} brands across {newsletter.landscapeAnalysis.sectorCount} sectors
                     </p>
                   )}
                   {newsletter.landscapeAnalysis.headline && (
-                    <h3 className="font-bold text-[#0B0B0B] text-lg leading-snug mb-3">
+                    <h3 className="font-bold text-[#15171A] text-lg leading-snug mb-3">
                       {newsletter.landscapeAnalysis.headline}
                     </h3>
                   )}
@@ -14346,15 +14346,15 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             {/* Story Opportunities */}
             {newsletter.storyOpportunities?.length > 0 && (
               <div>
-                <h2 className="text-sm font-semibold text-[#0B0B0B] uppercase tracking-wider mb-4">Story Opportunities</h2>
+                <h2 className="text-sm font-semibold text-[#15171A] uppercase tracking-wider mb-4">Story Opportunities</h2>
                 <div className="space-y-3">
                   {newsletter.storyOpportunities.map((story, idx) => (
                     <div key={idx} className="card flex items-start gap-4">
-                      <div className="w-7 h-7 bg-[#DEE42F] text-[#0B0B0B] flex items-center justify-center flex-shrink-0 font-bold text-xs mt-0.5">
+                      <div className="w-7 h-7 bg-[#D9442A] text-[#15171A] flex items-center justify-center flex-shrink-0 font-bold text-xs mt-0.5">
                         {idx + 1}
                       </div>
                       <div>
-                        <div className="font-semibold text-[#0B0B0B] leading-snug">{story.headline}</div>
+                        <div className="font-semibold text-[#15171A] leading-snug">{story.headline}</div>
                         <div className="dc-standfirst">
                           {(story.body || '').split(/[.!?]/)[0].trim()}{story.body?.match(/[.!?]/) ? '.' : ''}
                         </div>
@@ -14366,7 +14366,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
             )}
 
             {/* Footer note */}
-            <p className="text-center text-xs text-[#B3B0A8] mt-8">
+            <p className="text-center text-xs text-[#8A8E95] mt-8">
               Insights generated by Claude. Always apply your own professional judgment.
             </p>
           </div>
@@ -14450,9 +14450,9 @@ function ConfidencePill({ level }) {
   return (
     <span className="dc-meta" style={{
       whiteSpace: 'nowrap',
-      background: l === 'high' ? '#0B0B0B' : 'transparent',
-      color: l === 'high' ? '#FFFFFF' : l === 'low' ? '#B3B0A8' : '#68655B',
-      borderColor: l === 'high' ? '#0B0B0B' : '#DCDAD3',
+      background: l === 'high' ? '#15171A' : 'transparent',
+      color: l === 'high' ? '#FBFAF7' : l === 'low' ? '#8A8E95' : '#5B6068',
+      borderColor: l === 'high' ? '#15171A' : '#DEDAD2',
       borderStyle: l === 'low' ? 'dashed' : 'solid',
     }}>
       {l} confidence
@@ -14479,13 +14479,13 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
       <div style={{ paddingBottom: 18 }}>
         <div className="dc-kicker">Indicative Compass read{date ? ` · ${date}` : ''}</div>
         <h1 style={{ fontSize: 46, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1.1, marginTop: 6 }}>{payload.brandName}</h1>
-        <div className="text-sm text-[#68655B]" style={{ marginTop: 2 }}>{payload.websiteUrl}</div>
+        <div className="text-sm text-[#5B6068]" style={{ marginTop: 2 }}>{payload.websiteUrl}</div>
       </div>
 
       {payload.thinRecord && (
-        <div className="dc-block" style={{ marginBottom: 2, borderLeft: '6px solid #DEE42F' }}>
+        <div className="dc-block" style={{ marginBottom: 2, borderLeft: '6px solid #D9442A' }}>
           <div className="dc-kicker-sm" style={{ marginBottom: 6 }}>Limited evidence in this read</div>
-          <p className="text-sm text-[#4A4840]">Several scores rest on the limited evidence a quick read can reach. A full assessment would firm them up.</p>
+          <p className="text-sm text-[#2E3238]">Several scores rest on the limited evidence a quick read can reach. A full assessment would firm them up.</p>
         </div>
       )}
 
@@ -14494,11 +14494,11 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
         style={{ padding: '30px 34px', display: 'grid', gridTemplateColumns: heroImage ? 'minmax(0,1fr) 300px' : 'minmax(0,1fr)', gap: 36, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {payload.headline && <h2 style={{ margin: 0, fontSize: 21, fontWeight: 700, lineHeight: 1.35, letterSpacing: '-.01em', maxWidth: '34ch' }}>{payload.headline}</h2>}
-          {payload.summary && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#4A4840', maxWidth: '78ch' }}>{payload.summary}</p>}
+          {payload.summary && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#2E3238', maxWidth: '78ch' }}>{payload.summary}</p>}
           {payload.opportunity && (
-            <div data-field="opportunity" style={{ borderLeft: '3px solid #DEE42F', paddingLeft: 14 }}>
+            <div data-field="opportunity" style={{ borderLeft: '3px solid #D9442A', paddingLeft: 14 }}>
               <div className="dc-kicker-sm" style={{ marginBottom: 5 }}>The opportunity</div>
-              <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#4A4840', maxWidth: '78ch' }}>{payload.opportunity}</p>
+              <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#2E3238', maxWidth: '78ch' }}>{payload.opportunity}</p>
             </div>
           )}
         </div>
@@ -14506,19 +14506,19 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
       </div>
 
       {/* Scores as one band: overall on ink, the four lenses beside it. */}
-      <div data-field="score-band" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1.1fr) repeat(4, minmax(140px,1fr))', borderTop: '1px solid #DCDAD3' }}>
-        <div className="bg-[#0B0B0B]" style={{ padding: '20px 24px' }}>
+      <div data-field="score-band" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1.1fr) repeat(4, minmax(140px,1fr))', borderTop: '1px solid #DEDAD2' }}>
+        <div className="bg-[#15171A]" style={{ padding: '20px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-            <span style={{ fontSize: 38, fontWeight: 800, lineHeight: 1, color: '#DEE42F' }}>{payload.overall}</span>
-            <span style={{ fontSize: 15, fontWeight: 600, color: '#DEE42F' }}>/100</span>
+            <span style={{ fontSize: 38, fontWeight: 800, lineHeight: 1, color: '#D9442A' }}>{payload.overall}</span>
+            <span style={{ fontSize: 15, fontWeight: 600, color: '#D9442A' }}>/100</span>
           </div>
-          <div className="dc-kicker-sm" style={{ marginTop: 9, color: '#9A9A94' }}>Overall · {payload.stage}</div>
+          <div className="dc-kicker-sm" style={{ marginTop: 9, color: '#B9BCC1' }}>Overall · {payload.stage}</div>
         </div>
         {lensStats.map(([label, v]) => (
-          <div key={label} className="bg-white" style={{ padding: '20px 24px', borderLeft: '1px solid #DCDAD3' }}>
+          <div key={label} className="bg-white" style={{ padding: '20px 24px', borderLeft: '1px solid #DEDAD2' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
               <span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, color: scoreColor(v) }}>{Number.isFinite(Number(v)) ? v : '—'}</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#68655B' }}>/100</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#5B6068' }}>/100</span>
             </div>
             <div className="dc-kicker-sm" style={{ marginTop: 9 }}>{label}</div>
           </div>
@@ -14526,7 +14526,7 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2 }}>
-        <div className="bg-white" ref={chartRef} style={{ flex: '1 1 340px', minWidth: 0, padding: 20, display: 'flex', justifyContent: 'center', borderTop: '1px solid #DCDAD3' }}>
+        <div className="bg-white" ref={chartRef} style={{ flex: '1 1 340px', minWidth: 0, padding: 20, display: 'flex', justifyContent: 'center', borderTop: '1px solid #DEDAD2' }}>
           <SpiderChart scores={scores} size={340} animate={false} />
         </div>
         <div className="dc-stack" style={{ flex: '2 1 420px', minWidth: 0 }}>
@@ -14539,11 +14539,11 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                   <div>
                     <span style={{ fontWeight: 700 }}>{attr.name}</span>
-                    <span className="text-xs text-[#68655B]" style={{ marginLeft: 8 }}>{attr.fullName}</span>
+                    <span className="text-xs text-[#5B6068]" style={{ marginLeft: 8 }}>{attr.fullName}</span>
                   </div>
                   <ConfidencePill level={scores[attr.id]?.confidence} />
                 </div>
-                {scores[attr.id]?.rationale && <p className="text-sm text-[#4A4840]" style={{ marginTop: 6, lineHeight: 1.5 }}>{scores[attr.id].rationale}</p>}
+                {scores[attr.id]?.rationale && <p className="text-sm text-[#2E3238]" style={{ marginTop: 6, lineHeight: 1.5 }}>{scores[attr.id].rationale}</p>}
               </div>
             </div>
           ))}
@@ -14562,20 +14562,20 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
                   <div key={id} className="text-sm" style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
                     <span className="font-semibold" style={{ minWidth: 104 }}>{label}</span>
                     {e.issues > 0
-                      ? <span style={{ color: '#D42528' }}>{e.issues} issue{e.issues === 1 ? '' : 's'} observed{e.worst ? ` (worst: ${e.worst})` : ''}</span>
-                      : <span style={{ color: '#0F7A4F' }}>No issues observed</span>}
-                    {e.gaps > 0 && <span className="text-[#68655B]">· {e.gaps} gap{e.gaps === 1 ? '' : 's'} in the public record</span>}
-                    {e.lowOnAbsenceAlone && <span className="text-[#68655B]">· scored down for what could not be verified, not for anything found</span>}
+                      ? <span style={{ color: '#C23B22' }}>{e.issues} issue{e.issues === 1 ? '' : 's'} observed{e.worst ? ` (worst: ${e.worst})` : ''}</span>
+                      : <span style={{ color: '#2F6B55' }}>No issues observed</span>}
+                    {e.gaps > 0 && <span className="text-[#5B6068]">· {e.gaps} gap{e.gaps === 1 ? '' : 's'} in the public record</span>}
+                    {e.lowOnAbsenceAlone && <span className="text-[#5B6068]">· scored down for what could not be verified, not for anything found</span>}
                   </div>
                 );
               })}
             </div>
             {payload.negativeTriggers?.length > 0 && (
-              <div style={{ marginTop: 14, borderTop: '1px solid #EEECE6', paddingTop: 12, display: 'grid', gap: 6 }}>
+              <div style={{ marginTop: 14, borderTop: '1px solid #DEDAD2', paddingTop: 12, display: 'grid', gap: 6 }}>
                 {payload.negativeTriggers.map((t, i) => (
-                  <div key={i} className="text-sm text-[#4A4840]">
-                    <span className="dc-meta" style={{ marginRight: 8, color: '#D42528', borderColor: '#E9B9B9' }}>{t.lens}</span>
-                    {t.text}{t.source ? <span className="text-[#68655B]"> · {t.source}</span> : null}
+                  <div key={i} className="text-sm text-[#2E3238]">
+                    <span className="dc-meta" style={{ marginRight: 8, color: '#C23B22', borderColor: '#E9B9B9' }}>{t.lens}</span>
+                    {t.text}{t.source ? <span className="text-[#5B6068]"> · {t.source}</span> : null}
                   </div>
                 ))}
               </div>
@@ -14594,26 +14594,26 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
       {payload.services?.length > 0 && (
         <section style={{ marginTop: 40 }} data-field="services">
           <div className="dc-kicker" style={{ marginBottom: 6 }}>Where marketing would move this score</div>
-          <p className="text-sm text-[#68655B]" style={{ marginBottom: 14, maxWidth: '72ch' }}>
+          <p className="text-sm text-[#5B6068]" style={{ marginBottom: 14, maxWidth: '72ch' }}>
             The services that address what this read found. A full assessment sets the depth and the order.
           </p>
           <div className="dc-stack">
             {payload.services.map((svc, i) => (
               <div key={svc.title} className="dc-block" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                <span style={{ fontWeight: 700, color: '#68655B', minWidth: 24 }}>{String(i + 1).padStart(2, '0')}</span>
+                <span style={{ fontWeight: 700, color: '#5B6068', minWidth: 24 }}>{String(i + 1).padStart(2, '0')}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: 700 }}>{svc.title}</span>
                     {svc.attributes?.map(a => <span key={a} className="dc-meta">{a}</span>)}
                     {svc.beyondCatalogue && (
-                      <span className="dc-meta" data-field="beyond-catalogue" style={{ color: '#8A4A08', borderColor: '#E4C79A' }}
+                      <span className="dc-meta" data-field="beyond-catalogue" style={{ color: '#8C5A0B', borderColor: '#E4C79A' }}
                         title="Not one of the standing services: this read argued for it specifically">
                         Beyond the catalogue
                       </span>
                     )}
                   </div>
-                  {svc.why && <p className="text-sm text-[#4A4840]" style={{ marginTop: 6, lineHeight: 1.55 }}>{svc.why}</p>}
-                  {svc.impact && <p className="text-sm text-[#68655B]" style={{ marginTop: 6, lineHeight: 1.55 }}>{svc.impact}</p>}
+                  {svc.why && <p className="text-sm text-[#2E3238]" style={{ marginTop: 6, lineHeight: 1.55 }}>{svc.why}</p>}
+                  {svc.impact && <p className="text-sm text-[#5B6068]" style={{ marginTop: 6, lineHeight: 1.55 }}>{svc.impact}</p>}
                 </div>
               </div>
             ))}
@@ -14627,7 +14627,7 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
           <div className="dc-stack">
             {payload.fullAssessmentWouldResolve.map((q, i) => (
               <div key={i} className="dc-block" style={{ display: 'flex', gap: 14 }}>
-                <span style={{ fontWeight: 700, color: '#68655B' }}>{String(i + 1).padStart(2, '0')}</span>
+                <span style={{ fontWeight: 700, color: '#5B6068' }}>{String(i + 1).padStart(2, '0')}</span>
                 <span>{q}</span>
               </div>
             ))}
@@ -14636,7 +14636,7 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
       )}
 
       <section style={{ marginTop: 40 }}>
-        <div className="dc-block text-sm text-[#68655B]" style={{ lineHeight: 1.6 }}>
+        <div className="dc-block text-sm text-[#5B6068]" style={{ lineHeight: 1.6 }}>
           <div className="dc-kicker-sm" style={{ marginBottom: 6 }}>How this read was made</div>
           An indicative read against the Conscious Compass framework v{payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the Compass rubric, judged on the evidence this read can reach: signals it could not see count neither for nor against. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.
         </div>
@@ -14657,10 +14657,10 @@ function TeaserProgress({ statuses, scoring, elapsed }) {
         {[...TEASER_SOURCES, ...(statuses.sustainability ? [SUSTAINABILITY_SOURCE] : [])].map(src => {
           const st = statuses[src.id] || 'pending';
           return (
-            <div key={src.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #EEECE6' }}>
+            <div key={src.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #DEDAD2' }}>
               {st === 'running' && <Loader2 className="w-4 h-4 animate-spin" />}
-              {st === 'ok' && <Check className="w-4 h-4 text-[#0F7A4F]" />}
-              {st === 'failed' && <X className="w-4 h-4 text-[#D42528]" />}
+              {st === 'ok' && <Check className="w-4 h-4 text-[#2F6B55]" />}
+              {st === 'failed' && <X className="w-4 h-4 text-[#C23B22]" />}
               {st === 'pending' && <span style={{ width: 16 }} />}
               <span style={{ flex: 1, fontWeight: 600 }}>{src.label}</span>
               <span className="dc-kicker-sm">{TEASER_STAGE_LABEL[st]}</span>
@@ -14668,12 +14668,12 @@ function TeaserProgress({ statuses, scoring, elapsed }) {
           );
         })}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
-          {scoring === 'running' ? <Loader2 className="w-4 h-4 animate-spin" /> : scoring === 'ok' ? <Check className="w-4 h-4 text-[#0F7A4F]" /> : <span style={{ width: 16 }} />}
+          {scoring === 'running' ? <Loader2 className="w-4 h-4 animate-spin" /> : scoring === 'ok' ? <Check className="w-4 h-4 text-[#2F6B55]" /> : <span style={{ width: 16 }} />}
           <span style={{ flex: 1, fontWeight: 600 }}>Scoring all eight attributes</span>
           <span className="dc-kicker-sm">{scoring === 'running' ? 'Scoring' : scoring === 'ok' ? 'Done' : 'Waiting'}</span>
         </div>
       </div>
-      <p className="text-xs text-[#68655B]" style={{ marginTop: 10 }}>Sources run in parallel. Expect two to three minutes. A failed source is recorded and the read carries on without it.</p>
+      <p className="text-xs text-[#5B6068]" style={{ marginTop: 10 }}>Sources run in parallel. Expect two to three minutes. A failed source is recorded and the read carries on without it.</p>
     </div>
   );
 }
@@ -14749,7 +14749,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
       </div>
 
       {!scorecard.ready && (
-        <div className="dc-block text-sm" data-field="scorecard-blocked" style={{ marginBottom: 2, borderLeft: '4px solid #C2680C' }}>
+        <div className="dc-block text-sm" data-field="scorecard-blocked" style={{ marginBottom: 2, borderLeft: '4px solid #8C5A0B' }}>
           <span className="font-semibold">Card and slide need {scorecard.missing.join(' and ')}.</span>{' '}
           {scorecard.missing.includes('a brand image') && 'Upload one in the internal panel below. '}
           {scorecard.missing.includes('a sector baseline') && 'The industry average on the card comes from full assessments in this sector; there are none to compare against yet. '}
@@ -14759,78 +14759,78 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
 
       {/* Internal only. Never part of the client payload or the PDF. */}
       <div className="dc-block" data-field="internal-panel"
-        style={{ marginBottom: 24, background: '#FAF9F5', border: '1px dashed #DCDAD3', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        style={{ marginBottom: 24, background: '#FBFAF7', border: '1px dashed #DEDAD2', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', borderBottom: '1px solid #EEECE6', paddingBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', borderBottom: '1px solid #DEDAD2', paddingBottom: 14 }}>
           <div className="dc-kicker-sm">Internal · not shown to the prospect</div>
           {record.result && (
-            <div className="text-sm text-[#68655B]" data-field="scored-with">
+            <div className="text-sm text-[#5B6068]" data-field="scored-with">
               Scored {new Date(record.result.scoredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} · method v{record.result.teaserVersion || '1.0'}
             </div>
           )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '132px minmax(0,1fr)', gap: '18px 20px', alignItems: 'start' }}>
-          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 7 }}>Campaign</div>
+          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 7 }}>Campaign</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             <select value={record.campaign_id || ''} disabled={busy} data-field="move-campaign"
-              onChange={e => onMove(e.target.value)} className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm" style={{ width: 'max-content' }}>
+              onChange={e => onMove(e.target.value)} className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm" style={{ width: 'max-content' }}>
               {!record.campaign_id && <option value="">Unassigned, choose a campaign</option>}
               {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <div className="text-sm text-[#68655B]" style={{ lineHeight: 1.5 }}>
+            <div className="text-sm text-[#5B6068]" style={{ lineHeight: 1.5 }}>
               {String(record.business_model || '').toUpperCase()}{industryNameFull ? ` · ${industryNameFull}` : ''}{findStage(record.stage) ? ` · ${findStage(record.stage).name}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? new Date(record.evidence.gatheredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'never'}{record.converted_at ? ` · converted to full assessment ${new Date(record.converted_at).toLocaleDateString('en-US')}` : ''}
             </div>
           </div>
 
-          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 7 }}>Company stage</div>
+          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 7 }}>Company stage</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <select value={record.stage || ''} disabled={busy} data-field="set-stage"
-              onChange={e => onStage(e.target.value)} className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm" style={{ width: 'max-content' }}>
+              onChange={e => onStage(e.target.value)} className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm" style={{ width: 'max-content' }}>
               <option value="">Not set</option>
               {STAGES.map(st => <option key={st.id} value={st.id}>{st.name} — {st.subtitle}</option>)}
             </select>
-            <div className="text-sm text-[#68655B]" style={{ lineHeight: 1.5 }}>
+            <div className="text-sm text-[#5B6068]" style={{ lineHeight: 1.5 }}>
               {record.stage
                 ? `${findStage(record.stage)?.indicator || ''} Rescore to apply it.`
                 : 'Not set, so this read expects everything the rubric asks for. Set the stage and rescore to judge it on what a company this size can fairly show.'}
             </div>
             {record.stage && record.result?.companyStage !== record.stage && (
-              <div className="text-sm" data-field="stage-pending" style={{ color: '#C2680C' }}>
+              <div className="text-sm" data-field="stage-pending" style={{ color: '#8C5A0B' }}>
                 Scored {record.result?.companyStage ? `at the ${findStage(record.result.companyStage)?.name || record.result.companyStage} stage` : 'without a stage'}. Rescore to use the current setting; it reuses the stored evidence.
               </div>
             )}
           </div>
 
-          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 5 }}>Evidence</div>
+          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 5 }}>Evidence</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {[...TEASER_SOURCES, ...(sources.sustainability ? [SUSTAINABILITY_SOURCE] : [])].map(src => {
               const ok = sources[src.id]?.status === 'ok';
               return (
                 <span key={src.id} className="dc-meta" title={sources[src.id]?.error || ''}
-                  style={{ background: '#FFFFFF', color: ok ? '#0F7A4F' : '#D42528', borderColor: ok ? '#DCDAD3' : '#D42528' }}>
+                  style={{ background: '#FBFAF7', color: ok ? '#2F6B55' : '#C23B22', borderColor: ok ? '#DEDAD2' : '#C23B22' }}>
                   {src.label}: {ok ? (src.id === 'website' ? `${sources.website.pages.length} page${sources.website.pages.length === 1 ? '' : 's'}` : 'ok') : 'failed'}
                 </span>
               );
             })}
           </div>
 
-          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 2 }}>Baseline</div>
-          <div data-field="baseline" className="text-sm text-[#4A4840]" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 2 }}>Baseline</div>
+          <div data-field="baseline" className="text-sm text-[#2E3238]" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
             {baselineError ? `Unavailable (${baselineError})`
               : !baseline ? 'Loading'
               : !baseline.available ? 'Unavailable, no comparable full assessments yet'
               : <>
                   <span style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, color: scoreColor(baseline.avgScore) }}>{baseline.avgScore}</span>
                   <span>sector baseline, from full assessments</span>
-                  <span className="text-[#68655B]">· {baseline.scope === 'industry' ? baseline.sectorName : baseline.basis}, {baseline.count} full assessment{baseline.count === 1 ? '' : 's'}</span>
-                  {baseline.difference !== null && <span style={{ borderLeft: '1px solid #DCDAD3', paddingLeft: 10 }}>this teaser <strong>{baseline.difference > 0 ? '+' : ''}{baseline.difference}</strong></span>}
+                  <span className="text-[#5B6068]">· {baseline.scope === 'industry' ? baseline.sectorName : baseline.basis}, {baseline.count} full assessment{baseline.count === 1 ? '' : 's'}</span>
+                  {baseline.difference !== null && <span style={{ borderLeft: '1px solid #DEDAD2', paddingLeft: 10 }}>this teaser <strong>{baseline.difference > 0 ? '+' : ''}{baseline.difference}</strong></span>}
                 </>}
           </div>
 
-          <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 9 }}>Brand image</div>
+          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 9 }}>Brand image</div>
           <div data-field="hero-image" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            {record.hero_image && <img src={record.hero_image} alt="" style={{ height: 44, width: 74, objectFit: 'cover', border: '1px solid #DCDAD3' }} />}
+            {record.hero_image && <img src={record.hero_image} alt="" style={{ height: 44, width: 74, objectFit: 'cover', border: '1px solid #DEDAD2' }} />}
             <input ref={heroRef} type="file" accept="image/*" style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pickHero(f); }} />
             <button onClick={() => heroRef.current?.click()} disabled={busy} className="btn-secondary text-xs py-2 px-4">
@@ -14838,38 +14838,38 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
             </button>
             {record.hero_image
               ? <button onClick={() => onHeroImage(null)} disabled={busy} className="btn-secondary text-xs py-2 px-4">Remove</button>
-              : <span className="text-sm text-[#68655B]">None yet. Needed for the card and slide.</span>}
+              : <span className="text-sm text-[#5B6068]">None yet. Needed for the card and slide.</span>}
           </div>
 
           {record.context && <>
-            <div className="text-sm font-semibold text-[#4A4840]" style={{ paddingTop: 2 }}>Context</div>
-            <div className="text-sm text-[#4A4840]" style={{ lineHeight: 1.62, maxWidth: '74ch' }}>{record.context}</div>
+            <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 2 }}>Context</div>
+            <div className="text-sm text-[#2E3238]" style={{ lineHeight: 1.62, maxWidth: '74ch' }}>{record.context}</div>
           </>}
         </div>
 
         {(heroError || (record.result && !isCurrentMethod(record.result)) || (record.result && campaigns.find(c => c.id === record.campaign_id)?.cso_audience && record.result.audience !== 'cso') || record.result?.history?.length > 0) && (
-          <div className="text-sm" style={{ display: 'grid', gap: 6, borderTop: '1px solid #EEECE6', paddingTop: 14 }}>
-            {heroError && <div style={{ color: '#C2680C' }}>{heroError}</div>}
+          <div className="text-sm" style={{ display: 'grid', gap: 6, borderTop: '1px solid #DEDAD2', paddingTop: 14 }}>
+            {heroError && <div style={{ color: '#8C5A0B' }}>{heroError}</div>}
             {record.result && !isCurrentMethod(record.result) && (
-              <div data-field="method-outdated" style={{ color: '#C2680C' }}>
+              <div data-field="method-outdated" style={{ color: '#8C5A0B' }}>
                 <span className="font-semibold">Earlier scoring method (v{record.result.teaserVersion || '1.0'}).</span> Scored before calibration and with the campaign modifier. Rescore to apply the current method (v{TEASER_VERSION}); it reuses the stored evidence, no new searches.
               </div>
             )}
             {record.result && campaigns.find(c => c.id === record.campaign_id)?.cso_audience && record.result.audience !== 'cso' && (
-              <div data-field="audience-mismatch" style={{ color: '#C2680C' }}>
+              <div data-field="audience-mismatch" style={{ color: '#8C5A0B' }}>
                 <span className="font-semibold">Scored before this campaign was set to CSO audience.</span> Refresh evidence to add the sustainability scan and read.
               </div>
             )}
             {record.result?.history?.length > 0 && (
-              <div className="text-[#68655B]">Previous scores: {record.result.history.map(h => `${h.overall} (${new Date(h.scoredAt).toLocaleDateString('en-US')})`).join(', ')}</div>
+              <div className="text-[#5B6068]">Previous scores: {record.result.history.map(h => `${h.overall} (${new Date(h.scoredAt).toLocaleDateString('en-US')})`).join(', ')}</div>
             )}
           </div>
         )}
 
         {record.result && isCurrentMethod(record.result) && ATTRIBUTES.some(a => record.result.scores?.[a.id]?.unobserved) && (
-          <details data-field="unobserved" style={{ borderTop: '1px solid #EEECE6', paddingTop: 14 }}>
-            <summary className="text-sm font-semibold text-[#4A4840]" style={{ cursor: 'pointer' }}>Not observable in this read</summary>
-            <div className="text-sm text-[#4A4840]" style={{ display: 'grid', gap: 4, marginTop: 8 }}>
+          <details data-field="unobserved" style={{ borderTop: '1px solid #DEDAD2', paddingTop: 14 }}>
+            <summary className="text-sm font-semibold text-[#2E3238]" style={{ cursor: 'pointer' }}>Not observable in this read</summary>
+            <div className="text-sm text-[#2E3238]" style={{ display: 'grid', gap: 4, marginTop: 8 }}>
               {ATTRIBUTES.filter(a => record.result.scores?.[a.id]?.unobserved).map(a => (
                 <div key={a.id}><span className="font-semibold">{a.name}:</span> {record.result.scores[a.id].unobserved}</div>
               ))}
@@ -14878,13 +14878,13 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
         )}
       </div>
 
-      {error && <div className="dc-block text-sm" style={{ marginBottom: 16, color: '#D42528', borderLeft: '4px solid #D42528' }}>{error}</div>}
+      {error && <div className="dc-block text-sm" style={{ marginBottom: 16, color: '#C23B22', borderLeft: '4px solid #C23B22' }}>{error}</div>}
       {busy && progress}
 
       {payload ? (
         <TeaserClientView payload={payload} chartRef={chartRef} heroImage={record.hero_image || null} />
       ) : !busy && (
-        <div className="dc-block text-[#4A4840]">Evidence is stored but this teaser has not been scored yet. {cov.canScore ? 'Use Score to run it.' : 'Too few sources returned evidence to score. Use Refresh evidence.'}</div>
+        <div className="dc-block text-[#2E3238]">Evidence is stored but this teaser has not been scored yet. {cov.canScore ? 'Use Score to run it.' : 'Too few sources returned evidence to score. Use Refresh evidence.'}</div>
       )}
     </div>
   );
@@ -15180,10 +15180,10 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
 
   const staleBanner = staleLive && (
     <div className="dc-wrap" data-field="stale-banner" style={{ padding: '0 32px' }}>
-      <div className="bg-[#0B0B0B] text-white" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', marginTop: 16 }}>
-        <AlertCircle className="w-4 h-4" style={{ color: '#DEE42F' }} />
+      <div className="bg-[#15171A] text-white" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', marginTop: 16 }}>
+        <AlertCircle className="w-4 h-4" style={{ color: '#D9442A' }} />
         <span style={{ flex: 1, fontSize: 14 }}>A newer version of the Compass (v{staleLive}) is live. Reload before scoring; this tab would use an out-of-date method.</span>
-        <button onClick={() => window.location.reload()} className="bg-[#DEE42F] text-[#0B0B0B] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em]">Reload</button>
+        <button onClick={() => window.location.reload()} className="bg-[#D9442A] text-[#15171A] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em]">Reload</button>
       </div>
     </div>
   );
@@ -15212,17 +15212,17 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     .map(c => ({ campaign: c, teasers: byCampaign.get(c.id) }));
   const showUnassigned = unassigned.length > 0 && (filter === 'all' || filter === 'unassigned');
 
-  const inputCls = 'w-full px-3.5 py-3 border border-[#DCDAD3] bg-[#F2F0EA]';
+  const inputCls = 'w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]';
 
   const TeaserRow = ({ t }) => (
-    <button onClick={() => openRecord(t.id)} disabled={busy} className="dc-block text-left hover:bg-[#FAF9F5]"
+    <button onClick={() => openRecord(t.id)} disabled={busy} className="dc-block text-left hover:bg-[#FBFAF7]"
       style={{ display: 'flex', alignItems: 'center', gap: 18, width: '100%' }}>
-      <div style={{ fontSize: 28, fontWeight: 700, minWidth: 48, letterSpacing: '-.03em', color: t.result ? scoreColor(t.result.overall) : '#B3B0A8' }}>
+      <div style={{ fontSize: 28, fontWeight: 700, minWidth: 48, letterSpacing: '-.03em', color: t.result ? scoreColor(t.result.overall) : '#8A8E95' }}>
         {t.result ? t.result.overall : '—'}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700 }}>{t.brand_name}</div>
-        <div className="text-xs text-[#68655B] truncate">{t.website_url} · {t.created_by_name || 'unknown'} · {new Date(t.updated_at).toLocaleDateString('en-US')}</div>
+        <div className="text-xs text-[#5B6068] truncate">{t.website_url} · {t.created_by_name || 'unknown'} · {new Date(t.updated_at).toLocaleDateString('en-US')}</div>
       </div>
       {t.result && (
         <div className="hidden md:flex" style={{ gap: 14 }}>
@@ -15236,7 +15236,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       )}
       {t.converted_at && <span className="dc-meta">Converted</span>}
       {!t.result && <span className="dc-meta">Not scored</span>}
-      {t.result && !isCurrentMethod(t.result) && <span className="dc-meta" style={{ color: '#C2680C', borderColor: '#C2680C' }}>Earlier method</span>}
+      {t.result && !isCurrentMethod(t.result) && <span className="dc-meta" style={{ color: '#8C5A0B', borderColor: '#8C5A0B' }}>Earlier method</span>}
     </button>
   );
 
@@ -15254,7 +15254,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       <div className="dc-block">
         <div className="dc-kicker" style={{ marginBottom: 16 }}>New teaser</div>
         <div style={{ marginBottom: 16 }}>
-          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Campaign *</label>
+          <label className="block text-sm font-medium text-[#15171A] mb-2">Campaign *</label>
           {newCampaign === null ? (
             <select className={inputCls} value={form.campaignId} disabled={busy} data-field="campaign"
               onChange={e => { if (e.target.value === '__new') { setNewCampaign(''); } else { setForm({ ...form, campaignId: e.target.value }); } }}>
@@ -15275,49 +15275,49 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
             </div>
           )}
           {newCampaign === null && campaigns.find(c => c.id === form.campaignId)?.cso_audience && (
-            <p className="text-xs text-[#68655B] mt-1" data-field="cso-hint">CSO audience: adds a sustainability scan and the sustainability narrative read, written for impact leaders.</p>
+            <p className="text-xs text-[#5B6068] mt-1" data-field="cso-hint">CSO audience: adds a sustainability scan and the sustainability narrative read, written for impact leaders.</p>
           )}
         </div>
         <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
           <div>
-            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Brand name *</label>
+            <label className="block text-sm font-medium text-[#15171A] mb-2">Brand name *</label>
             <input className={inputCls} value={form.brandName} disabled={busy} data-field="brand" onChange={e => setForm({ ...form, brandName: e.target.value })} placeholder="e.g., Antenna Group" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Website URL *</label>
+            <label className="block text-sm font-medium text-[#15171A] mb-2">Website URL *</label>
             <input className={inputCls} value={form.websiteUrl} disabled={busy} data-field="url" onChange={e => setForm({ ...form, websiteUrl: e.target.value })} placeholder="https://www.example.com" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Business model *</label>
+            <label className="block text-sm font-medium text-[#15171A] mb-2">Business model *</label>
             <select className={inputCls} value={form.businessModel} disabled={busy} onChange={e => setForm({ ...form, businessModel: e.target.value })}>
               {BUSINESS_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Sector *</label>
+            <label className="block text-sm font-medium text-[#15171A] mb-2">Sector *</label>
             <select className={inputCls} value={form.industry} disabled={busy} data-field="industry" onChange={e => setForm({ ...form, industry: e.target.value })}>
               <option value="">Choose a sector</option>
               {INDUSTRIES.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
-            <p className="text-xs text-[#68655B] mt-1">Sets the sector baseline, drawn from full assessments. Other compares against all full assessments.</p>
+            <p className="text-xs text-[#5B6068] mt-1">Sets the sector baseline, drawn from full assessments. Other compares against all full assessments.</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Company stage *</label>
+            <label className="block text-sm font-medium text-[#15171A] mb-2">Company stage *</label>
             <select className={inputCls} value={form.stage} disabled={busy} data-field="stage" onChange={e => setForm({ ...form, stage: e.target.value })}>
               <option value="">Choose a stage</option>
               {STAGES.map(st => <option key={st.id} value={st.id}>{st.name} · {st.subtitle}</option>)}
             </select>
-            <p className="text-xs text-[#68655B] mt-1">
+            <p className="text-xs text-[#5B6068] mt-1">
               {findStage(form.stage)?.indicator || 'Decides what evidence is fair to expect. A startup is not marked down for having no Glassdoor reviews or analyst coverage.'}
             </p>
           </div>
         </div>
         <div style={{ marginTop: 16 }}>
-          <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Context</label>
-          <textarea className="w-full px-4 py-3 border border-[#DCDAD3] bg-white text-sm leading-relaxed resize-y" rows={4} disabled={busy}
+          <label className="block text-sm font-medium text-[#15171A] mb-2">Context</label>
+          <textarea className="w-full px-4 py-3 border border-[#DEDAD2] bg-white text-sm leading-relaxed resize-y" rows={4} disabled={busy}
             value={form.context} onChange={e => setForm({ ...form, context: e.target.value })}
             placeholder="What we know about the prospect: what they want to achieve, the brief, key competitors, live issues." />
-          <p className="text-xs text-[#68655B] mt-1">Background only. It shapes how evidence is read, never counts as evidence, and never appears in the output.</p>
+          <p className="text-xs text-[#5B6068] mt-1">Background only. It shapes how evidence is read, never counts as evidence, and never appears in the output.</p>
         </div>
         <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
           <button onClick={runNew} disabled={busy} className="btn-primary flex items-center gap-2">
@@ -15326,14 +15326,14 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
         </div>
       </div>
 
-      {error && <div className="dc-block text-sm" style={{ marginTop: 2, color: '#D42528', borderLeft: '4px solid #D42528' }}>{error}</div>}
+      {error && <div className="dc-block text-sm" style={{ marginTop: 2, color: '#C23B22', borderLeft: '4px solid #C23B22' }}>{error}</div>}
       {busy && progress}
 
       <section style={{ marginTop: 40 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
           <div className="dc-kicker">Campaigns</div>
           {campaigns.length > 0 && (
-            <select value={filter} onChange={e => setFilter(e.target.value)} className="px-3 py-2 border border-[#DCDAD3] bg-white text-sm" data-field="filter">
+            <select value={filter} onChange={e => setFilter(e.target.value)} className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm" data-field="filter">
               <option value="all">All campaigns</option>
               {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               {unassigned.length > 0 && <option value="unassigned">Unassigned</option>}
@@ -15341,38 +15341,38 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
           )}
         </div>
         {listLoading ? <SkeletonRows count={3} /> : listError ? <LoadFailed message={listError} onRetry={load} /> : (campaigns.length === 0 && unassigned.length === 0) ? (
-          <div className="dc-block text-[#68655B]">No campaigns yet. Create one when you run your first teaser.</div>
+          <div className="dc-block text-[#5B6068]">No campaigns yet. Create one when you run your first teaser.</div>
         ) : (
           <div style={{ display: 'grid', gap: 28 }}>
             {groups.map(({ campaign: c, teasers }) => {
               const sum = campaignSummary(buildCampaignRows(teasers));
               return (
                 <div key={c.id} data-campaign={c.id}>
-                  <div className="bg-[#0B0B0B] text-white" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px' }}>
+                  <div className="bg-[#15171A] text-white" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 17 }}>{c.name}</div>
-                      <div className="dc-kicker-sm" style={{ color: '#9A9A94', marginTop: 4 }}>
+                      <div className="dc-kicker-sm" style={{ color: '#B9BCC1', marginTop: 4 }}>
                         {sum.brands} brand{sum.brands === 1 ? '' : 's'}{sum.averageOverall !== null ? ` · average ${sum.averageOverall}` : ''}{sum.scored < sum.brands ? ` · ${sum.brands - sum.scored} not scored` : ''}
                       </div>
                     </div>
                     <button onClick={() => download(c)} disabled={busy || campaignBusy === c.id || teasers.length === 0}
-                      className="flex items-center gap-2 bg-[#DEE42F] text-[#0B0B0B] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] disabled:opacity-40">
+                      className="flex items-center gap-2 bg-[#D9442A] text-[#15171A] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] disabled:opacity-40">
                       {campaignBusy === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download scores
                     </button>
                     <button onClick={() => toggleAudience(c)} disabled={busy || campaignBusy === c.id} data-field="cso-toggle"
                       title="Teasers in CSO campaigns add a sustainability scan and the sustainability narrative read"
                       className="px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em]"
-                      style={c.cso_audience ? { background: '#FFFFFF', color: '#0B0B0B' } : { border: '1px solid #4A4840', color: '#FFFFFF' }}>
+                      style={c.cso_audience ? { background: '#FBFAF7', color: '#15171A' } : { border: '1px solid #2E3238', color: '#FBFAF7' }}>
                       CSO audience {c.cso_audience ? 'on' : 'off'}
                     </button>
-                    <button onClick={() => rename(c)} disabled={busy || campaignBusy === c.id} title="Rename campaign" className="p-2 text-white hover:text-[#DEE42F]"><Pencil className="w-4 h-4" /></button>
+                    <button onClick={() => rename(c)} disabled={busy || campaignBusy === c.id} title="Rename campaign" className="p-2 text-white hover:text-[#D9442A]"><Pencil className="w-4 h-4" /></button>
                     <button onClick={() => removeCampaign(c, teasers.length)} disabled={busy || campaignBusy === c.id}
                       title={teasers.length ? 'Only an empty campaign can be deleted' : 'Delete campaign'}
-                      className="p-2 text-white hover:text-[#DEE42F]" style={{ opacity: teasers.length ? 0.35 : 1 }}><Trash2 className="w-4 h-4" /></button>
+                      className="p-2 text-white hover:text-[#D9442A]" style={{ opacity: teasers.length ? 0.35 : 1 }}><Trash2 className="w-4 h-4" /></button>
                   </div>
                   <div className="dc-stack" style={{ marginTop: 2 }}>
                     {teasers.length === 0
-                      ? <div className="dc-block text-[#68655B] text-sm">No teasers in this campaign yet.</div>
+                      ? <div className="dc-block text-[#5B6068] text-sm">No teasers in this campaign yet.</div>
                       : [...teasers].sort((a, b) => (b.result?.overall ?? -1) - (a.result?.overall ?? -1)).map(t => <TeaserRow key={t.id} t={t} />)}
                   </div>
                 </div>
@@ -15380,9 +15380,9 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
             })}
             {showUnassigned && (
               <div data-campaign="unassigned">
-                <div className="bg-white" style={{ padding: '14px 18px', borderLeft: '6px solid #DEE42F' }}>
+                <div className="bg-white" style={{ padding: '14px 18px', borderLeft: '6px solid #D9442A' }}>
                   <div style={{ fontWeight: 700, fontSize: 17 }}>Unassigned</div>
-                  <div className="text-xs text-[#68655B]" style={{ marginTop: 4 }}>Run before campaigns existed. Open each one and move it to a campaign.</div>
+                  <div className="text-xs text-[#5B6068]" style={{ marginTop: 4 }}>Run before campaigns existed. Open each one and move it to a campaign.</div>
                 </div>
                 <div className="dc-stack" style={{ marginTop: 2 }}>
                   {unassigned.map(t => <TeaserRow key={t.id} t={t} />)}
@@ -15982,10 +15982,10 @@ function AppContent() {
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#F2F0EA] flex items-center justify-center">
+      <div className="min-h-screen bg-[#FBFAF7] flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#B23A3A]" />
-          <p className="mt-4 text-[#68655B]">Loading...</p>
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#C23B22]" />
+          <p className="mt-4 text-[#5B6068]">Loading...</p>
         </div>
       </div>
     );
@@ -16013,7 +16013,7 @@ function AppContent() {
   // #teaser sees the normal shell, and RLS refuses the tables to them.
   if (showTeaserPage && canTeaser(profile)) {
     return (
-      <div className="min-h-screen bg-[#F2F0EA]">
+      <div className="min-h-screen bg-[#FBFAF7]">
         <Header
           onNewAssessment={handleNewAssessment}
           onGoHome={handleGoHome}
@@ -16037,7 +16037,7 @@ function AppContent() {
   // Show Stay Conscious page
   if (showStayConsciousPage) {
     return (
-      <div className="min-h-screen bg-[#F2F0EA]">
+      <div className="min-h-screen bg-[#FBFAF7]">
         <Header 
           onNewAssessment={handleNewAssessment}
           onGoHome={handleGoHome}
@@ -16065,7 +16065,7 @@ function AppContent() {
   // Show comparison page
   if (showComparisonPage) {
     return (
-      <div className="min-h-screen bg-[#F2F0EA]">
+      <div className="min-h-screen bg-[#FBFAF7]">
         <Header 
           onNewAssessment={handleNewAssessment}
           onGoHome={handleGoHome} 
@@ -16098,7 +16098,7 @@ function AppContent() {
   // Show compass results page
   if (showResultsPage) {
     return (
-      <div className="min-h-screen bg-[#F2F0EA]">
+      <div className="min-h-screen bg-[#FBFAF7]">
         <Header 
           onNewAssessment={handleNewAssessment}
           onGoHome={handleGoHome} 
@@ -16131,7 +16131,7 @@ function AppContent() {
   // Show saved assessments page
   if (showSavedPage) {
     return (
-      <div className="min-h-screen bg-[#F2F0EA]">
+      <div className="min-h-screen bg-[#FBFAF7]">
         <Header 
           onNewAssessment={handleNewAssessment}
           onGoHome={handleGoHome} 
@@ -16169,7 +16169,7 @@ function AppContent() {
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
   return (
-    <div className="min-h-screen bg-[#F2F0EA]">
+    <div className="min-h-screen bg-[#FBFAF7]">
       {/* Onboarding Tour */}
       {showOnboarding && !isReadonly && (
         <OnboardingTour onComplete={() => setShowOnboarding(false)} />
@@ -16209,22 +16209,22 @@ function AppContent() {
           {/* Draft restore banner */}
           {currentStep === 0 && draftRestoreOffer && (
             <div className="dc-wrap" style={{ padding: '24px 32px 0' }}>
-              <div className="flex items-start gap-4 bg-white px-5 py-4" style={{ borderLeft: '6px solid #DEE42F' }}>
+              <div className="flex items-start gap-4 bg-white px-5 py-4" style={{ borderLeft: '6px solid #D9442A' }}>
                                 <div className="flex-1 min-w-0">
-                  <p className="text-[17px] font-bold tracking-tight text-[#0B0B0B]">Unsaved assessment found</p>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#68655B] mt-1.5">
+                  <p className="text-[17px] font-bold tracking-tight text-[#15171A]">Unsaved assessment found</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#5B6068] mt-1.5">
                     <strong>{draftRestoreOffer.project.brandName}</strong> — Step {draftRestoreOffer.currentStep} of 5 · Last saved {new Date(draftRestoreOffer.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                   </p>
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={() => restoreDraft(draftRestoreOffer)}
-                      className="px-4 py-1.5 text-xs font-semibold bg-[#0B0B0B] text-white hover:bg-[#333333] transition-colors"
+                      className="px-4 py-1.5 text-xs font-semibold bg-[#15171A] text-white hover:bg-[#333333] transition-colors"
                     >
                       Resume assessment
                     </button>
                     <button
                       onClick={clearDraft}
-                      className="px-4 py-1.5 text-xs font-medium border border-[#DCDAD3] text-[#4A4840] hover:bg-[#E4E2DC] transition-colors"
+                      className="px-4 py-1.5 text-xs font-medium border border-[#DEDAD2] text-[#2E3238] hover:bg-[#DEDAD2] transition-colors"
                     >
                       Discard
                     </button>

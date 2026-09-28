@@ -268,3 +268,41 @@ test('one stage framework, shared by both', async () => {
   const teaser = readFileSync(new URL('../src/lib/teaser.js', import.meta.url), 'utf8');
   assert.ok(teaser.includes('stagePromptBlock'));
 });
+
+// ── UI system migration (v3.61) ──
+
+test('the app runs on the new tokens, with the old names aliased rather than left dangling', () => {
+  const css = read('src/index.css');
+  assert.ok(css.includes('--cc-paper: #FBFAF7'), 'new tokens present');
+  assert.ok(css.includes('--cc-rust: #D9442A'), 'rust is the screen accent');
+  // every old Antenna variable now resolves to a new token
+  for (const name of ['--antenna-paper', '--antenna-ink', '--antenna-body', '--antenna-muted', '--antenna-faint', '--antenna-rule', '--antenna-lime', '--antenna-error']) {
+    assert.ok(new RegExp(name + ':\\s*var\\(--cc-').test(css), `${name} aliased`);
+  }
+});
+
+test('the retired palette is gone from the app', () => {
+  const retired = ['#0B0B0B', '#4A4840', '#68655B', '#B3B0A8', '#DCDAD3', '#F2F0EA', '#DEE42F', '#E4E2DC', '#B23A3A'];
+  retired.forEach(hex => {
+    const uses = (app.match(new RegExp(hex, 'gi')) || []).length;
+    assert.equal(uses, 0, `${hex} still used ${uses} times`);
+  });
+});
+
+test('fonts are self-hosted, so the app loads no external stylesheet', () => {
+  const css = read('src/index.css');
+  assert.ok(!css.includes('fonts.googleapis.com'), 'no Google Fonts import');
+  assert.ok(css.includes("@font-face"), 'faces declared locally');
+  ['newsreader-400.woff2', 'hanken-400.woff2', 'hanken-500.woff2', 'hanken-600.woff2', 'hanken-700.woff2']
+    .forEach(f => assert.ok(css.includes(f), f));
+  assert.ok(!/fontFamily: 'Inter/.test(app), 'no on-screen Inter left');
+});
+
+test('the print artefacts keep their own palette and are untouched by the restyle', () => {
+  const card = read('src/lib/cardVector.js');
+  const slide = read('src/lib/slideVector.js');
+  assert.ok(card.includes('#D9E021'), 'the card keeps lime');
+  assert.ok(slide.includes('D9E021'), 'the slide keeps lime');
+  const report = read('src/lib/teaserReport.js');
+  assert.ok(report.includes('#D9442A') && report.includes('#FBFAF7'), 'the read is unchanged');
+});
