@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.71.0';
+const APP_VERSION = '3.73.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -2478,47 +2478,37 @@ function CompletionIndicator({ items }) {
   );
 }
 
-// Progress Steps
-function ProgressSteps({ currentStep, steps, assessments }) {
+// Progress Steps, to the handoff: six steps on a rule, each naming its own
+// state in words so the reading never depends on colour. Below 720px it
+// becomes "Step 2 of 6 · Website" with a segmented bar.
+function ProgressSteps({ currentStep, steps }) {
+  const stateOf = (i) => (i < currentStep ? 'is-done' : i === currentStep ? 'is-current' : '');
+  const label = (i) => (i < currentStep ? 'Done' : i === currentStep ? 'In progress' : 'Not started');
+  const next = steps[currentStep + 1];
   return (
-    <div className="bg-white border-b border-[#DEDAD2] py-3 md:py-4 px-4 md:px-6">
+    <nav className="dc-steps" aria-label="Assessment progress">
       <div className="dc-wrap">
-        {/* Desktop Progress */}
-        {/* Steps read as a tracked ledger with a lime rule under the
-            completed span, not as numbered circles. */}
-        <div className="hidden md:grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0,1fr))` }}>
+        <ol>
           {steps.map((step, i) => (
-            <div key={step.id} className="pt-2" style={{ borderTop: `3px solid ${i <= currentStep ? '#D9442A' : '#DEDAD2'}` }}>
-              <div className="flex items-center gap-1.5">
-                {i < currentStep && <Check className="w-3 h-3 text-[#15171A]" />}
-                <span className={`text-[10px] font-bold tracking-[0.12em] uppercase ${
-                  i === currentStep ? 'text-[#15171A]' : i < currentStep ? 'text-[#2E3238]' : 'text-[#8A8E95]'
-                }`}>{step.label || step.name || step.id}</span>
-              </div>
-            </div>
+            <li key={step.id} className={stateOf(i)} {...(i === currentStep ? { 'aria-current': 'step' } : {})}>
+              <b>{step.name}</b><span>{label(i)}</span>
+            </li>
           ))}
-        </div>
-        
-        {/* Mobile Progress */}
-        <div className="md:hidden flex items-center justify-between">
-          <span className="text-sm font-medium text-[#15171A]">
-            Step {currentStep} of {steps.length - 1}: {steps[currentStep]?.name}
-          </span>
-          <div className="flex items-center gap-1">
-            {steps.slice(1).map((_, i) => (
-              <div 
-                key={i}
-                className={`w-2 h-0.5 ${i < currentStep ? 'bg-[#D9442A]' : i === currentStep - 1 ? 'bg-[#D9442A]' : 'bg-[#DEDAD2]'}`}
-              />
-            ))}
+        </ol>
+        <div className="dc-steps-compact">
+          <div>
+            <strong>Step {currentStep + 1} of {steps.length} · {steps[currentStep]?.name}</strong>
+            {next && <span className="dc-meta">Next: {next.name}</span>}
+          </div>
+          <div className="dc-steps-bar">
+            {steps.map((step, i) => <i key={step.id} className={stateOf(i)} />)}
           </div>
         </div>
       </div>
-    </div>
+    </nav>
   );
 }
 
-// Welcome Page
 function WelcomePage({ onStart }) {
   const [animate, setAnimate] = useState(false);
 
@@ -3883,27 +3873,15 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
   return (
     <div className="dc-wrap dc-page animate-fade-in">
       <MobileAssessmentBanner />
-      <div className="flex items-start gap-4 mb-6">
-        <div>
-          <h2 className="dc-h2">Website Assessment</h2>
-          <p className="dc-standfirst">{project.brandName} · {project.websiteUrl}</p>
-        </div>
+      <div className="dc-page-head">
+        <div className="dc-kicker is-accent">Step 2 of 6 · Website</div>
+        <h1 className="dc-display">Website assessment</h1>
+        <p className="dc-standfirst">
+          {project.brandName}{project.websiteUrl ? <> · <a href={project.websiteUrl} target="_blank" rel="noopener noreferrer">{project.websiteUrl}</a></> : null}
+        </p>
       </div>
 
       <CompletionIndicator items={completionItems} />
-
-      {/* Headline technical stats, per the design: the numbers that decide
-          Attentive and Cogent, surfaced at the top rather than buried.
-          These mirror the Technical Performance Audit below exactly, same four
-          metrics under the same labels. They previously showed a different
-          subset, which read as two sections disagreeing about the same site. */}
-      <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', marginBottom: 2 }}>
-        <StatBlock value={assessmentData.techAudit?.scores?.performance} label="Performance" />
-        <StatBlock value={assessmentData.techAudit?.scores?.accessibility} label="Accessibility" />
-        <StatBlock value={assessmentData.techAudit?.scores?.bestPractices} label="Best practices" />
-        <StatBlock value={assessmentData.techAudit?.scores?.seo} label="SEO" />
-        <StatBlock value={seoVisibilityScore} label="SEO visibility" />
-      </div>
 
       {/* Auto-Assess Website */}
       <div className="dc-panel-dark mb-[2px]">
@@ -9005,7 +8983,7 @@ ${content.slice(0, 8000)}`;
         </div>
 
         <div className="dc-kicker is-accent" style={{ marginTop: 28 }}>
-          Compass report \u00B7 {project.brandName}
+          Compass report · {project.brandName}
         </div>
         <h1 className="dc-display" style={{ marginTop: 16, maxWidth: 900 }}>
           {scores?.headline || project.brandName}
@@ -9838,7 +9816,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                     onClick={() => toggleRow(r.id || i)}
                   >
                     <div className="min-w-0 dc-rescell-brand">
-                      <div className="dc-mark" style={{ background: scoreColor(r.totalScore) }} />
+                      <div className="dc-brand-mark" style={{ background: 'var(--cc-ink)' }} />
                       <div className="min-w-0">
                       <div className="text-[15px] font-semibold truncate">{r.brandName}</div>
                       <div className="text-[11px] text-[#8A8E95] mt-0.5">
@@ -9854,12 +9832,16 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       </div>
                       </div>
                     </div>
-                    <div className="dc-col-hide text-[13px] text-[#2E3238] truncate">{r.industry}</div>
-                    <div className="dc-rescell-score">
-                      <span className="dc-resnum" style={{ color: scoreColor(r.totalScore) }}>{r.totalScore}</span>
-                      <span className="dc-resbar"><i style={{ width: `${Math.max(0, Math.min(100, r.totalScore))}%`, background: scoreColor(r.totalScore) }} /></span>
+                    <div className="dc-col-hide text-[13px] text-[#2E3238] truncate">
+                      {INDUSTRIES.find(x => x.id === r.industry)?.name || r.industry}
                     </div>
-                    <div className="dc-col-hide text-[13px] font-semibold">{r.maturityLevel}</div>
+                    <div className="dc-rescell-score">
+                      <span className="dc-resnum">{r.totalScore}</span>
+                      <span className="dc-resbar"><i style={{ width: `${Math.max(0, Math.min(100, r.totalScore))}%` }} /></span>
+                    </div>
+                    <div className="dc-col-hide">
+                      <span className="dc-pill" data-band={String(r.maturityLevel || '').toLowerCase().replace(/\s+/g, '-')}>{r.maturityLevel}</span>
+                    </div>
                     <div className="dc-col-hide text-[13px] text-[#5B6068] text-right">
                       {assessmentDate ? assessmentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
                     </div>
@@ -12283,13 +12265,12 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
         </div>
       </div>
 
-      {/* Sharing tip */}
+      {/* The blue tip box was off-palette. The same guidance reads as a meta
+          line above the list, where it does not compete with the rows. */}
       {!isReadonly && (
-        <div className="bg-[#F0F7FF] border border-[#BFDBFE] px-4 py-3 mb-5">
-          <p className="text-xs text-[#1E40AF]">
-            <strong>Sharing tip:</strong> Use the <strong>Share</strong> button to copy a link others can view, or <strong>Export</strong> to download a JSON backup.
-          </p>
-        </div>
+        <p className="dc-meta" style={{ marginBottom: 20 }}>
+          Share copies a link others can view. Export downloads a JSON backup.
+        </p>
       )}
 
       {loadError && assessments.length > 0 && <RefreshFailedBanner onRetry={onRetry} />}
@@ -12384,7 +12365,8 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                         )}
                       </div>
                       <div className="dc-listrow-m">
-                        {[industryName, maturity?.name, a.project.date ? `saved ${a.project.date}` : null]
+                        {[industryName, maturity?.name,
+                          a.project.date ? `saved ${new Date(a.project.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : null]
                           .filter(Boolean).join(' · ') || '—'}
                       </div>
                     </div>

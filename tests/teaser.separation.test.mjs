@@ -317,9 +317,9 @@ test('a CSS comment can never swallow the token block again', () => {
     assert.ok(!body.includes('*/'), `comment closes early: ${c.slice(0, 60)}`);
   });
   // and the tokens are still declared after all of them
-  // the screens are 1440 wide with 80px padding, so content runs to 1280
-  assert.match(css, /--cc-page-max:\s*1440px/);
-  assert.match(css, /--cc-gutter:\s*80px/);
+  // the handoff's own build files run 1280 wide with 48px padding
+  assert.match(css, /--cc-page-max:\s*1280px/);
+  assert.match(css, /--cc-gutter:\s*48px/);
 });
 
 test('the visible furniture is styled by the new system, not left on the old rules', () => {
@@ -379,7 +379,7 @@ test('the shell and form rules match the screen examples', () => {
   const css = read('src/index.css');
   assert.match(css, /\.dc-header \{[^}]*height: 64px/);
   assert.match(css, /\.dc-nav-active \{[^}]*border-bottom: 2px solid var\(--cc-rust-text/);
-  assert.match(css, /--cc-gutter: 80px/, 'the screens use 80px page padding');
+  assert.match(css, /--cc-gutter: 48px/, "the handoff's build files use 48px page padding");
   // fields: 44px, hairline, 2px radius, everywhere rather than per screen
   assert.match(css, /\.dc-page select \{ height: 44px; \}/);
   assert.match(css, /border: 1px solid var\(--cc-faint, #8A8E95\)/);
@@ -426,7 +426,7 @@ test('numerals are set in the serif at regular weight, never heavy sans', () => 
 test('the results table follows screen C: dense rows, a brand mark and a bar beside the score', () => {
   const css = read('src/index.css');
   assert.match(css, /\.dc-results-row \{[^}]*min-height: 40px/, '40px rows, as the screen specifies');
-  assert.match(css, /\.dc-mark \{[^}]*width: 7px[^}]*rotate\(45deg\)/, 'the 7px diamond');
+  assert.match(css, /\.dc-brand-mark \{[^}]*width: 7px[^}]*rotate\(45deg\)/, 'the 7px diamond');
   assert.match(css, /\.dc-resnum \{[^}]*tabular-nums/, 'numbers line up');
   assert.match(css, /\.dc-resbar \{[^}]*height: 3px/);
   assert.match(css, /\.dc-results-head \{[^}]*border-bottom: 1px solid var\(--cc-ink/);
@@ -435,6 +435,7 @@ test('the results table follows screen C: dense rows, a brand mark and a bar bes
   assert.ok(row.includes('--cc-sans'), 'table numerals stay in the sans so columns align');
   // and the markup carries the mark and the bar
   assert.ok(app.includes('dc-rescell-brand'), 'the brand cell carries the mark');
+  assert.ok(app.includes('dc-brand-mark'), 'renamed so it cannot clash with the header wordmark');
   assert.ok(app.includes('dc-resbar'), 'the score carries a bar');
 });
 
@@ -448,4 +449,54 @@ test('the report masthead follows screen B', () => {
   // the old treatment is gone
   assert.ok(!head.includes('Conscious Compass Assessment \u00B7'), 'the old subtitle is replaced');
   assert.ok(!head.includes("clamp(40px,6vw,88px)"), 'the hand-set hero size is gone');
+});
+
+test('the stepper follows the handoff: state in words, not colour alone', () => {
+  const steps = app.slice(app.indexOf('function ProgressSteps'), app.indexOf('function ProgressSteps') + 2200);
+  assert.ok(steps.includes('className="dc-steps"'), 'the handoff class');
+  assert.ok(steps.includes("'Done'") && steps.includes("'In progress'") && steps.includes("'Not started'"),
+    'each step names its own state');
+  assert.ok(steps.includes('aria-current'), 'the current step is announced');
+  assert.ok(steps.includes('dc-steps-compact') && steps.includes('dc-steps-bar'), 'the narrow-screen form');
+  assert.ok(!steps.includes('Check className'), 'the tick icon is gone, as the notes ask');
+  const css = read('src/index.css');
+  assert.match(css, /\.dc-steps li\.is-current \{ border-color: var\(--cc-rust\)/);
+});
+
+test('the website step opens the way the handoff has it', () => {
+  const page = app.slice(app.indexOf('function WebsiteAssessment'), app.indexOf('function SocialMediaAssessment'));
+  const head = page.slice(page.indexOf('dc-page-head'), page.indexOf('CompletionIndicator'));
+  assert.ok(head.includes('dc-kicker is-accent') && head.includes('Step 2 of 6'), 'rust kicker with the step');
+  assert.ok(head.includes('className="dc-display"'), 'the title is the display serif');
+  assert.ok(head.includes('dc-standfirst'), 'brand and site as the standfirst');
+  // the duplicated score row at the top is gone; those numbers live in the audit
+  assert.ok(!page.includes('label="SEO visibility"'), 'the top score summary is removed');
+});
+
+test('no unicode escape is left sitting in JSX text, where it prints literally', () => {
+  // \u00B7 inside a JS string is a middle dot; in JSX text it is six characters.
+  const inText = [...app.matchAll(/>\s*[^<>{}]*\\u[0-9A-Fa-f]{4}[^<>{}]*</g)].map(m => m[0].trim());
+  assert.deepEqual(inText, [], `escapes printed as text: ${inText.join(' | ')}`);
+});
+
+test('handoff v2 corrections are applied where they were called out', () => {
+  const css = read('src/index.css');
+  // six bands, not four, and the band is always written in the chip
+  ['pre-foundational', 'foundational', 'establishing', 'differentiating', 'leading', 'transforming']
+    .forEach(b => assert.ok(css.includes(`data-band="${b}"`), `${b} chip`));
+  // the wordmark and the brand diamond no longer share a class
+  assert.ok(css.includes('.dc-wordmark'), 'header wordmark');
+  assert.ok(css.includes('.dc-brand-mark'), 'brand diamond renamed');
+  assert.ok(!app.includes('className="dc-mark"'), 'nothing still uses the clashing name');
+
+  // results: meaning no longer rests on colour
+  const results = app.slice(app.indexOf('function CompassResultsPage'), app.indexOf('function ComparisonPage'));
+  assert.ok(!/dc-resnum" style=\{\{ color: scoreColor/.test(results), 'the score number is ink');
+  assert.ok(results.includes('dc-pill" data-band='), 'the band travels in a chip');
+  assert.ok(results.includes("INDUSTRIES.find(x => x.id === r.industry)"), 'sector shows its label, not its key');
+
+  // saved: the off-palette tip is gone
+  const saved = app.slice(app.indexOf('function SavedAssessmentsPage'), app.indexOf('function ClientReportView'));
+  assert.ok(!saved.includes('#F0F7FF'), 'the blue tip box is removed');
+  assert.ok(saved.includes("toLocaleDateString('en-GB'"), 'dates read as 31 Aug 2026');
 });
