@@ -352,3 +352,24 @@ test('headings that set their own type still use the serif, not a stray weight',
 test('no stray palette outside the system', () => {
   assert.ok(!app.includes('bg-blue-50'), 'the sharing tip used a default blue');
 });
+
+test('the charts are on the new palette, on screen and in the export', () => {
+  // the old neon lime and olive are gone from every chart
+  ['#E2E65A', '#E8FF00', '#6B6B00', '#efede9'].forEach(hex =>
+    assert.ok(!app.toUpperCase().includes(hex.toUpperCase()), `${hex} still in a chart`));
+  const radar = app.slice(app.indexOf('function SpiderChart'), app.indexOf('function SpiderChart') + 5000);
+  assert.match(radar, /fill="#D9442A" fillOpacity="0\.14"/, 'the polygon is rust at the report opacity');
+  assert.match(radar, /stroke="#DEDAD2"/, 'rings are hairlines');
+  // and the chart drawn for the exported report matches the screen one
+  assert.ok(app.includes('fill="#D9442A" fill-opacity="0.14"'), 'exported radar matches');
+});
+
+test('the strength highlight sits under the words rather than through them', () => {
+  assert.ok(!app.includes("inset 0 -.5em 0 #D9442A"), 'a solid bar at half height reads as a strikethrough');
+  assert.match(app, /inset 0 -\.32em 0 rgba\(217, 68, 42, \.22\)/);
+});
+
+test('no default framework colours are left in the app', () => {
+  ['#F59E0B', '#D97706', '#6366F1', '#E53935', '#059669'].forEach(hex =>
+    assert.ok(!app.toUpperCase().includes(hex), `${hex} is a framework default, not a token`));
+});

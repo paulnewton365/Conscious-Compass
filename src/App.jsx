@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.64.0';
+const APP_VERSION = '3.65.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -388,7 +388,7 @@ function AdminPage({ currentUser, onBack }) {
               <div className="space-y-3">
                 {users.filter(u => u.is_approved).map(user => {
                   const isSelf = user.id === currentUser.id;
-                  const roleColor = user.is_admin ? 'bg-[#D9442A]' : user.is_readonly ? 'bg-[#8A8E95]' : user.is_biz ? 'bg-[#0B6E4F]' : 'bg-[#2F6B55]';
+                  const roleColor = user.is_admin ? 'bg-[#D9442A]' : user.is_readonly ? 'bg-[#8A8E95]' : user.is_biz ? 'bg-[#2F6B55]' : 'bg-[#2F6B55]';
                   const roleLabel = user.is_admin ? 'Admin' : user.is_readonly ? 'Read-only' : user.is_biz ? 'Business' : 'Full Access';
                   return (
                     <div key={user.id} className="bg-white border border-[#DEDAD2] p-5">
@@ -437,7 +437,7 @@ function AdminPage({ currentUser, onBack }) {
                               title="Business users get the teaser without admin rights"
                               className={`text-sm px-3 py-1.5 border transition-colors ${
                                 user.is_biz
-                                  ? 'border-[#0B6E4F] text-[#0B6E4F] hover:bg-[#0B6E4F]/10'
+                                  ? 'border-[#2F6B55] text-[#2F6B55] hover:bg-[#2F6B55]/10'
                                   : 'border-[#DEDAD2] text-[#5B6068] hover:border-[#15171A]'
                               }`}>
                               {user.is_biz ? 'Remove Teaser Access' : 'Grant Teaser Access'}
@@ -968,20 +968,20 @@ function SpiderChart({ scores, size = 400, animate = true }) {
   const pointsString = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
 
   return (
-    <div style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: '#efede9' }}>
+    <div style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: 'var(--cc-paper, #FBFAF7)' }}>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -50 652 552" style={{ width: '100%', height: '100%' }}>
 
         {/* Background rings */}
         {[...RING_PATHS].reverse().map((path, i) => (
           <path key={`ring-${i}`} d={path}
-            fill={i % 2 === 0 ? '#e1dfda' : '#f7f6f4'} stroke="none" />
+            fill={i % 2 === 0 ? 'var(--cc-track, #E7E3DB)' : 'var(--cc-paper, #FBFAF7)'} stroke="none" />
         ))}
 
         {/* Data shape */}
-        <polygon points={pointsString} fill="#E2E65A" stroke="#C23B22" strokeWidth="1" />
+        <polygon points={pointsString} fill="#D9442A" fillOpacity="0.14" stroke="#D9442A" strokeWidth="1.5" strokeLinejoin="round" />
 
         {/* Grid outlines */}
-        <path d={RING_PATHS.join('')} stroke="#15171A" strokeWidth="1.5" fill="none" />
+        <path d={RING_PATHS.join('')} stroke="#DEDAD2" strokeWidth="1" fill="none" />
 
         {/* Centre axis lines */}
         {data.map((_, i) => {
@@ -996,7 +996,7 @@ function SpiderChart({ scores, size = 400, animate = true }) {
         {/* Data point circles */}
         {dataPoints.map((point, i) => (
           <circle key={`pt-${i}`} cx={point.x} cy={point.y} r="4"
-            fill="#C23B22" stroke="white" strokeWidth="1.5"
+            fill="#D9442A" stroke="#FBFAF7" strokeWidth="1.5"
             style={{ opacity: progress }} />
         ))}
 
@@ -1009,7 +1009,7 @@ function SpiderChart({ scores, size = 400, animate = true }) {
               x={point.x + offset * Math.cos(angle)}
               y={point.y + offset * Math.sin(angle)}
               textAnchor="middle" dominantBaseline="middle"
-              style={{ fontSize: '13px', fontWeight: '700', fill: '#6B6B00', opacity: progress }}>
+              style={{ fontSize: '13px', fontWeight: '700', fill: '#C23B22', opacity: progress }}>
               {data[i].rawValue}
             </text>
           );
@@ -2077,7 +2077,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
         </div>
 
         {/* Track */}
-        <div className="absolute left-0 right-0 h-2 bg-gradient-to-r from-[#94A3B8] via-[#D97706] to-[#6366F1] opacity-25" style={{ top: 38 }} />
+        <div className="absolute left-0 right-0 h-2 bg-gradient-to-r from-[#94A3B8] via-[#8C5A0B] to-[#5B6068] opacity-25" style={{ top: 38 }} />
         {MATURITY_STAGES.slice(1).map(st => (
           <div key={st.id} className="absolute w-px h-2 bg-[#C0BDB8]" style={{ left: `${st.min}%`, top: 38 }} />
         ))}
@@ -2085,7 +2085,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
         {/* Sector average, first label row */}
         <div className="absolute z-10" style={{ left: `${cohort}%`, top: 34, transform: 'translateX(-50%)' }}>
           <div className="w-0.5 h-5 bg-[#C23B22] mx-auto" />
-          <div className="text-[10px] font-semibold text-[#6B6B00] whitespace-nowrap text-center mt-0.5">
+          <div className="text-[10px] font-semibold text-[#5B6068] whitespace-nowrap text-center mt-0.5">
             {isSector ? 'sector' : 'average'} {cohort}
           </div>
         </div>
@@ -2671,10 +2671,10 @@ function MobileAssessmentBanner() {
   return (
     <div className="sm:hidden mb-5 flex items-start gap-3 bg-[#FFFBEB] border border-[#FCD34D] px-4 py-3">
       <span className="text-lg leading-none mt-0.5">💡</span>
-      <p className="flex-1 text-xs text-[#92400E] leading-relaxed">
+      <p className="flex-1 text-xs text-[#8C5A0B] leading-relaxed">
         <strong>Best on a larger screen.</strong> This assessment is designed for tablet or desktop. You can continue on mobile, but the experience will be better with more space.
       </p>
-      <button onClick={() => setDismissed(true)} className="text-[#B45309] hover:text-[#92400E] flex-shrink-0 mt-0.5">
+      <button onClick={() => setDismissed(true)} className="text-[#B45309] hover:text-[#8C5A0B] flex-shrink-0 mt-0.5">
         <X className="w-4 h-4" />
       </button>
     </div>
@@ -3065,7 +3065,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
   const scoreColor = (s) => {
     if (s == null) return '#DEDAD2';
     if (s >= 80) return '#2F6B55';
-    if (s >= 50) return '#F59E0B';
+    if (s >= 50) return '#8C5A0B';
     return '#C23B22';
   };
 
@@ -3073,7 +3073,7 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
     if (!text) return null;
     const m = text.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i);
     if (!m) return null;
-    return m[1].toLowerCase() === 'low' ? '#2F6B55' : m[1].toLowerCase() === 'medium' ? '#F59E0B' : '#C23B22';
+    return m[1].toLowerCase() === 'low' ? '#2F6B55' : m[1].toLowerCase() === 'medium' ? '#8C5A0B' : '#C23B22';
   };
 
   const extractRisk = (text) => {
@@ -3215,7 +3215,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
     if (score === '' || score === undefined || score === null) return '#5B6068';
     const num = parseInt(score);
     if (num >= 90) return '#2F6B55'; // Green - Good
-    if (num >= 50) return '#D97706'; // Amber - Needs Improvement
+    if (num >= 50) return '#8C5A0B'; // Amber - Needs Improvement
     return '#DC2626'; // Red - Poor
   };
 
@@ -6152,7 +6152,7 @@ function ReportGlanceSection({ project, scores, overall, stage, sortedAttrs, cha
 
                 <p className="text-[16px]" style={{ maxWidth: '52ch', lineHeight: 1.75 }}>
                   <b className="font-bold">{project.brandName}</b> demonstrates strength in{' '}
-                  <span className="font-bold" style={{ boxShadow: 'inset 0 -.5em 0 #D9442A' }}>
+                  <span className="font-bold" style={{ boxShadow: 'inset 0 -.32em 0 rgba(217, 68, 42, .22)' }}>
                     {sortedAttrs.slice(-2).map(a => a.name).join(' and ')}
                   </span>, with opportunities to grow in{' '}
                   <span className="font-bold" style={{ borderBottom: '2px dotted #5B6068' }}>
@@ -8216,7 +8216,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         const scoreLabels = pts.map((pt, i) => {
           const a = (i * 2 * Math.PI / data.length) - Math.PI / 2;
           const sx = (+pt.x + 18 * Math.cos(a)).toFixed(2), sy = (+pt.y + 18 * Math.sin(a)).toFixed(2);
-          return `<text x="${sx}" y="${sy}" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700" fill="#6B6B00">${data[i].value}</text>`;
+          return `<text x="${sx}" y="${sy}" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700" fill="#C23B22">${data[i].value}</text>`;
         }).join('');
         const attrLabels = data.map((item, i) => {
           const p = calcLabel(i, data.length, 260);
@@ -8225,7 +8225,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         const cx = (226 + 100).toFixed(2), cy = (226 + 50).toFixed(2);
         const centre = `<circle cx="${cx}" cy="${cy}" r="36" fill="#C23B22"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="26" font-weight="700" fill="#15171A">${overall}</text>`;
         // viewBox starts at 0,0 — total size 652x552
-        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 652 552" width="652" height="552"><rect width="652" height="552" fill="#efede9"/>${rings}<polygon points="${ptStr}" fill="#E2E65A" stroke="#C23B22" stroke-width="1"/>${grid}${axes}${dots}${scoreLabels}${attrLabels}${centre}</svg>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 652 552" width="652" height="552"><rect width="652" height="552" fill="#FBFAF7"/>${rings}<polygon points="${ptStr}" fill="#D9442A" fill-opacity="0.14" stroke="#D9442A" stroke-width="1.5"/>${grid}${axes}${dots}${scoreLabels}${attrLabels}${centre}</svg>`;
       };
 
       // ── Maturity bar SVG ───────────────────────────────────────
@@ -10056,7 +10056,7 @@ function OnboardingTour({ onComplete }) {
                 localStorage.setItem('conscious-compass-onboarded', 'true');
                 onComplete();
               }}
-              className="w-full text-center text-sm text-[#5B6068] mt-4 hover:text-[#E8FF00] transition-colors"
+              className="w-full text-center text-sm text-[#5B6068] mt-4 hover:text-[#D9442A] transition-colors"
             >
               Skip tour
             </button>
@@ -10123,11 +10123,11 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
     // Score distribution (for histogram)
     const scoreDistribution = [
       { range: '0-25', label: 'Pre-Foundational', count: results.filter(r => r.totalScore <= 25).length, color: '#94A3B8' },
-      { range: '26-39', label: 'Foundational', count: results.filter(r => r.totalScore > 25 && r.totalScore <= 39).length, color: '#F59E0B' },
-      { range: '40-55', label: 'Establishing', count: results.filter(r => r.totalScore > 39 && r.totalScore <= 55).length, color: '#D97706' },
+      { range: '26-39', label: 'Foundational', count: results.filter(r => r.totalScore > 25 && r.totalScore <= 39).length, color: '#8C5A0B' },
+      { range: '40-55', label: 'Establishing', count: results.filter(r => r.totalScore > 39 && r.totalScore <= 55).length, color: '#8C5A0B' },
       { range: '56-69', label: 'Differentiating', count: results.filter(r => r.totalScore > 55 && r.totalScore <= 69).length, color: '#2F6B55' },
       { range: '70-84', label: 'Leading', count: results.filter(r => r.totalScore > 69 && r.totalScore <= 84).length, color: '#0D9488' },
-      { range: '85-100', label: 'Transforming', count: results.filter(r => r.totalScore > 84).length, color: '#6366F1' },
+      { range: '85-100', label: 'Transforming', count: results.filter(r => r.totalScore > 84).length, color: '#5B6068' },
     ];
     
     return {
@@ -10220,7 +10220,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
           <div className="text-sm text-[#5B6068]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
         </div>
         <div className="card text-center">
-          <div className="text-lg font-bold text-[#F59E0B] mb-1 flex items-center justify-center gap-1">
+          <div className="text-lg font-bold text-[#8C5A0B] mb-1 flex items-center justify-center gap-1">
             <TrendingDown className="w-5 h-5" />
             {ATTRIBUTES.find(a => a.id === portfolioStats.weakestAttr[0])?.name}
           </div>
@@ -10264,7 +10264,7 @@ function InsightsView({ results, industryBenchmarks, industries, isAdmin = false
         <div className="flex items-start justify-between mb-4 gap-4">
           <div>
             <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
-              <Lightbulb className="w-5 h-5 text-[#E8FF00]" style={{filter: 'drop-shadow(0 0 2px #E8FF00)'}} /> Story Opportunities
+              <Lightbulb className="w-5 h-5 text-[#D9442A]"  /> Story Opportunities
             </h3>
             <p className="text-xs text-[#5B6068] mt-1">Thought leadership angles from your assessment data. Refreshes automatically every Sunday night.</p>
             {refreshedAt && (
@@ -10602,7 +10602,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
         <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] gap-8 items-start">
 
           {/* Octagon — fixed width, left aligned */}
-          <div style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: '#efede9' }}>
+          <div style={{ width: '100%', aspectRatio: '1/1', position: 'relative', backgroundColor: 'var(--cc-paper, #FBFAF7)' }}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -50 652 552" style={{ width: '100%', height: '100%' }}>
 
               {/* Background rings — alternating fill, matching SpiderChart */}
@@ -10700,7 +10700,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   <text key={`avg-${i}`}
                     x={x + 16 * Math.cos(angle)} y={y + 16 * Math.sin(angle)}
                     textAnchor="middle" dominantBaseline="middle"
-                    style={{ fontSize: '11px', fontWeight: '700', fill: '#6B6B00',
+                    style={{ fontSize: '11px', fontWeight: '700', fill: '#C23B22',
                       opacity: animProgress, fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>
                     {overallAvg[attr.id] || 0}
                   </text>
@@ -10767,7 +10767,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 <div className="text-sm font-semibold text-[#15171A]">All sectors avg</div>
                 <div className="text-xs text-[#666]">{filteredResults.length} brands</div>
               </div>
-              <span className="text-xl font-bold text-[#6B6B00] tabular-nums">{overallScore}</span>
+              <span className="text-xl font-bold text-[#5B6068] tabular-nums">{overallScore}</span>
             </div>
 
             {sectors.map(sector => {
@@ -10814,7 +10814,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               <div className="text-xs font-semibold text-[#15171A] text-right leading-tight pr-1">{attr.name}</div>
               <div className="relative h-9 flex items-center" style={{ overflow: 'visible' }}>
                 {/* Background track */}
-                <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6]" />
+                <div className="absolute left-0 right-0 h-0.5 bg-[#E7E3DB]" />
                 {/* Stage markers */}
                 {[25, 40, 56, 70, 85].map(mark => (
                   <div key={mark} className="absolute w-px h-3 bg-[#DEDAD2]"
@@ -10898,7 +10898,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               <div className="flex-shrink-0 flex items-center" style={{ width: 220 }}>
                 <svg width="220" height="44" viewBox="0 0 220 44">
                   {/* track */}
-                  <line x1="10" y1="22" x2="210" y2="22" stroke="#ECEAE6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="10" y1="22" x2="210" y2="22" stroke="#E7E3DB" strokeWidth="2" strokeLinecap="round" />
                   {/* range bar */}
                   <rect x="60" y="18" width="100" height="8" rx="4" fill="rgba(229,57,53,0.18)" />
                   {/* mean line */}
@@ -10910,7 +10910,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                   {/* sector dot C */}
                   <circle cx="155" cy="22" r="6" fill="#388E3C" stroke="white" strokeWidth="2" />
                   {/* annotations */}
-                  <text x="120" y="8" textAnchor="middle" style={{ fontSize: '8px', fill: '#6B6B00', fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontWeight: 700 }}>avg</text>
+                  <text x="120" y="8" textAnchor="middle" style={{ fontSize: '8px', fill: '#C23B22', fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontWeight: 700 }}>avg</text>
                   <text x="70" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#C23B22', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>sector</text>
                   <text x="110" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#1976D2', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>sector</text>
                   <text x="155" y="38" textAnchor="middle" style={{ fontSize: '7.5px', fill: '#388E3C', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>sector</text>
@@ -10984,7 +10984,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                 {/* Track */}
                 <div className="relative h-9 flex items-center" style={{ overflow: 'visible' }}>
                   {/* Background track */}
-                  <div className="absolute left-0 right-0 h-0.5 bg-[#ECEAE6]" />
+                  <div className="absolute left-0 right-0 h-0.5 bg-[#E7E3DB]" />
                   {/* Stage markers */}
                   {[25, 40, 56, 70, 85].map(mark => (
                     <div key={mark} className="absolute w-px h-3 bg-[#DEDAD2]"
@@ -11055,7 +11055,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-shrink-0 flex items-center" style={{ width: 220 }}>
                 <svg width="220" height="44" viewBox="0 0 220 44">
-                  <line x1="10" y1="22" x2="210" y2="22" stroke="#ECEAE6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="10" y1="22" x2="210" y2="22" stroke="#E7E3DB" strokeWidth="2" strokeLinecap="round" />
                   <rect x="50" y="18" width="110" height="8" rx="4" fill="rgba(229,57,53,0.18)" />
                   <line x1="115" y1="10" x2="115" y2="34" stroke="#C23B22" strokeWidth="2.5" strokeLinecap="round" />
                   <circle cx="60" cy="22" r="5" fill="#C23B22" stroke="white" strokeWidth="2" />
@@ -11129,7 +11129,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
                     return (
                       <div key={attr.id}
                         className={`p-1.5 text-center ${isTop ? 'bg-[#15171A]' : isBot ? 'bg-[#FBFAF7]' : 'bg-[#FBFAF7]'}`}>
-                        <div className={`text-[9px] font-semibold leading-none mb-0.5 ${isTop ? 'text-[#E2E65A]' : 'text-[#999]'}`}>
+                        <div className={`text-[9px] font-semibold leading-none mb-0.5 ${isTop ? 'text-[#F06A4E]' : 'text-[#999]'}`}>
                           {attr.name.slice(0, 3).toUpperCase()}
                         </div>
                         <div className={`text-sm font-bold leading-none tabular-nums ${isTop ? 'text-white' : isBot ? 'text-[#BBB]' : 'text-[#15171A]'}`}>
@@ -11187,7 +11187,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               onClick={forceRefreshLandscapeAI}
               disabled={landscapeAIRefreshing || landscapeAILoading}
               className="flex-shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ backgroundColor: '#E8FF00', color: '#15171A' }}
+              style={{ backgroundColor: '#D9442A', color: '#15171A' }}
             >
               {landscapeAIRefreshing ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Refreshing…</>
@@ -11206,7 +11206,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 
         {landscapeAILoading && (
           <div className="mt-6 text-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3" style={{ color: '#E8FF00' }} />
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3" style={{ color: '#D9442A' }} />
             <p className="text-sm text-[#666]">Loading analysis…</p>
           </div>
         )}
@@ -11222,7 +11222,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
         {landscapeAI && !landscapeAILoading && (
           <div className="mt-5 space-y-4">
             <div className="p-4 " style={{ backgroundColor: 'rgba(232,255,0,0.08)', border: '1px solid rgba(232,255,0,0.2)' }}>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#E8FF00' }}>Landscape Summary</div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#D9442A' }}>Landscape Summary</div>
               {landscapeAI.headline && (
                 <p className="font-bold leading-snug mb-2" style={{ color: '#FBFAF7', fontSize: '1.05rem' }}>{landscapeAI.headline}</p>
               )}
@@ -13577,9 +13577,9 @@ function SharedReportView({ report, onClose }) {
           if (conflicts.length === 0) return null;
 
           return (
-            <div className="card mb-[2px] border-l-4 border-[#F59E0B]">
+            <div className="card mb-[2px] border-l-4 border-[#8C5A0B]">
               <div className="flex items-center gap-2 mb-4">
-                <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0" />
+                <AlertCircle className="w-5 h-5 text-[#8C5A0B] flex-shrink-0" />
                 <h3 className="dc-kicker text-[#15171A]">SIGNAL CONFLICTS</h3>
               </div>
               <p className="text-sm text-[#5B6068] mb-4">These tensions between attribute scores indicate where the brand's performance tells contradictory stories. Each represents a diagnostic insight, not just a gap.</p>
@@ -13587,10 +13587,10 @@ function SharedReportView({ report, onClose }) {
                 {conflicts.map((c, i) => (
                   <div key={i} className="bg-[#FFFBEB] border border-[#FDE68A] p-4">
                     <div className="flex items-start justify-between mb-2 gap-3">
-                      <h4 className="font-semibold text-[#92400E] text-sm leading-snug">{c.title}</h4>
+                      <h4 className="font-semibold text-[#8C5A0B] text-sm leading-snug">{c.title}</h4>
                       <div className="flex gap-1.5 flex-shrink-0">
                         {c.attributes.map((attr, ai) => (
-                          <span key={attr} className="text-[10px] font-bold px-2 py-0.5 bg-[#FEF3C7] text-[#92400E]">
+                          <span key={attr} className="text-[10px] font-bold px-2 py-0.5 bg-[#FEF3C7] text-[#8C5A0B]">
                             {attr} {c.scores[ai]}
                           </span>
                         ))}
@@ -13799,10 +13799,10 @@ function SharedReportView({ report, onClose }) {
 const STAY_CONSCIOUS_CATEGORIES = ['AI Visibility', 'Digital Experience', 'Brand Strategy', 'Earned Media', 'Social Signals', 'Assessment Practice'];
 
 const CATEGORY_META = {
-  'AI Visibility':      { color: '#6366F1', bg: '#6366F115' },
+  'AI Visibility':      { color: '#5B6068', bg: '#5B606815' },
   'Digital Experience': { color: '#0EA5E9', bg: '#0EA5E915' },
   'Brand Strategy':     { color: '#C23B22', bg: '#C23B2215' },
-  'Earned Media':       { color: '#F59E0B', bg: '#F59E0B15' },
+  'Earned Media':       { color: '#8C5A0B', bg: '#8C5A0B15' },
   'Social Signals':     { color: '#2F6B55', bg: '#10B98115' },
   'Assessment Practice':{ color: '#15171A', bg: '#8B5CF615' },
 };
@@ -13874,10 +13874,10 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
     : null;
 
   const CATEGORY_COLORS = {
-    'AI Visibility':       '#6366F1',
+    'AI Visibility':       '#5B6068',
     'Digital Experience':  '#0EA5E9',
     'Brand Strategy':      '#C23B22',
-    'Earned Media':        '#F59E0B',
+    'Earned Media':        '#8C5A0B',
     'Social Signals':      '#2F6B55',
     'Assessment Practice': '#15171A',
   };
@@ -14232,8 +14232,8 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
         {/* Loading */}
         {(loading || refreshing) && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-12 h-12 bg-[#6366F1]/10 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-[#6366F1] animate-spin" />
+            <div className="w-12 h-12 bg-[#5B6068]/10 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-[#5B6068] animate-spin" />
             </div>
             <p className="text-sm text-[#5B6068]">{refreshing ? 'Composing this week\'s edition...' : 'Loading newsletter...'}</p>
           </div>
