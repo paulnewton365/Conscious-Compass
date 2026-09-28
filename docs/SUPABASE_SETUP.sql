@@ -195,6 +195,11 @@ alter table public.teaser_campaigns
 alter table public.teaser_assessments
   add column if not exists hero_image text;
 
+-- v3.56: company stage (startup, scaleup, leader, multinational,
+-- conglomerate, global). Decides which evidence is fair to expect.
+alter table public.teaser_assessments
+  add column if not exists stage text;
+
 alter table public.teaser_assessments
   add column if not exists campaign_id uuid references public.teaser_campaigns(id) on delete restrict;
 

@@ -195,6 +195,7 @@ test('empty form is rejected before any network call', async () => {
   await click(run);
   assert.ok(container.textContent.includes('Choose a campaign.'));
   assert.ok(container.textContent.includes('Choose a sector.'));
+  assert.ok(container.textContent.includes('Choose a company stage.'));
   assert.ok(container.textContent.includes('Brand name is required.'));
   assert.equal(log.filter(l => !l.url.startsWith('/version.json')).length, 0, 'no gathering or scoring; the version check on open is expected');
   await act(async () => root.unmount());
@@ -210,6 +211,7 @@ test('full run: evidence saved before scoring, then scored result saved and show
   await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
   await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
   await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
+  await selectValue(container.querySelector('[data-field="stage"]'), 'scaleup');
   await typeInto(container.querySelector('textarea'), 'SENTINEL_CONTEXT brief');
   const run = [...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser'));
   await click(run);
@@ -225,6 +227,7 @@ test('full run: evidence saved before scoring, then scored result saved and show
   assert.equal(saves[0].created_by_name, 'Paul Newton');
   assert.equal(saves[0].campaign_id, 'c-1', 'teaser saved into the chosen campaign');
   assert.equal(saves[0].industry, 'energy');
+  assert.equal(saves[0].stage, 'scaleup');
   const expected = logic.finaliseTeaser(logic.parseTeaserScoring(await scoringJson()));
   assert.equal(saves[1].result.overall, expected.overall, 'saved overall is the code-computed overall');
   assert.deepEqual(saves[1].result.lensScores, expected.lensScores);
@@ -254,6 +257,7 @@ test('a failed scoring pass keeps the gathered evidence and says so', async () =
   await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
   await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
   await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
+  await selectValue(container.querySelector('[data-field="stage"]'), 'scaleup');
   await click([...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser')));
   for (let i = 0; i < 20; i++) await act(flush);
   const saves = stub.calls.filter(c => c[0] === 'saveTeaser');
@@ -460,7 +464,7 @@ test('baselines are recalculated at every export, so two downloads reflect the d
 
   assert.equal(stub.calls.filter(c => c[0] === 'fetchCompassResults').length, 2, 'full results fetched fresh for each export');
   const [first, second] = [await sheetOf(blobs[0]), await sheetOf(blobs[1])];
-  const baselineCell = (xml) => Number(xml.match(/<c r="F5" s="\d+"><v>(-?\d+)<\/v>/)[1]);
+  const baselineCell = (xml) => Number(xml.match(/<c r="G5" s="\d+"><v>(-?\d+)<\/v>/)[1]);
   assert.equal(baselineCell(first), 50);
   assert.equal(baselineCell(second), 60, 'new full assessment moves the baseline');
   assert.ok(first.includes('Energy &amp; Utilities'));
@@ -570,6 +574,7 @@ test('an out-of-date tab cannot start a new teaser either', async () => {
   await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
   await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
   await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
+  await selectValue(container.querySelector('[data-field="stage"]'), 'scaleup');
   await click(btn(container, b => b.textContent.includes('Run teaser')));
   for (let i = 0; i < 10; i++) await act(flush);
   assert.equal(log.filter(l => l.url === '/api/claude' || l.url.startsWith('/api/scrape')).length, 0, 'no gathering or scoring');
@@ -699,6 +704,7 @@ test('running a teaser in a CSO campaign adds the sustainability scan and record
   await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
   await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
   await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
+  await selectValue(container.querySelector('[data-field="stage"]'), 'scaleup');
   await click(btn(container, b => b.textContent.includes('Run teaser')));
   for (let i = 0; i < 20; i++) await act(flush);
   const searches = log.filter(l => l.url === '/api/claude' && l.body.useWebSearch);
@@ -856,6 +862,7 @@ test('a business user runs teasers exactly like an admin', async () => {
   await typeInto(container.querySelector('[data-field="brand"]'), 'Acme');
   await typeInto(container.querySelector('[data-field="url"]'), 'acme.com');
   await selectValue(container.querySelector('[data-field="industry"]'), 'energy');
+  await selectValue(container.querySelector('[data-field="stage"]'), 'scaleup');
   await click([...container.querySelectorAll('button')].find(b => b.textContent.includes('Run teaser')));
   for (let i = 0; i < 20; i++) await act(flush);
   const saved = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];

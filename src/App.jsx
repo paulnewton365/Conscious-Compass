@@ -9,7 +9,8 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.55.0';
+const APP_VERSION = '3.56.0';
+import { STAGES, findStage } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -14854,7 +14855,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
               {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <div className="text-sm text-[#68655B]" style={{ lineHeight: 1.5 }}>
-              {String(record.business_model || '').toUpperCase()}{industryNameFull ? ` · ${industryNameFull}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? new Date(record.evidence.gatheredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'never'}{record.converted_at ? ` · converted to full assessment ${new Date(record.converted_at).toLocaleDateString('en-US')}` : ''}
+              {String(record.business_model || '').toUpperCase()}{industryNameFull ? ` · ${industryNameFull}` : ''}{findStage(record.stage) ? ` · ${findStage(record.stage).name}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? new Date(record.evidence.gatheredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'never'}{record.converted_at ? ` · converted to full assessment ${new Date(record.converted_at).toLocaleDateString('en-US')}` : ''}
             </div>
           </div>
 
@@ -14947,7 +14948,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
 }
 
 function TeaserPage({ user, profile, apiKey, onConvert }) {
-  const blank = { brandName: '', websiteUrl: '', businessModel: 'b2b', industry: '', context: '', campaignId: '' };
+  const blank = { brandName: '', websiteUrl: '', businessModel: 'b2b', industry: '', stage: '', context: '', campaignId: '' };
   const [list, setList] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [listLoading, setListLoading] = useState(true);
@@ -15018,7 +15019,9 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     brandName: rec.brand_name,
     websiteUrl: rec.website_url,
     businessModel: rec.business_model,
+    industry: rec.industry,
     industryName: INDUSTRIES.find(i => i.id === rec.industry && i.id !== 'other')?.name || '',
+    stage: rec.stage || null,
     context: rec.context || '',
   });
 
@@ -15071,6 +15074,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
         website_url: normaliseUrl(form.websiteUrl),
         business_model: form.businessModel,
         industry: form.industry,
+        stage: form.stage,
         context: form.context.trim(),
         created_by: user?.id,
         created_by_name: profile?.full_name || user?.email || '',
@@ -15086,7 +15090,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       saved = await scoreAndSave(saved);
       setOpen(saved);
       // Keep the campaign selected: teasers usually come in batches.
-      setForm({ ...blank, campaignId: form.campaignId, industry: form.industry });
+      setForm({ ...blank, campaignId: form.campaignId, industry: form.industry, stage: form.stage });
       load();
     } catch (e) {
       setError(e.message);
@@ -15345,6 +15349,16 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
               {INDUSTRIES.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
             <p className="text-xs text-[#68655B] mt-1">Sets the sector baseline, drawn from full assessments. Other compares against all full assessments.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#0B0B0B] mb-2">Company stage *</label>
+            <select className={inputCls} value={form.stage} disabled={busy} data-field="stage" onChange={e => setForm({ ...form, stage: e.target.value })}>
+              <option value="">Choose a stage</option>
+              {STAGES.map(st => <option key={st.id} value={st.id}>{st.name} · {st.subtitle}</option>)}
+            </select>
+            <p className="text-xs text-[#68655B] mt-1">
+              {findStage(form.stage)?.indicator || 'Decides what evidence is fair to expect. A startup is not marked down for having no Glassdoor reviews or analyst coverage.'}
+            </p>
           </div>
         </div>
         <div style={{ marginTop: 16 }}>

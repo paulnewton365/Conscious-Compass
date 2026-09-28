@@ -15,6 +15,7 @@
 import { ATTRIBUTES } from '../data/rubric.js';
 import { TEASER_VERSION, isCurrentMethod } from './teaser.js';
 import { THESIS_TENETS, levelLabel } from '../data/thesis.js';
+import { findStage } from '../data/stages.js';
 import { loadJSZip } from './lazyZip.js';
 
 const LENSES = [['credibility', 'Credibility'], ['trust', 'Trust'], ['reputation', 'Reputation'], ['authenticity', 'Authenticity']];
@@ -23,7 +24,10 @@ export const EXPORT_COLUMNS = [
   { key: 'brand', label: 'Brand', width: 26 },
   { key: 'website', label: 'Website', width: 30 },
   { key: 'overall', label: 'Overall', width: 10, score: true },
-  { key: 'stage', label: 'Stage', width: 17 },
+  // Two different things: the maturity band the score falls into, and the
+  // company's stage of evolution.
+  { key: 'maturity', label: 'Maturity', width: 17 },
+  { key: 'companyStage', label: 'Stage', width: 16 },
   { key: 'sector', label: 'Sector', width: 22 },
   { key: 'baseline', label: 'Sector baseline (full assessments)', width: 13, score: true },
   { key: 'vsBaseline', label: 'Vs baseline', width: 10, signed: true },
@@ -77,7 +81,8 @@ export function buildCampaignRows(teasers, baselines = {}) {
   const rows = (teasers || []).map(t => {
     const r = t.result;
     if (!r) {
-      return { brand: t.brand_name, website: t.website_url, overall: null, stage: 'Not scored', scoredAt: null,
+      return { brand: t.brand_name, website: t.website_url, overall: null, maturity: 'Not scored', scoredAt: null,
+        companyStage: findStage(t.stage)?.name || '',
         ...baselineCells(baselines[t.id], null),
         ...thesisCells(null),
         ...Object.fromEntries(LENSES.map(([k]) => [k, null])), ...Object.fromEntries(ATTRIBUTES.map(a => [a.id, null])),
@@ -87,7 +92,8 @@ export function buildCampaignRows(teasers, baselines = {}) {
       brand: t.brand_name,
       website: t.website_url,
       overall: r.overall,
-      stage: r.stage || '',
+      maturity: r.stage || '',
+      companyStage: findStage(t.stage)?.name || '',
       ...baselineCells(baselines[t.id], r.overall),
       ...thesisCells(r.scores?.sustainabilityNarrative),
       ...Object.fromEntries(LENSES.map(([k]) => [k, r.lensScores?.[k] ?? null])),
@@ -197,7 +203,7 @@ function scoresSheet(campaignName, rows, exportedAt, cols = EXPORT_COLUMNS) {
       const v = row[c.key];
       if (c.score) return cell(ref, v, bandStyle(v));
       if (c.signed) return cell(ref, v, S.signed);
-      if (c.key === 'stage' && row.overall === null) return cell(ref, v, S.muted);
+      if (c.key === 'maturity' && row.overall === null) return cell(ref, v, S.muted);
       return cell(ref, v, c.wrap ? S.wrap : S.text);
     });
     xml.push(`<row r="${r}">${cells.join('')}</row>`);
@@ -229,7 +235,7 @@ const NOTES = [
   'Low-confidence attributes counts scores resting on thin evidence. Limited evidence is flagged when three or more attributes are low confidence.',
   'Services indicated lists the marketing services this read argues for, led by the Conscious Compass service catalogue and ordered by the weakest attributes. An entry marked (proposed) is not a standing service: the read argued for it for that brand specifically. A full assessment sets the depth and the order.',
   'Scoring method shows which version scored each brand. Brands marked Earlier were scored before calibration; rescore them before comparing rows.',
-  'Not scored means evidence was gathered but the teaser has not been scored yet.',
+  'Not scored means evidence was gathered but the teaser has not been scored yet. Maturity is the band the overall score falls into; Stage is where the company sits in its own evolution (Startup through Global Brand), which decides what evidence the read expects of it.',
 ];
 
 function notesSheet() {

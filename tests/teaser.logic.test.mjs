@@ -9,7 +9,7 @@ import {
 import { ATTRIBUTES, computeTrustLenses, getMaturityStage } from '../src/data/rubric.js';
 import { TEASER_VERSION, isCurrentMethod } from '../src/lib/teaser.js';
 
-const input = { campaignId: 'c-1', industry: 'energy', brandName: 'Acme', websiteUrl: 'acme.com', businessModel: 'b2b', industryName: 'Energy & Utilities', context: '' };
+const input = { campaignId: 'c-1', industry: 'energy', stage: 'scaleup', brandName: 'Acme', websiteUrl: 'acme.com', businessModel: 'b2b', industryName: 'Energy & Utilities', context: '' };
 const LONG = 'Substantive evidence text about the brand that is comfortably longer than forty characters.';
 
 // A model response scoring every attribute. `over` overrides per attribute.
@@ -58,6 +58,8 @@ test('validateTeaserInput requires a campaign, brand, a real URL and a known bus
   assert.deepEqual(validateTeaserInput({ ...input, campaignId: '' }), ['Choose a campaign.']);
   assert.deepEqual(validateTeaserInput({ ...input, industry: '' }), ['Choose a sector.']);
   assert.deepEqual(validateTeaserInput({ ...input, industry: 'other' }), [], 'Other is a valid choice');
+  assert.deepEqual(validateTeaserInput({ ...input, stage: '' }), ['Choose a company stage.']);
+  assert.deepEqual(validateTeaserInput({ ...input, stage: 'unicorn' }), ['Choose a company stage.']);
   assert.equal(validateTeaserInput({ ...input, brandName: ' ' }).length, 1);
   assert.equal(validateTeaserInput({ ...input, websiteUrl: 'nope' }).length, 1);
   assert.equal(validateTeaserInput({ ...input, businessModel: 'd2c' }).length, 1);
@@ -255,7 +257,7 @@ test('a campaign read returned by the model never moves a score, at any level', 
 
 test('results carry the method version; earlier results are recognised as outdated', () => {
   const r = finaliseTeaser(parseTeaserScoring(modelJson()));
-  assert.equal(TEASER_VERSION, '2.3', 'new business framing: opportunity and services');
+  assert.equal(TEASER_VERSION, '2.4', 'new business framing: opportunity and services');
   assert.equal(r.teaserVersion, TEASER_VERSION);
   assert.equal(isCurrentMethod(r), true);
   assert.equal(isCurrentMethod({ ...r, teaserVersion: '1.0' }), false);
@@ -486,4 +488,71 @@ test('the prompt leads with the catalogue and allows one addition', () => {
   assert.match(p, /you may add ONE service of your own/);
   assert.match(p, /never as the first entry/);
   assert.ok(!/only services you may name/.test(p), 'the catalogue is no longer a closed list');
+});
+
+// ── Company stage and sector calibration (v3.56) ──
+
+import { STAGES, findStage, stagePromptBlock } from '../src/data/stages.js';
+import { buildSocialPrompt } from '../src/lib/teaser.js';
+import { sectorPromptBlock, findSectorProfile } from '../src/data/sectorProfiles.js';
+
+test('the six stages are the Antenna framework, each with what to judge instead', () => {
+  assert.deepEqual(STAGES.map(s => s.id), ['startup', 'scaleup', 'leader', 'multinational', 'conglomerate', 'global']);
+  STAGES.forEach(s => {
+    assert.ok(s.what && s.reality && s.indicator, `${s.id} described`);
+    assert.ok(s.instead.length >= 2, `${s.id} says what to judge instead`);
+    assert.ok(s.services.length > 40, `${s.id} steers the services`);
+  });
+  assert.equal(findStage('startup').subtitle, 'The Experiment');
+  assert.equal(findStage('nope'), null);
+});
+
+test('a startup is not marked down for evidence it cannot have yet', () => {
+  const p = stagePromptBlock('startup');
+  ['Glassdoor', 'Employee advocacy', 'Wikipedia', 'litigation'].forEach(t => assert.ok(p.includes(t), t));
+  assert.match(p, /NEITHER FOR NOR AGAINST/);
+  assert.match(p, /Do not describe them as gaps, and do not recommend fixing them/);
+  assert.match(p, /Founder visibility/);
+  assert.match(p, /Hold the same scoring anchors/, 'the standard itself does not move');
+});
+
+test('a global brand is held to everything', () => {
+  const p = stagePromptBlock('global');
+  assert.match(p, /expected to show the full range of evidence/);
+  assert.ok(!p.includes('NEITHER FOR NOR AGAINST'));
+  assert.equal(stagePromptBlock(null), '', 'no stage means no stage guidance, not a guessed one');
+});
+
+test('real estate is read by its own conventions, not cleantech ones', () => {
+  const p = sectorPromptBlock('realestate', 'Real Estate & Construction');
+  assert.match(p, /Brokers and agents/);
+  assert.match(p, /project and property pages/);
+  assert.match(p, /Consumer social reach/, 'named as a weak indicator here');
+  assert.match(p, /Precise and business-like/);
+  assert.match(p, /LEED|BREEAM/, 'sustainability judged as building performance');
+  assert.ok(!/thought leadership volume/i.test(p));
+});
+
+test('a sector without a profile is not read as though it were cleantech', () => {
+  const p = sectorPromptBlock('hospitality', 'Hospitality & Travel');
+  assert.match(p, /No written profile exists/);
+  assert.match(p, /Do not mark a brand down for lacking activity its sector does not use/);
+  assert.equal(findSectorProfile('hospitality'), null);
+  assert.ok(findSectorProfile('energy'), 'cleantech has one');
+});
+
+test('the scoring prompt carries stage and sector, and ties services to the stage', () => {
+  const p = buildTeaserScoringPrompt({ ...input, industry: 'realestate', industryName: 'Real Estate & Construction', stage: 'startup' }, fullEvidence());
+  assert.match(p, /COMPANY STAGE: STARTUP/);
+  assert.match(p, /SECTOR: Real Estate & Construction/);
+  assert.match(p, /Services must fit the stage/);
+  assert.match(p, /do not recommend fixing something the stage guidance says is not yet expected/);
+  // the evidence scans know the stage too
+  assert.match(buildSocialPrompt({ ...input, stage: 'startup' }), /at the Startup stage/);
+});
+
+test('the result records the company stage, separately from the maturity band', async () => {
+  const r = await scoreTeaser({ ...input, stage: 'scaleup' }, fullEvidence(), { callScoring: async () => modelJson() });
+  assert.equal(r.companyStage, 'scaleup');
+  assert.ok(r.stage && r.stage !== 'scaleup', 'maturity band is its own thing');
 });

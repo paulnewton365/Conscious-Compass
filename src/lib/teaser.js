@@ -28,15 +28,20 @@ import {
   ATTRIBUTES, FRAMEWORK_VERSION, SERVICE_RECOMMENDATIONS, computeTrustLenses, getMaturityStage,
 } from '../data/rubric.js';
 import { thesisPromptBlock, THESIS_SCHEMA, parseThesis } from '../data/thesis.js';
+import { stagePromptBlock, findStage, STAGE_IDS } from '../data/stages.js';
+import { sectorPromptBlock } from '../data/sectorProfiles.js';
 
 // 2.0 (v3.32): scoring calibrated to what a teaser can observe, and no
 // campaign modifier. Results carry the version so teasers scored with 1.0
 // are flagged until rescored.
+// 2.4 (v3.56): stage and sector calibration. What a company at its stage
+// would not yet have counts neither for nor against, and each sector is read
+// by its own conventions.
 // 2.3 (v3.55): written for new business. The read names the commercial
 // opportunity and the marketing services that would lift the score, led by
 // the framework's own catalogue, with room for one service beyond it where
 // the evidence argues for something the catalogue does not cover.
-export const TEASER_VERSION = '2.3';
+export const TEASER_VERSION = '2.4';
 export const isCurrentMethod = (result) => !!result && result.teaserVersion === TEASER_VERSION;
 
 // Sources in the order they are shown while a teaser runs. `required` sources
@@ -89,6 +94,8 @@ export function validateTeaserInput(input) {
   if (!['b2b', 'b2c', 'b2b2c'].includes(input?.businessModel)) errors.push('Choose a business model.');
   // The sector baseline depends on it. "Other" is allowed and falls back to all brands.
   if (!input?.industry) errors.push('Choose a sector.');
+  // Stage decides which evidence is fair to expect of this company.
+  if (!input?.stage || !STAGE_IDS.includes(input.stage)) errors.push('Choose a company stage.');
   return errors;
 }
 
@@ -98,8 +105,10 @@ export function validateTeaserInput(input) {
 
 const NO_INVENTION = 'Where you cannot find something, write "Not found". Never invent accounts, follower counts, outlets, headlines or ratings. Absence is a finding, report it plainly.';
 
-const brandLine = (input) =>
-  `The brand is ${input.brandName} (${normaliseUrl(input.websiteUrl)}), a ${String(input.businessModel).toUpperCase()} business${input.industryName ? ` in ${input.industryName}` : ''}.`;
+const brandLine = (input) => {
+  const stage = findStage(input.stage);
+  return `The brand is ${input.brandName} (${normaliseUrl(input.websiteUrl)}), a ${String(input.businessModel).toUpperCase()} business${input.industryName ? ` in ${input.industryName}` : ''}${stage ? `, at the ${stage.name} stage (${stage.what})` : ''}.`;
+};
 
 export function buildSocialPrompt(input) {
   return `${brandLine(input)}
@@ -363,6 +372,10 @@ ${sourceBlock('REVIEWS, SEARCH AND COMMUNITY', s.thirdParty, 'third-party signal
 ${sourceBlock('EARNED MEDIA', s.earned, 'web-searched scan')}
 ${isCso(input) ? `\n${sourceBlock('SUSTAINABILITY NARRATIVE', s.sustainability, 'web-searched scan of sustainability claims, progress and candour')}\n` : ''}
 
+${stagePromptBlock(input.stage)}
+
+${sectorPromptBlock(input.industry, input.industryName)}
+
 SCORING RUBRIC. Score each attribute 0 to 100:
 
 ${ATTRIBUTES.map(a => `${a.id} (${a.fullName})
@@ -394,6 +407,7 @@ AUDIENCE. This read is for a Chief Sustainability Officer or impact leader at th
 - "summary" is the topline for a senior reader: verdict first, then the one tension that most defines this brand's standing. Three or four sentences.
 - "opportunity" is the commercial read, two or three sentences, written for the person who runs this brand's marketing: what the scores say is being left on the table, what shifting it would unlock commercially, and the size of the gap between what the brand has built and how well that is landing. Ground it in the evidence. No flattery, no pitch language, no promises about results.
 - "services" names two or three marketing services that would move the weakest parts of this score. Work from the catalogue below first, by exact title, weakest attributes first, and do not pick a service whose problem you did not observe. For each, "why" is one sentence of under 30 words tying it to what this pass saw in THIS brand, not a description of the service.
+- Services must fit the stage. Do not recommend work that assumes a function, a bench or an audience this company does not have yet, and do not recommend fixing something the stage guidance says is not yet expected.
 - Where the evidence argues for work the catalogue does not cover, you may add ONE service of your own. Set "beyondCatalogue" to true on it, give it a plain, specific name a marketer would recognise (no invented product names), and list in "attributes" the Compass attributes it would lift. Use this only when a catalogue service genuinely does not fit, and never as the first entry.
 - "fullAssessmentWouldResolve" names two or three specific questions this pass could not settle and a full assessment would. Specific to this brand, never generic.
 - Stay diagnostic. Name what the evidence supports, and leave the depth, sequencing and effort to the full assessment.
@@ -499,7 +513,9 @@ export function parseTeaserScoring(raw) {
 }
 
 // Every number the report shows is derived here, in code.
-export function finaliseTeaser(parsed, { audience = 'general' } = {}) {
+// `companyStage` is the six-stage framework; `stage` below is the maturity
+// band the score falls into. Different things, kept apart by name.
+export function finaliseTeaser(parsed, { audience = 'general', companyStage = null } = {}) {
   // Scores stand exactly as the scoring pass gave them: no campaign modifier
   // and no adjustment of any kind.
   const scores = parsed;
@@ -524,6 +540,7 @@ export function finaliseTeaser(parsed, { audience = 'general' } = {}) {
     frameworkVersion: FRAMEWORK_VERSION,
     teaserVersion: TEASER_VERSION,
     audience,
+    companyStage,
     scoredAt: new Date().toISOString(),
   };
 }
@@ -538,7 +555,7 @@ export async function scoreTeaser(input, evidence, { callScoring }) {
     throw new Error(`${why} Refresh the evidence and try again.`);
   }
   const raw = await callScoring(buildTeaserScoringPrompt(input, evidence));
-  return finaliseTeaser(parseTeaserScoring(raw), { audience: isCso(input) ? 'cso' : 'general' });
+  return finaliseTeaser(parseTeaserScoring(raw), { audience: isCso(input) ? 'cso' : 'general', companyStage: input.stage || null });
 }
 
 // ── Client payload ─────────────────────────────────────────────

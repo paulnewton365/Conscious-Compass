@@ -30,7 +30,7 @@ const teaser = (name, overall, extra = {}) => ({
 test('rows: scored brands highest first, unscored last and alphabetical, none dropped', () => {
   const rows = buildCampaignRows([teaser('Mid', 55), teaser('Zed', null), teaser('Top', 72), teaser('Abe', null), teaser('Low', 30)]);
   assert.deepEqual(rows.map(r => r.brand), ['Top', 'Mid', 'Low', 'Abe', 'Zed']);
-  assert.equal(rows[3].stage, 'Not scored');
+  assert.equal(rows[3].maturity, 'Not scored');
   assert.equal(rows[3].overall, null);
 });
 
@@ -60,7 +60,7 @@ test('colour bands match the app exactly at every boundary', () => {
 
 test('columns cover everything asked for, in order', () => {
   const labels = EXPORT_COLUMNS.map(c => c.label);
-  assert.deepEqual(labels.slice(0, 4), ['Brand', 'Website', 'Overall', 'Stage']);
+  assert.deepEqual(labels.slice(0, 6), ['Brand', 'Website', 'Overall', 'Maturity', 'Stage', 'Sector']);
   const c = labels.indexOf('Credibility');
   assert.deepEqual(labels.slice(c, c + 4), ['Credibility', 'Trust', 'Reputation', 'Authenticity']);
   ATTRIBUTES.forEach(a => assert.ok(labels.includes(a.name), a.name));
@@ -139,9 +139,9 @@ test('JSZip is loaded on demand through one resolver, not imported at the top of
 
 const sectorBaseline = { available: true, scope: 'industry', sectorName: 'Energy & Utilities', avgScore: 58, count: 12, basis: 'Sector full assessments' };
 
-test('baseline columns sit after Stage, in order', () => {
+test('baseline columns sit after the sector, in order', () => {
   const labels = EXPORT_COLUMNS.map(c => c.label);
-  assert.deepEqual(labels.slice(3, 9), ['Stage', 'Sector', 'Sector baseline (full assessments)', 'Vs baseline', 'Full assessments in baseline', 'Baseline basis']);
+  assert.deepEqual(labels.slice(3, 10), ['Maturity', 'Stage', 'Sector', 'Sector baseline (full assessments)', 'Vs baseline', 'Full assessments in baseline', 'Baseline basis']);
 });
 
 test('baseline row values: difference is overall minus baseline; unscored brands still get their baseline', () => {
@@ -169,9 +169,9 @@ test('Vs baseline is written as a signed number; baseline carries score colours'
   assert.ok(files['xl/styles.xml'].includes('formatCode="+0;-0;0"'));
   const sheet = files['xl/worksheets/sheet1.xml'];
   const cellStyle = (ref) => sheet.match(new RegExp(`<c r="${ref}" s="(\\d+)"`))[1];
-  assert.match(sheet, /<c r="G5" s="11"><v>3<\/v><\/c>/, 'Up: 61 vs 58 is +3');
-  assert.match(sheet, /<c r="G6" s="11"><v>-18<\/v><\/c>/, 'Down: 40 vs 58 is -18');
-  assert.equal(cellStyle('F5'), String(bandStyle(58)), 'baseline banded like any score');
+  assert.match(sheet, /<c r="H5" s="11"><v>3<\/v><\/c>/, 'Up: 61 vs 58 is +3');
+  assert.match(sheet, /<c r="H6" s="11"><v>-18<\/v><\/c>/, 'Down: 40 vs 58 is -18');
+  assert.equal(cellStyle('G5'), String(bandStyle(58)), 'baseline banded like any score');
   assert.ok(sheet.includes('Sector baselines calculated from full assessments on this date'));
   const parsed = new (new JSDOM('').window.DOMParser)().parseFromString(files['xl/styles.xml'], 'application/xml');
   assert.equal(parsed.getElementsByTagName('parsererror').length, 0);
@@ -240,4 +240,14 @@ test('a service proposed beyond the catalogue is marked in the download', () => 
   t.result.scores.services = [{ title: 'Strategic Media Relations' }, { title: 'Partner Co-marketing Program', beyondCatalogue: true }];
   const [row] = buildCampaignRows([t]);
   assert.equal(row.services, 'Strategic Media Relations; Partner Co-marketing Program (proposed)');
+});
+
+
+test('the download separates maturity from company stage', () => {
+  const t = teaser('Acme', 61); t.stage = 'scaleup';
+  const [row] = buildCampaignRows([t]);
+  assert.equal(row.maturity, 'Establishing', 'the band the score falls into');
+  assert.equal(row.companyStage, 'Scaleup', 'where the company is in its evolution');
+  const [noStage] = buildCampaignRows([teaser('Beta', 50)]);
+  assert.equal(noStage.companyStage, '');
 });

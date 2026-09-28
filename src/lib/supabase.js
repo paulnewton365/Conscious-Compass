@@ -154,7 +154,7 @@ export const deleteAssessment = async (id) => {
 export const fetchTeasers = async () => {
   const { data, error } = await supabase
     .from('teaser_assessments')
-    .select('id, campaign_id, brand_name, website_url, business_model, industry, result, created_by_name, created_at, updated_at, converted_at')
+    .select('id, campaign_id, brand_name, website_url, business_model, industry, stage, result, created_by_name, created_at, updated_at, converted_at')
     .order('updated_at', { ascending: false });
   return { data, error };
 };
@@ -174,6 +174,7 @@ export const saveTeaser = async (teaser) => {
     website_url: teaser.website_url,
     business_model: teaser.business_model,
     industry: teaser.industry,
+    stage: teaser.stage || null,
     context: teaser.context || '',
     campaign_id: teaser.campaign_id || null,
     hero_image: teaser.hero_image || null,
@@ -258,7 +259,7 @@ export const deleteCampaign = async (id) => {
 export const fetchCampaignScores = async (campaignId) => {
   const { data, error } = await supabase
     .from('teaser_assessments')
-    .select('id, brand_name, website_url, industry, result')
+    .select('id, brand_name, website_url, industry, stage, result')
     .eq('campaign_id', campaignId);
   return { data, error };
 };
