@@ -640,7 +640,11 @@ test('the thesis panel renders all six tenets and the verdict; a general teaser 
   const rec = await makeRecord();
   const withThesis = { ...rec, result: { ...rec.result, scores: { ...rec.result.scores, sustainabilityNarrative: thesisRead } } };
   const html = server.renderToStaticMarkup(h(App.TeaserClientView, { payload: logic.makeTeaserClientPayload(withThesis) }));
-  assert.ok(html.includes('Sustainability narrative') && html.includes('Whispering') && html.includes('Progress strong · Voice quiet'));
+  assert.ok(html.includes('Sustainability narrative') && html.includes('Whispering'));
+  // progress and voice now read as labelled scales rather than one sentence
+  assert.ok(html.includes('dc-scales') && html.includes('Progress') && html.includes('Voice'));
+  assert.ok(html.includes('aria-label="Progress: strong"') && html.includes('aria-label="Voice: quiet"'));
+  assert.ok(html.includes('dc-principles-tally'), 'the six principles are tallied before they are listed');
   TENETS.forEach(t => assert.ok(html.includes(t.name), t.name));
   assert.ok(html.includes('Breaking through') && html.includes('Surfacing') && html.includes('Buried'));
   const plain = server.renderToStaticMarkup(h(App.TeaserClientView, { payload: logic.makeTeaserClientPayload(rec) }));
@@ -1135,3 +1139,40 @@ test('the read leads with the headline beside the score, as the screen has it', 
   await act(async () => root.unmount());
 });
 
+
+// ── Client report view, to the handoff (v3.74) ──
+
+test('the client view opens like the printed read, not like the app', async () => {
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  const scores = {};
+  ATTRS.forEach((name, i) => { const id = name.toUpperCase();
+    scores[id] = { score: 30 + i * 4, confidence: 'medium', rationale: `Why ${name} scores.`, findings: ['A finding.'] }; });
+  scores.headline = 'Genuine seniority, invisible to anyone who has not heard of them.';
+  const payload = App.makeClientPayload({
+    project: { brandName: 'MKB', websiteUrl: 'https://www.mkb.com', industry: 'energy', businessModel: 'b2b', date: '2026-09-28' },
+    scores, benchmark: null,
+    assessorNote: { text: 'Read alongside the competitor set; the gap is visibility, not substance.', author: 'Paul Newton', date: '2026-09-28' },
+  });
+  await act(async () => { root.render(h(App.ClientReportView, { payload })); });
+
+  assert.ok(container.querySelector('article.dc-read'), 'the read, not an app page');
+  assert.ok(container.querySelector('.dc-read-top'), 'a thin strip instead of app chrome');
+  const cover = container.querySelector('.dc-cover');
+  assert.ok(cover, 'the cover');
+  assert.equal(cover.querySelector('.dc-cover-brand').textContent, 'MKB');
+  assert.ok(cover.querySelector('.dc-cover-thesis').textContent.includes('Genuine seniority'), 'the thesis quote');
+  assert.ok(cover.querySelector('.dc-stat-n.is-l'), 'the score in the large serif numeral');
+  assert.ok(cover.querySelector('.dc-lens-bar.is-overall'), 'the 6px bar');
+  const band = cover.querySelector('.dc-pill[data-band]');
+  assert.ok(band && band.textContent.trim().length > 3, 'the band is written in the chip');
+  assert.ok(container.querySelector('.dc-intro'), 'the scope note in its label column');
+
+  // the assessor note is a signed quote, not a rust-edged card
+  const letter = container.querySelector('.dc-letter');
+  assert.ok(letter, 'the note is a letter block');
+  assert.ok(letter.querySelector('blockquote').textContent.includes('visibility, not substance'));
+  assert.ok(letter.querySelector('cite').textContent.includes('Paul Newton'));
+  assert.ok(!container.innerHTML.includes('6px solid #D9442A'), 'the rust-edged card is gone');
+  await act(async () => root.unmount());
+});

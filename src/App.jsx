@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.73.0';
+const APP_VERSION = '3.75.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -1412,46 +1412,78 @@ const THESIS_CHIP = {
 function ThesisPanel({ thesis, onRegenerate = null }) {
   if (!thesis) {
     return onRegenerate ? (
-      <div className="dc-block text-sm text-[#2E3238]" data-thesis-panel="missing">
+      <div className="dc-alert" data-thesis-panel="missing">
         This report was scored before the sustainability narrative read existed, or the scoring pass did not return it.
-        <div style={{ marginTop: 10 }}><button onClick={onRegenerate} className="btn-secondary text-xs py-1.5 px-3">Regenerate report</button></div>
+        <div style={{ marginTop: 10 }}><button onClick={onRegenerate} className="btn-secondary btn-sm">Regenerate report</button></div>
       </div>
     ) : null;
   }
+
+  // Counts drive the tally strip: how many principles are evident, surfacing
+  // and buried, so the reader sees the shape before reading the six.
+  const levels = THESIS_TENETS.map(t => thesis.tenets?.[t.id]?.level || 'buried');
+  const count = (l) => levels.filter(x => x === l).length;
+  const segs = (level, of = 3) => {
+    const on = level === 'strong' || level === 'loud' ? 3 : level === 'moderate' || level === 'audible' ? 2 : 1;
+    return Array.from({ length: of }, (_, k) => <i key={k} className={k < on ? 'on' : ''} />);
+  };
+
   return (
     <div data-thesis-panel="true">
-      {thesis.summary && <div className="dc-block" style={{ marginBottom: 2 }}><p className="dc-lead" style={{ fontSize: 16, maxWidth: '72ch' }}>{thesis.summary}</p></div>}
-      {!thesis.present ? (
-        <div className="dc-block text-sm text-[#5B6068]">No sustainability narrative is observable for this brand.</div>
-      ) : (
-        <>
-          {thesis.verdict && (
-            <div className="bg-[#15171A] text-white" style={{ padding: '18px 22px', marginBottom: 2, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
-              <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', color: '#D9442A' }}>{thesis.verdict.label}</div>
-              <div style={{ flex: '1 1 260px' }}>
-                <div style={{ fontSize: 15 }}>{thesis.verdict.meaning}</div>
-                <div className="dc-kicker-sm" style={{ color: '#B9BCC1', marginTop: 6 }}>Progress {thesis.progress} · Voice {thesis.voice}</div>
+      <div className="dc-sus">
+        {thesis.summary && <p className="dc-sus-read">{thesis.summary}</p>}
+        {thesis.verdict && (
+          <div className="dc-panel-dark dc-verdict">
+            <span className="dc-kicker">Verdict</span>
+            <div className="dc-verdict-name">{thesis.verdict.label}</div>
+            <p>{thesis.verdict.meaning}</p>
+            <div className="dc-scales">
+              <div>
+                <span className="dc-kicker" style={{ color: 'var(--cc-dark-label)' }}>Progress</span>
+                <span className="seg" role="img" aria-label={`Progress: ${thesis.progress}`}>{segs(thesis.progress)}</span>
+                <strong>{thesis.progress}</strong>
+              </div>
+              <div>
+                <span className="dc-kicker" style={{ color: 'var(--cc-dark-label)' }}>Voice</span>
+                <span className="seg" role="img" aria-label={`Voice: ${thesis.voice}`}>{segs(thesis.voice)}</span>
+                <strong>{thesis.voice}</strong>
               </div>
             </div>
-          )}
-          <div className="dc-stack">
+          </div>
+        )}
+      </div>
+
+      {!thesis.present ? (
+        <div className="dc-alert">No sustainability narrative is observable for this brand.</div>
+      ) : (
+        <div className="dc-stack" style={{ gap: 'var(--cc-s-4)' }}>
+          <div className="dc-principles-head">
+            <h3 className="dc-h is-card">Six principles</h3>
+            <div className="dc-principles-tally">
+              <span className="dc-principles-strip" aria-hidden="true">
+                {levels.map((l, k) => <i key={k} className={`is-${l}`} />)}
+              </span>
+              <span><b>{count('evident')}</b>evident</span>
+              <span><b>{count('surfacing')}</b>surfacing</span>
+              <span><b>{count('buried')}</b>buried</span>
+            </div>
+          </div>
+          <ol className="dc-principles">
             {THESIS_TENETS.map(t => {
               const e = thesis.tenets?.[t.id];
-              const chip = THESIS_CHIP[e?.level] || THESIS_CHIP.buried;
+              const level = e?.level || 'buried';
               return (
-                <div key={t.id} className="dc-block" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 18px' }}>
-                  <span style={{ ...chip, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.12em', padding: '4px 8px', whiteSpace: 'nowrap', minWidth: 118, textAlign: 'center' }}>
-                    {levelLabel(e?.level)}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700 }}>{t.name}</div>
-                    {e?.reason && <p className="text-sm text-[#2E3238]" style={{ marginTop: 4, lineHeight: 1.5 }}>{e.reason}</p>}
+                <li key={t.id} className="dc-principle">
+                  <span><span className={`dc-status-chip is-${level}`}>{levelLabel(level)}</span></span>
+                  <div>
+                    <h3>{t.name}</h3>
+                    {e?.reason && <p>{e.reason}</p>}
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
-        </>
+          </ol>
+        </div>
       )}
     </div>
   );
@@ -12771,19 +12803,17 @@ function ClientAssessorNote({ note, compact = false }) {
     const d = new Date(note.date);
     return isNaN(d) ? null : d.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
   })();
+  // A signed quote, as the handoff has it, rather than a rust-edged card: it
+  // is a person speaking, not another output of the framework.
   return (
-    <div className="bg-white" style={{ padding: compact ? '16px 18px' : '28px 32px', borderLeft: '6px solid #D9442A' }}>
-      <div className="dc-kicker-sm" style={{ marginBottom: 10 }}>
-        Note from {note.author || 'Antenna Group'}
-      </div>
-      <p style={{ fontSize: compact ? 14 : 17, lineHeight: 1.7, color: '#15171A', maxWidth: '62ch', whiteSpace: 'pre-wrap', margin: 0 }}>
+    <div className={`dc-letter${compact ? ' is-compact' : ''}`}>
+      <span className="dc-kicker">Note from {note.author || 'Antenna Group'}</span>
+      <blockquote>
         {note.text}
-      </p>
-      {when && (
-        <p className="text-[11px] text-[#5B6068]" style={{ marginTop: 14, letterSpacing: '.04em' }}>
-          {note.author ? `${note.author} · ` : ''}{when}
-        </p>
-      )}
+        {(note.author || when) && (
+          <cite>{[note.author, when].filter(Boolean).join(' \u00b7 ')}</cite>
+        )}
+      </blockquote>
     </div>
   );
 }
@@ -13107,32 +13137,47 @@ function ClientReportView({ payload }) {
     // put a second background behind the page panel, which is why the client
     // ground read darker and the sections looked boxed against it.
     <div className="dc-wrap dc-page pt-8 animate-fade-in">
-      <div>
-        {/* Masthead. Client-facing view only; the internal report has no
-            equivalent and should not gain one. */}
-        <div className="mb-10">
+      <article className="dc-read">
+        {/* A thin strip, not app chrome: a prospect sees this on its own. */}
+        <div className="dc-read-top">
           <img
             src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
             alt="Antenna Group"
-            className="h-6 mb-6"
             style={{ filter: 'brightness(0)' }}
           />
-          <div className="dc-kicker mb-3">Brand Facing Report</div>
-          {/* Type and subtitle match the internal report exactly. The client
-              report had a smaller title and a tracked uppercase standfirst,
-              which read as a different document. */}
-          <h1 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(40px,6vw,88px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)',
-            lineHeight: .92, margin: '4px 0 0', maxWidth: '18ch', textWrap: 'balance' }}>
-            {project.brandName}
-          </h1>
-          <p className="text-[14px] font-semibold text-[#5B6068] mt-5" style={{ letterSpacing: '.04em' }}>
-            Conscious Compass Assessment · {industryName} · Framework v{FRAMEWORK_VERSION}
-          </p>
+          <span className="dc-kicker">Brand-facing report</span>
+        </div>
 
-          {/* Client-facing only. Sets expectations that this is a summary of a
-              wider study, so the absence of working detail reads as scope
-              rather than as omission. */}
-          <p className="text-[15px] text-[#2E3238] mt-6" style={{ lineHeight: 1.6, maxWidth: '62ch' }}>
+        {/* Cover, mirroring the printed read: brand, thesis, meta, score. */}
+        <header className="dc-cover">
+          <div className="dc-cover-l">
+            <div className="dc-kicker is-accent">The Conscious Compass</div>
+            <h1 className="dc-cover-brand">{project.brandName}</h1>
+            {scores?.headline && <p className="dc-cover-thesis">\u201c{scores.headline}\u201d</p>}
+            <p className="dc-meta">
+              Conscious Compass Assessment{industryName ? ` \u00b7 ${industryName}` : ''}
+              {project.date ? ` \u00b7 ${new Date(project.date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}` : ''}
+              {' \u00b7 '}Framework v{FRAMEWORK_VERSION}
+            </p>
+          </div>
+          <div className="dc-cover-r">
+            <div className="dc-kicker">Overall Compass score</div>
+            <div className="dc-score"><span className="dc-stat-n is-l">{overall}</span><small>/ 100</small></div>
+            <div className="dc-lens-bar is-overall" role="img" aria-label={`${overall} out of 100`}>
+              <i style={{ width: `${Math.max(0, Math.min(100, overall))}%` }} />
+            </div>
+            <div className="dc-row">
+              <span className="dc-pill" data-band={String(stage?.name || '').toLowerCase().replace(/\s+/g, '-')}>
+                {stage?.name}{Number.isFinite(stage?.min) ? ` \u00b7 ${stage.min}\u2013${stage.max}` : ''}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Scope, in the label column the design uses throughout. */}
+        <div className="dc-intro">
+          <span className="dc-kicker">About this report</span>
+          <p>
             This is a report summary. It represents a more detailed brand study spanning owned,
             earned, social, paid and GEO.
           </p>
@@ -13280,11 +13325,11 @@ function ClientReportView({ payload }) {
           </div>
         )}
 
-        <p className="text-[11px] text-[#999] text-center py-6">
+        <p className="dc-read-foot">
           Conscious Compass by Antenna Group. Assessed on publicly observable evidence
           {payload.generatedAt ? ` in ${new Date(payload.generatedAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : ''}.
-        </p>
-      </div>
+        {' \u00b7 '}Prepared by Antenna Group.</p>
+      </article>
     </div>
   );
 }

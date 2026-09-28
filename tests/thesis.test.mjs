@@ -103,3 +103,34 @@ test('thesis signals added to six attributes; Attentive and Cogent untouched', (
     assert.equal(a.signals.moderate.length, before.moderate, `${a.id} moderate untouched`);
   }
 });
+
+// ── Sustainability section, to the handoff (v3.75) ──
+
+test('the sustainability section reads as a verdict, scales and six tallied principles', async () => {
+  const { JSDOM } = await import('jsdom');
+  const React = (await import('react')).default;
+  const server = await import('react-dom/server');
+  const App = await import('./.build/app.bundle.mjs');
+  const thesis = {
+    present: true, summary: 'Structurally central, framed as infrastructure rather than identity.',
+    progress: 'moderate', voice: 'quiet',
+    verdict: { label: 'Quiet progress', meaning: 'Progress under way and largely untold.' },
+    tenets: Object.fromEntries(THESIS_TENETS.map((t, i) => [t.id, { level: i < 2 ? 'surfacing' : 'buried', reason: `Reason for ${t.name}.` }])),
+  };
+  const html = server.renderToStaticMarkup(React.createElement(App.ThesisPanel, { thesis }));
+  const doc = new JSDOM(html).window.document;
+
+  const verdict = doc.querySelector('.dc-panel-dark.dc-verdict');
+  assert.ok(verdict, 'the verdict sits on the dark panel');
+  assert.ok(verdict.textContent.includes('Quiet progress'));
+  assert.equal(verdict.querySelectorAll('.dc-scales .seg').length, 2, 'progress and voice as scales');
+  assert.equal(verdict.querySelectorAll('.dc-scales .seg i.on').length, 3, 'moderate is 2 of 3, quiet is 1 of 3');
+
+  const tally = doc.querySelector('.dc-principles-tally');
+  assert.ok(tally.textContent.includes('2') && tally.textContent.includes('surfacing'));
+  assert.ok(tally.textContent.includes('4') && tally.textContent.includes('buried'));
+  assert.equal(doc.querySelectorAll('.dc-principles-strip i').length, 6, 'one mark per principle');
+  assert.equal(doc.querySelectorAll('li.dc-principle').length, 6);
+  // the status is written, never colour alone
+  assert.ok([...doc.querySelectorAll('.dc-status-chip')].every(c => c.textContent.trim().length > 3));
+});
