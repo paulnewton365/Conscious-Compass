@@ -34,6 +34,7 @@ export const EXPORT_COLUMNS = [
   { key: 'lowConfidence', label: 'Low-confidence attributes', width: 14 },
   { key: 'thinRecord', label: 'Limited evidence', width: 11 },
   { key: 'headline', label: 'Headline', width: 60, wrap: true },
+  { key: 'services', label: 'Services indicated', width: 46, wrap: true },
   { key: 'scored', label: 'Scored', width: 14 },
   { key: 'method', label: 'Scoring method', width: 22 },
 ];
@@ -80,7 +81,7 @@ export function buildCampaignRows(teasers, baselines = {}) {
         ...baselineCells(baselines[t.id], null),
         ...thesisCells(null),
         ...Object.fromEntries(LENSES.map(([k]) => [k, null])), ...Object.fromEntries(ATTRIBUTES.map(a => [a.id, null])),
-        lowConfidence: null, thinRecord: '', headline: '', scored: '', method: '' };
+        lowConfidence: null, thinRecord: '', headline: '', services: '', scored: '', method: '' };
     }
     return {
       brand: t.brand_name,
@@ -94,6 +95,9 @@ export function buildCampaignRows(teasers, baselines = {}) {
       lowConfidence: r.lowConfidenceCount ?? null,
       thinRecord: r.thinRecord ? 'Yes' : 'No',
       headline: r.scores?.headline || '',
+      // A service proposed beyond the catalogue is marked, so a campaign-wide
+      // scan does not read it as a standing offer.
+      services: (r.scores?.services || []).map(svc => `${svc.title}${svc.beyondCatalogue ? ' (proposed)' : ''}`).join('; '),
       scored: r.scoredAt ? new Date(r.scoredAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '',
       scoredAt: r.scoredAt || null,
       method: isCurrentMethod(r) ? `Calibrated v${TEASER_VERSION}` : `Earlier v${r.teaserVersion || '1.0'}, rescore`,
@@ -223,6 +227,7 @@ const NOTES = [
   'Colour bands: green 70 and above, orange 45 to 69, red below 45.',
   'Scores are calibrated to the evidence a quick read can reach. Each attribute is judged on the signals the teaser could observe; signals it could not see count neither for nor against. Nothing is added to scores after the fact, and there is no campaign modifier.',
   'Low-confidence attributes counts scores resting on thin evidence. Limited evidence is flagged when three or more attributes are low confidence.',
+  'Services indicated lists the marketing services this read argues for, led by the Conscious Compass service catalogue and ordered by the weakest attributes. An entry marked (proposed) is not a standing service: the read argued for it for that brand specifically. A full assessment sets the depth and the order.',
   'Scoring method shows which version scored each brand. Brands marked Earlier were scored before calibration; rescore them before comparing rows.',
   'Not scored means evidence was gathered but the teaser has not been scored yet.',
 ];

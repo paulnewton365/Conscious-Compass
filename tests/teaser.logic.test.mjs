@@ -160,13 +160,12 @@ test('scoreTeaser refuses thin evidence without ever calling the model', async (
 
 // ── Scoring prompt ──
 
-test('scoring prompt carries the full rubric and asks for no actions or totals', () => {
+test('scoring prompt carries the full rubric and never asks for a total', () => {
   const p = buildTeaserScoringPrompt(input, fullEvidence({ social: { status: 'failed', error: 'x' } }));
   ATTRIBUTES.forEach(a => assert.ok(p.includes(`${a.id} (${a.fullName})`), a.id));
   assert.match(p, /SOCIAL:\nUNAVAILABLE[^\n]*unknown, not as absent/);
-  assert.match(p, /Give no recommendations and no actions/);
+  assert.match(p, /Stay diagnostic/);
   assert.match(p, /DO NOT score them/);
-  assert.ok(!p.includes('"actions"'), 'schema must not request actions');
   assert.ok(!p.includes('"overall"'), 'the model is never asked for a total');
 });
 
@@ -256,7 +255,7 @@ test('a campaign read returned by the model never moves a score, at any level', 
 
 test('results carry the method version; earlier results are recognised as outdated', () => {
   const r = finaliseTeaser(parseTeaserScoring(modelJson()));
-  assert.equal(TEASER_VERSION, '2.1', 'framework 2.10 rubric and CSO audience');
+  assert.equal(TEASER_VERSION, '2.3', 'new business framing: opportunity and services');
   assert.equal(r.teaserVersion, TEASER_VERSION);
   assert.equal(isCurrentMethod(r), true);
   assert.equal(isCurrentMethod({ ...r, teaserVersion: '1.0' }), false);
@@ -309,7 +308,7 @@ test('client payload is a whitelist: no context, evidence, author, history, basi
   const payload = makeTeaserClientPayload(sentinelRecord());
   const json = JSON.stringify(payload);
   SENTINELS.forEach(s => assert.ok(!json.includes(s), `${s} leaked into the client payload`));
-  assert.deepEqual(Object.keys(payload).sort(), ['brandName', 'frameworkVersion', 'fullAssessmentWouldResolve', 'headline', 'lensScores', 'overall', 'scoredAt', 'scores', 'stage', 'summary', 'thesis', 'thinRecord', 'websiteUrl'].sort());
+  assert.deepEqual(Object.keys(payload).sort(), ['brandName', 'frameworkVersion', 'fullAssessmentWouldResolve', 'headline', 'lensScores', 'overall', 'scoredAt', 'scores', 'stage', 'summary', 'thesis', 'thinRecord', 'websiteUrl', 'opportunity', 'services'].sort());
   assert.equal(payload.thesis, null, 'no thesis read on a general-audience teaser');
   ATTRIBUTES.forEach(a => assert.deepEqual(Object.keys(payload.scores[a.id]).sort(), ['confidence', 'rationale', 'score']));
   assert.ok(!json.includes('baseScore') && !json.includes('campaignModifier') && !json.includes('"basis"'));
@@ -399,4 +398,92 @@ test('the audience never changes the attribute scores', async () => {
   const gen = await scoreTeaser(input, fullEvidence(), { callScoring: async () => modelJson() });
   ATTRIBUTES.forEach(a => assert.equal(cso.scores[a.id].score, gen.scores[a.id].score));
   assert.equal(cso.overall, gen.overall);
+});
+
+
+// ── New business framing (v3.54) ──
+
+import { SERVICE_CATALOGUE, findService } from '../src/lib/teaser.js';
+
+test('the prompt offers the framework catalogue and nothing else', () => {
+  const p = buildTeaserScoringPrompt(input, fullEvidence());
+  assert.match(p, /SERVICE CATALOGUE/);
+  assert.match(p, /Work from the catalogue below first/);
+  ['Original Research Program', 'Executive Visibility Program', 'AI Search Optimization'].forEach(t => assert.ok(p.includes(t), t));
+  assert.match(p, /"opportunity"/);
+  assert.match(p, /"services"/);
+  assert.match(p, /weakest attributes first/);
+  assert.equal(SERVICE_CATALOGUE.length, 26);
+});
+
+test('services are validated against the catalogue: invented ones are dropped, real ones keep the house copy', () => {
+  const raw = JSON.parse(modelJson());
+  raw.opportunity = 'Real progress, poorly told, in a category where being findable decides the shortlist.';
+  raw.services = [
+    { title: 'Strategic Media Relations', why: 'No coverage in twelve months despite a funded research programme.' },
+    { title: 'Brand Transformation Sprint', why: 'SENTINEL_INVENTED service' },
+    { title: 'strategic media relations', why: 'duplicate in different case' },
+    { title: 'Executive Visibility Program', why: 'No named executive appears anywhere in search or earned media.' },
+  ];
+  const p = parseTeaserScoring(JSON.stringify(raw));
+  assert.deepEqual(p.services.map(s => s.title), ['Strategic Media Relations', 'Brand Transformation Sprint', 'Executive Visibility Program']);
+  assert.equal(p.services[1].beyondCatalogue, true, 'kept, but labelled as outside the catalogue');
+  assert.equal(p.services[0].beyondCatalogue, false);
+  // the impact line and attribute mapping come from the catalogue, not the model
+  assert.equal(p.services[0].impact, findService('Strategic Media Relations').impact);
+  assert.deepEqual(p.services[0].attributes, findService('Strategic Media Relations').attributes);
+});
+
+test('at most three services, and none at all when the model offers none', () => {
+  const raw = JSON.parse(modelJson());
+  raw.services = SERVICE_CATALOGUE.slice(0, 6).map(s => ({ title: s.title, why: 'x' }));
+  assert.equal(parseTeaserScoring(JSON.stringify(raw)).services.length, 3);
+  const none = parseTeaserScoring(modelJson());
+  assert.deepEqual(none.services, []);
+  assert.equal(none.opportunity, '');
+});
+
+test('the opportunity and services reach the prospect payload with the catalogue copy', () => {
+  const raw = JSON.parse(modelJson());
+  raw.opportunity = 'OPPORTUNITY TEXT';
+  raw.services = [{ title: 'AI Search Optimization', why: 'Invisible to AI engines that prospects now ask first.' }];
+  const result = finaliseTeaser(parseTeaserScoring(JSON.stringify(raw)));
+  const payload = makeTeaserClientPayload({ brand_name: 'Acme', website_url: 'https://acme.com', result });
+  assert.equal(payload.opportunity, 'OPPORTUNITY TEXT');
+  assert.equal(payload.services[0].title, 'AI Search Optimization');
+  assert.ok(payload.services[0].impact.length > 20, 'catalogue impact line travels with it');
+  assert.deepEqual(Object.keys(payload.services[0]).sort(), ['attributes', 'beyondCatalogue', 'impact', 'title', 'why']);
+  assert.equal(payload.services[0].beyondCatalogue, false);
+});
+
+test('one service beyond the catalogue is allowed when it is argued for, and labelled', () => {
+  const raw = JSON.parse(modelJson());
+  raw.services = [
+    { title: 'Strategic Media Relations', why: 'No coverage in twelve months.' },
+    { title: 'Partner Co-marketing Program', why: 'Distributors carry the story and none are equipped to tell it.', beyondCatalogue: true, attributes: ['Cogent', 'Nonsense'] },
+    { title: 'Another Invented Thing', why: 'a second extra', beyondCatalogue: true },
+  ];
+  const p = parseTeaserScoring(JSON.stringify(raw));
+  assert.deepEqual(p.services.map(s => s.title), ['Strategic Media Relations', 'Partner Co-marketing Program']);
+  assert.equal(p.services[0].beyondCatalogue, false);
+  assert.equal(p.services[1].beyondCatalogue, true);
+  assert.deepEqual(p.services[1].attributes, ['Cogent'], 'only real attribute names survive');
+  assert.equal(p.services[1].impact, '', 'no house impact line is invented for it');
+});
+
+test('a service beyond the catalogue never stands alone, and needs a reason', () => {
+  const only = JSON.parse(modelJson());
+  only.services = [{ title: 'Something Bespoke', why: 'x', beyondCatalogue: true }];
+  assert.deepEqual(parseTeaserScoring(JSON.stringify(only)).services, [], 'not offered on its own');
+  const noWhy = JSON.parse(modelJson());
+  noWhy.services = [{ title: 'Strategic Media Relations', why: 'a' }, { title: 'Bespoke Thing', beyondCatalogue: true }];
+  assert.deepEqual(parseTeaserScoring(JSON.stringify(noWhy)).services.map(s => s.title), ['Strategic Media Relations']);
+});
+
+test('the prompt leads with the catalogue and allows one addition', () => {
+  const p = buildTeaserScoringPrompt(input, fullEvidence());
+  assert.match(p, /Work from the catalogue below first/);
+  assert.match(p, /you may add ONE service of your own/);
+  assert.match(p, /never as the first entry/);
+  assert.ok(!/only services you may name/.test(p), 'the catalogue is no longer a closed list');
 });

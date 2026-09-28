@@ -224,3 +224,20 @@ test('CSO campaigns get the thesis columns; general campaigns keep the file unch
   const without = await buildCampaignWorkbook('C', [t]);
   assert.ok(!(await without.zip.file('xl/worksheets/sheet1.xml').async('string')).includes('Progress vs voice'));
 });
+
+test('the campaign download lists the services each brand needs', () => {
+  const t = teaser('Acme', 61);
+  t.result.scores.services = [{ title: 'Strategic Media Relations' }, { title: 'AI Search Optimization' }];
+  const [row] = buildCampaignRows([t]);
+  assert.equal(row.services, 'Strategic Media Relations; AI Search Optimization');
+  assert.ok(EXPORT_COLUMNS.some(c => c.label === 'Services indicated'));
+  const [none] = buildCampaignRows([teaser('Nada', null)]);
+  assert.equal(none.services, '');
+});
+
+test('a service proposed beyond the catalogue is marked in the download', () => {
+  const t = teaser('Acme', 61);
+  t.result.scores.services = [{ title: 'Strategic Media Relations' }, { title: 'Partner Co-marketing Program', beyondCatalogue: true }];
+  const [row] = buildCampaignRows([t]);
+  assert.equal(row.services, 'Strategic Media Relations; Partner Co-marketing Program (proposed)');
+});

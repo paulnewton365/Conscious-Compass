@@ -25,16 +25,18 @@
 // ─────────────────────────────────────────────────────────────
 
 import {
-  ATTRIBUTES, FRAMEWORK_VERSION, computeTrustLenses, getMaturityStage,
+  ATTRIBUTES, FRAMEWORK_VERSION, SERVICE_RECOMMENDATIONS, computeTrustLenses, getMaturityStage,
 } from '../data/rubric.js';
 import { thesisPromptBlock, THESIS_SCHEMA, parseThesis } from '../data/thesis.js';
 
 // 2.0 (v3.32): scoring calibrated to what a teaser can observe, and no
 // campaign modifier. Results carry the version so teasers scored with 1.0
 // are flagged until rescored.
-// 2.1 (v3.36): framework 2.10 rubric with sustainability thesis signals, and
-// the CSO audience option.
-export const TEASER_VERSION = '2.1';
+// 2.3 (v3.55): written for new business. The read names the commercial
+// opportunity and the marketing services that would lift the score, led by
+// the framework's own catalogue, with room for one service beyond it where
+// the evidence argues for something the catalogue does not cover.
+export const TEASER_VERSION = '2.3';
 export const isCurrentMethod = (result) => !!result && result.teaserVersion === TEASER_VERSION;
 
 // Sources in the order they are shown while a teaser runs. `required` sources
@@ -293,6 +295,22 @@ export function evidenceCoverage(evidence) {
   };
 }
 
+// ── Services ───────────────────────────────────────────────────
+// The teaser recommends from the framework's own catalogue. The model picks
+// titles; the descriptions, impact lines and attribute mappings come from the
+// catalogue here, so a teaser cannot invent a service Antenna does not offer.
+
+export const SERVICE_CATALOGUE = Object.entries(SERVICE_RECOMMENDATIONS)
+  .flatMap(([attrId, list]) => list.map(svc => ({ ...svc, attrId })));
+
+export const findService = (title) =>
+  SERVICE_CATALOGUE.find(s => s.title.toLowerCase() === String(title || '').trim().toLowerCase()) || null;
+
+const serviceMenu = () => ATTRIBUTES.map(a => {
+  const list = SERVICE_RECOMMENDATIONS[a.id] || [];
+  return `${a.id} (${a.fullName}):\n${list.map(s => `  - ${s.title}: ${s.description}`).join('\n')}`;
+}).join('\n');
+
 // ── Scoring ────────────────────────────────────────────────────
 
 const sourceBlock = (label, src, note = '') => {
@@ -372,15 +390,23 @@ ${isCso(input) ? `${thesisPromptBlock({ calibrated: true })}
 
 AUDIENCE. This read is for a Chief Sustainability Officer or impact leader at the brand. Write the headline, summary and "fullAssessmentWouldResolve" for that reader: how the brand's sustainability progress shows up in its brand, and where it is buried, whispered or at risk of overclaiming. The attribute scores stay on the full rubric, unchanged by the audience.
 
-` : ''}THIS IS A TEASER, SO:
-- Give no recommendations and no actions anywhere. The deeper assessment is where those live.
+` : ''}THIS IS A NEW BUSINESS TEASER, SO:
 - "summary" is the topline for a senior reader: verdict first, then the one tension that most defines this brand's standing. Three or four sentences.
+- "opportunity" is the commercial read, two or three sentences, written for the person who runs this brand's marketing: what the scores say is being left on the table, what shifting it would unlock commercially, and the size of the gap between what the brand has built and how well that is landing. Ground it in the evidence. No flattery, no pitch language, no promises about results.
+- "services" names two or three marketing services that would move the weakest parts of this score. Work from the catalogue below first, by exact title, weakest attributes first, and do not pick a service whose problem you did not observe. For each, "why" is one sentence of under 30 words tying it to what this pass saw in THIS brand, not a description of the service.
+- Where the evidence argues for work the catalogue does not cover, you may add ONE service of your own. Set "beyondCatalogue" to true on it, give it a plain, specific name a marketer would recognise (no invented product names), and list in "attributes" the Compass attributes it would lift. Use this only when a catalogue service genuinely does not fit, and never as the first entry.
 - "fullAssessmentWouldResolve" names two or three specific questions this pass could not settle and a full assessment would. Specific to this brand, never generic.
+- Stay diagnostic. Name what the evidence supports, and leave the depth, sequencing and effort to the full assessment.
+
+SERVICE CATALOGUE. Name these by exact title. Anything you add beyond them must be marked with "beyondCatalogue": true:
+${serviceMenu()}
 
 Return valid JSON only, no prose before or after, no markdown fences:
 {
   "headline": "One sentence, max 20 words, capturing the brand's state. Specific.",
   "summary": "Three or four sentences. Verdict first.",
+  "opportunity": "Two or three sentences. The commercial read.",
+  "services": [ { "title": "exact catalogue title, or a plain name for one service beyond it", "why": "under 30 words, tied to this brand's evidence", "beyondCatalogue": false, "attributes": ["only when beyondCatalogue is true: the attributes it lifts"] } ],
   "fullAssessmentWouldResolve": ["max 3, each under 25 words"],${isCso(input) ? `\n  ${THESIS_SCHEMA},` : ''}
   "trustFindings": [ { "text": "max 12 words, name the source", "tags": ["trust|credibility|reputation|authenticity"], "supports": true } ],
 ${ATTRIBUTES.map(a => `  "${a.id}": { "score": 0-100, "confidence": "low|medium|high", "rationale": "What drives this score, citing evidence. Under 45 words.", "unobserved": "Signals for this attribute this pass could not reach. Under 20 words, or empty.", "basis": ["website|social|ai|reviews|earned"] }`).join(',\n')}
@@ -405,6 +431,43 @@ export function parseTeaserScoring(raw) {
   const out = {
     headline: String(parsed.headline || '').trim(),
     summary: String(parsed.summary || '').trim(),
+    opportunity: String(parsed.opportunity || '').trim(),
+    // Catalogue services keep the house copy. One service beyond the
+    // catalogue is allowed where the evidence argues for it, and is labelled
+    // so nobody mistakes it for a standing offer.
+    services: (Array.isArray(parsed.services) ? parsed.services : [])
+      .map(svc => {
+        const found = findService(svc?.title);
+        if (found) {
+          return {
+            title: found.title,
+            why: String(svc.why || '').trim().slice(0, 240),
+            attributes: [...found.attributes],
+            impact: found.impact,
+            beyondCatalogue: false,
+          };
+        }
+        const title = String(svc?.title || '').trim().slice(0, 80);
+        const why = String(svc?.why || '').trim().slice(0, 240);
+        if (!title || !why) return null;
+        return {
+          title,
+          why,
+          // Only real attribute names survive, so a stray label cannot appear
+          // as though it were part of the framework.
+          attributes: (Array.isArray(svc.attributes) ? svc.attributes : [])
+            .map(a => ATTRIBUTES.find(x => x.name.toLowerCase() === String(a).trim().toLowerCase() || x.id === String(a).trim().toUpperCase())?.name)
+            .filter(Boolean).slice(0, 3),
+          impact: '',
+          beyondCatalogue: true,
+        };
+      })
+      .filter(Boolean)
+      .filter((svc, i, all) => all.findIndex(x => x.title.toLowerCase() === svc.title.toLowerCase()) === i)
+      // At most one beyond the catalogue, and never the only thing offered.
+      .filter((svc, i, all) => !svc.beyondCatalogue || all.filter(x => x.beyondCatalogue).indexOf(svc) === 0)
+      .filter((svc, i, all) => !svc.beyondCatalogue || all.some(x => !x.beyondCatalogue))
+      .slice(0, 3),
     fullAssessmentWouldResolve: (Array.isArray(parsed.fullAssessmentWouldResolve) ? parsed.fullAssessmentWouldResolve : [])
       .map(v => String(v || '').trim()).filter(Boolean).slice(0, 3),
     trustFindings: (Array.isArray(parsed.trustFindings) ? parsed.trustFindings : [])
@@ -500,6 +563,8 @@ export function makeTeaserClientPayload(record) {
     headline: r.scores?.headline || '',
     summary: r.scores?.summary || '',
     fullAssessmentWouldResolve: [...(r.scores?.fullAssessmentWouldResolve || [])],
+    opportunity: r.scores?.opportunity || '',
+    services: (r.scores?.services || []).map(svc => ({ title: svc.title, why: svc.why, attributes: [...(svc.attributes || [])], impact: svc.impact, beyondCatalogue: !!svc.beyondCatalogue })),
     // Whitelisted field by field, like everything else here.
     thesis: r.scores?.sustainabilityNarrative ? JSON.parse(JSON.stringify({
       present: r.scores.sustainabilityNarrative.present,

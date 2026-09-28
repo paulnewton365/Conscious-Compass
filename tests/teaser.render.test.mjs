@@ -926,3 +926,70 @@ test('without a brand image the read still balances, with no empty frame', async
   assert.ok(summary.querySelector('h2'), 'verdict still shown');
   await act(async () => root.unmount());
 });
+
+// ── New business framing in the report and PDF (v3.54) ──
+
+const withServices = (rec) => ({
+  ...rec,
+  result: { ...rec.result, scores: { ...rec.result.scores,
+    opportunity: 'Real progress, poorly told, in a category where being findable decides the shortlist.',
+    services: [
+      { title: 'Strategic Media Relations', why: 'No coverage in twelve months despite a funded research programme.', attributes: ['Awake', 'Cogent'], impact: 'Coverage in the outlets buyers read builds the third-party validation the brand lacks.' },
+      { title: 'Executive Visibility Program', why: 'No named executive appears anywhere in search or earned media.', attributes: ['Intentional'], impact: 'Named executives give the brand a face buyers can follow and trust.' },
+    ] } },
+});
+
+test('the read carries the opportunity and the services that would lift the score', async () => {
+  const rec = withServices({ ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' });
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  const view = container.querySelector('[data-teaser-client-view]');
+  const opp = view.querySelector('[data-field="opportunity"]');
+  assert.ok(opp.textContent.includes('The opportunity') && opp.textContent.includes('findable decides the shortlist'));
+  const svc = view.querySelector('[data-field="services"]');
+  assert.ok(svc.textContent.includes('Where marketing would move this score'));
+  assert.ok(svc.textContent.includes('Strategic Media Relations') && svc.textContent.includes('Executive Visibility Program'));
+  assert.ok(svc.textContent.includes('Awake') && svc.textContent.includes('Intentional'), 'attributes each service lifts');
+  assert.ok(svc.textContent.includes('A full assessment sets the depth and the order'), 'still leaves room for the full assessment');
+  // the questions a full assessment would settle are still there
+  assert.ok(view.textContent.includes('What a full assessment would settle'));
+  await act(async () => root.unmount());
+});
+
+test('a read with no services simply omits the section', async () => {
+  const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  assert.equal(container.querySelector('[data-field="services"]'), null);
+  assert.equal(container.querySelector('[data-field="opportunity"]'), null);
+  await act(async () => root.unmount());
+});
+
+test('the PDF carries the opportunity and the services', async () => {
+  const rec = withServices(await makeRecord());
+  const { pdf } = await App.exportTeaserPdf(logic.makeTeaserClientPayload(rec), null, { download: false });
+  const text = [...pdf.output().matchAll(/\((.*?)\) Tj/g)].map(m => m[1]).join(' ');
+  assert.ok(text.includes('THE OPPORTUNITY'));
+  assert.ok(text.includes('WHERE MARKETING WOULD MOVE THIS SCORE'));
+  assert.ok(text.includes('Strategic Media Relations'));
+});
+
+test('a service beyond the catalogue is flagged in the report', async () => {
+  const base = await makeRecord();
+  const rec = { ...base, id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1',
+    result: { ...base.result, scores: { ...base.result.scores, services: [
+      { title: 'Strategic Media Relations', why: 'No coverage in twelve months.', attributes: ['Awake'], impact: 'House impact line.', beyondCatalogue: false },
+      { title: 'Partner Co-marketing Program', why: 'Distributors carry the story and none are equipped to tell it.', attributes: ['Cogent'], impact: '', beyondCatalogue: true },
+    ] } } };
+  stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
+  const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
+  await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
+  const svc = container.querySelector('[data-field="services"]');
+  assert.ok(svc.textContent.includes('Partner Co-marketing Program'));
+  const flags = svc.querySelectorAll('[data-field="beyond-catalogue"]');
+  assert.equal(flags.length, 1, 'only the proposed one is flagged');
+  assert.ok(flags[0].textContent.includes('Beyond the catalogue'));
+  await act(async () => root.unmount());
+});

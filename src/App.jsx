@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.53.0';
+const APP_VERSION = '3.55.0';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -14478,6 +14478,12 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {payload.headline && <h2 style={{ margin: 0, fontSize: 21, fontWeight: 700, lineHeight: 1.35, letterSpacing: '-.01em', maxWidth: '34ch' }}>{payload.headline}</h2>}
           {payload.summary && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#4A4840', maxWidth: '78ch' }}>{payload.summary}</p>}
+          {payload.opportunity && (
+            <div data-field="opportunity" style={{ borderLeft: '3px solid #DEE42F', paddingLeft: 14 }}>
+              <div className="dc-kicker-sm" style={{ marginBottom: 5 }}>The opportunity</div>
+              <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#4A4840', maxWidth: '78ch' }}>{payload.opportunity}</p>
+            </div>
+          )}
         </div>
         {heroImage && <img src={heroImage} alt="" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }} />}
       </div>
@@ -14535,6 +14541,36 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null }) {
         <section style={{ marginTop: 40 }}>
           <div className="dc-kicker" style={{ marginBottom: 14 }}>{THESIS_NAME}</div>
           <ThesisPanel thesis={payload.thesis} />
+        </section>
+      )}
+
+      {payload.services?.length > 0 && (
+        <section style={{ marginTop: 40 }} data-field="services">
+          <div className="dc-kicker" style={{ marginBottom: 6 }}>Where marketing would move this score</div>
+          <p className="text-sm text-[#68655B]" style={{ marginBottom: 14, maxWidth: '72ch' }}>
+            The services that address what this read found. A full assessment sets the depth and the order.
+          </p>
+          <div className="dc-stack">
+            {payload.services.map((svc, i) => (
+              <div key={svc.title} className="dc-block" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                <span style={{ fontWeight: 700, color: '#68655B', minWidth: 24 }}>{String(i + 1).padStart(2, '0')}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700 }}>{svc.title}</span>
+                    {svc.attributes?.map(a => <span key={a} className="dc-meta">{a}</span>)}
+                    {svc.beyondCatalogue && (
+                      <span className="dc-meta" data-field="beyond-catalogue" style={{ color: '#8A4A08', borderColor: '#E4C79A' }}
+                        title="Not one of the standing services: this read argued for it specifically">
+                        Beyond the catalogue
+                      </span>
+                    )}
+                  </div>
+                  {svc.why && <p className="text-sm text-[#4A4840]" style={{ marginTop: 6, lineHeight: 1.55 }}>{svc.why}</p>}
+                  {svc.impact && <p className="text-sm text-[#68655B]" style={{ marginTop: 6, lineHeight: 1.55 }}>{svc.impact}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 
@@ -14640,6 +14676,21 @@ async function exportTeaserPdf(payload, chartEl, { download = true } = {}) {
   if (findings.length) {
     kicker('Trust, credibility, reputation and authenticity: the evidence');
     findings.forEach(f => para(`${f.supports ? '+' : '-'}  ${f.text}  [${f.tags.join(', ')}]`, 9, 'normal', [74, 72, 64], 1));
+  }
+
+  if (payload.opportunity) {
+    kicker('The opportunity');
+    para(payload.opportunity, 10, 'normal', [74, 72, 64], 3);
+  }
+
+  if (payload.services?.length) {
+    kicker('Where marketing would move this score');
+    payload.services.forEach((svc, i) => {
+      para(`${String(i + 1).padStart(2, '0')}  ${svc.title}${svc.attributes?.length ? `  [${svc.attributes.join(', ')}]` : ''}`, 10, 'bold', [11, 11, 11], 1);
+      if (svc.beyondCatalogue) para('Proposed for this brand specifically.', 8, 'italic', [138, 74, 8], 1);
+      if (svc.why) para(svc.why, 9, 'normal', [74, 72, 64], 1);
+      if (svc.impact) para(svc.impact, 9, 'normal', [104, 101, 91], 2);
+    });
   }
 
   const thesisRows = thesisTextRows(payload.thesis);
