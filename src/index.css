@@ -700,7 +700,7 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
   --cc-border-strong: 1px solid var(--cc-ink);
   --cc-bar: 3px; --cc-bar-overall: 6px;
   --cc-focus: 0 0 0 2px var(--cc-paper), 0 0 0 4px var(--cc-rust-text);
-  --cc-page-max: 1280px; --cc-gutter: 48px;
+  --cc-page-max: 1440px; --cc-gutter: 80px;
 }
 @media (max-width: 720px) {
   :root { --cc-gutter: 20px; --cc-fs-hero: 44px;
@@ -840,19 +840,11 @@ body { background: var(--cc-paper); color: var(--cc-ink);
   border-bottom: 1px solid var(--cc-ink, #15171A);
 }
 .dc-h2 {
-  font-family: var(--cc-serif, Georgia, serif);
-  font-weight: var(--cc-w-regular, 400);
-  font-size: var(--cc-fs-title, 52px);
-  line-height: var(--cc-lh-display, 1.08);
+  font: var(--cc-w-regular, 400) var(--cc-fs-title, 52px)/var(--cc-lh-display, 1.08) var(--cc-serif, Georgia, serif);
   letter-spacing: var(--cc-tracking-display, -.01em);
-  color: var(--cc-ink, #15171A);
+  color: var(--cc-ink, #15171A); text-wrap: balance;
 }
-.dc-standfirst {
-  font-family: var(--cc-sans, system-ui, sans-serif);
-  font-size: var(--cc-fs-label, 11.5px); font-weight: var(--cc-w-semi, 600);
-  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
-  color: var(--cc-muted, #5B6068); margin-top: var(--cc-s-2, 8px);
-}
+/* dc-standfirst is the designer's 19px lead. Left to their rule. */
 .dc-split { display: grid; gap: var(--cc-s-6, 24px); }
 
 /* list and results rows */
@@ -864,9 +856,8 @@ body { background: var(--cc-paper); color: var(--cc-ink);
 }
 .dc-listrow:hover, .dc-results-row:hover { background: var(--cc-hover, #F3F1EC); }
 .dc-listrow-t {
-  font-family: var(--cc-sans, system-ui, sans-serif);
-  font-size: var(--cc-fs-lead, 19px); font-weight: var(--cc-w-bold, 700);
-  line-height: 1.25; color: var(--cc-ink, #15171A);
+  font: var(--cc-w-semi, 600) var(--cc-fs-lead, 19px)/1.25 var(--cc-sans, system-ui, sans-serif);
+  color: var(--cc-ink, #15171A);
 }
 .dc-listrow-m {
   font-size: var(--cc-fs-meta, 12.5px); color: var(--cc-muted, #5B6068);
@@ -881,11 +872,8 @@ body { background: var(--cc-paper); color: var(--cc-ink);
 }
 
 /* score numerals: the serif carries them, as on the read */
-.dc-stat-n, .dc-ledger-value {
-  font-family: var(--cc-serif, Georgia, serif);
-  font-weight: var(--cc-w-regular, 400);
-  font-size: var(--cc-fs-num-m, 44px);
-  line-height: .95; letter-spacing: -.02em;
+.dc-ledger-value {
+  font: var(--cc-w-regular, 400) var(--cc-fs-num-m, 44px)/1 var(--cc-serif, Georgia, serif);
 }
 .dc-stat-l {
   font-size: var(--cc-fs-label, 11.5px); font-weight: var(--cc-w-semi, 600);
@@ -937,7 +925,7 @@ body { background: var(--cc-paper); color: var(--cc-ink);
 /* ── Rhythm and row geometry, from QA on the built app ──────── */
 
 /* The page stack was too airy once sections carried their own margins. */
-.dc-page { gap: var(--cc-s-6, 24px); }
+.dc-page { gap: var(--cc-s-12, 48px); }
 .dc-pagehead { margin-bottom: var(--cc-s-6, 24px); }
 
 /* A list row is: content, then actions hard right. The score sits at the
@@ -1060,3 +1048,12 @@ body { background: var(--cc-paper); color: var(--cc-ink);
 /* The form column: fields 10px under their label, groups 40px apart. */
 .dc-formstack { display: flex; flex-direction: column; gap: var(--cc-s-10, 40px); }
 .dc-formstack > div > label { display: block; margin-bottom: 10px; }
+
+
+/* Any score drawn in the markup rather than through .dc-stat-n: the serif
+   carries numerals, at regular weight, as in the design. */
+.dc-numeral {
+  font-family: var(--cc-serif, Georgia, serif);
+  font-weight: var(--cc-w-regular, 400);
+  letter-spacing: -.01em;
+}

@@ -317,8 +317,9 @@ test('a CSS comment can never swallow the token block again', () => {
     assert.ok(!body.includes('*/'), `comment closes early: ${c.slice(0, 60)}`);
   });
   // and the tokens are still declared after all of them
-  assert.match(css, /--cc-page-max:\s*1280px/);
-  assert.match(css, /--cc-gutter:\s*48px/);
+  // the screens are 1440 wide with 80px padding, so content runs to 1280
+  assert.match(css, /--cc-page-max:\s*1440px/);
+  assert.match(css, /--cc-gutter:\s*80px/);
 });
 
 test('the visible furniture is styled by the new system, not left on the old rules', () => {
@@ -338,7 +339,7 @@ test('the visible furniture is styled by the new system, not left on the old rul
 test('layout tokens carry literal fallbacks, so a missing token cannot collapse the page', () => {
   const css = read('src/index.css');
   assert.match(css, /max-width: var\(--cc-page-max, 1280px\)/);
-  assert.match(css, /padding: 0 var\(--cc-gutter, 48px\)/);
+  assert.match(css, /padding: 0 var\(--cc-gutter, 48px\)/);  // the fallbacks stay conservative
 });
 
 test('headings that set their own type still use the serif, not a stray weight', () => {
@@ -382,4 +383,26 @@ test('the shell and form rules match the screen examples', () => {
   // fields: 44px, hairline, 2px radius, everywhere rather than per screen
   assert.match(css, /\.dc-page select \{ height: 44px; \}/);
   assert.match(css, /border: 1px solid var\(--cc-faint, #8A8E95\)/);
+});
+
+test('the designer\'s type rules are not overridden by later blocks', () => {
+  const css = read('src/index.css');
+  const start = css.indexOf('Compass UI system (handoff v1');
+  const mine = css.indexOf('Phase two: classes still carrying');
+  const designer = css.slice(start, mine);
+  const later = css.slice(mine);
+  const theirs = new Set([...designer.matchAll(/\.(dc-[a-z0-9-]+|btn-[a-z0-9-]+)\s*[,{]/g)].map(m => m[1]));
+  const redefined = [...new Set([...later.matchAll(/\.(dc-[a-z0-9-]+|btn-[a-z0-9-]+)\s*[,{]/g)].map(m => m[1]))].filter(c => theirs.has(c));
+  // Only layout may be re-stated; type and weight belong to the handoff.
+  assert.deepEqual(redefined.sort(), ['dc-listrow', 'dc-page', 'dc-wrap'],
+    `later blocks redefine ${redefined.join(', ')}; type rules must come from the handoff`);
+  // the standfirst is their 19px lead, not a small caps label
+  assert.ok(!later.includes('.dc-standfirst {'), 'standfirst left to the handoff');
+  assert.match(designer, /\.dc-standfirst, \.dc-lead \{ font-size: var\(--cc-fs-lead\)/);
+});
+
+test('numerals are set in the serif at regular weight, never heavy sans', () => {
+  assert.ok(!/text-\[(3[0-9]|[4-9][0-9]|1[0-9]{2})px\] font-bold/.test(app), 'a large numeral is still heavy sans');
+  const css = read('src/index.css');
+  assert.match(css, /\.dc-numeral \{[\s\S]*?--cc-serif/);
 });

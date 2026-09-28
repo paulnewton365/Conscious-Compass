@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.67.0';
+const APP_VERSION = '3.68.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -75,7 +75,7 @@ class ErrorBoundary extends React.Component {
             <div className="w-16 h-16 bg-[#FBFAF7] flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8 text-[#C23B22]" />
             </div>
-            <h1 className="text-[22px] font-bold tracking-tight text-[#15171A] mb-2">Something went wrong</h1>
+            <h1 className="text-[22px] font-semibold tracking-tight text-[#15171A] mb-2">Something went wrong</h1>
             <p className="text-[#5B6068] mb-6">An unexpected error occurred. Please refresh the page to try again.</p>
             <button 
               onClick={() => window.location.reload()} 
@@ -4094,7 +4094,7 @@ VALUE PROP: 'Reduce costs by 40% while improving...'
         ) : (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[20px] font-bold tracking-tight text-[#15171A] flex items-center gap-2">
+              <span className="text-[20px] font-semibold tracking-tight text-[#15171A] flex items-center gap-2">
                 <Check className="w-4 h-4 text-[#2F6B55]" /> SEO Assessment Complete
                 <span className="text-xs text-[#5B6068] font-normal">(will be included in Website Analysis)</span>
               </span>
@@ -4920,7 +4920,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
     >
       <div className="flex items-center gap-3">
         <Icon className="w-4 h-4 text-[#5B6068]" />
-        <span className="text-[17px] font-bold tracking-tight text-[#15171A]">{title}</span>
+        <span className="text-[17px] font-semibold tracking-tight text-[#15171A]">{title}</span>
         {badge && <span className="dc-meta">{badge}</span>}
         {hasContent && <Check className="w-4 h-4 text-[#2F6B55]" />}
       </div>
@@ -4987,7 +4987,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       <div className="dc-panel-dark mb-[2px]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
           <div className="min-w-0">
-            <h3 className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
+            <h3 className="text-[20px] font-semibold tracking-tight text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#C23B22]" />
               Run Everything
             </h3>
@@ -5015,7 +5015,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       <div className="dc-panel-dark mb-[2px]">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-[20px] font-bold tracking-tight text-white flex items-center gap-2">
+            <h3 className="text-[20px] font-semibold tracking-tight text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#15171A]" />
               Social Media Health Check
             </h3>
@@ -6441,7 +6441,7 @@ function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, be
                                   transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease', transitionDelay: `${ri * 70 + 120}ms` }} />
                               </div>
                               <div className="dc-ledger-value text-right">
-                                <span className="text-[19px] font-bold" style={{ color: scoreColor(v) }}>{v}</span>
+                                <span className="text-[19px] font-semibold" style={{ color: scoreColor(v) }}>{v}</span>
                                 <span className="block text-[10px] font-bold" style={{ color: '#15171A', background: d > 0 ? '#D9442A' : 'transparent', border: d > 0 ? 'none' : '1px solid #DEDAD2', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
                                   {d > 0 ? '+' : ''}{d}
                                 </span>
@@ -7223,7 +7223,7 @@ Return the complete revised readout as prose. No preamble, no notes about what y
             <BarChart3 className="w-7 h-7 text-[#C23B22]" />
           </div>
           <div>
-            <h2 className="text-[22px] font-bold tracking-tight text-[#15171A]">Generate Brand Report</h2>
+            <h2 className="text-[22px] font-semibold tracking-tight text-[#15171A]">Generate Brand Report</h2>
             <p className="text-[#2E3238] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
           </div>
         </div>
@@ -9334,7 +9334,7 @@ ${content.slice(0, 8000)}`;
             <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutWebsite')} 
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-bold tracking-tight"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-semibold tracking-tight"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#D9442A]/10 flex items-center justify-center">
@@ -9381,7 +9381,7 @@ ${content.slice(0, 8000)}`;
             <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutSocial')} 
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-bold tracking-tight"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-semibold tracking-tight"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#15171A]/10 flex items-center justify-center">
@@ -9420,7 +9420,7 @@ ${content.slice(0, 8000)}`;
             <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutAI')} 
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-bold tracking-tight"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-semibold tracking-tight"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#15171A]/10 flex items-center justify-center">
@@ -9450,7 +9450,7 @@ ${content.slice(0, 8000)}`;
             <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
                 onClick={() => toggleSection('readoutEarned')} 
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-bold tracking-tight"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-semibold tracking-tight"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#2F6B55]/10 flex items-center justify-center">
@@ -9847,7 +9847,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
                       </div>
                     </div>
                     <div className="dc-col-hide text-[13px] text-[#2E3238] truncate">{r.industry}</div>
-                    <div className="text-[20px] font-bold text-right" style={{ color: scoreColor(r.totalScore) }}>{r.totalScore}</div>
+                    <div className="text-[20px] font-semibold text-right" style={{ color: scoreColor(r.totalScore) }}>{r.totalScore}</div>
                     <div className="dc-col-hide text-[13px] font-semibold">{r.maturityLevel}</div>
                     <div className="dc-col-hide text-[13px] text-[#5B6068] text-right">
                       {assessmentDate ? assessmentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
@@ -9903,7 +9903,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-[#DEDAD2]">
-              <h3 className="text-[17px] font-bold tracking-tight">Add Manual Entry</h3>
+              <h3 className="text-[17px] font-semibold tracking-tight">Add Manual Entry</h3>
               <button onClick={() => setShowAddModal(false)} className="text-[#5B6068] hover:text-[#15171A]">
                 <X className="w-6 h-6" />
               </button>
@@ -10044,7 +10044,7 @@ function OnboardingTour({ onComplete }) {
       <div className="bg-[#15171A] max-w-lg w-full overflow-hidden animate-fade-in">
         <div className="bg-[#D9442A] p-8 text-center">
           <Icon className="w-16 h-16 text-[#15171A] mx-auto mb-4" />
-          <h2 className="text-[22px] font-bold tracking-tight text-[#15171A]">{currentStep.title}</h2>
+          <h2 className="text-[22px] font-semibold tracking-tight text-[#15171A]">{currentStep.title}</h2>
         </div>
         
         <div className="p-6">
@@ -10980,7 +10980,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
       {/* Sector Attribute Spread — rows = sectors, tracks = attributes */}
       <div className="bg-white p-7">
         <div className="mb-5">
-          <h3 className="text-[20px] font-bold tracking-tight text-[#15171A]">Sector attribute spread</h3>
+          <h3 className="text-[20px] font-semibold tracking-tight text-[#15171A]">Sector attribute spread</h3>
           <p className="text-[13px] text-[#5B6068] mt-1.5" style={{ maxWidth: '60ch' }}>
             Each sector's score across all eight attributes. Each dot is one attribute score; the line is that sector's overall average.
           </p>
@@ -11462,7 +11462,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             <div className="lg:col-span-1 space-y-4">
               {/* Filters */}
               <div className="card">
-                <h3 className="text-[20px] font-bold tracking-tight text-[#15171A] mb-4">Filters</h3>
+                <h3 className="text-[20px] font-semibold tracking-tight text-[#15171A] mb-4">Filters</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="dc-kicker-sm mb-2 block">Industry</label>
@@ -11993,7 +11993,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
       <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-[22px] font-bold tracking-tight text-[#15171A]">
+            <h3 className="text-[22px] font-semibold tracking-tight text-[#15171A]">
               Client links{links ? ` (${links.length})` : ''}
             </h3>
             <p className="text-xs text-[#5B6068] mt-0.5">
@@ -12381,7 +12381,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                     {/* Score, set as a figure rather than a badge */}
                     {overallScore !== null && (
                       <div className="flex-shrink-0 text-right">
-                        <div className="text-[32px] font-bold leading-none tracking-tight"
+                        <div className="text-[32px] font-normal dc-numeral leading-none tracking-tight"
                           style={{ color: scoreColor(overallScore) }}>{overallScore}</div>
                       </div>
                     )}
@@ -12508,7 +12508,7 @@ function ChallengeModal({ brandName, onClose, onSubmit, busy, stage, progress, e
       <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-[22px] font-bold tracking-tight text-[#15171A]">Challenge the assessment</h3>
+            <h3 className="text-[22px] font-semibold tracking-tight text-[#15171A]">Challenge the assessment</h3>
             <p className="text-xs text-[#5B6068] mt-0.5">
               Put additional context to the assessment of {brandName}, then rescore.
             </p>
@@ -12615,7 +12615,7 @@ function LanguageModal({ brandName, onClose, onApply, onRevert, busy, error, exi
       <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-[22px] font-bold tracking-tight text-[#15171A]">Language</h3>
+            <h3 className="text-[22px] font-semibold tracking-tight text-[#15171A]">Language</h3>
             <p className="text-xs text-[#5B6068] mt-0.5">
               Wording and tone for the {brandName} report. Results are not affected.
             </p>
@@ -12927,7 +12927,7 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile, existingNo
       <div className="card max-w-lg w-full my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-[22px] font-bold tracking-tight text-[#15171A]">Client link</h3>
+            <h3 className="text-[22px] font-semibold tracking-tight text-[#15171A]">Client link</h3>
             <p className="text-xs text-[#5B6068] mt-0.5">
               A cleansed, password-protected report for {brandName}.
             </p>
@@ -13473,7 +13473,7 @@ function SharedReportView({ report, onClose }) {
           <div className="inline-flex items-center justify-center w-32 h-32 bg-[#D9442A] text-[#15171A] mb-4">
             <span className="text-5xl font-bold">{overall}</span>
           </div>
-          <h2 className="text-[20px] font-bold tracking-tight text-[#15171A] mb-2">{stage.name}</h2>
+          <h2 className="text-[20px] font-semibold tracking-tight text-[#15171A] mb-2">{stage.name}</h2>
           <p className="text-[#2E3238] mb-4">{stage.description}</p>
           {scores.headline && (
             <p className="text-lg italic text-[#15171A] border-t border-[#DEDAD2] pt-4 mt-4">
@@ -16499,7 +16499,7 @@ function AppContent() {
             <div className="dc-wrap" style={{ padding: '24px 32px 0' }}>
               <div className="flex items-start gap-4 bg-white px-5 py-4" style={{ borderLeft: '6px solid #D9442A' }}>
                                 <div className="flex-1 min-w-0">
-                  <p className="text-[17px] font-bold tracking-tight text-[#15171A]">Unsaved assessment found</p>
+                  <p className="text-[17px] font-semibold tracking-tight text-[#15171A]">Unsaved assessment found</p>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#5B6068] mt-1.5">
                     <strong>{draftRestoreOffer.project.brandName}</strong> — Step {draftRestoreOffer.currentStep} of 5 · Last saved {new Date(draftRestoreOffer.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                   </p>
