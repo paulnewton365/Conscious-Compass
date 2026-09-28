@@ -95,6 +95,8 @@ export async function loadFontBase64(url) {
 }
 
 export function loadImage(src) {
+  // A data URL needs no loading: jsPDF takes it as it is.
+  if (typeof src === 'string' && src.startsWith('data:')) return Promise.resolve(src);
   if (typeof window === 'undefined' || typeof window.Image !== 'function') return Promise.resolve(null);
   return new Promise(resolve => {
     const img = new window.Image();
@@ -317,4 +319,46 @@ export async function loadReportFonts() {
     if (b64) out[f.file] = b64;
   }));
   return out;
+}
+
+
+// ── One download, all three pieces ────────────────────────────
+// A zip holding the printed card, the pitch slide and the read, named for the
+// brand so the folder makes sense on someone else's desktop.
+
+// "Acme Group" -> "Acme Group" trimmed of anything a file system dislikes.
+export const packName = (brand) => String(brand || 'Brand').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Brand';
+
+export const PACK_FILES = {
+  read: (brand) => `${packName(brand)} Teaser ReadMe Internal.pdf`,
+  card: (brand) => `${packName(brand)} Teaser Card 5x7 bleed.pdf`,
+  slide: (brand) => `${packName(brand)} Teaser Slide.pptx`,
+};
+
+// `d` is the scorecard data (card and slide), `payload` the client payload
+// (the read). The card and slide need a brand image and a baseline; without
+// them the pack is the read alone rather than nothing.
+export async function exportTeaserPack(payload, d, { jsPDF, JSZip, saveAs, save = true, includeScorecard = true, fonts = null, assets = null, media = null, backArtwork = BACK_ARTWORK }) {
+  if (typeof saveAs !== 'function') throw new Error('The download helper (file-saver) did not load. Reload the page and try again.');
+  const zip = new JSZip();
+  const included = [];
+
+  const { pdf: read } = await exportTeaserReportPdf(payload, { jsPDF, save: false, fonts });
+  zip.file(PACK_FILES.read(payload.brandName), read.output('arraybuffer'));
+  included.push('read');
+
+  if (includeScorecard) {
+    const { pdf: card } = await exportScorecardPdf(d, { jsPDF, save: false, assets, backArtwork });
+    zip.file(PACK_FILES.card(payload.brandName), card.output('arraybuffer'));
+    included.push('card');
+
+    const { blob: slide } = await exportScorecardSlide(d, { JSZip, saveAs, save: false, media });
+    zip.file(PACK_FILES.slide(payload.brandName), await slide.arrayBuffer());
+    included.push('slide');
+  }
+
+  const filename = `${packName(payload.brandName)} Teaser Pack.zip`;
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
+  if (save) saveAs(blob, filename);
+  return { blob, filename, included };
 }

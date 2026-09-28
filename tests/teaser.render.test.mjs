@@ -724,20 +724,19 @@ test('Card and Slide are offered only when there is a score, an image and a base
   stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
   const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
   await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
-  const card = () => container.querySelector('[data-field="make-card"]');
-  const slide = () => container.querySelector('[data-field="make-slide"]');
-  assert.equal(card().disabled, true, 'no brand image yet');
-  assert.match(card().title, /Needs a brand image/);
+  const pack = () => container.querySelector('[data-field="download-pack"]');
+  assert.equal(pack().disabled, false, 'the read can always be downloaded');
+  assert.equal(pack().textContent.trim(), 'Download read', 'without an image it is the read alone');
+  assert.match(pack().title, /Add a brand image/);
   assert.match(container.querySelector('[data-field="hero-image"]').textContent, /none yet/i);
 
   // Upload one: the report saves it against the teaser.
   stub.state.teasers[0] = { ...rec, hero_image: 'data:image/jpeg;base64,AAAA' };
   const { container: c2, root: r2 } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [stub.state.teasers[0]] });
   await click(btn(c2, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
-  assert.equal(c2.querySelector('[data-field="make-card"]').disabled, false);
-  assert.equal(c2.querySelector('[data-field="make-slide"]').disabled, false);
+  assert.equal(c2.querySelector('[data-field="download-pack"]').textContent.trim(), 'Download pack', 'with an image the pack holds all three');
   assert.ok(c2.querySelector('[data-field="hero-image"] img'), 'thumbnail shown');
-  void slide; void root;
+  void root;
   await act(async () => r2.unmount());
 });
 
@@ -750,7 +749,7 @@ test('removing the brand image saves null and disables the scorecard buttons aga
   for (let i = 0; i < 5; i++) await act(flush);
   const saved = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
   assert.equal(saved.hero_image, null);
-  assert.equal(container.querySelector('[data-field="make-card"]').disabled, true);
+  assert.equal(container.querySelector('[data-field="download-pack"]').textContent.trim(), 'Download read');
   await act(async () => root.unmount());
 });
 
@@ -777,7 +776,7 @@ test('when a scorecard cannot be made, the report says why on the page, not just
   m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [{ ...rec, hero_image: 'data:image/jpeg;base64,AAAA' }] });
   await click(btn(m.container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
   assert.equal(m.container.querySelector('[data-field="scorecard-blocked"]'), null);
-  assert.equal(m.container.querySelector('[data-field="make-card"]').disabled, false);
+  assert.equal(m.container.querySelector('[data-field="download-pack"]').textContent.trim(), 'Download pack');
   await act(async () => m.root.unmount());
 });
 
@@ -809,7 +808,7 @@ test('exports refuse to start from a tab left open across a deploy', async () =>
   assert.ok(container.textContent.includes('Reload the page'));
   // slide and card
   await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
-  await click(container.querySelector('[data-field="make-slide"]'));
+  await click(container.querySelector('[data-field="download-pack"]'));
   for (let i = 0; i < 6; i++) await act(flush);
   assert.ok(container.textContent.includes('older version of the Compass'));
   globalThis.__liveVersion = undefined;

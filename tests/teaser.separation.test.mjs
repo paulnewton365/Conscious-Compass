@@ -200,10 +200,10 @@ test('the scorecard is built and offered only inside the teaser', () => {
   assert.ok(!/supabase/i.test(src));
   WRITES.forEach(t => assert.ok(!src.includes(t), `scorecard references ${t}`));
   // Every use of the scorecard in the app sits in the teaser block.
-  const uses = [...app.matchAll(/scorecard[A-Za-z]*\(|exportScorecard[A-Za-z]*\(|makeScorecard\(/g)].map(m => m.index);
+  const uses = [...app.matchAll(/scorecard[A-Za-z]*\(|exportTeaser(Pack|ReportPdf)\(|downloadPack\(/g)].map(m => m.index);
   const start = app.indexOf('// TEASER (v3.29)');
   const end = app.indexOf('function AppContent() {');
-  assert.ok(uses.length >= 4);
+  assert.ok(uses.length >= 3, `expected the pack and scorecard helpers, found ${uses.length}`);
   uses.forEach(i => assert.ok(i > start && i < end, 'scorecard used outside the teaser block'));
   // And the full report's own exports know nothing about it.
   const reportPage = app.slice(app.indexOf('function ReportPage('), app.indexOf('function ReportGlanceSection('));

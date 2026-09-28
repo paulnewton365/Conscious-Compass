@@ -454,3 +454,62 @@ test('the report carries only what the prospect payload holds', async () => {
   const raw = pdf.output();
   ['SENTINEL_CONTEXT', 'SENTINEL_EVIDENCE'].forEach(s => assert.ok(!raw.includes(s), `${s} in the report`));
 });
+
+// ── One download, all three pieces (v3.60) ──
+
+import { exportTeaserPack, PACK_FILES, packName } from '../src/lib/scorecard.js';
+
+const packFonts = () => Object.fromEntries(REPORT_FONTS.map(f => [f.file, readFileSync(new URL(`../public/report/${f.file}`, import.meta.url)).toString('base64')]));
+
+test('the pack is one zip holding the read, the card and the slide, named for the brand', async () => {
+  const payload = readPayload();
+  // real image bytes: jsPDF decodes what it embeds
+  const png = 'data:image/png;base64,' + readFileSync(new URL('../public/scorecard/qr-lets-chat.png', import.meta.url)).toString('base64');
+  const media = { hero: png, heroRatio: 1.6, qr: png, antenna: png, howl: png };
+  const assets = { qr: png, antennaA: png, antennaARatio: 1.3, hero: png, heroRatio: 1.6, spaceMono: null };
+  let savedName = null, savedBlob = null;
+  const { filename, included } = await exportTeaserPack(payload, D, {
+    jsPDF, JSZip, saveAs: (b, n) => { savedBlob = b; savedName = n; }, fonts: packFonts(), assets, media,
+    // the browser fetches this; Node hands it over directly
+    backArtwork: 'data:image/png;base64,' + readFileSync(new URL('../public/scorecard/card-back.png', import.meta.url)).toString('base64'),
+  });
+  assert.equal(filename, 'Acme & Sons Teaser Pack.zip');
+  assert.equal(savedName, filename, 'it downloads under that name');
+  assert.deepEqual(included, ['read', 'card', 'slide']);
+  const zip = await JSZip.loadAsync(Buffer.from(await savedBlob.arrayBuffer()));
+  const names = Object.keys(zip.files).filter(n => !zip.files[n].dir).sort();
+  assert.deepEqual(names, [
+    'Acme & Sons Teaser Card 5x7 bleed.pdf',
+    'Acme & Sons Teaser ReadMe Internal.pdf',
+    'Acme & Sons Teaser Slide.pptx',
+  ]);
+  // each file is the real thing, not an empty placeholder
+  const read = await zip.file('Acme & Sons Teaser ReadMe Internal.pdf').async('string');
+  assert.ok(read.startsWith('%PDF'), 'the read is a PDF');
+  const card = await zip.file('Acme & Sons Teaser Card 5x7 bleed.pdf').async('string');
+  assert.ok(card.startsWith('%PDF'), 'the card is a PDF');
+  const slide = await zip.file('Acme & Sons Teaser Slide.pptx').async('nodebuffer');
+  const inner = await JSZip.loadAsync(slide);
+  assert.ok(inner.file('ppt/slides/slide1.xml'), 'the slide is a real pptx');
+});
+
+test('without a brand image the pack is the read alone, rather than failing', async () => {
+  let savedBlob = null;
+  const { included, filename } = await exportTeaserPack(readPayload(), D, {
+    jsPDF, JSZip, saveAs: (b) => { savedBlob = b; }, fonts: packFonts(), includeScorecard: false,
+  });
+  assert.deepEqual(included, ['read']);
+  assert.equal(filename, 'Acme & Sons Teaser Pack.zip');
+  const zip = await JSZip.loadAsync(Buffer.from(await savedBlob.arrayBuffer()));
+  assert.deepEqual(Object.keys(zip.files).filter(n => !zip.files[n].dir), ['Acme & Sons Teaser ReadMe Internal.pdf']);
+});
+
+test('brand names are made safe for a file system without being mangled', () => {
+  assert.equal(packName('Acme & Sons'), 'Acme & Sons');
+  assert.equal(packName('H&M / Nordics'), 'H&M Nordics');
+  assert.equal(packName('Mercedes-Benz: Charging'), 'Mercedes-Benz Charging');
+  assert.equal(packName(''), 'Brand');
+  assert.equal(PACK_FILES.read('Acme'), 'Acme Teaser ReadMe Internal.pdf');
+  assert.equal(PACK_FILES.card('Acme'), 'Acme Teaser Card 5x7 bleed.pdf');
+  assert.equal(PACK_FILES.slide('Acme'), 'Acme Teaser Slide.pptx');
+});

@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.59.0';
+const APP_VERSION = '3.60.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -45,7 +45,7 @@ import {
   fetchCampaignScores
 } from './lib/supabase';
 import { buildCampaignWorkbook, buildCampaignRows, campaignSummary } from './lib/teaserExport';
-import { scorecardData, scorecardReady, exportScorecardPdf, exportScorecardSlide, exportTeaserReportPdf } from './lib/scorecard';
+import { scorecardData, scorecardReady, exportTeaserPack } from './lib/scorecard';
 import { loadJSZip } from './lib/lazyZip';
 
 // Use 'PROXY' to route through serverless function (secure, API key on server)
@@ -14682,7 +14682,6 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
   const chartRef = useRef(null);
   const heroRef = useRef(null);
   const payload = makeTeaserClientPayload(record);
-  const [exporting, setExporting] = useState(false);
   const [making, setMaking] = useState(null);      // 'card' | 'slide'
   const [heroError, setHeroError] = useState(null);
   const industryNameFull = INDUSTRIES.find(i => i.id === record.industry)?.name || '';
@@ -14699,35 +14698,32 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
     }
   };
 
-  const makeScorecard = async (kind) => {
+  // One download: the read, plus the card and slide when there is a brand
+  // image and a baseline to build them from.
+  const cov = evidenceCoverage(record.evidence);
+  const sources = record.evidence?.sources || {};
+
+  const downloadPack = async () => {
     setHeroError(null);
-    // A tab left open across a deploy cannot load the files these exports
-    // need, so check before starting rather than failing halfway.
     if (onStaleCheck && !(await onStaleCheck())) {
       setHeroError('This page is running an older version of the Compass. Reload the page, then try again.');
       return;
     }
-    setMaking(kind);
+    setMaking('pack');
     try {
       const d = scorecardData(record, baseline, industryNameFull);
-      if (kind === 'card') await exportScorecardPdf(d, { jsPDF });
-      else await exportScorecardSlide(d, { JSZip: await loadJSZip(), saveAs });
+      await exportTeaserPack(payload, d, {
+        jsPDF,
+        JSZip: await loadJSZip(),
+        saveAs,
+        includeScorecard: scorecard.ready,
+      });
     } catch (e) {
-      console.error('Scorecard export failed', e);
-      setHeroError(`${kind === 'card' ? 'Card' : 'Slide'} export failed: ${e.message}. The browser console has the full detail.`);
-    } finally { setMaking(null); }
-  };
-  const cov = evidenceCoverage(record.evidence);
-  const sources = record.evidence?.sources || {};
-
-  const handleExport = async () => {
-    setExporting(true);
-    try { await exportTeaserReportPdf(payload, { jsPDF }); }
-    catch (e) {
-      console.error('Report export failed', e);
-      alert(`PDF export failed: ${e.message}. The browser console has the full detail.`);
+      console.error('Teaser pack export failed', e);
+      setHeroError(`Download failed: ${e.message}. The browser console has the full detail.`);
+    } finally {
+      setMaking(null);
     }
-    finally { setExporting(false); }
   };
 
   return (
@@ -14735,15 +14731,18 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
         <button onClick={onBack} className="btn-secondary flex items-center gap-2" disabled={busy}><ArrowLeft className="w-4 h-4" /> All teasers</button>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {payload && <button onClick={handleExport} disabled={busy || exporting} className="btn-secondary flex items-center gap-2">{exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} PDF</button>}
+          {payload && (
+            <button onClick={downloadPack} disabled={busy || !!making} data-field="download-pack"
+              title={scorecard.ready
+                ? 'A zip holding the read, the printed card and the pitch slide'
+                : 'A zip holding the read. Add a brand image to include the card and slide.'}
+              className="btn-secondary flex items-center gap-2">
+              {making === 'pack' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {scorecard.ready ? 'Download pack' : 'Download read'}
+            </button>
+          )}
           <button onClick={onRescore} disabled={busy || !cov.canScore} className="btn-secondary flex items-center gap-2" title="Score the stored evidence again, without new searches"><RefreshCw className="w-4 h-4" /> {payload ? 'Rescore' : 'Score'}</button>
           <button onClick={onRefresh} disabled={busy} className="btn-secondary flex items-center gap-2" title="Gather fresh evidence, then score it"><Search className="w-4 h-4" /> Refresh evidence</button>
-          <button onClick={() => makeScorecard('card')} disabled={busy || !!making || !scorecard.ready} data-field="make-card"
-            title={scorecard.ready ? 'Two-page 5x7in print card with bleed' : `Needs ${scorecard.missing.join(' and ')}`}
-            className="btn-secondary flex items-center gap-2">{making === 'card' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />} Card</button>
-          <button onClick={() => makeScorecard('slide')} disabled={busy || !!making || !scorecard.ready} data-field="make-slide"
-            title={scorecard.ready ? 'One 16:9 slide as a PowerPoint file, opens in Google Slides' : `Needs ${scorecard.missing.join(' and ')}`}
-            className="btn-secondary flex items-center gap-2">{making === 'slide' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Presentation className="w-4 h-4" />} Slide</button>
           <button onClick={onConvert} disabled={busy} className="btn-primary flex items-center gap-2"><ArrowRight className="w-4 h-4" /> Full assessment</button>
           <button onClick={onDelete} disabled={busy} className="btn-secondary flex items-center gap-2" title="Delete teaser"><Trash2 className="w-4 h-4" /></button>
         </div>
