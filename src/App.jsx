@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.62.0';
+const APP_VERSION = '3.64.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -1614,7 +1614,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
             Trust &amp; Credibility Lens
           </span>
         </div>
-        <h3 style={{ fontSize: 'clamp(28px,3.4vw,44px)', fontWeight: 700, letterSpacing: '-.03em', lineHeight: .98 }}>
+        <h3 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(28px,3.4vw,44px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)', lineHeight: .98 }}>
           Trust, credibility, reputation, and authenticity
         </h3>
         <p style={{ fontSize: 14, color: MUTED, maxWidth: '78ch', marginTop: 14, lineHeight: 1.55 }}>
@@ -1780,7 +1780,7 @@ function FootprintMap({ footprint, brandName }) {
               Brand Footprint
             </span>
           </div>
-          <h3 style={{ fontSize: 'clamp(28px,3.2vw,44px)', fontWeight: 700, letterSpacing: '-.03em',
+          <h3 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(28px,3.2vw,44px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)',
             lineHeight: .95, color: FP_INK }}>
             Where the brand shows up.
           </h3>
@@ -2546,7 +2546,7 @@ function WelcomePage({ onStart }) {
       <div className="dc-split grid gap-12 items-center"
         style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(220px,320px)' }}>
         <div>
-          <h1 style={{ fontSize: 'clamp(38px,5vw,68px)', fontWeight: 700, letterSpacing: '-.035em',
+          <h1 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(38px,5vw,68px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)',
             lineHeight: .95, maxWidth: '20ch', ...rise('150ms') }}>
             Consequential brands are conscious brands
           </h1>
@@ -8965,7 +8965,7 @@ ${content.slice(0, 8000)}`;
           )}
         </div>
 
-        <h1 style={{ fontSize: 'clamp(40px,6vw,88px)', fontWeight: 700, letterSpacing: '-.035em',
+        <h1 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(40px,6vw,88px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)',
           lineHeight: .92, margin: '28px 0 0', maxWidth: '18ch', textWrap: 'balance' }}>
           {project.brandName}
         </h1>
@@ -13089,7 +13089,7 @@ function ClientReportView({ payload }) {
           {/* Type and subtitle match the internal report exactly. The client
               report had a smaller title and a tracked uppercase standfirst,
               which read as a different document. */}
-          <h1 style={{ fontSize: 'clamp(40px,6vw,88px)', fontWeight: 700, letterSpacing: '-.035em',
+          <h1 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(40px,6vw,88px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)',
             lineHeight: .92, margin: '4px 0 0', maxWidth: '18ch', textWrap: 'balance' }}>
             {project.brandName}
           </h1>
@@ -13304,7 +13304,7 @@ function ClientReportGate({ token }) {
           className="h-7 mb-7"
           style={{ filter: 'brightness(0)' }}
         />
-        <p style={{ fontSize: 'clamp(40px,7vw,60px)', fontWeight: 700, letterSpacing: '-.035em',
+        <p style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(40px,7vw,60px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)',
           lineHeight: .98, maxWidth: '15ch' }}>
           Consequential brands are conscious brands
         </p>

@@ -320,3 +320,35 @@ test('a CSS comment can never swallow the token block again', () => {
   assert.match(css, /--cc-page-max:\s*1280px/);
   assert.match(css, /--cc-gutter:\s*48px/);
 });
+
+test('the visible furniture is styled by the new system, not left on the old rules', () => {
+  const css = read('src/index.css');
+  const cut = css.indexOf('Compass UI system (handoff v1');
+  assert.ok(cut > 0, 'the new system is present');
+  const newRules = css.slice(cut);
+  // page titles, rows and score numerals: the things on every screen
+  ['dc-h2', 'dc-pagehead', 'dc-standfirst', 'dc-listrow', 'dc-listrow-t', 'dc-results-row',
+    'dc-stat-n', 'dc-stat-l', 'dc-ledger-row', 'dc-attr-card', 'dc-tab-on', 'dc-rec-row']
+    .forEach(c => assert.ok(newRules.includes(`.${c}`), `${c} still on the old rules`));
+  // the serif carries titles and scores
+  assert.match(newRules, /\.dc-h2\s*\{[^}]*--cc-serif/);
+  assert.match(newRules, /\.dc-stat-n[^{]*\{[^}]*--cc-serif/);
+});
+
+test('layout tokens carry literal fallbacks, so a missing token cannot collapse the page', () => {
+  const css = read('src/index.css');
+  assert.match(css, /max-width: var\(--cc-page-max, 1280px\)/);
+  assert.match(css, /padding: 0 var\(--cc-gutter, 48px\)/);
+});
+
+test('headings that set their own type still use the serif, not a stray weight', () => {
+  // These bypass the stylesheet, so the serif has to be stated inline.
+  const inline = [...app.matchAll(/fontSize: 'clamp\([^']+\)', fontWeight: (\d+)/g)].map(m => m[1]);
+  const heavy = inline.filter(w => Number(w) >= 700);
+  assert.deepEqual(heavy, [], 'a display heading is still set in heavy sans');
+  assert.ok((app.match(/fontFamily: 'var\(--cc-serif\)'/g) || []).length >= 6, 'display headings carry the serif');
+});
+
+test('no stray palette outside the system', () => {
+  assert.ok(!app.includes('bg-blue-50'), 'the sharing tip used a default blue');
+});

@@ -713,9 +713,9 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
 body { background: var(--cc-paper); color: var(--cc-ink);
   font: var(--cc-w-regular) var(--cc-fs-body)/var(--cc-lh-body) var(--cc-sans);
   font-variant-numeric: tabular-nums; }
-.dc-wrap { max-width: var(--cc-page-max); margin: 0 auto;
-  padding: 0 var(--cc-gutter); }
-.dc-page { padding: var(--cc-s-16) 0 var(--cc-s-24);
+.dc-wrap { max-width: var(--cc-page-max, 1280px); margin: 0 auto;
+  padding: 0 var(--cc-gutter, 48px); }
+.dc-page { padding: var(--cc-s-16, 64px) 0 var(--cc-s-24, 96px);
   display: flex; flex-direction: column; gap: var(--cc-s-12); }
 .dc-stack { display: flex; flex-direction: column; gap: var(--cc-s-4); }
 .dc-block { background: var(--cc-paper); border: var(--cc-border);
@@ -826,4 +826,129 @@ body { background: var(--cc-paper); color: var(--cc-ink);
   --antenna-lime:       var(--cc-rust);
   --antenna-lime-dark:  var(--cc-rust-text);
   --antenna-error:      var(--cc-neg);
+}
+
+
+/* ── Phase two: classes still carrying their pre-restyle geometry ──
+   Page heads, list rows, ledger rows, results rows and stats, brought
+   onto the new scale. Appended last, so these are the rules that win. */
+
+.dc-pagehead {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--cc-s-6, 24px); flex-wrap: wrap;
+  padding-bottom: var(--cc-s-5, 20px); margin-bottom: var(--cc-s-8, 32px);
+  border-bottom: 1px solid var(--cc-ink, #15171A);
+}
+.dc-h2 {
+  font-family: var(--cc-serif, Georgia, serif);
+  font-weight: var(--cc-w-regular, 400);
+  font-size: var(--cc-fs-title, 52px);
+  line-height: var(--cc-lh-display, 1.08);
+  letter-spacing: var(--cc-tracking-display, -.01em);
+  color: var(--cc-ink, #15171A);
+}
+.dc-standfirst {
+  font-family: var(--cc-sans, system-ui, sans-serif);
+  font-size: var(--cc-fs-label, 11.5px); font-weight: var(--cc-w-semi, 600);
+  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
+  color: var(--cc-muted, #5B6068); margin-top: var(--cc-s-2, 8px);
+}
+.dc-split { display: grid; gap: var(--cc-s-6, 24px); }
+
+/* list and results rows */
+.dc-listrow, .dc-results-row {
+  display: flex; align-items: center; gap: var(--cc-s-5, 20px);
+  padding: var(--cc-s-4, 16px) 0;
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+  background: transparent;
+}
+.dc-listrow:hover, .dc-results-row:hover { background: var(--cc-hover, #F3F1EC); }
+.dc-listrow-t {
+  font-family: var(--cc-sans, system-ui, sans-serif);
+  font-size: var(--cc-fs-lead, 19px); font-weight: var(--cc-w-bold, 700);
+  line-height: 1.25; color: var(--cc-ink, #15171A);
+}
+.dc-listrow-m {
+  font-size: var(--cc-fs-meta, 12.5px); color: var(--cc-muted, #5B6068);
+  margin-top: 2px;
+}
+.dc-results-head {
+  font-size: var(--cc-fs-th, 11px); font-weight: var(--cc-w-semi, 600);
+  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
+  color: var(--cc-muted, #5B6068);
+  padding-bottom: var(--cc-s-2, 8px);
+  border-bottom: 1px solid var(--cc-ink, #15171A);
+}
+
+/* score numerals: the serif carries them, as on the read */
+.dc-stat-n, .dc-ledger-value {
+  font-family: var(--cc-serif, Georgia, serif);
+  font-weight: var(--cc-w-regular, 400);
+  font-size: var(--cc-fs-num-m, 44px);
+  line-height: .95; letter-spacing: -.02em;
+}
+.dc-stat-l {
+  font-size: var(--cc-fs-label, 11.5px); font-weight: var(--cc-w-semi, 600);
+  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
+  color: var(--cc-muted, #5B6068); margin-top: var(--cc-s-2, 8px);
+}
+
+/* ledger */
+.dc-ledger-row, .dc-ledger-r {
+  display: grid; grid-template-columns: 88px 1fr; gap: var(--cc-s-6, 24px);
+  align-items: start; padding: var(--cc-s-5, 20px) 0;
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+}
+.dc-ledger-h {
+  font-size: var(--cc-fs-th, 11px); font-weight: var(--cc-w-semi, 600);
+  letter-spacing: var(--cc-tracking-label, .1em); text-transform: uppercase;
+  color: var(--cc-muted, #5B6068);
+}
+.dc-ledger-track { height: var(--cc-bar, 3px); background: var(--cc-track, #E7E3DB); }
+.dc-ledger-track > * { height: var(--cc-bar, 3px); background: var(--cc-ink, #15171A); display: block; }
+
+/* tabs */
+.dc-tab-on {
+  color: var(--cc-ink, #15171A);
+  border-bottom: 2px solid var(--cc-rust, #D9442A);
+}
+
+/* attribute cards and recommendation rows */
+.dc-attr-card {
+  background: var(--cc-paper, #FBFAF7);
+  border: 1px solid var(--cc-rule, #DEDAD2);
+  border-radius: var(--cc-r-1, 2px);
+  padding: var(--cc-s-6, 24px);
+}
+.dc-rec-row {
+  display: grid; grid-template-columns: 56px 1fr; gap: var(--cc-s-5, 20px);
+  padding: var(--cc-s-4, 16px) 0;
+  border-bottom: 1px solid var(--cc-rule, #DEDAD2);
+}
+.dc-rec-ord {
+  font-family: var(--cc-serif, Georgia, serif);
+  font-size: var(--cc-fs-section, 34px); line-height: 1;
+  color: var(--cc-rust, #D9442A);
+}
+.dc-rec-tags { display: flex; gap: var(--cc-s-2, 8px); flex-wrap: wrap; }
+.dc-keep-white { background: var(--cc-paper, #FBFAF7); }
+
+
+/* ── Rhythm and row geometry, from QA on the built app ──────── */
+
+/* The page stack was too airy once sections carried their own margins. */
+.dc-page { gap: var(--cc-s-6, 24px); }
+.dc-pagehead { margin-bottom: var(--cc-s-6, 24px); }
+
+/* A list row is: content, then actions hard right. The score sits at the
+   right of the content column rather than floating beside the name. */
+.dc-listrow, .dc-results-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; column-gap: var(--cc-s-6, 24px); row-gap: var(--cc-s-3, 12px);
+  padding: var(--cc-s-5, 20px) 0; min-height: 64px;
+}
+.dc-listrow > *:last-child, .dc-results-row > *:last-child { justify-self: end; }
+@media (max-width: 720px) {
+  .dc-listrow, .dc-results-row { grid-template-columns: minmax(0, 1fr); }
+  .dc-listrow > *:last-child, .dc-results-row > *:last-child { justify-self: start; }
 }
