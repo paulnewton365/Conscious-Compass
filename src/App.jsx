@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.84.0';
+const APP_VERSION = '3.86.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -6129,37 +6129,29 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
   return (
     <>
             {open && (
-              <div className="grid gap-[2px] animate-fade-in"
-                style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', marginTop: 32 }}>
+              <div className="dc-attr-grid animate-fade-in">
                 {ATTRIBUTES.map(attr => {
                   const sc = scores[attr.id] || {};
                   const avg = benchmark?.attrAvgs?.[attr.id];
                   const delta = avg != null ? (sc.score || 0) - avg : null;
                   const adj = campaignAdjustment(attr.id);
                   return (
-                    <div key={attr.id} className="bg-white dc-attr-card" style={{ padding: 24 }}>
-                      {/* Header: figure, name, delta chip */}
-                      <div className="flex items-start gap-4"
-                        style={{ borderBottom: '1px solid #DEDAD2', paddingBottom: 14 }}>
-                        <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: .9,
-                          color: scoreColor(sc.score) }}>
-                          {sc.score || 0}
-                        </div>
+                    <article key={attr.id} className="dc-block dc-attr-card">
+                      {/* Header to the export: serif numeral, name, subtitle. */}
+                      <header>
+                        <div className="dc-stat-n">{sc.score || 0}</div>
                         <div className="flex-1 min-w-0">
-                          <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>{attr.name}</h4>
-                          <p className="text-[11px] font-semibold text-[#5B6068] mt-0.5" style={{ letterSpacing: '.04em' }}>
-                            {attr.fullName}
-                          </p>
+                          <h3 className="dc-h is-card">{attr.name}</h3>
+                          <div className="dc-meta">{attr.fullName}</div>
                         </div>
                         {delta != null && (
-                          /* Positive deltas take the lime chip, negatives an
-                             outlined one. The design signals direction by weight,
-                             not by red and green. */
-                          <div className={delta > 0 ? 'dc-pill' : 'dc-pill-o'}>
-                            {delta > 0 ? '+' : ''}{delta}
-                          </div>
+                          <span className="dc-pill">{delta > 0 ? '+' : ''}{delta}</span>
                         )}
+                      </header>
+                      <div className="dc-lens-bar" aria-hidden="true">
+                        <i style={{ width: `${Math.max(0, Math.min(100, sc.score || 0))}%` }} />
                       </div>
+
 
                       {/* Fixed-height meta block. Without it, cards with no campaign
                           modifier sat a line higher than their neighbours and the
@@ -6193,7 +6185,7 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                       {showInternal && sc.opportunity && (
                         <p className="text-[12px] svc-link" style={{ marginTop: 12 }}>{sc.opportunity}</p>
                       )}
-                    </div>
+                    </article>
                   );
                 })}
 
@@ -8939,47 +8931,33 @@ ${content.slice(0, 8000)}`;
       <ReportScoreTiles scores={scores} />
 
       {/* ── 02 Brand maturity ────────────────────────────────── */}
-      <section className="dc-reveal" style={{ marginTop: 80 }}>
+      <section className="dc-section dc-reveal">
         <SectionHead label="Brand maturity" />
-        {/* Segmented bar proportional to each band's width, with the score
-            marked above it. Replaces the gradient rail and dot markers.
-            Top padding clears the marker, which sits above the bar. */}
-        <div className="bg-white" style={{ marginTop: 24, padding: '52px 32px 32px' }}>
-          <div className="relative">
-            <div className="absolute flex flex-col items-center gap-1"
-              style={{ left: `${overall}%`, top: -30, transform: 'translateX(-50%)' }}>
-              <div className="text-[11px] font-bold" style={{ letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{overall}</div>
-              <div style={{ width: 2, height: 12, background: '#15171A' }} />
-            </div>
-
-            <PositionBands stageName={stage.name} />
-
-            {/* Band labels. The columns are proportional to band width, which
-                gives "Pre-Foundational" about 90px on a phone. Below 640px the
-                row becomes a two-column legend instead. */}
-            <div className="dc-maturity-labels grid gap-[2px]" style={{
-              gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), marginTop: 10 }}>
-              {MATURITY_STAGES.map(st => (
-                <div key={st.id} className="text-[11px] flex justify-between gap-2"
-                  style={{ fontWeight: st.name === stage.name ? 700 : 600,
-                    color: st.name === stage.name ? '#15171A' : '#5B6068' }}>
-                  <span>{st.name}</span>
-                  <span className="dc-band-range" style={{ color: '#8A8E95', fontWeight: 600 }}>
-                    {st.min}&ndash;{st.max}
-                  </span>
-                </div>
-              ))}
-            </div>
+        {/* To the export: six equal bands on one track, the score marked above
+            it, ranges under each label, and the summary as a chip plus a meta
+            line rather than a rust-edged block. */}
+        <div className="dc-maturity" aria-label={`Maturity: ${stage.name}, score ${overall}`}>
+          <div className="dc-maturity-marker">
+            <span style={{ left: `${Math.max(0, Math.min(100, overall))}%` }}>{overall}</span>
           </div>
-
-          <div style={{ marginTop: 28, borderLeft: '6px solid #D9442A', padding: '6px 0 6px 20px',
-            fontSize: 18, fontWeight: 600, letterSpacing: '-.01em' }}>
-            <b className="font-bold">{stage.name}</b>
-            {nextStage && <span style={{ color: '#5B6068', fontWeight: 500 }}> · {nextStage.min - overall} points to {nextStage.name}</span>}
+          <div className="dc-maturity-track" aria-hidden="true">
+            {MATURITY_STAGES.map(st => (
+              <i key={st.id} className={st.name === stage.name ? 'is-current' : ''} />
+            ))}
+          </div>
+          <div className="dc-maturity-labels">
+            {MATURITY_STAGES.map(st => (
+              <div key={st.id} className={st.name === stage.name ? 'is-current' : ''}>
+                <span>{st.name}</span><span>{st.min}\u2013{st.max}</span>
+              </div>
+            ))}
           </div>
         </div>
+        <div className="dc-row">
+          <span className="dc-pill" data-band={String(stage.name).toLowerCase().replace(/\s+/g, '-')}>{stage.name}</span>
+          {nextStage && <span className="dc-meta">{nextStage.min - overall} points to {nextStage.name}</span>}
+        </div>
       </section>
-
       {/* Attribute Analysis - Collapsible */}
       <div className="dc-reveal dc-keep-white" style={{ marginTop: 80 }}>
         <SectionHead label="Attribute analysis" open={expandedSections.attributes}

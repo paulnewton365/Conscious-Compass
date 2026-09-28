@@ -571,3 +571,29 @@ test('section heads follow the export: rust number, serif title, text Hide', () 
   assert.ok(!head.includes('ChevronDown'), 'the chevron is gone');
   assert.ok(!head.includes('uppercase'), 'the uppercase label is retired');
 });
+
+test('the eight tiles line up when they wrap, and the masthead does not double its rule', () => {
+  const css = read('src/index.css');
+  // position in the grid decides the divider, not the adjacent sibling
+  assert.match(css, /\.dc-tile:not\(:nth-child\(4n \+ 1\)\) \{ border-left: var\(--cc-border\)/);
+  assert.match(css, /\.dc-tile \+ \.dc-tile \{ border-left: 0; padding-left: 0; \}/);
+  assert.match(css, /\.dc-tile:nth-child\(n \+ 5\) \{ border-top: var\(--cc-border\); \}/);
+  // and the section head below carries the only rule
+  assert.match(css, /\.dc-page-head \{ padding-bottom: 0; border-bottom: 0/);
+});
+
+test('maturity and the attribute cards follow the export', () => {
+  const at = app.indexOf('<section className="dc-section dc-reveal">');
+  const mat = app.slice(at, at + 2000);
+  assert.ok(mat.includes('className="dc-maturity"') && mat.includes('dc-maturity-track'), 'the export\'s track');
+  assert.ok(mat.includes('dc-maturity-marker'), 'the score marked above it');
+  assert.ok(mat.includes('dc-pill" data-band='), 'the band as a chip, not a rust-edged block');
+  assert.ok(!mat.includes("borderLeft: '6px solid #D9442A'"), 'the rust edge is gone');
+
+  const cards = app.slice(app.indexOf('function ReportAttributeSection'), app.indexOf('function ReportAttributeSection') + 6000);
+  assert.ok(cards.includes('className="dc-attr-grid'), 'the export\'s grid');
+  assert.ok(cards.includes('<article key={attr.id} className="dc-block dc-attr-card">'), 'cards are blocks');
+  assert.ok(cards.includes('<div className="dc-stat-n">'), 'serif numeral');
+  assert.ok(cards.includes('<h3 className="dc-h is-card">'), 'serif name');
+  assert.ok(!/color: scoreColor\(sc\.score\)/.test(cards), 'the numeral is not coloured by score');
+});

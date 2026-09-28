@@ -1011,3 +1011,16 @@ button { font: inherit; color: inherit; }
 .dc-standfirst { font-size: var(--cc-fs-lead); line-height: 1.5; color: var(--cc-body); max-width: 62ch; }
 
 }
+
+/* Eight attribute tiles wrap onto two rows of four. The system's rules use an
+   adjacent sibling for the divider, which puts a left border and its padding
+   on the first tile of the second row, so the rows do not line up. Position in
+   the grid decides it instead, and wrapped rows get their own top rule. */
+.dc-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.dc-tile + .dc-tile { border-left: 0; padding-left: 0; }
+.dc-tile:not(:nth-child(4n + 1)) { border-left: var(--cc-border); padding-left: var(--cc-s-6); }
+.dc-tile:nth-child(n + 5) { border-top: var(--cc-border); }
+
+/* The masthead already sits above the first section head, which carries its
+   own rule. A second line and its space read as an empty band. */
+.dc-page-head { padding-bottom: 0; border-bottom: 0; margin-bottom: var(--cc-s-6); }
