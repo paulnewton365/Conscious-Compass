@@ -1024,3 +1024,17 @@ button { font: inherit; color: inherit; }
 /* The masthead already sits above the first section head, which carries its
    own rule. A second line and its space read as an empty band. */
 .dc-page-head { padding-bottom: 0; border-bottom: 0; margin-bottom: var(--cc-s-6); }
+
+/* The score adjustment panel runs the width of the attribute grid; as one
+   cell it left most of a row blank. Its table spreads to match. */
+.dc-attr-span { grid-column: 1 / -1; }
+.dc-attr-span table { width: 100%; }
+
+/* Findings under the lens panel: two columns of sentences, each with a small
+   key showing whether it supports the score or works against it. */
+.dc-findings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--cc-s-5) var(--cc-s-8); margin-top: var(--cc-s-6); }
+.dc-finding { display: flex; gap: var(--cc-s-3); align-items: flex-start;
+  padding-top: var(--cc-s-4); border-top: var(--cc-border); }
+.dc-finding .dc-fp-key { margin-top: 6px; flex: none; }
+.dc-finding .dc-rec-tags { margin-top: var(--cc-s-2); }

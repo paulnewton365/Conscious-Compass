@@ -597,3 +597,35 @@ test('maturity and the attribute cards follow the export', () => {
   assert.ok(cards.includes('<h3 className="dc-h is-card">'), 'serif name');
   assert.ok(!/color: scoreColor\(sc\.score\)/.test(cards), 'the numeral is not coloured by score');
 });
+
+test('the score adjustment panel spans the attribute grid', () => {
+  assert.ok(app.includes('className="dc-block dc-attr-span"'), 'it is a block spanning the grid');
+  const css = read('src/index.css');
+  assert.match(css, /\.dc-attr-span \{ grid-column: 1 \/ -1; \}/);
+  // and it is no longer a bare white cell with hand-set type
+  const panel = app.slice(app.indexOf('dc-attr-span'), app.indexOf('dc-attr-span') + 400);
+  assert.ok(panel.includes('className="dc-h is-card"'), 'its heading uses the system');
+});
+
+test('brand footprint follows the export: head, chart and the channel table', () => {
+  const fp = app.slice(app.indexOf('dc-fp-head') - 400, app.indexOf('dc-fp-table') + 2200);
+  assert.ok(fp.includes('<div className="dc-fp-head">'), 'the export\'s head');
+  assert.ok(fp.includes('className="dc-fp-stats"') && fp.includes('className="dc-stat-n"'), 'counts as serif numerals');
+  assert.ok(fp.includes('<div className="dc-fp">') && fp.includes('<figure>'), 'chart and table side by side');
+  assert.ok(fp.includes('className="dc-fp-table"'), 'the channel table');
+  assert.ok(fp.includes('className="dc-fp-seg"'), 'presence as a ten-segment scale');
+  assert.ok(fp.includes("isBrandVoice(r.id) ? 'Brand' : 'Market'"), 'who drives each channel, from the data');
+  assert.ok(fp.includes('getPresenceLevel(r.level)?.name'), 'the level in words');
+});
+
+test('the evidence panel is one block with findings as a list and lenses as pills', () => {
+  const at = app.indexOf('className="dc-findings-grid"');
+  const ev = app.slice(at - 700, at + 900);
+  assert.ok(ev.includes('<h3 className="dc-h is-card">'), 'the heading uses the system');
+  assert.ok(ev.includes('className="dc-finding"'), 'findings are list items');
+  assert.ok(ev.includes('<span key={t} className="dc-pill">{t}</span>'), 'lenses are pills');
+  assert.ok(!ev.includes("background: CARD"), 'the stacked white cards are gone');
+  // the key states what it means, in words
+  assert.ok(app.includes('Supports the score') && app.includes('Works against it'));
+  assert.ok(app.includes('className="dc-fp-legend"'), 'the export\'s legend');
+});

@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.86.0';
+const APP_VERSION = '3.89.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -1688,49 +1688,36 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
       {showFindings && findings.length > 0 && (
         <>
           {/* Heading sits in its own block above the cards, as in the design */}
-          <div style={{ background: CARD, padding: '32px 40px 26px', marginTop: 2 }}>
-            <h4 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.025em' }}>What sits behind these scores</h4>
-            <p style={{ fontSize: 13, color: MUTED, marginTop: 6, maxWidth: '72ch', lineHeight: 1.5 }}>
+          {/* To the export: one block, the heading in the display serif, and
+              findings as a plain list with their lenses as pills. */}
+          <div className="dc-block">
+            <h3 className="dc-h is-card">What sits behind these scores</h3>
+            <p className="dc-body">
               Publicly observable findings, tagged to the lenses they bear on. These explain the scores; they do not change them.
             </p>
-          </div>
-
-          {/* Two columns rather than three: the findings are sentences, and at
-              three across they wrapped to three lines each. */}
-          <div className="dc-findings-grid" style={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fit,minmax(420px,1fr))', marginTop: 2 }}>
-            {findings.map((f, i) => (
-              <div key={i} style={{ background: CARD, padding: '22px 26px' }}>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                  {/* Marker sits on the first line of the text, not above it */}
-                  <span style={{ flex: 'none', width: 12, height: 12, marginTop: 6,
-                    background: f.supports ? LIME : INK, display: 'inline-block' }} />
+            <div className="dc-findings-grid">
+              {findings.map((f, i) => (
+                <div key={i} className="dc-finding">
+                  <span className={`dc-fp-key ${f.supports ? 'is-brand' : 'is-market'}`} />
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.4, letterSpacing: '-.01em' }}>{f.text}</p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10 }}>
-                      {(f.tags || []).map(t => (
-                        <span key={t} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em',
-                          textTransform: 'uppercase', background: GROUND, padding: '4px 8px', color: '#2E3238' }}>{t}</span>
-                      ))}
+                    <p className="dc-body">{f.text}</p>
+                    <div className="dc-rec-tags">
+                      {(f.tags || []).map(t => <span key={t} className="dc-pill">{t}</span>)}
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ background: CARD, padding: '22px 40px 32px', marginTop: 2 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, fontSize: 12, color: MUTED }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 12, height: 12, background: LIME, display: 'inline-block' }} /> Supports the score</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 12, height: 12, background: INK, display: 'inline-block' }} /> Works against it</span>
+              ))}
             </div>
-            <p style={{ fontSize: 11, color: MUTED, marginTop: 16, maxWidth: '90ch', lineHeight: 1.6 }}>
-              <b style={{ color: INK }}>Weights are fixed in code, not judged by the model</b>, so the same attribute
-              scores always produce the same lens scores and two assessors cannot disagree. They sum to 100 per lens
-              and are shown openly above.
-            </p>
           </div>
+          <div className="dc-fp-legend">
+            <span><span className="dc-fp-key is-brand" /> Supports the score</span>
+            <span><span className="dc-fp-key is-market" /> Works against it</span>
+          </div>
+          <p className="dc-meta" style={{ marginTop: 12, maxWidth: '90ch' }}>
+            <b>Weights are fixed in code, not judged by the model</b>, so the same attribute
+            scores always produce the same lens scores and two assessors cannot disagree. They
+            sum to 100 per lens and are shown openly above.
+          </p>
         </>
       )}
     </div>
@@ -1793,40 +1780,23 @@ function FootprintMap({ footprint, brandName }) {
   return (
     <div ref={ref} style={{ backgroundColor: FP_PAPER, padding: '28px 28px 8px' }}>
       {/* Masthead, carried over from the retired mosaic panel */}
-      <div className="flex flex-wrap items-start justify-between gap-6" style={{ marginBottom: 18 }}>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-            <span style={{ width: 10, height: 10, background: FP_LIME, display: 'inline-block' }} />
-            <span className="text-[10px] font-bold uppercase" style={{ letterSpacing: '.16em', color: FP_INK }}>
-              Brand Footprint
-            </span>
+      {/* Head to the export: the statement in the display serif, with the two
+          counts beside it as serif numerals. */}
+      <div className="dc-fp-head">
+        <h2 className="dc-h">Where the brand shows up.</h2>
+        <div className="dc-fp-stats">
+          <div>
+            <span className="dc-kicker">Conscious channels</span>
+            <span className="dc-stat-n">{summary.channelsConscious}<small>of {summary.channelCount}</small></span>
           </div>
-          <h3 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(28px,3.2vw,44px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)',
-            lineHeight: .95, color: FP_INK }}>
-            Where the brand shows up.
-          </h3>
-        </div>
-        <div className="flex gap-8 flex-shrink-0">
-          <div className="text-right">
-            <div className="text-[9px] font-bold uppercase" style={{ letterSpacing: '.14em', color: FP_MUTED, marginBottom: 4 }}>
-              Conscious channels
-            </div>
-            <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: FP_INK }}>
-              {summary.channelsConscious} of {summary.channelCount}
-            </div>
-          </div>
-          <div className="text-right" style={{ borderLeft: `1px solid ${FP_EMPTY}`, paddingLeft: 32 }}>
-            <div className="text-[9px] font-bold uppercase" style={{ letterSpacing: '.14em', color: FP_MUTED, marginBottom: 4 }}>
-              Present at all
-            </div>
-            <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', color: FP_INK }}>
-              {summary.channelsPresent} of {summary.channelCount}
-            </div>
+          <div>
+            <span className="dc-kicker">Present at all</span>
+            <span className="dc-stat-n">{summary.channelsPresent}<small>of {summary.channelCount}</small></span>
           </div>
         </div>
       </div>
-      <div style={{ height: 2, background: FP_INK, marginBottom: 8 }} />
-
+      <div className="dc-fp">
+        <figure>
       <svg viewBox={`0 0 ${W} ${H}`} className="dc-fpmap"
         style={{ width: '100%', height: 'auto', display: 'block' }}>
         {/* Spokes: presence. Faint where a channel has no evidence. */}
@@ -1912,6 +1882,40 @@ function FootprintMap({ footprint, brandName }) {
           );
         })}
       </svg>
+        </figure>
+
+        {/* The channel table the export puts beside the chart: who drives each
+            channel, its presence as a ten-segment scale, the figure and the
+            level in words. */}
+        <div className="dc-stack is-gap-5">
+          <table className="dc-fp-table">
+            <thead>
+              <tr>
+                <th>Channel</th><th>Who drives it</th><th>Presence</th>
+                <th className="num">/10</th><th>Level</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id}>
+                  <td>
+                    <span className={`dc-fp-key ${r.level > 0 ? (isBrandVoice(r.id) ? 'is-brand' : 'is-market') : 'is-absent'}`} />
+                    {r.name}
+                  </td>
+                  <td className="muted">{isBrandVoice(r.id) ? 'Brand' : 'Market'}</td>
+                  <td>
+                    <span className="dc-fp-seg" role="img" aria-label={`${r.level} of 10`}>
+                      {Array.from({ length: 10 }, (_, k) => <i key={k} className={k < r.level ? 'on' : ''} />)}
+                    </span>
+                  </td>
+                  <td className="num"><b>{r.level}</b></td>
+                  <td className="muted">{getPresenceLevel(r.level)?.name || '\u2014'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Legend and the connection read */}
       <div className="flex flex-wrap items-center gap-x-7 gap-y-2" style={{ marginTop: 4, paddingBottom: 18 }}>
@@ -6189,11 +6193,11 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                   );
                 })}
 
-                {/* Occupies the empty cell left by eight attributes in a
-                    three-column grid. Flows to its own row at narrower widths. */}
+                {/* Runs the full width of the grid: as a single cell it left
+                    most of a row empty. */}
                 {campaignAffected.length > 0 && campaignStage && (
-                  <div className="bg-white" style={{ padding: 24 }}>
-                    <h4 style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>Score adjustment</h4>
+                  <div className="dc-block dc-attr-span">
+                    <h4 className="dc-h is-card">Score adjustment</h4>
                     <p className="text-[12px] text-[#5B6068]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DEDAD2' }}>
                       Attribute scores judge the quality of the work. Campaign coherence is scored
                       separately and applied here, so the two are never counted twice.
