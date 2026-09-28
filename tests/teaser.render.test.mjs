@@ -1041,3 +1041,34 @@ test('clearing the stage is allowed and saves as not set', async () => {
   assert.equal(stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1].stage, null);
   await act(async () => root.unmount());
 });
+
+// ── UI kit (v3.62) ──
+
+test('the UI kit renders every component group against the live stylesheet', async () => {
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.UIKitPage, {})); });
+  const sections = [...container.querySelectorAll('[data-kit-section]')].map(el => el.getAttribute('data-kit-section'));
+  for (const s of ['Colour', 'Type scale', 'Buttons', 'Form fields', 'Surfaces', 'Scores', 'Chips, pills and confidence', 'Tabs and rows', 'Alerts', 'Loading']) {
+    assert.ok(sections.includes(s), `${s} section`);
+  }
+  // the swatches read the tokens rather than repeating hex values
+  const swatches = container.querySelectorAll('[data-kit-section="Colour"] .dc-block');
+  assert.ok(swatches.length >= 15, `expected the palette, found ${swatches.length}`);
+  assert.ok(container.innerHTML.includes('var(--cc-rust)'), 'colour comes from the tokens');
+  assert.ok(container.innerHTML.includes('var(--cc-serif)'), 'the serif scale is shown');
+  // the real components, not copies
+  assert.ok(container.querySelector('.btn-primary') && container.querySelector('.btn-secondary'));
+  assert.ok(container.querySelector('.dc-panel-dark'), 'dark panel');
+  assert.ok(container.querySelector('.dc-tab'), 'tabs');
+  await act(async () => root.unmount());
+});
+
+test('no retired colour appears in the UI kit', async () => {
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.UIKitPage, {})); });
+  ['#0B0B0B', '#DEE42F', '#F2F0EA', '#DCDAD3', '#68655B'].forEach(hex =>
+    assert.ok(!container.innerHTML.toUpperCase().includes(hex), `${hex} in the kit`));
+  await act(async () => root.unmount());
+});

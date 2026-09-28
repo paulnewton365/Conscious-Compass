@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.61.0';
+const APP_VERSION = '3.62.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
@@ -15397,6 +15397,226 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   );
 }
 
+// ═════════════════════════════════════════════════════════════
+// UI KIT (v3.62) — the design system rendered against the live CSS.
+//
+// Every token, type size and component in one page, so a restyle can be
+// checked in the app rather than in a static mock. Admin only, at #uikit.
+// If something drifts here, it has drifted everywhere.
+// ═════════════════════════════════════════════════════════════
+
+const KIT_COLORS = [
+  ['--cc-paper', 'page and panel surface'],
+  ['--cc-hover', 'row hover'],
+  ['--cc-ink', 'headings, dark panel'],
+  ['--cc-body', 'long-form text'],
+  ['--cc-muted', 'labels, meta'],
+  ['--cc-faint', 'ticks, disabled'],
+  ['--cc-rule', 'hairlines'],
+  ['--cc-track', 'bar tracks'],
+  ['--cc-sep', 'separators'],
+  ['--cc-rust', 'fills, strokes, large type'],
+  ['--cc-rust-text', 'accent text and links'],
+  ['--cc-rust-dark', 'accent on dark'],
+  ['--cc-pos', 'positive'],
+  ['--cc-neg', 'negative'],
+  ['--cc-warn', 'warning'],
+  ['--cc-dark-rule', 'rule on dark'],
+  ['--cc-dark-label', 'label on dark'],
+];
+
+const KIT_TYPE = [
+  ['--cc-fs-hero', 'Page hero', 'serif'],
+  ['--cc-fs-title', 'Page title', 'serif'],
+  ['--cc-fs-section', 'Section head', 'serif'],
+  ['--cc-fs-card', 'Card title', 'serif'],
+  ['--cc-fs-num-m', 'Score, medium', 'serif'],
+  ['--cc-fs-lead', 'Lead paragraph', 'sans'],
+  ['--cc-fs-body', 'Body', 'sans'],
+  ['--cc-fs-ui', 'UI text', 'sans'],
+  ['--cc-fs-meta', 'Meta', 'sans'],
+  ['--cc-fs-label', 'Label / kicker', 'sans'],
+  ['--cc-fs-th', 'Table head', 'sans'],
+];
+
+function KitSection({ title, note, children }) {
+  return (
+    <section style={{ marginTop: 48 }} data-kit-section={title}>
+      <div className="dc-kicker" style={{ marginBottom: note ? 4 : 14 }}>{title}</div>
+      {note && <p className="text-sm text-[#5B6068]" style={{ marginBottom: 14, maxWidth: '72ch' }}>{note}</p>}
+      {children}
+    </section>
+  );
+}
+
+function UIKitPage() {
+  const [tab, setTab] = useState('one');
+  const [field, setField] = useState('');
+  const swatch = (v) => `var(${v})`;
+
+  return (
+    <div className="dc-wrap dc-page animate-fade-in" data-page="uikit">
+      <div className="dc-pagehead">
+        <div>
+          <h1 className="dc-h2">UI kit</h1>
+          <div className="dc-standfirst">Every component against the live stylesheet · v{APP_VERSION}</div>
+        </div>
+      </div>
+
+      <KitSection title="Colour" note="Swatches read from the tokens themselves, so a changed token shows here first.">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 2 }}>
+          {KIT_COLORS.map(([v, use]) => (
+            <div key={v} className="dc-block" style={{ padding: 0, overflow: 'hidden' }}>
+              <div style={{ height: 56, background: swatch(v), borderBottom: '1px solid var(--cc-rule)' }} />
+              <div style={{ padding: '10px 12px' }}>
+                <div className="text-sm font-semibold">{v.replace('--cc-', '')}</div>
+                <div className="text-xs text-[#5B6068]">{use}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </KitSection>
+
+      <KitSection title="Type scale">
+        <div className="dc-stack">
+          {KIT_TYPE.map(([v, role, family]) => (
+            <div key={v} className="dc-block" style={{ display: 'flex', alignItems: 'baseline', gap: 20, flexWrap: 'wrap' }}>
+              <span className="dc-meta" style={{ minWidth: 150 }}>{role}</span>
+              <span style={{
+                fontSize: `var(${v})`,
+                fontFamily: family === 'serif' ? 'var(--cc-serif)' : 'var(--cc-sans)',
+                lineHeight: 1.1,
+              }}>
+                Consequential brands
+              </span>
+              <span className="text-xs text-[#8A8E95]">{v} · {family}</span>
+            </div>
+          ))}
+        </div>
+      </KitSection>
+
+      <KitSection title="Buttons">
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button className="btn-primary">Primary</button>
+          <button className="btn-secondary">Secondary</button>
+          <button className="btn-primary" disabled>Disabled</button>
+          <button className="btn-secondary flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Working</button>
+          <button className="btn-arrow">Arrow</button>
+        </div>
+      </KitSection>
+
+      <KitSection title="Form fields">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+          <div>
+            <label className="block text-sm font-medium mb-2">Text field</label>
+            <input className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]" value={field}
+              onChange={e => setField(e.target.value)} placeholder="e.g., Antenna Group" />
+            <p className="text-xs text-[#5B6068] mt-1">A hint sits here.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Select</label>
+            <select className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]">
+              <option>Choose one</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">With an error</label>
+            <input className="w-full px-3.5 py-3 border bg-[#FBFAF7]" style={{ borderColor: 'var(--cc-neg)' }} defaultValue="not a url" />
+            <p className="text-xs mt-1" style={{ color: 'var(--cc-neg)' }}>A valid website URL is required.</p>
+          </div>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <label className="block text-sm font-medium mb-2">Textarea</label>
+          <textarea className="w-full px-4 py-3 border border-[#DEDAD2] bg-[#FBFAF7] text-sm leading-relaxed resize-y" rows={3}
+            placeholder="What we know about the prospect." />
+        </div>
+      </KitSection>
+
+      <KitSection title="Surfaces">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 2 }}>
+          <div className="dc-block">
+            <div className="dc-kicker" style={{ marginBottom: 8 }}>Block</div>
+            <p className="text-sm text-[#2E3238]">The default panel: paper, hairline border, standard padding.</p>
+          </div>
+          <div className="dc-panel-dark">
+            <div className="dc-kicker" style={{ marginBottom: 8 }}>Dark panel</div>
+            <p className="text-sm">Used for the open questions and the overall score cell.</p>
+          </div>
+          <div className="dc-block" style={{ borderLeft: '4px solid var(--cc-rust)' }}>
+            <div className="dc-kicker" style={{ marginBottom: 8 }}>Flagged block</div>
+            <p className="text-sm text-[#2E3238]">Accent rule for a caveat or a warning.</p>
+          </div>
+        </div>
+      </KitSection>
+
+      <KitSection title="Scores">
+        <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginBottom: 2 }}>
+          <StatBlock value={71} label="Credibility" />
+          <StatBlock value={54} label="Trust" />
+          <StatBlock value={48} label="Reputation" />
+          <StatBlock value={66} label="Authenticity" />
+        </div>
+        <div className="dc-block">
+          {[['Strong', 78], ['Middling', 54], ['Weak', 28]].map(([label, v]) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 0' }}>
+              <span className="dc-meta" style={{ minWidth: 90 }}>{label}</span>
+              <span style={{ fontWeight: 700, minWidth: 34, color: scoreColor(v) }}>{v}</span>
+              <span style={{ flex: 1, height: 3, background: 'var(--cc-track)' }}>
+                <span style={{ display: 'block', height: 3, width: `${v}%`, background: 'var(--cc-ink)' }} />
+              </span>
+            </div>
+          ))}
+        </div>
+      </KitSection>
+
+      <KitSection title="Chips, pills and confidence">
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className="dc-meta">Meta chip</span>
+          <span className="dc-meta" style={{ color: 'var(--cc-pos)' }}>Positive</span>
+          <span className="dc-meta" style={{ color: 'var(--cc-neg)', borderColor: 'var(--cc-neg)' }}>Negative</span>
+          <span className="dc-meta" style={{ color: 'var(--cc-warn)' }}>Warning</span>
+          <span className="dc-pill">Pill</span>
+          <span style={{ background: 'var(--cc-ink)', color: 'var(--cc-paper)', fontSize: 11, fontWeight: 700, letterSpacing: '.12em', padding: '5px 9px', textTransform: 'uppercase' }}>Foundational</span>
+        </div>
+      </KitSection>
+
+      <KitSection title="Tabs and rows">
+        <div className="dc-tabs" style={{ marginBottom: 12 }}>
+          {[['one', 'First'], ['two', 'Second'], ['three', 'Third']].map(([id, label]) => (
+            <button key={id} className={`dc-tab ${tab === id ? 'dc-tab-on' : ''}`} onClick={() => setTab(id)}>{label}</button>
+          ))}
+        </div>
+        <div className="dc-stack">
+          {[['Patagonia', 80], ['Netflix', 66]].map(([name, v]) => (
+            <div key={name} className="dc-block" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+              <span style={{ fontSize: 28, fontWeight: 700, minWidth: 48, color: scoreColor(v) }}>{v}</span>
+              <span style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700 }}>{name}</div>
+                <div className="text-xs text-[#5B6068]">example.com · Paul Newton · 9/20/2026</div>
+              </span>
+              <span className="dc-meta">Tag</span>
+            </div>
+          ))}
+        </div>
+      </KitSection>
+
+      <KitSection title="Alerts">
+        <div className="dc-stack">
+          {[['Information', 'var(--cc-ink)'], ['Warning', 'var(--cc-warn)'], ['Error', 'var(--cc-neg)'], ['Success', 'var(--cc-pos)']].map(([label, color]) => (
+            <div key={label} className="dc-block text-sm" style={{ borderLeft: `4px solid ${color}` }}>
+              <span className="font-semibold" style={{ color }}>{label}.</span> A sentence explaining what happened and what to do next.
+            </div>
+          ))}
+        </div>
+      </KitSection>
+
+      <KitSection title="Loading">
+        <SkeletonRows count={3} />
+      </KitSection>
+    </div>
+  );
+}
+
 function AppContent() {
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -15421,20 +15641,22 @@ function AppContent() {
   const [showComparisonPage, setShowComparisonPage] = useState(false);
   const [showStayConsciousPage, setShowStayConsciousPage] = useState(false);
   const [showTeaserPage, setShowTeaserPage] = useState(false);
+  const [showUIKit, setShowUIKit] = useState(false);
   const [compareInitialTab, setCompareInitialTab] = useState('brands');
   // Guards against the sync effect wiping an inbound hash before the parse effect reads it on mount
   const initialHashHandled = useRef(false);
 
   // Hash-based deep link routing
   const HASH_ROUTES = {
-    'newsletter':        () => { setShowStayConsciousPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
-    'compare':           () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
-    'compare/landscape': () => { setShowComparisonPage(true); setCompareInitialTab('landscape'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
-    'compare/insights':  () => { setShowComparisonPage(true); setCompareInitialTab('insights'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
-    'results':           () => { setShowResultsPage(true); setShowComparisonPage(false); setShowStayConsciousPage(false); setShowSavedPage(false); setShowTeaserPage(false); },
-    'saved':             () => { setShowSavedPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowStayConsciousPage(false); setShowTeaserPage(false); },
+    'newsletter':        () => { setShowStayConsciousPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
+    'compare':           () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
+    'compare/landscape': () => { setShowComparisonPage(true); setCompareInitialTab('landscape'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
+    'compare/insights':  () => { setShowComparisonPage(true); setCompareInitialTab('insights'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
+    'results':           () => { setShowResultsPage(true); setShowComparisonPage(false); setShowStayConsciousPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
+    'saved':             () => { setShowSavedPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowStayConsciousPage(false); setShowTeaserPage(false); setShowUIKit(false); },
     // Admin only: the render gate below checks is_admin before showing it.
-    'teaser':            () => { setShowTeaserPage(true); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
+    'uikit':             () => { setShowUIKit(true); setShowTeaserPage(false); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
+    'teaser':            () => { setShowUIKit(false); setShowTeaserPage(true); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
   };
 
   const navigateTo = (route) => {
@@ -15451,6 +15673,7 @@ function AppContent() {
     setShowResultsPage(false);
     setShowSavedPage(false);
     setShowTeaserPage(false);
+    setShowUIKit(false);
     setCurrentStep(0);
     window.history.pushState(null, '', window.location.pathname + window.location.search);
   };
@@ -15474,11 +15697,12 @@ function AppContent() {
     else if (showResultsPage) hash = 'results';
     else if (showSavedPage) hash = 'saved';
     else if (showTeaserPage) hash = 'teaser';
+    else if (showUIKit) hash = 'uikit';
     const current = window.location.hash.replace('#', '');
     if (hash !== current) {
       window.history.replaceState(null, '', hash ? `#${hash}` : window.location.pathname + window.location.search);
     }
-  }, [showStayConsciousPage, showComparisonPage, showResultsPage, showSavedPage, showTeaserPage, compareInitialTab]);
+  }, [showStayConsciousPage, showComparisonPage, showResultsPage, showSavedPage, showTeaserPage, showUIKit, compareInitialTab]);
 
   // Parse hash on mount and on popstate
   useEffect(() => {
@@ -16007,6 +16231,31 @@ function AppContent() {
   // Show admin page
   if (showAdminPage) {
     return <AdminPage currentUser={user} onBack={() => setShowAdminPage(false)} />;
+  }
+
+  // The UI kit: admins only, reached at #uikit. Not in the nav; it is a
+  // check on the stylesheet, not a feature.
+  if (showUIKit && profile?.is_admin) {
+    return (
+      <div className="min-h-screen bg-[#FBFAF7]">
+        <Header
+          onNewAssessment={handleNewAssessment}
+          onGoHome={handleGoHome}
+          onSavedAssessments={() => HASH_ROUTES.saved()}
+          onCompassResults={() => HASH_ROUTES.results()}
+          onComparison={() => HASH_ROUTES.compare()}
+          onStayConscious={() => HASH_ROUTES.newsletter()}
+          onTeaser={goTeaser}
+          activePage={null}
+          lastAutoSave={lastAutoSave}
+          user={user}
+          profile={profile}
+          onLogout={handleLogout}
+          onAdmin={() => setShowAdminPage(true)}
+        />
+        <UIKitPage />
+      </div>
+    );
   }
 
   // Teaser page, for admins and business users. Anyone else who lands on

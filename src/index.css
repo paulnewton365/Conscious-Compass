@@ -648,7 +648,7 @@ a { text-decoration-color: var(--antenna-lime); text-decoration-thickness: 3px; 
 
 /* ═══════════════════════════════════════════════════════════
    Compass UI system (handoff v1, direction 1b: rust on screen).
-   Tokens and dc-*/btn-* rules. Appended, so these win over the
+   Tokens plus the dc- and btn- rules. Appended, so these win over the
    rules above while the screens are migrated.
    ═══════════════════════════════════════════════════════════ */
 /* Conscious Compass — app tokens + dc-* rules (direction 1b)

@@ -306,3 +306,17 @@ test('the print artefacts keep their own palette and are untouched by the restyl
   const report = read('src/lib/teaserReport.js');
   assert.ok(report.includes('#D9442A') && report.includes('#FBFAF7'), 'the read is unchanged');
 });
+
+test('a CSS comment can never swallow the token block again', () => {
+  const css = read('src/index.css');
+  // "dc-*/btn-*" inside a comment ends it early and drops everything after,
+  // which is exactly how the tokens went missing in v3.61.
+  const comments = [...css.matchAll(/\/\*[\s\S]*?\*\//g)].map(m => m[0]);
+  comments.forEach(c => {
+    const body = c.slice(2, -2);
+    assert.ok(!body.includes('*/'), `comment closes early: ${c.slice(0, 60)}`);
+  });
+  // and the tokens are still declared after all of them
+  assert.match(css, /--cc-page-max:\s*1280px/);
+  assert.match(css, /--cc-gutter:\s*48px/);
+});
