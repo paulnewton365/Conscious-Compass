@@ -139,7 +139,7 @@ test('the Client link dialog names every section the client view renders', () =>
   const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   const start = src.indexOf('function ClientReportView(');
   const view = src.slice(start, src.indexOf('\nfunction ', start + 10));
-  const heads = [...view.matchAll(/<SectionHead label="([^"]+)"/g)].map(m => m[1].toLowerCase());
+  const heads = [...view.matchAll(/<SectionHeading order=\{clientSections\} label="([^"]+)"/g)].map(m => m[1].toLowerCase());
   assert.ok(heads.length >= 8, 'found the client view sections');
   const named = App.CLIENT_REPORT_SECTIONS.join(' | ');
   heads.forEach(hd => assert.ok(named.includes(hd), `the dialog names "${hd}"`));

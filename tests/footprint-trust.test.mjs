@@ -31,7 +31,7 @@ before(async () => {
   rubric = await import('../src/data/rubric.js');
 });
 
-const design = (file, id) => new JSDOM(readFileSync(new URL(`./fixtures/design/${file}`, import.meta.url), 'utf8'))
+const design = (file, id) => new JSDOM(JSON.parse(readFileSync(new URL('./fixtures/design-screens.json', import.meta.url), 'utf8'))[file])
   .window.document.querySelector(`section#${id}`);
 const inSection = (el, id) => {
   const html = server.renderToStaticMarkup(h('section', { className: 'dc-section', id }, el));

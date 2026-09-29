@@ -1,15 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { TRUST_LENSES, TRUST_FOUNDATION, computeTrustLenses, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, getPresenceLevel, hasFootprintData, summariseFootprint, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, getCampaignModifier, applyCampaignModifiers } from './data/rubric';
-import { getAllRecommendations, formatBudget, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
+import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers } from './data/rubric';
+import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer as DocxFooter, Header as DocxHeader, PageNumber, NumberFormat } from 'docx';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
-import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
-import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.99.1';
+const APP_VERSION = '3.102.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
@@ -50,10 +47,15 @@ import {
 import { buildCampaignWorkbook, buildCampaignRows, campaignSummary } from './lib/teaserExport';
 import { scorecardData, scorecardReady, exportTeaserPack } from './lib/scorecard';
 import { loadJSZip } from './lib/lazyZip';
+import { embedReportFonts } from './lib/docxFonts';
 
 // Use 'PROXY' to route through serverless function (secure, API key on server)
-// Or set VITE_ANTHROPIC_API_KEY for local development with direct API calls
-const DEFAULT_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || 'PROXY';
+// Every model call goes through /api/claude, which holds the key server-side
+// and requires a signed-in caller (v3.100.1). The earlier build-time key
+// fallback would have written a key into the public bundle, and a key typed on
+// Setup was sent from the browser straight to Anthropic; both paths are gone.
+// apiKey is still threaded through the components, so it stays as a marker.
+const DEFAULT_API_KEY = 'PROXY';
 
 // Error Boundary for graceful error handling in production
 class ErrorBoundary extends React.Component {
@@ -124,7 +126,7 @@ function AuthPage({ onAuthSuccess }) {
         }
       }
     } else {
-      const { data, error } = await signUp(email, password, fullName);
+      const { error } = await signUp(email, password, fullName);
       if (error) {
         setError(error.message);
       } else {
@@ -234,11 +236,7 @@ function AdminPage({ currentUser, onBack }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
+  async function loadUsers() {
     setLoading(true);
     const { data } = await fetchAllProfiles();
     if (data) {
@@ -254,7 +252,9 @@ function AdminPage({ currentUser, onBack }) {
       }
     }
     setLoading(false);
-  };
+  }
+
+  useEffect(() => { loadUsers(); }, []);
 
   const handleApprove = async (userId) => {
     await approveUser(userId);
@@ -833,53 +833,22 @@ IMPORTANT FORMATTING RULES:
   
   content.push({ type: 'text', text: enhancedPrompt });
   
-  // Use serverless function (secure) or direct API call (local dev with client key)
-  const useProxy = !apiKey || apiKey === 'PROXY';
-  
+  // Always the serverless proxy, which holds the key and checks the caller.
   let result;
-  
-  if (useProxy) {
-    // Production: Use Vercel serverless function (API key stored server-side)
+  {
     const response = await fetch('/api/claude', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: maxTokens,
-        temperature: 0,
+        temperature,
         messages: [{ role: 'user', content }]
       })
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error || `API error: ${response.status}`);
-    }
-    const data = await response.json();
-    const stopReason = data.stop_reason;
-    result = data.content[0].text;
-    if (isJson && stopReason === 'max_tokens') {
-      throw new Error('Response was cut short — increase max tokens or reduce prompt size.');
-    }
-  } else {
-    // Local development: Direct API call with client-provided key
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: maxTokens,
-        temperature: 0,
-        messages: [{ role: 'user', content }]
-      })
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error?.message || `API error: ${response.status}`);
     }
     const data = await response.json();
     const stopReason = data.stop_reason;
@@ -898,7 +867,7 @@ IMPORTANT FORMATTING RULES:
 }
 
 // Spider Chart Component
-function SpiderChart({ scores, size = 400, animate = true }) {
+function SpiderChart({ scores, animate = true }) {
   const [progress, setProgress] = useState(animate ? 0 : 1);
 
   useEffect(() => {
@@ -1058,9 +1027,9 @@ function MiniSpiderChart({ scores, size = 120 }) {
         const angle = angleStep * i - Math.PI / 2;
         return <line key={i} x1={center} y1={center} x2={center + radius * Math.cos(angle)} y2={center + radius * Math.sin(angle)} stroke="#DEDAD2" strokeWidth="0.5" />;
       })}
-      <path d={pathD} fill="rgba(158, 157, 36, 0.35)" stroke="#9E9D24" strokeWidth="1.5" />
+      <path d={pathD} fill="rgba(21, 23, 26, 0.12)" stroke="#15171A" strokeWidth="1.5" />
       {dataPoints.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="#9E9D24" />
+        <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="#15171A" />
       ))}
     </svg>
   );
@@ -2176,6 +2145,22 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
 }
 
 // Completion Indicator for Assessment Pages
+// Section heading shared by the full report and the client view (v3.101.0):
+// a rust number from the section's place in `order`, the title in the display
+// serif, and a text Hide/Show when the section can collapse. Defined once at
+// module level; declared inside each report it remounted on every render.
+function SectionHeading({ order, label, open = true, onToggle }) {
+  const idx = order.indexOf(label);
+  const n = String(idx >= 0 ? idx + 1 : order.length + 1).padStart(2, '0');
+  return (
+    <button type="button" className="dc-sec-toggle" onClick={onToggle} aria-expanded={onToggle ? !!open : undefined}>
+      <span className="dc-sec-n">{n}</span>
+      <span className="dc-h">{label}</span>
+      {onToggle && <span className="dc-sec-x">{open ? 'Hide' : 'Show'}</span>}
+    </button>
+  );
+}
+
 // Where a loaded saved assessment opens (v3.99.1). A scored one opens on the
 // report. An unscored one opens on the step it was saved from (Save and exit
 // records it); older saves without that open on Setup, not the Welcome
@@ -2602,8 +2587,8 @@ function StepRail({ steps, currentStep }) {
   );
 }
 
-function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
-  const canProceed = project.brandName && project.websiteUrl && apiKey;
+function SetupPage({ project, setProject, onNext, onBack }) {
+  const canProceed = project.brandName && project.websiteUrl;
 
   return (
     <div className="dc-wrap dc-page animate-fade-in">
@@ -2676,23 +2661,6 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
           <p className="text-xs text-[#5B6068] mt-1">Optional. This is the lens for the whole report. State what the brand wants, for example to reposition, reach a new audience, or launch, and the assessment will judge how ready the brand is to get there. It is not quoted in the report, only reflected as the brand's stated ambition. Leave it blank and this lens is not applied.</p>
         </div>
 
-        {/* Only show API key field if no default is configured */}
-        {!DEFAULT_API_KEY && (
-          <div className="pt-4 border-t border-[#DEDAD2]">
-            <label className="block text-sm font-medium text-[#15171A] mb-2">Claude API Key *</label>
-            <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-..." className="w-full px-4 py-3 border border-[#DEDAD2] bg-white font-mono text-sm" />
-            <p className="text-xs text-[#5B6068] mt-2">Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[#C23B22] hover:underline">console.anthropic.com</a></p>
-          </div>
-        )}
-        {DEFAULT_API_KEY && (
-          <div className="pt-4 border-t border-[#DEDAD2]">
-            <div className="flex items-center gap-2 text-sm text-[#2F6B55]">
-              <Check className="w-4 h-4" />
-              <span>API key configured</span>
-            </div>
-          </div>
-        )}
       </div>
 
           <div className="flex items-center justify-between mt-10">
@@ -2708,7 +2676,7 @@ function SetupPage({ project, setProject, apiKey, setApiKey, onNext, onBack }) {
 }
 
 // Technical Performance Audit Component (Manual Entry + Auto-Fetch)
-function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData, apiKey }) {
+function PropertyConsistencyPanel({ project, assessmentData, setAssessmentData }) {
   const additionalProperties = project.additionalProperties?.filter(p => p.url) || [];
   const [propertyData, setPropertyData] = useState(assessmentData.propertyData || {});
   const [isRunning, setIsRunning] = useState(false);
@@ -2846,21 +2814,11 @@ Every finding must point to something in the text above. Where a property could 
 End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining why.`;
 
     try {
-      const storedKey = localStorage.getItem('conscious-compass-apikey');
-      const useProxy = !storedKey || storedKey === 'PROXY';
       let text = '';
-      if (useProxy) {
+      {
         const res = await fetch('/api/claude', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, max_tokens: 4000, temperature: 0 }) });
         const d = await res.json();
         text = d.text || d.content?.[0]?.text || '';
-      } else {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': storedKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, temperature: 0, messages: [{ role: 'user', content: prompt }] }),
-        });
-        const d = await res.json();
-        text = d.content?.[0]?.text || '';
       }
       const updated = { ...propertyData, consistencyAnalysis: text };
       setPropertyData(updated);
@@ -2871,13 +2829,6 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
     setIsAnalysing(false);
   };
 
-  // Score colour helper
-  const scoreColor = (s) => {
-    if (s == null) return '#DEDAD2';
-    if (s >= 80) return '#2F6B55';
-    if (s >= 50) return '#8C5A0B';
-    return '#C23B22';
-  };
 
 
   const extractRisk = (text) => {
@@ -3094,12 +3045,6 @@ function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project,
   // SEO Visibility State (simplified)
   const [seoAssessment, setSeoAssessment] = useState(assessmentData.seoAssessment || '');
 
-  // The SEO pass writes "SEO VISIBILITY SCORE: 58/100" into its prose; lift it
-  // so the headline stat row can show it rather than burying it in the text.
-  const seoVisibilityScore = (() => {
-    const m = String(seoAssessment || '').match(/SEO VISIBILITY SCORE:\s*(\d{1,3})/i);
-    return m ? Number(m[1]) : '';
-  })();
   const [isAssessingSeo, setIsAssessingSeo] = useState(false);
   const [isAssessingCredentials, setIsAssessingCredentials] = useState(false);
 
@@ -3615,7 +3560,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       </AssessBlock>
 
       {/* Only shown when additional properties are registered */}
-      <PropertyConsistencyPanel project={project} assessmentData={assessmentData} setAssessmentData={setAssessmentData} apiKey={apiKey} />
+      <PropertyConsistencyPanel project={project} assessmentData={assessmentData} setAssessmentData={setAssessmentData} />
 
       <TechnicalAuditSection websiteUrl={project.websiteUrl} assessmentData={assessmentData} setAssessmentData={setAssessmentData} />
 
@@ -3735,9 +3680,8 @@ function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
   const [autoEdited, setAutoEdited] = useState(assessmentData.socialAutoEdited || {});
   const [editingAuto, setEditingAuto] = useState({});
   const [images, setImages] = useState(assessmentData.socialImages || []);
-  const [instagramImages, setInstagramImages] = useState(assessmentData.instagramImages || []);
+  const [instagramImages] = useState(assessmentData.instagramImages || []);
   const fileInputRef = useRef(null);
-  const instagramFileInputRef = useRef(null);
 
   const updateInput = (key, value) => {
     setInputs(prev => ({ ...prev, [key]: value }));
@@ -4017,44 +3961,7 @@ Format as a concise summary. If no trademark registrations are found, state that
     }
   };
 
-  // Instagram image upload handler
-  const handleInstagramImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
-    
-    const remainingSlots = 4 - instagramImages.length;
-    const filesToProcess = files.slice(0, remainingSlots);
-    
-    if (filesToProcess.length === 0) {
-      setError('Maximum 4 Instagram images allowed');
-      return;
-    }
-    
-    setIsCompressing(true);
-    
-    Promise.all(filesToProcess.map(file => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result;
-          // Always compress to ensure we stay under 5MB API limit
-          compressImage(dataUrl, 3.5).then(resolve).catch(() => resolve(dataUrl));
-        };
-        reader.readAsDataURL(file);
-      });
-    })).then(newImages => {
-      const updatedImages = [...instagramImages, ...newImages];
-      setInstagramImages(updatedImages);
-      setAssessmentData({ instagramImages: updatedImages });
-      setIsCompressing(false);
-    });
-  };
 
-  const removeInstagramImage = (index) => {
-    const updatedImages = instagramImages.filter((_, i) => i !== index);
-    setInstagramImages(updatedImages);
-    setAssessmentData({ instagramImages: updatedImages });
-  };
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
@@ -4277,11 +4184,6 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
   const toggleSection = (section) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
   // Status badges for auto-check
-  const autoCheckStatus = {
-    youtube: !!inputs.youtubeAuto?.includes('[API Data]'),
-    glassdoor: !!inputs.glassdoorAuto,
-  };
-  const autoCheckCount = Object.values(autoCheckStatus).filter(Boolean).length;
 
   // Completion tracking
   // A declared absence of social presence satisfies the channel and screenshot
@@ -4579,7 +4481,7 @@ function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, 
   });
   const [isProcessing, setIsProcessing] = useState({});
   const [error, setError] = useState(null);
-  const [reputationFlags, setReputationFlags] = useState(assessmentData.reputationFlags || '');
+  const [reputationFlags] = useState(assessmentData.reputationFlags || '');
   const [wikipediaContent, setWikipediaContent] = useState(assessmentData.wikipediaContent || '');
   const [redditContent, setRedditContent] = useState(assessmentData.redditAnswersContent || '');
   // Third-party and search signals (auto-fetched, NOT counted as AI engines)
@@ -5460,7 +5362,6 @@ function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, be
 
 function ReportPage({ project, setProject, scores, setScores, assessments, setAssessments, apiKey, onSave, onPrev, profile, compassResults = [], savedBenchmark = null }) {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isScoring, setIsScoring] = useState(false);
   const [scoringError, setScoringError] = useState(null);
   const [scoringProgress, setScoringProgress] = useState(0);
@@ -6156,7 +6057,7 @@ Return the complete revised readout as prose. No preamble, no notes about what y
 
   // Calculate scores early for hooks (before any returns)
   const validScoreEntries = scores ? Object.entries(scores)
-    .filter(([key, val]) => val && typeof val.score === 'number') : [];
+    .filter(([, val]) => val && typeof val.score === 'number') : [];
   
   const calculatedOverall = validScoreEntries.length > 0 
     ? Math.round(validScoreEntries.reduce((a, [, v]) => a + v.score, 0) / 8)
@@ -6277,8 +6178,6 @@ Return the complete revised readout as prose. No preamble, no notes about what y
 
   const nextStage = MATURITY_STAGES.find(st => st.min > overall);
 
-  // Footprint summary feeds the masthead signal count as well as its own section.
-  const footprintSummary = scores?.footprint ? summariseFootprint(scores.footprint) : null;
 
   // ── Campaign coherence ──────────────────────────────────────
   const campaign = scores?.campaignCoherence || null;
@@ -6341,13 +6240,6 @@ Return the complete revised readout as prose. No preamble, no notes about what y
     }
   }
 
-  // Collect all assessor observations
-  const allObservations = [
-    assessments.website?.observations,
-    assessments.social?.observations,
-    assessments.aiReputation?.observations,
-    assessments.earnedMedia?.observations
-  ].filter(Boolean);
 
   // Build what we evaluated text
   const evaluatedInputs = [];
@@ -6709,401 +6601,24 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
 
   const buildClientPayload = (assessorNote) => makeClientPayload({ project, scores, benchmark, assessorNote });
 
-  const generatePdf = async () => {
-    setIsGeneratingPdf(true);
-    try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const contentWidth = pageWidth - (margin * 2);
-      let y = margin;
-
-      // Simple helper to add text and handle page breaks
-      const checkPage = () => {
-        if (y > pageHeight - 25) {
-          pdf.addPage();
-          y = margin;
-        }
-      };
-
-      const addParagraph = (text, size = 10) => {
-        const lines = pdf.splitTextToSize(text, contentWidth);
-        pdf.setFontSize(size);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(0, 0, 0);
-        lines.forEach(line => {
-          checkPage();
-          pdf.text(line, margin, y);
-          y += size * 0.45;
-        });
-        y += 3;
-      };
-
-      const addSection = (title) => {
-        y += 8;
-        checkPage();
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(229, 57, 53);
-        pdf.text(title, margin, y);
-        y += 8;
-      };
-
-      // ========== TITLE ==========
-      pdf.setFontSize(24);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(project.brandName, margin, y);
-      y += 10;
-
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(100, 100, 100);
-      pdf.text('Conscious Compass Assessment Report', margin, y);
-      y += 6;
-
-      pdf.setFontSize(10);
-      pdf.text(`${project.date || new Date().toLocaleDateString()} | ${industryName} | ${project.businessModel.toUpperCase()}`, margin, y);
-      y += 12;
-
-      // ========== OVERALL SCORE ==========
-      pdf.setFontSize(18);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(229, 57, 53);
-      pdf.text(`Overall Score: ${overall}/100`, margin, y);
-      y += 8;
-
-      pdf.setFontSize(14);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text(`Maturity Stage: ${stage.name}`, margin, y);
-      y += 6;
-
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(stage.description, margin, y);
-      y += 8;
-
-      pdf.setTextColor(5, 150, 105);
-      pdf.text(`Strengths: ${sortedAttrs.slice(-2).map(a => a.name).join(', ')}`, margin, y);
-      y += 5;
-      pdf.setTextColor(220, 38, 38);
-      pdf.text(`Opportunities: ${sortedAttrs.slice(0, 2).map(a => a.name).join(', ')}`, margin, y);
-      y += 8;
-      
-      // Headline
-      if (scores.headline) {
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'italic');
-        pdf.setTextColor(51, 51, 51);
-        const headlineLines = pdf.splitTextToSize(`"${scores.headline}"`, contentWidth);
-        headlineLines.forEach(line => {
-          pdf.text(line, margin, y);
-          y += 5;
-        });
-        y += 4;
-      }
-
-      // ========== SPIDER CHART IMAGE ==========
-      if (chartRef.current) {
-        try {
-          const canvas = await html2canvas(chartRef.current, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-            logging: false,
-          });
-          const imgData = canvas.toDataURL('image/png');
-          const imgWidth = 160;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          
-          // Center the chart
-          const imgX = (pageWidth - imgWidth) / 2;
-          pdf.addImage(imgData, 'PNG', imgX, y, imgWidth, imgHeight);
-          y += imgHeight + 8;
-        } catch (err) {
-          console.warn('Could not capture chart:', err);
-          y += 5;
-        }
-      }
-
-      // ========== ATTRIBUTE SCORES LIST ==========
-      addSection('ATTRIBUTE SCORES');
-      
-      ATTRIBUTES.forEach(attr => {
-        const score = scores[attr.id]?.score || 0;
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(0, 0, 0);
-        pdf.text(`${attr.name}: ${score}/100`, margin, y);
-        y += 6;
-      });
-
-      // ========== SUSTAINABILITY NARRATIVE (framework 2.10) ==========
-      {
-        const tr = thesisTextRows(scores.sustainabilityNarrative);
-        if (tr) {
-          addSection('SUSTAINABILITY NARRATIVE');
-          if (tr.verdict) addParagraph(tr.verdict, 11);
-          if (tr.summary) addParagraph(tr.summary);
-          tr.tenets.forEach(t => addParagraph(`${t.level.toUpperCase()}: ${t.name}${t.reason ? `. ${t.reason}` : ''}`, 9));
-        }
-      }
-
-      // ========== CAMPAIGN COHERENCE ==========
-      if (campaignStage) {
-        addSection('CAMPAIGN COHERENCE');
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(0, 0, 0);
-        checkPage();
-        pdf.text(`${campaignStage.level === 0 ? 'No tier reached' : `Level ${campaignStage.level} of 5`}: ${campaignStage.name}`, margin, y);
-        y += 7;
-        addParagraph(campaignStage.summary);
-        if (campaign.verdict) addParagraph(campaign.verdict);
-        addParagraph(campaignStage.description);
-        if (campaign.rationale) addParagraph(`Why this level: ${campaign.rationale}`);
-        if (campaign.toNextLevel) addParagraph(`To reach level ${Math.min(5, campaignStage.level + 1)}: ${campaign.toNextLevel}`);
-
-        if (Array.isArray(campaign.campaigns) && campaign.campaigns.length) {
-          campaign.campaigns.forEach(c => {
-            checkPage();
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(0, 0, 0);
-            pdf.text(`${c.name}${c.channels?.length ? ` (${c.channels.join(', ')})` : ''}`, margin, y);
-            y += 5;
-            if (c.idea) addParagraph(`Idea: ${c.idea}`, 9);
-            if (c.evidence) addParagraph(c.evidence, 9);
-          });
-        }
-
-        if (campaignAffected.length) {
-          checkPage();
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'italic');
-          pdf.setTextColor(100, 100, 100);
-          pdf.text('Score adjustment (attribute scores judge quality of work; campaign coherence applied separately):', margin, y);
-          y += 5;
-          pdf.setFont('helvetica', 'normal');
-          campaignAffected.forEach(a => {
-            checkPage();
-            const adj = campaignAdjustment(a.id);
-            pdf.text(`${a.name}: ${scores[a.id]?.baseScore} ${adj > 0 ? '+' : ''}${adj} = ${scores[a.id]?.score}`, margin + 4, y);
-            y += 4.5;
-          });
-          y += 3;
-        }
-      }
-
-      // ========== BENCHMARK COMPARISON ==========
-      if (benchmark) {
-        addSection('BENCHMARK COMPARISON');
-        addParagraph(`Benchmarked against: ${benchmark.cohortLabel} (n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}).${benchmark.fallbackReason ? ` ${benchmark.fallbackReason}` : ''}`, 9);
-        addParagraph(`${project.brandName} scores ${overall} against a ${benchmark.scope === 'industry' ? 'sector' : 'cross-industry'} average of ${benchmark.avgScore}, a difference of ${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore} points, ${benchmark.rank ? `ranking it ${ordinal(benchmark.rank)} of ${benchmark.count}` : ''}${benchmark.percentile != null ? ` in the ${ordinal(benchmark.percentile)} percentile` : ''}. The average across all assessed brands is ${benchmark.allBrandsAvg}.`);
-
-        // Benchmark charts, captured from the live DOM the same way the radar is
-        for (const [ref, gap] of [[benchmarkPositionRef, 6], [benchmarkSpreadRef, 6]]) {
-          if (!ref.current) continue;
-          try {
-            const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', logging: false });
-            const imgW = contentWidth;
-            const imgH = (canvas.height * imgW) / canvas.width;
-            if (y + imgH > pageHeight - 20) { pdf.addPage(); y = margin; }
-            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, y, imgW, imgH);
-            y += imgH + gap;
-          } catch (err) {
-            console.warn('Could not capture benchmark chart:', err);
-          }
-        }
-
-        // Text table as a durable fallback, and because numbers beat pictures
-        checkPage();
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(0, 0, 0);
-        pdf.text('Attribute', margin, y);
-        pdf.text(project.brandName.slice(0, 18), margin + 70, y);
-        pdf.text(benchmark.scope === 'industry' ? 'Sector' : 'All', margin + 110, y);
-        pdf.text('Diff', margin + 140, y);
-        y += 5;
-        pdf.setFont('helvetica', 'normal');
-        ATTRIBUTES.forEach(attr => {
-          checkPage();
-          const s = scores[attr.id]?.score || 0;
-          const b = benchmark.attrAvgs?.[attr.id] ?? 0;
-          const d = s - b;
-          pdf.setTextColor(0, 0, 0);
-          pdf.text(attr.name, margin, y);
-          pdf.text(String(s), margin + 70, y);
-          pdf.text(String(b), margin + 110, y);
-          if (d > 0) pdf.setTextColor(5, 150, 105); else if (d < 0) pdf.setTextColor(220, 38, 38);
-          pdf.text(`${d > 0 ? '+' : ''}${d}`, margin + 140, y);
-          y += 5;
-        });
-        pdf.setTextColor(0, 0, 0);
-        y += 3;
-      }
-
-      // ========== EXECUTIVE SUMMARY ==========
-      addSection('EXECUTIVE SUMMARY');
-      addParagraph(`${project.brandName} achieved an overall Brand Consciousness Score of ${overall}/100, placing them in the "${stage.name}" maturity stage. The assessment evaluated the brand across 8 key consciousness attributes. Key strengths emerged in ${sortedAttrs.slice(-2).map(a => a.name).join(' and ')}, while opportunities for growth were identified in ${sortedAttrs.slice(0, 2).map(a => a.name).join(' and ')}.`);
-
-      // ========== ATTRIBUTE ANALYSIS ==========
-      addSection('ATTRIBUTE ANALYSIS');
-
-      ATTRIBUTES.forEach(attr => {
-        const score = scores[attr.id]?.score || 0;
-        const findings = scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description;
-        const impact = scores[attr.id]?.impact;
-        const actions = scores[attr.id]?.actions;
-        const opportunity = scores[attr.id]?.opportunity;
-
-        checkPage();
-
-        // Attribute name and score
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(0, 0, 0);
-        pdf.text(`${attr.name}: ${score}/100`, margin, y);
-        y += 6;
-
-        // Findings
-        if (findings) {
-          const lines = pdf.splitTextToSize(findings, contentWidth);
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(50, 50, 50);
-          lines.forEach(line => {
-            checkPage();
-            pdf.text(line, margin, y);
-            y += 4;
-          });
-        }
-
-        // Impact
-        if (impact) {
-          y += 2;
-          const impLines = pdf.splitTextToSize("What's driving it: " + impact, contentWidth);
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(50, 50, 50);
-          impLines.forEach(line => {
-            checkPage();
-            pdf.text(line, margin, y);
-            y += 4;
-          });
-        }
-
-        // Actions
-        if (actions) {
-          y += 2;
-          const actLines = pdf.splitTextToSize('To improve the score: ' + actions, contentWidth);
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(50, 50, 50);
-          actLines.forEach(line => {
-            checkPage();
-            pdf.text(line, margin, y);
-            y += 4;
-          });
-          pdf.setFont('helvetica', 'normal');
-        }
-
-        // Opportunity
-        if (opportunity) {
-          y += 2;
-          const oppLines = pdf.splitTextToSize('Opportunity: ' + opportunity, contentWidth);
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'italic');
-          pdf.setTextColor(5, 150, 105);
-          oppLines.forEach(line => {
-            checkPage();
-            pdf.text(line, margin, y);
-            y += 4;
-          });
-        }
-
-        y += 8;
-      });
-
-      // ========== RECOMMENDATIONS ==========
-      addSection('TOP RECOMMENDATIONS');
-
-      recommendations.slice(0, 6).forEach((r, i) => {
-        checkPage();
-
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(0, 0, 0);
-        pdf.text(`${i + 1}. ${r.title}`, margin, y);
-        y += 6;
-
-        const descLines = pdf.splitTextToSize(r.description, contentWidth);
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(50, 50, 50);
-        descLines.forEach(line => {
-          checkPage();
-          pdf.text(line, margin, y);
-          y += 4;
-        });
-
-        // Add benefit
-        const benefitLines = pdf.splitTextToSize(`Benefit: ${r.impact}`, contentWidth);
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'italic');
-        pdf.setTextColor(229, 57, 53); // Red accent
-        benefitLines.forEach(line => {
-          checkPage();
-          pdf.text(line, margin, y);
-          y += 4;
-        });
-
-        pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`Impacts: ${r.attributes.join(', ')}`, margin, y);
-        y += 8;
-      });
-
-      // ========== CONCLUSIONS ==========
-      addSection('CONCLUSIONS');
-      const conclusionText = scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`;
-      addParagraph(conclusionText);
-      
-      // ========== SCORE JUSTIFICATION ==========
-      if (scores.justification) {
-        addSection('SCORE JUSTIFICATION');
-        addParagraph(scores.justification);
-      }
-
-      // ========== METHODOLOGY ==========
-      addSection('METHODOLOGY');
-      addParagraph(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions: website presence, social media footprint, AI reputation, and earned media coverage. The business model (${project.businessModel.toUpperCase()}) and industry context (${industryName}) were applied to weight attribute importance appropriately.`);
-
-      // ========== FOOTER ==========
-      const pageCount = pdf.internal.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        pdf.setPage(i);
-        pdf.setFontSize(8);
-        pdf.setTextColor(150, 150, 150);
-        pdf.text(`Conscious Compass by Antenna Group | Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-      }
-
-      pdf.save(`${project.brandName.replace(/\s+/g, '_')}_Conscious_Compass_Report.pdf`);
-    } catch (e) {
-      console.error('PDF generation error:', e);
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
 
 
   const generateDocx = async () => {
     setIsGenerating(true);
     try {
+      // Loaded on demand (v3.101.0): the Word and screenshot libraries are only
+      // needed here, so they stay out of the bundle every visitor downloads.
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer: DocxFooter, Header: DocxHeader, PageNumber, NumberFormat } = await import('docx');
+      const { default: html2canvas } = await import('html2canvas');
       const hexColor = (hex) => hex.replace('#', '');
+      // Palette and type from the restyled template (v3.102.0): Hanken Grotesk
+      // for text, Newsreader for headings and the score, the app's ink, body,
+      // muted and rust, hairline rules. Both fonts are embedded in the file.
+      const SANS = 'Hanken Grotesk', SERIF = 'Newsreader';
+      const INK = '15171A', MUTED = '5B6068', RUST = 'C23B22', POS = '2F6B55', RULE = 'DEDAD2';
+      // Band colour for a maturity stage, as the template sets it: muted below
+      // Establishing, rust at Establishing, green from Differentiating up.
+      const bandHex = (name) => (['Pre-Foundational', 'Foundational'].includes(name) ? MUTED : name === 'Establishing' ? RUST : POS);
       const clean = (text) => (text || '').replace(/\u2014/g, '-').replace(/\u2013/g, '-').replace(/—/g, '-').replace(/–/g, '-');
 
       // ── SVG → PNG base64 via canvas ────────────────────────────
@@ -7135,7 +6650,6 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         // Use zero-origin viewBox so canvas renders correctly (no negative offset clipping)
         // Original viewBox is "-100 -50 652 552" — shift all coords by +100,+50
         const shift = (path) => path.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_, x, y) => `${(+x+100).toFixed(2)},${(+y+50).toFixed(2)}`).replace(/(-?\d+\.?\d*) (-?\d+\.?\d*)/g, (_, x, y) => `${(+x+100).toFixed(2)} ${(+y+50).toFixed(2)}`);
-        const shiftN = (v, isX) => (+v + (isX ? 100 : 50)).toFixed(2);
 
         const calcLabel = (i, total, r) => {
           const a = (i * 2 * Math.PI / total) - Math.PI / 2;
@@ -7159,7 +6673,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         });
         const ptStr = pts.map(p => `${p.x},${p.y}`).join(' ');
         const rings = [...RING_PATHS].reverse().map((p, i) =>
-          `<path d="${shift(p)}" fill="${i % 2 === 0 ? '#e1dfda' : '#f7f6f4'}" stroke="none"/>`).join('');
+          `<path d="${shift(p)}" fill="${i % 2 === 0 ? '#DEDAD2' : '#FBFAF7'}" stroke="none"/>`).join('');
         const gridPath = RING_PATHS.map(p => shift(p)).join('');
         const grid = `<path d="${gridPath}" stroke="#15171A" stroke-width="1.5" fill="none"/>`;
         const axes = data.map((_, i) => {
@@ -7190,7 +6704,7 @@ Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${
         const rects = MATURITY_STAGES.map((s, i) => {
           const x = i * sw, isCurr = s.id === stage.id;
           return `<rect x="${x}" y="${by}" width="${sw}" height="${bh}" fill="${s.color}" opacity="${isCurr ? '1' : '0.28'}" rx="2"/>
-                  <text x="${x+sw/2}" y="${by+bh+18}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="${isCurr ? 12 : 10}" font-weight="${isCurr ? 700 : 400}" fill="${isCurr ? s.color : '#888888'}">${s.name}</text>`;
+                  <text x="${x+sw/2}" y="${by+bh+18}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="${isCurr ? 12 : 10}" font-weight="${isCurr ? 700 : 400}" fill="${isCurr ? s.color : '#5B6068'}">${s.name}</text>`;
         }).join('');
         const mx = (overall / 100) * w;
         return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="white"/>${rects}<circle cx="${mx}" cy="${by+bh/2}" r="10" fill="${stage.color}" stroke="white" stroke-width="3"/><text x="${mx}" y="${by+bh/2+1}" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="9" font-weight="700" fill="white">${overall}</text></svg>`;
@@ -7252,8 +6766,6 @@ ${content.slice(0, 8000)}`;
         captureNode(benchmarkSpreadRef, 540),
       ]);
 
-      // ── Service recommendations ────────────────────────────────
-      const forceInc = getForceIncludeServicesFromAIReputation(assessments?.aiReputation?.content, assessments);
       const topRecs = recommendations.slice(0, 6);
 
       // ── Assessor name ──────────────────────────────────────────
@@ -7264,8 +6776,8 @@ ${content.slice(0, 8000)}`;
         const parts = text.split(/(\*\*[^*]+\*\*)/);
         return parts.filter(Boolean).map(p =>
           p.startsWith('**') && p.endsWith('**')
-            ? new TextRun({ text: clean(p.slice(2, -2)), bold: true, size: sz, font: 'Inter' })
-            : new TextRun({ text: clean(p), size: sz, font: 'Inter' }));
+            ? new TextRun({ text: clean(p.slice(2, -2)), bold: true, size: sz, font: SANS })
+            : new TextRun({ text: clean(p), size: sz, font: SANS }));
       };
 
       // ── Markdown → Paragraph array ─────────────────────────────
@@ -7277,9 +6789,9 @@ ${content.slice(0, 8000)}`;
           if (!t) continue;
           if (t.startsWith('# ') || t === '---') continue;
           if (t.startsWith('### ')) {
-            out.push(new Paragraph({ spacing: { before: 120, after: 40, ...LINE_SPACING }, children: [new TextRun({ text: clean(t.slice(4)), bold: true, size: 21, font: 'Inter' })] }));
+            out.push(new Paragraph({ spacing: { before: 120, after: 40, ...LINE_SPACING }, children: [new TextRun({ text: clean(t.slice(4)), bold: true, size: 21, font: SANS })] }));
           } else if (t.startsWith('## ')) {
-            out.push(new Paragraph({ spacing: { before: 160, after: 60, ...LINE_SPACING }, children: [new TextRun({ text: clean(t.slice(3)), bold: true, size: 22, font: 'Inter' })] }));
+            out.push(new Paragraph({ spacing: { before: 160, after: 60, ...LINE_SPACING }, children: [new TextRun({ text: clean(t.slice(3)), bold: true, size: 22, font: SANS })] }));
           } else if (/^[-*]\s+/.test(t)) {
             out.push(new Paragraph({ numbering: { reference: 'bullets', level: 0 }, spacing: { after: 40, ...LINE_SPACING }, children: parseInline(t.replace(/^[-*]\s+/, '')) }));
           } else if (/^\d+\.\s/.test(t)) {
@@ -7318,76 +6830,10 @@ ${content.slice(0, 8000)}`;
         return parts.join('\n\n');
       };
 
-      // Earned media: opening overview + priority recommendations only
-      const extractEarnedMedia = (md) => {
-        if (!md) return '';
-        const lines = md.split('\n');
-        const out = [];
-        let mode = 'intro'; // intro | skip | priority
-        let introParaCount = 0;
 
-        for (const line of lines) {
-          const t = line.trim();
-          // Switch to priority section
-          if (/^##\s*Priority/i.test(t) || /^\*\*PRIORITY\b/i.test(t)) {
-            mode = 'priority';
-            out.push('');
-            out.push('**Priority Improvements**');
-            continue;
-          }
-          if (mode === 'priority') { out.push(line); continue; }
-          // Skip all numbered sub-sections (## 1., ## 2. etc) and Research Foundation heading
-          if (/^##/.test(t)) { mode = 'skip'; continue; }
-          if (t === '---') continue;
-          if (t.startsWith('# ')) continue;
-          // In intro mode: capture first 4 non-empty paragraphs
-          if (mode === 'intro' || mode === 'skip') {
-            // Switch back to intro when we enter Coverage Volume body (after Research Foundation)
-            if (mode === 'skip' && t && !t.startsWith('#')) mode = 'intro';
-            if (mode === 'intro') {
-              if (t) { out.push(line); }
-              else if (out.length > 0 && out[out.length - 1] !== '') {
-                introParaCount++;
-                out.push(line);
-                // Stop after 3 prose paragraphs
-                if (introParaCount >= 3) mode = 'skip';
-              }
-            }
-          }
-        }
-        return out.join('\n').trim();
-      };
-
-      // AI Reputation: sections 1 (Convergence), 3 (Sentiment), 5 (Risks), 6 (Recommendations)
-      const extractAIReputation = (md) => {
-        if (!md) return '';
-        const lines = md.split('\n');
-        const KEEP_SECTIONS = [/^## 1\./i, /^## 3\./i, /^## 5\./i, /^## 6\./i];
-        const out = [];
-        let mode = 'skip';
-        let currentHeading = '';
-
-        for (const line of lines) {
-          const t = line.trim();
-          if (t.startsWith('# ') || t === '---') continue;
-          if (/^##/.test(t)) {
-            const keep = KEEP_SECTIONS.some(r => r.test(t));
-            mode = keep ? 'include' : 'skip';
-            if (keep) {
-              // Clean heading: strip number prefix
-              const heading = t.replace(/^##\s*\d+\.\s*/, '').replace(/^##\s*/, '');
-              out.push('');
-              out.push(`**${heading}**`);
-            }
-            continue;
-          }
-          if (mode === 'include') out.push(line);
-        }
-        return out.join('\n').trim();
-      };
 
       // ── Table helpers ──────────────────────────────────────────
-      const bdr = { style: BorderStyle.SINGLE, size: 4, color: 'E0DED9' };
+      const bdr = { style: BorderStyle.SINGLE, size: 4, color: RULE };
       const bdrs = { top: bdr, bottom: bdr, left: bdr, right: bdr };
       // Always wrap runs in a Paragraph - TableCell.children must be Paragraph[], never TextRun[]
       const cell = (runs, w, fill = 'FFFFFF', align = AlignmentType.LEFT) => new TableCell({
@@ -7397,6 +6843,9 @@ ${content.slice(0, 8000)}`;
         margins: { top: 80, bottom: 80, left: 120, right: 120 },
         children: [new Paragraph({ alignment: align, children: Array.isArray(runs) ? runs : [runs] })],
       });
+      // Table header cell, as the template sets it: tracked uppercase in muted
+      // grey on white, between hairline rules.
+      const th = (text, w, align = AlignmentType.LEFT) => cell([new TextRun({ text: String(text).toUpperCase(), bold: true, size: 16, font: SANS, color: MUTED, characterSpacing: 12 })], w, 'FFFFFF', align);
 
       // ── Attribute score table ──────────────────────────────────
       const attrTable = new Table({
@@ -7404,18 +6853,18 @@ ${content.slice(0, 8000)}`;
         columnWidths: [4860, 1560, 2940],
         rows: [
           new TableRow({ tableHeader: true, children: [
-            cell([new TextRun({ text: 'Attribute', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 4860, '1A1A1A'),
-            cell([new TextRun({ text: 'Score', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
-            cell([new TextRun({ text: 'Maturity', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 2940, '1A1A1A'),
+            th('Attribute', 4860),
+            th('Score', 1560, AlignmentType.CENTER),
+            th('Maturity', 2940),
           ]}),
           ...ATTRIBUTES.map((attr, i) => {
             const sc = scores[attr.id]?.score || 0;
             const as = getMaturityStage(sc);
-            const bg = i % 2 === 0 ? 'FFFFFF' : 'F6F5F2';
+            const bg = i % 2 === 0 ? 'FFFFFF' : 'FFFFFF';
             return new TableRow({ children: [
-              cell([new TextRun({ text: `${attr.name} (${attr.fullName})`, size: 18, font: 'Inter' })], 4860, bg),
-              cell([new TextRun({ text: `${sc}/100`, bold: true, size: 18, font: 'Inter', color: hexColor(attr.color) })], 1560, bg, AlignmentType.CENTER),
-              cell([new TextRun({ text: as.name, size: 18, font: 'Inter', color: hexColor(as.color) })], 2940, bg),
+              cell([new TextRun({ text: `${attr.name} (${attr.fullName})`, size: 18, font: SANS })], 4860, bg),
+              cell([new TextRun({ text: `${sc}/100`, bold: true, size: 18, font: SANS, color: INK })], 1560, bg, AlignmentType.CENTER),
+              cell([new TextRun({ text: as.name, size: 18, font: SANS, color: bandHex(as.name) })], 2940, bg),
             ]});
           }),
         ],
@@ -7427,16 +6876,16 @@ ${content.slice(0, 8000)}`;
         heading: HeadingLevel.HEADING_2,
         pageBreakBefore: pageBreak,
         spacing: { before: 240, after: 80, ...LINE_SPACING },
-        children: [new TextRun({ text, font: 'Inter' })],
+        children: [new TextRun({ text })],
       });
       const h3 = (text) => new Paragraph({
         heading: HeadingLevel.HEADING_3,
         spacing: { before: 160, after: 60, ...LINE_SPACING },
-        children: [new TextRun({ text, font: 'Inter' })],
+        children: [new TextRun({ text })],
       });
       const body = (text, after = 80) => new Paragraph({
         spacing: { after, ...LINE_SPACING },
-        children: [new TextRun({ text: clean(text), size: 20, font: 'Inter' })],
+        children: [new TextRun({ text: clean(text), size: 20, font: SANS })],
       });
 
       // ── Summary two-column layout (score info | radar) ─────────
@@ -7447,17 +6896,17 @@ ${content.slice(0, 8000)}`;
 
       const summaryLeft = [
         new Paragraph({ spacing: { after: 80, line: 276, lineRule: 'auto' }, children: [
-          new TextRun({ text: `${overall}/100`, bold: true, size: 52, font: 'Inter', color: hexColor(stage.color) }),
-          new TextRun({ text: `   ${stage.name}`, bold: true, size: 28, font: 'Inter', color: '333333' }),
+          new TextRun({ text: `${overall}/100`, size: 88, font: SERIF, color: INK }),
+          new TextRun({ text: `   ${stage.name}`, bold: true, size: 20, font: SANS, color: RUST, allCaps: true, characterSpacing: 16 }),
         ]}),
-        ...(scores.headline ? [new Paragraph({ spacing: { after: 100, line: 276, lineRule: 'auto' }, children: [new TextRun({ text: `"${clean(scores.headline)}"`, size: 20, font: 'Inter', italics: true, color: '444444' })] })] : []),
-        new Paragraph({ spacing: { after: 100, line: 276, lineRule: 'auto' }, children: [new TextRun({ text: clean(scores.conclusion || `${project.brandName} demonstrates developing brand consciousness across eight dimensions.`), size: 20, font: 'Inter' })] }),
+        ...(scores.headline ? [new Paragraph({ spacing: { after: 100, line: 276, lineRule: 'auto' }, children: [new TextRun({ text: `"${clean(scores.headline)}"`, size: 20, font: SANS, italics: true, color: '2E3238' })] })] : []),
+        new Paragraph({ spacing: { after: 100, line: 276, lineRule: 'auto' }, children: [new TextRun({ text: clean(scores.conclusion || `${project.brandName} demonstrates developing brand consciousness across eight dimensions.`), size: 20, font: SANS })] }),
         new Paragraph({ spacing: { after: 80, line: 276, lineRule: 'auto' }, children: [
-          new TextRun({ text: `${project.brandName} demonstrates strength in `, size: 20, font: 'Inter' }),
-          new TextRun({ text: sortedAttrs.slice(-2).map(a => a.name).join(' and '), size: 20, font: 'Inter', bold: true, color: '059669' }),
-          new TextRun({ text: ', with opportunities to grow in ', size: 20, font: 'Inter' }),
-          new TextRun({ text: sortedAttrs.slice(0, 2).map(a => a.name).join(' and '), size: 20, font: 'Inter', bold: true, color: 'E53935' }),
-          new TextRun({ text: '.', size: 20, font: 'Inter' }),
+          new TextRun({ text: `${project.brandName} demonstrates strength in `, size: 20, font: SANS }),
+          new TextRun({ text: sortedAttrs.slice(-2).map(a => a.name).join(' and '), size: 20, font: SANS, bold: true, color: POS }),
+          new TextRun({ text: ', with opportunities to grow in ', size: 20, font: SANS }),
+          new TextRun({ text: sortedAttrs.slice(0, 2).map(a => a.name).join(' and '), size: 20, font: SANS, bold: true, color: RUST }),
+          new TextRun({ text: '.', size: 20, font: SANS }),
         ]}),
       ];
 
@@ -7483,44 +6932,46 @@ ${content.slice(0, 8000)}`;
 
       // ── Build document ─────────────────────────────────────────
       const doc = new Document({
+        background: { color: 'FBFAF7' },
         numbering: {
           config: [
-            { reference: 'bullets', levels: [{ level: 0, format: LevelFormat.BULLET, text: '\u2022', alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } }, run: { font: 'Inter', size: 20 } } }] },
-            { reference: 'recs', levels: [{ level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } }, run: { font: 'Inter', size: 20, bold: true } } }] },
+            { reference: 'bullets', levels: [{ level: 0, format: LevelFormat.BULLET, text: '\u2022', alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } }, run: { font: SANS, size: 20 } } }] },
+            { reference: 'recs', levels: [{ level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } }, run: { font: SANS, size: 20, bold: true } } }] },
           ],
         },
         styles: {
-          default: { document: { run: { font: 'Inter', size: 20 }, paragraph: { spacing: { line: 276, lineRule: 'auto' } } } },
+          default: { document: { run: { font: SANS, size: 20, color: INK }, paragraph: { spacing: { line: 276, lineRule: 'auto' } } } },
           paragraphStyles: [
             { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-              run: { size: 52, bold: true, font: 'Inter', color: '1A1A1A' },
-              paragraph: { spacing: { before: 240, after: 100 }, outlineLevel: 0 } },
+              run: { size: 64, font: SERIF, color: INK },
+              paragraph: { keepNext: true, spacing: { before: 240, after: 120, line: 240, lineRule: 'auto' }, outlineLevel: 0 } },
             { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-              run: { size: 28, bold: true, font: 'Inter', color: '1A1A1A' },
-              paragraph: { spacing: { before: 240, after: 80 }, outlineLevel: 1 } },
+              run: { size: 40, font: SERIF, color: INK },
+              paragraph: { keepNext: true, border: { top: { style: BorderStyle.SINGLE, size: 8, space: 10, color: INK } },
+                spacing: { before: 480, after: 160, line: 240, lineRule: 'auto' }, outlineLevel: 1 } },
             { id: 'Heading3', name: 'Heading 3', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-              run: { size: 22, bold: true, font: 'Inter', color: '333333' },
-              paragraph: { spacing: { before: 160, after: 60 }, outlineLevel: 2 } },
+              run: { size: 17, bold: true, font: SANS, allCaps: true, characterSpacing: 16, color: RUST },
+              paragraph: { keepNext: true, spacing: { before: 320, after: 100 }, outlineLevel: 2 } },
           ],
         },
         sections: [{
           properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1080, right: 1080, bottom: 1440, left: 1080 } } },
           footers: { default: new DocxFooter({ children: [new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: `${new Date(project.date || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}  |  Conscious Compass Framework v${FRAMEWORK_VERSION}  |  Assessed by ${assessorName}`, size: 16, font: 'Inter', color: '999999' })],
+            children: [new TextRun({ text: `${new Date(project.date || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}  |  Conscious Compass Framework v${FRAMEWORK_VERSION}  |  Assessed by ${assessorName}`, size: 16, font: SANS, color: MUTED })],
           })] }) },
           children: [
 
             // ── COVER ────────────────────────────────────────────
             ...(logoB64 ? [new Paragraph({ spacing: { after: 400 }, children: [new ImageRun({ data: logoB64, transformation: { width: 150, height: 42 }, type: 'png' })] })] : [new Paragraph({ spacing: { after: 400 } })]),
             new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 0, after: 60 }, children: [
-              new TextRun({ text: project.brandName, bold: true, font: 'Inter', size: 56 }),
-              new TextRun({ text: ' Conscious Brand Assessment', font: 'Inter', size: 40, bold: false }),
+              new TextRun({ text: project.brandName, font: SERIF, size: 64 }),
+              new TextRun({ text: ' Conscious Brand Assessment', font: SERIF, size: 40, color: MUTED }),
             ]}),
             new Paragraph({ spacing: { after: 320 }, children: [
-              new TextRun({ text: `${new Date(project.date || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}  |  ${INDUSTRIES.find(i => i.id === project.industry)?.name || project.industry}  |  ${project.businessModel.toUpperCase()}`, size: 20, font: 'Inter', color: '666666' }),
+              new TextRun({ text: `${new Date(project.date || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}  |  ${INDUSTRIES.find(i => i.id === project.industry)?.name || project.industry}  |  ${project.businessModel.toUpperCase()}`, size: 20, font: SANS, color: MUTED }),
             ]}),
-            new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'D9D6D0', space: 1 } }, spacing: { after: 0 } }),
+            new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: INK, space: 1 } }, spacing: { after: 0 } }),
 
             // ── SUMMARY PANEL ─────────────────────────────────────
             h2('Summary'),
@@ -7536,7 +6987,7 @@ ${content.slice(0, 8000)}`;
               new Paragraph({ spacing: { after: 80 }, children: [new ImageRun({ data: matB64, transformation: { width: 540, height: 54 }, type: 'png' })] }),
             ] : []),
             new Paragraph({ spacing: { after: 60 }, children: [
-              new TextRun({ text: `${stage.name}  (${overall}/100)`, bold: true, size: 22, font: 'Inter', color: hexColor(stage.color) }),
+              new TextRun({ text: `${stage.name}  (${overall}/100)`, bold: true, size: 22, font: SANS, color: bandHex(stage.name) }),
             ]}),
             body(clean(stage.description)),
             ...(overall < 100 ? [body(`${Math.min(100, MATURITY_STAGES.find(s => s.min > overall)?.min || 100) - overall} points to next level.`, 60)] : []),
@@ -7556,22 +7007,22 @@ ${content.slice(0, 8000)}`;
               const opp = clean(scores[attr.id]?.opportunity || '');
               return [
                 new Paragraph({ spacing: { before: 240, after: 60 }, children: [
-                  new TextRun({ text: `${attr.name}`, bold: true, size: 24, font: 'Inter', color: hexColor(attr.color) }),
-                  new TextRun({ text: `  (${attr.fullName})`, size: 20, font: 'Inter', color: '666666' }),
-                  new TextRun({ text: `  ${sc}/100 - ${as.name}`, bold: true, size: 20, font: 'Inter' }),
+                  new TextRun({ text: `${attr.name}`, bold: true, size: 24, font: SANS, color: INK }),
+                  new TextRun({ text: `  (${attr.fullName})`, size: 20, font: SANS, color: MUTED }),
+                  new TextRun({ text: `  ${sc}/100 - ${as.name}`, bold: true, size: 20, font: SANS }),
                 ]}),
                 body(findings, (imp || act || opp) ? 60 : 160),
                 ...(imp ? [new Paragraph({ spacing: { after: act || opp ? 60 : 160 }, children: [
-                  new TextRun({ text: "What's driving it: ", bold: true, size: 20, font: 'Inter' }),
-                  new TextRun({ text: imp, size: 20, font: 'Inter' }),
+                  new TextRun({ text: "What's driving it: ", bold: true, size: 20, font: SANS }),
+                  new TextRun({ text: imp, size: 20, font: SANS }),
                 ]})] : []),
                 ...(act ? [new Paragraph({ spacing: { after: opp ? 60 : 160 }, children: [
-                  new TextRun({ text: 'To improve the score: ', bold: true, size: 20, font: 'Inter' }),
-                  new TextRun({ text: act, size: 20, font: 'Inter' }),
+                  new TextRun({ text: 'To improve the score: ', bold: true, size: 20, font: SANS }),
+                  new TextRun({ text: act, size: 20, font: SANS }),
                 ]})] : []),
                 ...(opp ? [new Paragraph({ spacing: { after: 160 }, children: [
-                  new TextRun({ text: 'Opportunity: ', bold: true, size: 20, font: 'Inter' }),
-                  new TextRun({ text: opp, size: 20, font: 'Inter' }),
+                  new TextRun({ text: 'Opportunity: ', bold: true, size: 20, font: SANS }),
+                  new TextRun({ text: opp, size: 20, font: SANS }),
                 ]})] : []),
               ];
             }),
@@ -7585,8 +7036,8 @@ ${content.slice(0, 8000)}`;
                 ...(tr.verdict ? [body(clean(tr.verdict))] : []),
                 ...(tr.summary ? [body(clean(tr.summary))] : []),
                 ...tr.tenets.map(t => new Paragraph({ spacing: { after: 80, ...LINE_SPACING }, children: [
-                  new TextRun({ text: `${t.level}: `, bold: true, size: 20, font: 'Inter' }),
-                  new TextRun({ text: `${t.name}${t.reason ? `. ${clean(t.reason)}` : ''}`, size: 20, font: 'Inter' }),
+                  new TextRun({ text: `${t.level}: `, bold: true, size: 20, font: SANS }),
+                  new TextRun({ text: `${t.name}${t.reason ? `. ${clean(t.reason)}` : ''}`, size: 20, font: SANS }),
                 ]})),
               ];
             })(),
@@ -7595,21 +7046,21 @@ ${content.slice(0, 8000)}`;
             ...(campaignStage ? [
               h2('Campaign Coherence', true),
               new Paragraph({ spacing: { before: 0, after: 80, ...LINE_SPACING }, children: [
-                new TextRun({ text: campaignStage.level === 0 ? 'No tier reached' : `Level ${campaignStage.level} of 5`, bold: true, size: 24, font: 'Inter', color: 'E53935' }),
-                new TextRun({ text: `  ${campaignStage.name}`, bold: true, size: 24, font: 'Inter' }),
+                new TextRun({ text: campaignStage.level === 0 ? 'No tier reached' : `Level ${campaignStage.level} of 5`, bold: true, size: 24, font: SANS, color: RUST }),
+                new TextRun({ text: `  ${campaignStage.name}`, bold: true, size: 24, font: SANS }),
               ]}),
               ...(campaign.verdict ? [new Paragraph({ spacing: { after: 100, ...LINE_SPACING }, children: [
-                new TextRun({ text: clean(campaign.verdict), size: 22, font: 'Inter', italics: true, color: '333333' }),
+                new TextRun({ text: clean(campaign.verdict), size: 22, font: SANS, italics: true, color: '2E3238' }),
               ]})] : []),
               body(clean(campaignStage.summary)),
               body(clean(campaignStage.description)),
               ...(campaign.rationale ? [new Paragraph({ spacing: { after: 80, ...LINE_SPACING }, children: [
-                new TextRun({ text: 'Why this level: ', bold: true, size: 20, font: 'Inter' }),
-                new TextRun({ text: clean(campaign.rationale), size: 20, font: 'Inter' }),
+                new TextRun({ text: 'Why this level: ', bold: true, size: 20, font: SANS }),
+                new TextRun({ text: clean(campaign.rationale), size: 20, font: SANS }),
               ]})] : []),
               ...(campaign.toNextLevel ? [new Paragraph({ spacing: { after: 120, ...LINE_SPACING }, children: [
-                new TextRun({ text: `To reach level ${Math.min(5, campaignStage.level + 1)}: `, bold: true, size: 20, font: 'Inter' }),
-                new TextRun({ text: clean(campaign.toNextLevel), size: 20, font: 'Inter' }),
+                new TextRun({ text: `To reach level ${Math.min(5, campaignStage.level + 1)}: `, bold: true, size: 20, font: SANS }),
+                new TextRun({ text: clean(campaign.toNextLevel), size: 20, font: SANS }),
               ]})] : []),
 
               // Ladder reference table
@@ -7619,17 +7070,17 @@ ${content.slice(0, 8000)}`;
                 columnWidths: [780, 1800, 6780],
                 rows: [
                   new TableRow({ tableHeader: true, children: [
-                    cell([new TextRun({ text: 'Level', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 780, '1A1A1A', AlignmentType.CENTER),
-                    cell([new TextRun({ text: 'Name', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1800, '1A1A1A'),
-                    cell([new TextRun({ text: 'Definition', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 6780, '1A1A1A'),
+                    th('Level', 780, AlignmentType.CENTER),
+                    th('Name', 1800),
+                    th('Definition', 6780),
                   ]}),
                   ...CAMPAIGN_LADDER.filter(l => l.level > 0).map(l => {
                     const here = l.level === campaignStage.level;
-                    const bg = here ? 'FDECEA' : (l.level % 2 === 0 ? 'FFFFFF' : 'F6F5F2');
+                    const bg = here ? 'FDECEA' : (l.level % 2 === 0 ? 'FFFFFF' : 'FFFFFF');
                     return new TableRow({ children: [
-                      cell([new TextRun({ text: String(l.level), bold: true, size: 18, font: 'Inter', color: here ? 'E53935' : '333333' })], 780, bg, AlignmentType.CENTER),
-                      cell([new TextRun({ text: l.name, bold: here, size: 18, font: 'Inter' })], 1800, bg),
-                      cell([new TextRun({ text: clean(l.summary), size: 18, font: 'Inter', color: here ? '1A1A1A' : '666666' })], 6780, bg),
+                      cell([new TextRun({ text: String(l.level), bold: true, size: 18, font: SANS, color: here ? RUST : '2E3238' })], 780, bg, AlignmentType.CENTER),
+                      cell([new TextRun({ text: l.name, bold: here, size: 18, font: SANS })], 1800, bg),
+                      cell([new TextRun({ text: clean(l.summary), size: 18, font: SANS, color: here ? INK : MUTED })], 6780, bg),
                     ]});
                   }),
                 ],
@@ -7640,12 +7091,12 @@ ${content.slice(0, 8000)}`;
                 h3('Campaigns Identified'),
                 ...campaign.campaigns.flatMap(c => [
                   new Paragraph({ spacing: { before: 160, after: 40, ...LINE_SPACING }, children: [
-                    new TextRun({ text: clean(c.name), bold: true, size: 21, font: 'Inter' }),
-                    ...(Array.isArray(c.channels) && c.channels.length ? [new TextRun({ text: `  ${c.channels.join(', ')}`, size: 18, font: 'Inter', color: '999999' })] : []),
+                    new TextRun({ text: clean(c.name), bold: true, size: 21, font: SANS }),
+                    ...(Array.isArray(c.channels) && c.channels.length ? [new TextRun({ text: `  ${c.channels.join(', ')}`, size: 18, font: SANS, color: MUTED })] : []),
                   ]}),
                   ...(c.idea ? [new Paragraph({ spacing: { after: 40, ...LINE_SPACING }, children: [
-                    new TextRun({ text: 'Idea: ', bold: true, size: 20, font: 'Inter' }),
-                    new TextRun({ text: clean(c.idea), size: 20, font: 'Inter' }),
+                    new TextRun({ text: 'Idea: ', bold: true, size: 20, font: SANS }),
+                    new TextRun({ text: clean(c.idea), size: 20, font: SANS }),
                   ]})] : []),
                   ...(c.evidence ? [body(clean(c.evidence), 120)] : []),
                 ]),
@@ -7660,19 +7111,19 @@ ${content.slice(0, 8000)}`;
                   columnWidths: [4680, 1560, 1560, 1560],
                   rows: [
                     new TableRow({ tableHeader: true, children: [
-                      cell([new TextRun({ text: 'Attribute', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 4680, '1A1A1A'),
-                      cell([new TextRun({ text: 'Base', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
-                      cell([new TextRun({ text: 'Campaign', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
-                      cell([new TextRun({ text: 'Final', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
+                      th('Attribute', 4680),
+                      th('Base', 1560, AlignmentType.CENTER),
+                      th('Campaign', 1560, AlignmentType.CENTER),
+                      th('Final', 1560, AlignmentType.CENTER),
                     ]}),
                     ...campaignAffected.map((attr, i) => {
                       const adj = campaignAdjustment(attr.id);
-                      const bg = i % 2 === 0 ? 'FFFFFF' : 'F6F5F2';
+                      const bg = i % 2 === 0 ? 'FFFFFF' : 'FFFFFF';
                       return new TableRow({ children: [
-                        cell([new TextRun({ text: attr.name, size: 18, font: 'Inter' })], 4680, bg),
-                        cell([new TextRun({ text: String(scores[attr.id]?.baseScore ?? ''), size: 18, font: 'Inter' })], 1560, bg, AlignmentType.CENTER),
-                        cell([new TextRun({ text: `${adj > 0 ? '+' : ''}${adj}`, bold: true, size: 18, font: 'Inter', color: adj > 0 ? '059669' : 'E53935' })], 1560, bg, AlignmentType.CENTER),
-                        cell([new TextRun({ text: String(scores[attr.id]?.score ?? ''), bold: true, size: 18, font: 'Inter' })], 1560, bg, AlignmentType.CENTER),
+                        cell([new TextRun({ text: attr.name, size: 18, font: SANS })], 4680, bg),
+                        cell([new TextRun({ text: String(scores[attr.id]?.baseScore ?? ''), size: 18, font: SANS })], 1560, bg, AlignmentType.CENTER),
+                        cell([new TextRun({ text: `${adj > 0 ? '+' : ''}${adj}`, bold: true, size: 18, font: SANS, color: adj > 0 ? POS : RUST })], 1560, bg, AlignmentType.CENTER),
+                        cell([new TextRun({ text: String(scores[attr.id]?.score ?? ''), bold: true, size: 18, font: SANS })], 1560, bg, AlignmentType.CENTER),
                       ]});
                     }),
                   ],
@@ -7684,10 +7135,10 @@ ${content.slice(0, 8000)}`;
             ...(benchmark ? [
               h2('Benchmark Comparison', true),
               new Paragraph({ spacing: { before: 0, after: 120, ...LINE_SPACING }, children: [
-                new TextRun({ text: 'Benchmark basis: ', bold: true, size: 18, font: 'Inter', color: '666666' }),
+                new TextRun({ text: 'Benchmark basis: ', bold: true, size: 18, font: SANS, color: MUTED }),
                 new TextRun({
                   text: clean(`${benchmark.cohortLabel}, n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''}.${benchmark.fallbackReason ? ` ${benchmark.fallbackReason}` : ''}`),
-                  size: 18, font: 'Inter', color: '666666',
+                  size: 18, font: SANS, color: MUTED,
                 }),
               ]}),
               body(clean(`${project.brandName} scores ${overall} against a ${benchmark.scope === 'industry' ? 'sector' : 'cross-industry'} average of ${benchmark.avgScore}, a difference of ${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore} points. ${benchmark.rank ? `That ranks it ${ordinal(benchmark.rank)} of ${benchmark.count}` : ''}${benchmark.percentile != null ? `, in the ${ordinal(benchmark.percentile)} percentile` : ''}. The average across all assessed brands is ${benchmark.allBrandsAvg}.`), 140),
@@ -7705,21 +7156,21 @@ ${content.slice(0, 8000)}`;
                 columnWidths: [4680, 1560, 1560, 1560],
                 rows: [
                   new TableRow({ tableHeader: true, children: [
-                    cell([new TextRun({ text: 'Attribute', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 4680, '1A1A1A'),
-                    cell([new TextRun({ text: project.brandName.slice(0, 20), bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
-                    cell([new TextRun({ text: benchmark.scope === 'industry' ? 'Sector' : 'All brands', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
-                    cell([new TextRun({ text: 'Diff', bold: true, size: 18, font: 'Inter', color: 'FFFFFF' })], 1560, '1A1A1A', AlignmentType.CENTER),
+                    th('Attribute', 4680),
+                    th(project.brandName.slice(0, 20), 1560, AlignmentType.CENTER),
+                    th(benchmark.scope === 'industry' ? 'Sector' : 'All brands', 1560, AlignmentType.CENTER),
+                    th('Diff', 1560, AlignmentType.CENTER),
                   ]}),
                   ...ATTRIBUTES.map((attr, i) => {
                     const s = scores[attr.id]?.score || 0;
                     const b = benchmark.attrAvgs?.[attr.id] ?? 0;
                     const d = s - b;
-                    const bg = i % 2 === 0 ? 'FFFFFF' : 'F6F5F2';
+                    const bg = i % 2 === 0 ? 'FFFFFF' : 'FFFFFF';
                     return new TableRow({ children: [
-                      cell([new TextRun({ text: attr.name, size: 18, font: 'Inter' })], 4680, bg),
-                      cell([new TextRun({ text: String(s), bold: true, size: 18, font: 'Inter', color: hexColor(attr.color) })], 1560, bg, AlignmentType.CENTER),
-                      cell([new TextRun({ text: String(b), size: 18, font: 'Inter', color: '666666' })], 1560, bg, AlignmentType.CENTER),
-                      cell([new TextRun({ text: `${d > 0 ? '+' : ''}${d}`, bold: true, size: 18, font: 'Inter', color: d > 0 ? '059669' : d < 0 ? 'E53935' : '666666' })], 1560, bg, AlignmentType.CENTER),
+                      cell([new TextRun({ text: attr.name, size: 18, font: SANS })], 4680, bg),
+                      cell([new TextRun({ text: String(s), bold: true, size: 18, font: SANS, color: INK })], 1560, bg, AlignmentType.CENTER),
+                      cell([new TextRun({ text: String(b), size: 18, font: SANS, color: MUTED })], 1560, bg, AlignmentType.CENTER),
+                      cell([new TextRun({ text: `${d > 0 ? '+' : ''}${d}`, bold: true, size: 18, font: SANS, color: d > 0 ? POS : d < 0 ? RUST : MUTED })], 1560, bg, AlignmentType.CENTER),
                     ]});
                   }),
                 ],
@@ -7737,40 +7188,40 @@ ${content.slice(0, 8000)}`;
               if (props.length === 0) return [];
               const allProps = [{ url: project.websiteUrl, type: 'primary', label: 'Primary' }, ...props];
               const risk = pd.consistencyAnalysis?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i)?.[1] || null;
-              const riskHex = risk === 'Low' ? '059669' : risk === 'Medium' ? 'F59E0B' : risk === 'High' ? 'E53935' : '666666';
+              const riskHex = risk === 'Low' ? POS : risk === 'Medium' ? 'F59E0B' : risk === 'High' ? RUST : MUTED;
               return [
                 h2('Digital Estate Consistency'),
                 new Paragraph({ spacing: { before: 0, after: 80 }, children: [
-                  new TextRun({ text: `${allProps.length} registered properties`, font: 'Inter', size: 18, color: '999999' }),
-                  ...(risk ? [new TextRun({ text: `  ·  ${risk} consistency risk`, font: 'Inter', size: 18, bold: true, color: riskHex })] : []),
+                  new TextRun({ text: `${allProps.length} registered properties`, font: SANS, size: 18, color: MUTED }),
+                  ...(risk ? [new TextRun({ text: `  ·  ${risk} consistency risk`, font: SANS, size: 18, bold: true, color: riskHex })] : []),
                 ]}),
                 // Property table
                 new Table({
                   width: { size: 100, type: WidthType.PERCENTAGE },
                   rows: [
                     new TableRow({ children: [
-                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Property', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
-                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'URL', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
-                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Type', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
-                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Language', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
-                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Perf', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
-                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'SEO', bold: true, font: 'Inter', size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F0EEEA' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Property', bold: true, font: SANS, size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F3F1EC' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'URL', bold: true, font: SANS, size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F3F1EC' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Type', bold: true, font: SANS, size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F3F1EC' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Language', bold: true, font: SANS, size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F3F1EC' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Perf', bold: true, font: SANS, size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F3F1EC' } }),
+                      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'SEO', bold: true, font: SANS, size: 18 })] })], shading: { type: ShadingType.SOLID, color: 'F3F1EC' } }),
                     ]}),
                     ...allProps.map(p => {
                       const d = pd[p.url] || {};
                       return new TableRow({ children: [
-                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.label || p.type || 'Property', font: 'Inter', size: 18 })] })] }),
-                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.url, font: 'Inter', size: 16, color: '666666' })] })] }),
-                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.type || '—', font: 'Inter', size: 18 })] })] }),
-                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.language || '—', font: 'Inter', size: 18 })] })] }),
-                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: d.performance != null ? String(d.performance) : '—', font: 'Inter', size: 18 })] })] }),
-                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: d.seo != null ? String(d.seo) : '—', font: 'Inter', size: 18 })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.label || p.type || 'Property', font: SANS, size: 18 })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.url, font: SANS, size: 16, color: MUTED })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.type || '—', font: SANS, size: 18 })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.language || '—', font: SANS, size: 18 })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: d.performance != null ? String(d.performance) : '—', font: SANS, size: 18 })] })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: d.seo != null ? String(d.seo) : '—', font: SANS, size: 18 })] })] }),
                       ]});
                     }),
                   ],
                 }),
                 ...(pd.consistencyAnalysis ? [
-                  new Paragraph({ spacing: { before: 160, after: 60 }, children: [new TextRun({ text: 'Consistency Analysis', bold: true, font: 'Inter', size: 20 })] }),
+                  new Paragraph({ spacing: { before: 160, after: 60 }, children: [new TextRun({ text: 'Consistency Analysis', bold: true, font: SANS, size: 20 })] }),
                   ...mdParas(clean(pd.consistencyAnalysis)),
                 ] : []),
               ];
@@ -7792,11 +7243,11 @@ ${content.slice(0, 8000)}`;
             h2('Recommendations'),
             body(`Across all four assessment areas, these are the highest-priority actions for moving ${project.brandName} toward the next maturity stage.`, 160),
             ...topRecs.flatMap(r => [
-              new Paragraph({ numbering: { reference: 'recs', level: 0 }, spacing: { before: 160, after: 60 }, children: [new TextRun({ text: clean(r.title), bold: true, size: 22, font: 'Inter' })] }),
+              new Paragraph({ numbering: { reference: 'recs', level: 0 }, spacing: { before: 160, after: 60 }, children: [new TextRun({ text: clean(r.title), bold: true, size: 22, font: SANS })] }),
               body(clean(r.description), 60),
               new Paragraph({ spacing: { after: 160 }, children: [
-                new TextRun({ text: 'Benefit: ', bold: true, size: 20, font: 'Inter' }),
-                new TextRun({ text: clean(r.impact), size: 20, font: 'Inter', italics: true }),
+                new TextRun({ text: 'Benefit: ', bold: true, size: 20, font: SANS }),
+                new TextRun({ text: clean(r.impact), size: 20, font: SANS, italics: true }),
               ]}),
             ]),
 
@@ -7825,11 +7276,11 @@ ${content.slice(0, 8000)}`;
                 ].filter(([, v]) => v && v.trim());
                 return [
                   new Paragraph({ spacing: { before: 200, after: 60 }, children: [
-                    new TextRun({ text: `Challenge ${i + 1}${c.author ? ` — ${clean(c.author)}` : ''}${when ? `, ${when}` : ''}`, bold: true, size: 22, font: 'Inter' })]}),
+                    new TextRun({ text: `Challenge ${i + 1}${c.author ? ` — ${clean(c.author)}` : ''}${when ? `, ${when}` : ''}`, bold: true, size: 22, font: SANS })]}),
                   body(`Overall score ${c.beforeOverall} to ${c.afterOverall}${delta === 0 ? ' (no change)' : ` (${delta > 0 ? '+' : ''}${delta})`}.${moved.length ? ` Attributes moved: ${moved.join('; ')}.` : ' No individual attribute changed.'}${c.sectionsRevised?.length ? ` Readouts revised: ${c.sectionsRevised.join(', ')}.` : ''}`, 60),
                   ...fields.flatMap(([label, v]) => [
                     new Paragraph({ spacing: { before: 100, after: 40 }, children: [
-                      new TextRun({ text: label, bold: true, size: 20, font: 'Inter' })]}),
+                      new TextRun({ text: label, bold: true, size: 20, font: SANS })]}),
                     body(clean(v), 40),
                   ]),
                 ];
@@ -7840,7 +7291,8 @@ ${content.slice(0, 8000)}`;
         }],
       });
 
-      const blob = await Packer.toBlob(doc);
+      // Hanken Grotesk and Newsreader travel inside the file (v3.102.0).
+      const blob = await embedReportFonts(await Packer.toBlob(doc), { JSZip: await loadJSZip() });
       saveAs(blob, `${project.brandName.replace(/\s+/g, '_')}_Conscious_Brand_Assessment.docx`);
     } catch (e) {
       console.error('DOCX generation error:', e);
@@ -7872,23 +7324,7 @@ ${content.slice(0, 8000)}`;
     'Assessment readouts',
   ];
 
-  // Section head to the export: a rust number, the title in the display serif
-  // and a text Hide/Show, with aria-expanded carrying the state. The uppercase
-  // label and the chevron are retired.
-  const SectionHead = ({ label, open = true, onToggle }) => {
-    const idx = sectionOrder.indexOf(label);
-    const n = String(idx >= 0 ? idx + 1 : sectionOrder.length + 1).padStart(2, '0');
-    return (
-      <button type="button" className="dc-sec-toggle" onClick={onToggle}
-        aria-expanded={onToggle ? !!open : undefined}>
-        <span className="dc-sec-n">{n}</span>
-        <span className="dc-h">{label}</span>
-        {onToggle && <span className="dc-sec-x">{open ? 'Hide' : 'Show'}</span>}
-      </button>
-    );
-  };
 
-  const rank = benchmark?.rank ? `${ordinalSuffix(benchmark.rank)}` : null;
 
   return (
     <div className="dc-wrap dc-page animate-fade-in">
@@ -7945,7 +7381,7 @@ ${content.slice(0, 8000)}`;
 
       {/* ── 01 Results at a glance ───────────────────────────── */}
       <section className="dc-reveal dc-keep-white">
-        <SectionHead label="Results at a glance" />
+        <SectionHeading order={sectionOrder} label="Results at a glance" />
         <ReportGlanceSection project={project} scores={scores} overall={overall}
           stage={stage} sortedAttrs={sortedAttrs} chartRef={chartRef}
           animatedScore={animatedScore} />
@@ -7955,7 +7391,7 @@ ${content.slice(0, 8000)}`;
 
       {/* ── 02 Brand maturity ────────────────────────────────── */}
       <section className="dc-section dc-reveal">
-        <SectionHead label="Brand maturity" />
+        <SectionHeading order={sectionOrder} label="Brand maturity" />
         {/* To the export: six equal bands on one track, the score marked above
             it, ranges under each label, and the summary as a chip plus a meta
             line rather than a rust-edged block. */}
@@ -7983,7 +7419,7 @@ ${content.slice(0, 8000)}`;
       </section>
       {/* Attribute Analysis - Collapsible */}
       <div className="dc-reveal dc-keep-white">
-        <SectionHead label="Attribute analysis" open={expandedSections.attributes}
+        <SectionHeading order={sectionOrder} label="Attribute analysis" open={expandedSections.attributes}
           onToggle={() => toggleSection('attributes')} />
         <ReportAttributeSection scores={scores} benchmark={benchmark}
           campaignAdjustment={campaignAdjustment} campaignAffected={campaignAffected}
@@ -7995,7 +7431,7 @@ ${content.slice(0, 8000)}`;
           empty ring that would read as genuine absence. */}
       {hasFootprintData(scores?.footprint) && (
         <section className="dc-section dc-reveal" id="footprint">
-          <SectionHead label="Brand footprint" open={expandedSections.footprint}
+          <SectionHeading order={sectionOrder} label="Brand footprint" open={expandedSections.footprint}
             onToggle={() => toggleSection('footprint')} />
           {expandedSections.footprint && (
             <FootprintMap footprint={scores.footprint} brandName={project.brandName} />
@@ -8007,9 +7443,9 @@ ${content.slice(0, 8000)}`;
       {/* Unscored, the section is the alert alone and has no toggle. */}
       <section className="dc-section dc-reveal" id="campaign-coherence">
         {campaignStage ? (
-          <SectionHead label="Campaign coherence" open={expandedSections.campaign}
+          <SectionHeading order={sectionOrder} label="Campaign coherence" open={expandedSections.campaign}
             onToggle={() => toggleSection('campaign')} />
-        ) : <SectionHead label="Campaign coherence" />}
+        ) : <SectionHeading order={sectionOrder} label="Campaign coherence" />}
         {(!campaignStage || expandedSections.campaign) && (
           <CampaignCoherencePanel coherence={campaign}
             onRegenerate={() => { setScores(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
@@ -8018,7 +7454,7 @@ ${content.slice(0, 8000)}`;
 
       {/* ── 06 Trust and credibility ──────────────────────── */}
       <section className="dc-section dc-reveal" id="trust-lens">
-        <SectionHead label="Trust and credibility" open={expandedSections.trust}
+        <SectionHeading order={sectionOrder} label="Trust and credibility" open={expandedSections.trust}
           onToggle={() => toggleSection('trust')} />
         {expandedSections.trust && (
           <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={overall} />
@@ -8027,7 +7463,7 @@ ${content.slice(0, 8000)}`;
 
       {/* Sustainability narrative (framework 2.10) - Collapsible */}
       <div className="dc-reveal" data-section="thesis">
-        <SectionHead label="Sustainability narrative" open={expandedSections.thesis}
+        <SectionHeading order={sectionOrder} label="Sustainability narrative" open={expandedSections.thesis}
           onToggle={() => toggleSection('thesis')} />
         {expandedSections.thesis && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
@@ -8040,14 +7476,14 @@ ${content.slice(0, 8000)}`;
       {/* Industry Benchmark - Collapsible */}
       {benchmarkUnavailableReason && (
         <div className="dc-reveal">
-          <SectionHead label="Benchmark comparison" />
+          <SectionHeading order={sectionOrder} label="Benchmark comparison" />
           <div className="card border-l-4 border-[#D9442A]">
             <p className="text-sm text-[#2E3238] leading-relaxed">{benchmarkUnavailableReason}</p>
           </div>
         </div>
       )}
       <div className="dc-reveal">
-        <SectionHead label="Benchmark comparison" open={expandedSections.benchmark}
+        <SectionHeading order={sectionOrder} label="Benchmark comparison" open={expandedSections.benchmark}
           onToggle={() => toggleSection('benchmark')} />
         <ReportBenchmarkSection project={project} scores={scores} overall={overall} stage={stage}
           benchmark={benchmark} benchmarkAvgScores={benchmarkAvgScores}
@@ -8058,7 +7494,7 @@ ${content.slice(0, 8000)}`;
 
       {/* Recommendations - Collapsible */}
       <div className="dc-reveal dc-keep-white">
-        <SectionHead label="Recommendations" open={expandedSections.recommendations}
+        <SectionHeading order={sectionOrder} label="Recommendations" open={expandedSections.recommendations}
           onToggle={() => toggleSection('recommendations')} />
         {expandedSections.recommendations && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
@@ -8091,7 +7527,7 @@ ${content.slice(0, 8000)}`;
 
       {/* Conclusions - Collapsible */}
       <div className="dc-reveal">
-        <SectionHead label="Conclusions" open={expandedSections.conclusions}
+        <SectionHeading order={sectionOrder} label="Conclusions" open={expandedSections.conclusions}
           onToggle={() => toggleSection('conclusions')} />
         {expandedSections.conclusions && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
@@ -8105,7 +7541,7 @@ ${content.slice(0, 8000)}`;
       {/* Justification - Collapsible */}
       {scores.justification && (
         <div className="dc-reveal">
-          <SectionHead label="Score justification" open={expandedSections.justification}
+          <SectionHeading order={sectionOrder} label="Score justification" open={expandedSections.justification}
           onToggle={() => toggleSection('justification')} />
           {expandedSections.justification && (
             <div className="animate-fade-in" style={{ marginTop: 32 }}>
@@ -8122,7 +7558,7 @@ ${content.slice(0, 8000)}`;
           justification the audit trail vanished even though the data was there. */}
       {scores.challenges?.length > 0 && (
         <div className="dc-reveal" id="dc-challenge-history">
-          <SectionHead label="Challenge history" open={expandedSections.challenges}
+          <SectionHeading order={sectionOrder} label="Challenge history" open={expandedSections.challenges}
             onToggle={() => toggleSection('challenges')} />
           {expandedSections.challenges && (
             <div className="animate-fade-in" style={{ marginTop: 32 }}>
@@ -8134,7 +7570,7 @@ ${content.slice(0, 8000)}`;
 
       {/* What We Evaluated - Collapsible */}
       <div className="dc-reveal">
-        <SectionHead label="What we evaluated" open={expandedSections.evaluated}
+        <SectionHeading order={sectionOrder} label="What we evaluated" open={expandedSections.evaluated}
           onToggle={() => toggleSection('evaluated')} />
         {expandedSections.evaluated && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
@@ -8147,7 +7583,7 @@ ${content.slice(0, 8000)}`;
 
       {/* Assessment Readouts - Collapsible */}
       <div className="dc-reveal">
-        <SectionHead label="Assessment readouts" open={expandedSections.readouts}
+        <SectionHeading order={sectionOrder} label="Assessment readouts" open={expandedSections.readouts}
           onToggle={() => toggleSection('readouts')} />
         {expandedSections.readouts && (
           <div className="animate-fade-in" style={{ marginTop: 32 }}>
@@ -8359,13 +7795,14 @@ ${content.slice(0, 8000)}`;
 }
 
 // Compass Results Page - Summary grid of all assessments
-function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateResults, profile, user, loading = false, loadError = null, onRetry }) {
+function CompassResultsPage({ results, onUpdateResults, profile, user, loading = false, loadError = null, onRetry }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [expandedRows, setExpandedRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterIndustry, setFilterIndustry] = useState('all');
   const [filterMaturity, setFilterMaturity] = useState('all');
   const [filterBusinessModel, setFilterBusinessModel] = useState('all');
+  const [sortBy, setSortBy] = useState('date-desc');
   const [manualEntry, setManualEntry] = useState({
     brandName: '',
     businessModel: 'b2b',
@@ -8376,7 +7813,7 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
 
   // Filter results based on search and filters
   const filteredResults = useMemo(() => {
-    return results.filter(r => {
+    const list = results.filter(r => {
       // Search filter
       if (searchTerm && !r.brandName?.toLowerCase().includes(searchTerm.toLowerCase())) {
         return false;
@@ -8395,7 +7832,17 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
       }
       return true;
     });
-  }, [results, searchTerm, filterIndustry, filterMaturity, filterBusinessModel]);
+    // Sorting mirrors the Saved page's Sort select (v3.100.0).
+    const at = (r) => (r.savedAt ? new Date(r.savedAt).getTime() : 0);
+    const cmp = {
+      'date-desc': (a, b) => at(b) - at(a),
+      'date-asc': (a, b) => at(a) - at(b),
+      'score-desc': (a, b) => (b.totalScore ?? -1) - (a.totalScore ?? -1),
+      'score-asc': (a, b) => (a.totalScore ?? 101) - (b.totalScore ?? 101),
+      'name': (a, b) => String(a.brandName || '').localeCompare(String(b.brandName || '')),
+    }[sortBy];
+    return cmp ? [...list].sort(cmp) : list;
+  }, [results, searchTerm, filterIndustry, filterMaturity, filterBusinessModel, sortBy]);
 
   // Get unique values for filter dropdowns
   const uniqueIndustries = useMemo(() => {
@@ -8509,327 +7956,186 @@ function CompassResultsPage({ results, onDelete, onBack, onAddManual, onUpdateRe
     }
   };
 
+  const industryName = (id) => INDUSTRIES.find(x => x.id === id)?.name || id;
+  const modelName = (id) => BUSINESS_MODELS.find(m => m.id === id)?.name || String(id || '').toUpperCase();
+  const usedModels = BUSINESS_MODELS.filter(m => results.some(r => r.businessModel === m.id));
+  const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null);
+  const setScore = (id, v) => setManualEntry(m => ({ ...m, scores: { ...m.scores, [id]: Math.min(100, Math.max(0, parseInt(v, 10) || 0)) } }));
+
+  // Packet 07/08 (v3.100.0): the same header and labelled filter bar as Saved,
+  // and one row per brand in Saved's pattern: name, a meta line, the serif
+  // score, then Details for the attribute breakdown.
   return (
-    <div className="min-h-screen bg-[#FBFAF7]">
-      <div className="dc-wrap dc-page pt-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 md:mb-8 gap-4">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="btn-secondary flex items-center gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <div>
-              <h1 className="dc-h2 text-[#15171A]">Compass Results</h1>
-              <span className="text-sm text-[#5B6068]">{results.length} assessments</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {profile?.is_admin && (
-              <button onClick={() => setShowAddModal(true)} className="btn-secondary flex items-center gap-2">
-                <Plus className="w-4 h-4" /> Add Manual Entry
-              </button>
-            )}
-            <button onClick={handleExportCSV} disabled={results.length === 0} className="btn-primary flex items-center gap-2">
-              <Download className="w-4 h-4" /> Export CSV
-            </button>
-          </div>
+    <div className="dc-wrap dc-page animate-fade-in" data-screen="results">
+      <div className="dc-head-row">
+        <div className="dc-page-head">
+          <h1 className="dc-display">Compass Results</h1>
+          <p className="dc-count">{results.length} assessment{results.length === 1 ? '' : 's'}</p>
         </div>
-
-        {/* Search and Filters */}
-        {results.length > 0 && (
-          <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8E95]" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search brands..."
-                  className="w-full pl-9 pr-4 py-2 border border-[#DEDAD2] bg-white text-sm"
-                />
-              </div>
-
-              {/* Industry Filter */}
-              <select
-                value={filterIndustry}
-                onChange={(e) => setFilterIndustry(e.target.value)}
-                className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm"
-              >
-                <option value="all">All Industries</option>
-                {uniqueIndustries.map(ind => (
-                  <option key={ind} value={ind}>{ind}</option>
-                ))}
-              </select>
-
-              {/* Maturity Filter */}
-              <select
-                value={filterMaturity}
-                onChange={(e) => setFilterMaturity(e.target.value)}
-                className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm"
-              >
-                <option value="all">All Maturity Levels</option>
-                {uniqueMaturityLevels.map(level => (
-                  <option key={level} value={level}>{level}</option>
-                ))}
-              </select>
-
-              {/* Business Model Filter */}
-              <select
-                value={filterBusinessModel}
-                onChange={(e) => setFilterBusinessModel(e.target.value)}
-                className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm"
-              >
-                <option value="all">All Models</option>
-                <option value="b2b">B2B</option>
-                <option value="b2c">B2C</option>
-                <option value="both">Both</option>
-              </select>
-
-              {/* Clear Filters */}
-              {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="px-3 py-2 text-sm text-[#C23B22] hover:bg-[#D9442A]/10 transition-colors flex items-center gap-1"
-                >
-                  <X className="w-4 h-4" /> Clear
-                </button>
-              )}
-            </div>
-
-            {/* Results count */}
-            {hasActiveFilters && (
-              <div className="mt-3 text-sm text-[#5B6068]">
-                Showing {filteredResults.length} of {results.length} results
-              </div>
-            )}
-          </div>
-        )}
-
-        {loading && results.length === 0 ? (
-          <SkeletonRows count={6} />
-        ) : loadError && results.length === 0 ? (
-          <LoadFailed message={loadError} onRetry={onRetry} />
-        ) : results.length === 0 ? (
-          <div className="card text-center">
-            <BarChart3 className="w-16 h-16 text-[#DEDAD2] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#15171A] mb-2">No Results Yet</h3>
-            <p className="text-[#5B6068] mb-4">Complete and save assessments to see them here{profile?.is_admin ? ', or add manual entries' : ''}.</p>
-            {profile?.is_admin && (
-              <button onClick={() => setShowAddModal(true)} className="btn-primary">
-                Add Manual Entry
-              </button>
-            )}
-          </div>
-        ) : filteredResults.length === 0 ? (
-          <div className="card text-center">
-            <Search className="w-16 h-16 text-[#DEDAD2] mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-[#15171A] mb-2">No Matching Results</h3>
-            <p className="text-[#5B6068] mb-4">Try adjusting your search or filters.</p>
-            <button onClick={clearFilters} className="btn-secondary">
-              Clear Filters
-            </button>
-          </div>
-        ) : (
-          <div>
-            <div className="dc-ledger-top" />
-            <div className="dc-ledger-h dc-results-head" style={{ gridTemplateColumns: '2fr 1.2fr .8fr 1fr .8fr 24px' }}>
-              <div>Brand</div>
-              <div className="dc-col-hide">Sector</div>
-              <div style={{ textAlign: 'right' }}>Score</div>
-              <div className="dc-col-hide">Stage</div>
-              <div className="dc-col-hide" style={{ textAlign: 'right' }}>Assessed</div>
-              <div />
-            </div>
-            {filteredResults.map((r, i) => {
-              const stage = MATURITY_STAGES.find(s => s.name === r.maturityLevel) || MATURITY_STAGES[0];
-              const isExpanded = expandedRows.includes(r.id || i);
-              const assessmentDate = r.savedAt ? new Date(r.savedAt) : null;
-              return (
-                <div key={r.id || i}>
-                  {/* Main Row */}
-                  <div
-                    className="dc-ledger-r dc-results-row cursor-pointer hover:bg-white transition-colors"
-                    style={{ gridTemplateColumns: '2fr 1.2fr .8fr 1fr .8fr 24px' }}
-                    onClick={() => toggleRow(r.id || i)}
-                  >
-                    <div className="min-w-0 dc-rescell-brand">
-                      <div className="dc-brand-mark" style={{ background: 'var(--cc-ink)' }} />
-                      <div className="min-w-0">
-                      <div className="text-[15px] font-semibold truncate">{r.brandName}</div>
-                      <div className="text-[11px] text-[#8A8E95] mt-0.5">
-                        {r.businessModel?.toUpperCase()} · v{r.rubricVersion || '2.3'}
-                        {r.isManual ? ' · Manual' : ''}
-                        {r.scores?.challenge?.count ? (
-                          <span style={{ color: '#5B6068', fontWeight: 700 }}>
-                            {' · '}Challenged{r.scores.challenge.count > 1 ? ` ×${r.scores.challenge.count}` : ''}
-                            {Number.isFinite(r.scores.challenge.netDelta) && r.scores.challenge.netDelta !== 0
-                              ? ` (${r.scores.challenge.netDelta > 0 ? '+' : ''}${r.scores.challenge.netDelta})` : ''}
-                          </span>
-                        ) : ''}
-                      </div>
-                      </div>
-                    </div>
-                    <div className="dc-col-hide text-[13px] text-[#2E3238] truncate">
-                      {INDUSTRIES.find(x => x.id === r.industry)?.name || r.industry}
-                    </div>
-                    <div className="dc-rescell-score">
-                      <span className="dc-resnum">{r.totalScore}</span>
-                      <span className="dc-resbar"><i style={{ width: `${Math.max(0, Math.min(100, r.totalScore))}%` }} /></span>
-                    </div>
-                    <div className="dc-col-hide">
-                      <span className="dc-pill" data-band={String(r.maturityLevel || '').toLowerCase().replace(/\s+/g, '-')}>{r.maturityLevel}</span>
-                    </div>
-                    <div className="dc-col-hide text-[13px] text-[#5B6068] text-right">
-                      {assessmentDate ? assessmentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-[#5B6068] transition-transform justify-self-end ${isExpanded ? 'rotate-180' : ''}`} />
-                  </div>
-                  
-                  {/* Expanded Details */}
-                  {isExpanded && (
-                    <div className="border-t border-[#DEDAD2] bg-[#FBFAF7] p-4 animate-fade-in">
-                      <div className="flex flex-col md:flex-row gap-4 mb-4">
-                        {/* Mini Spider Chart */}
-                        <div className="flex-shrink-0 flex justify-center md:justify-start">
-                          <MiniSpiderChart scores={r.scores} size={120} />
-                        </div>
-                        {/* Attribute Scores Grid */}
-                        <div className="flex-1">
-                          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-                            {ATTRIBUTES.map(attr => (
-                              <div key={attr.id} className="text-center p-2 bg-white ">
-                                <div className="text-lg font-bold" style={{ color: attr.color }}>{r.scores?.[attr.id] || 0}</div>
-                                <div className="text-[10px] text-[#5B6068] truncate">{attr.name}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Meta Info */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-[#5B6068]">
-                        <span><strong>Assessor:</strong> {r.assessorName || 'Unknown'}</span>
-                        <span><strong>Full Date:</strong> {r.savedAt ? new Date(r.savedAt).toLocaleString() : '-'}</span>
-                        {profile?.is_admin && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} 
-                            className="text-[#C23B22] hover:text-[#C23B22] flex items-center gap-1 ml-auto"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div className="dc-head-actions">
+          {profile?.is_admin && <button type="button" onClick={() => setShowAddModal(true)} className="btn-secondary">Add manual entry</button>}
+          <button type="button" onClick={handleExportCSV} disabled={results.length === 0} className="btn-primary">Export CSV</button>
+        </div>
       </div>
 
-      {/* Add Manual Entry Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-[#DEDAD2]">
-              <h3 className="text-[17px] font-semibold tracking-tight">Add Manual Entry</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-[#5B6068] hover:text-[#15171A]">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#15171A] mb-1">Brand Name *</label>
-                <input
-                  type="text"
-                  value={manualEntry.brandName}
-                  onChange={(e) => setManualEntry({ ...manualEntry, brandName: e.target.value })}
-                  placeholder="Enter brand name"
-                  className="w-full px-3 py-2 border border-[#DEDAD2] "
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#15171A] mb-1">Business Model</label>
-                  <select
-                    value={manualEntry.businessModel}
-                    onChange={(e) => setManualEntry({ ...manualEntry, businessModel: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#DEDAD2] "
-                  >
-                    <option value="b2b">B2B</option>
-                    <option value="b2c">B2C</option>
-                    <option value="b2b2c">B2B2C</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#15171A] mb-1">Industry</label>
-                  <select
-                    value={manualEntry.industry}
-                    onChange={(e) => setManualEntry({ ...manualEntry, industry: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#DEDAD2] "
-                  >
-                    {industries.map(ind => (
-                      <option key={ind.id} value={ind.id}>{ind.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              {/* Total Compass Score */}
-              <div className="bg-[#DEDAD2] p-4">
-                <label className="block text-sm font-medium text-[#15171A] mb-2">Total Compass Score (0-100) *</label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={manualEntry.totalScore}
-                    onChange={(e) => setManualEntry({ ...manualEntry, totalScore: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
-                    className="w-24 px-3 py-2 border border-[#DEDAD2] text-center text-lg font-bold"
-                  />
-                  <span className="text-sm text-[#5B6068]">
-                    Weighted score (not auto-calculated from attributes)
-                  </span>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-[#15171A] mb-3">Attribute Scores (0-100)</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {ATTRIBUTES.map(attr => (
-                    <div key={attr.id} className="flex items-center gap-2">
-                      <span className="w-3 h-3" style={{ backgroundColor: attr.color }}></span>
-                      <span className="text-sm text-[#5B6068] w-24">{attr.name}</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={manualEntry.scores[attr.id]}
-                        onChange={(e) => setManualEntry({
-                          ...manualEntry,
-                          scores: { ...manualEntry.scores, [attr.id]: parseInt(e.target.value) || 0 }
-                        })}
-                        className="w-20 px-2 py-1 border border-[#DEDAD2] text-center"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3">
-                <p className="text-sm text-[#15171A]">
-                  <strong>Note:</strong> Manual entries will be flagged as such in the results grid.
-                </p>
-              </div>
-            </div>
-            <div className="p-6 border-t border-[#DEDAD2] flex justify-end gap-3">
-              <button onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
-              <button onClick={handleAddManual} className="btn-primary">Add Entry</button>
-            </div>
+      {results.length > 0 && (
+        <div className="dc-filterbar">
+          <div className="dc-field is-search">
+            <label htmlFor="res-q">Search</label>
+            <input className="dc-input" id="res-q" type="search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search brands…" />
+          </div>
+          <div className="dc-field">
+            <label htmlFor="res-ind">Industry</label>
+            <select className="dc-select" id="res-ind" value={filterIndustry} onChange={(e) => setFilterIndustry(e.target.value)}>
+              <option value="all">All industries</option>
+              {uniqueIndustries.map(ind => <option key={ind} value={ind}>{industryName(ind)}</option>)}
+            </select>
+          </div>
+          <div className="dc-field">
+            <label htmlFor="res-mat">Maturity</label>
+            <select className="dc-select" id="res-mat" value={filterMaturity} onChange={(e) => setFilterMaturity(e.target.value)}>
+              <option value="all">All maturity levels</option>
+              {uniqueMaturityLevels.map(level => <option key={level} value={level}>{level}</option>)}
+            </select>
+          </div>
+          <div className="dc-field">
+            <label htmlFor="res-model">Model</label>
+            {/* From the models actually stored: the old list offered "Both",
+                which no result ever carries, so it always matched nothing. */}
+            <select className="dc-select" id="res-model" value={filterBusinessModel} onChange={(e) => setFilterBusinessModel(e.target.value)}>
+              <option value="all">All models</option>
+              {usedModels.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
+          <div className="dc-field">
+            <label htmlFor="res-sort">Sort</label>
+            <select className="dc-select" id="res-sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="date-desc">Newest first</option>
+              <option value="date-asc">Oldest first</option>
+              <option value="score-desc">Highest score</option>
+              <option value="score-asc">Lowest score</option>
+              <option value="name">Brand name</option>
+            </select>
           </div>
         </div>
+      )}
+
+      {loadError && results.length > 0 && <RefreshFailedBanner onRetry={onRetry} />}
+
+      {loading && results.length === 0 ? (
+        <SkeletonRows count={6} />
+      ) : loadError && results.length === 0 ? (
+        <LoadFailed message={loadError} onRetry={onRetry} />
+      ) : results.length === 0 ? (
+        <div className="dc-alert">
+          <strong>No results yet</strong>
+          <p>Complete and save assessments to see them here{profile?.is_admin ? ', or add a manual entry' : ''}.</p>
+        </div>
+      ) : (
+        <div className="dc-stack is-gap-2">
+          {/* The header carries the total; this line appears only while filtering. */}
+          {hasActiveFilters && (
+            <div className="dc-head-row is-baseline">
+              <span className="dc-count">{filteredResults.length} of {results.length} assessments</span>
+              <button type="button" className="dc-link-btn" onClick={clearFilters}>Clear filters</button>
+            </div>
+          )}
+          {filteredResults.length === 0 ? (
+            <div className="dc-alert"><strong>No matching results</strong><p>Try adjusting your search or filters.</p></div>
+          ) : (
+            <ul className="dc-results">
+              {filteredResults.map((r, i) => {
+                const key = r.id || i;
+                const open = expandedRows.includes(key);
+                const band = String(r.maturityLevel || '').toLowerCase().replace(/\s+/g, '-');
+                const ch = r.scores?.challenge;
+                const meta = [
+                  industryName(r.industry),
+                  modelName(r.businessModel),
+                  `v${r.rubricVersion || '2.3'}`,
+                  fmtDate(r.savedAt) ? `assessed ${fmtDate(r.savedAt)}` : null,
+                  r.isManual ? 'Manual' : null,
+                  ch?.count ? `Challenged${ch.count > 1 ? ` ×${ch.count}` : ''}${Number.isFinite(ch.netDelta) && ch.netDelta !== 0 ? ` (${ch.netDelta > 0 ? '+' : ''}${ch.netDelta})` : ''}` : null,
+                ].filter(Boolean);
+                return (
+                  <li key={key} className="dc-listrow dc-result-row" data-result={key}>
+                    <div className="dc-result-main">
+                      <div className="dc-listrow-t">{r.brandName}</div>
+                      <div className="dc-listrow-m dc-result-meta">
+                        {r.maturityLevel && <span className="dc-pill" data-band={band}>{r.maturityLevel}</span>}
+                        <span>{meta.join(' · ')}</span>
+                      </div>
+                    </div>
+                    <div className="dc-result-end">
+                      <span className="dc-numeral dc-result-score" aria-label={`Score ${r.totalScore}`}>{r.totalScore}</span>
+                      <button type="button" className="btn-secondary btn-sm" aria-expanded={open} onClick={() => toggleRow(key)}>{open ? 'Hide' : 'Details'}</button>
+                    </div>
+                    {open && (
+                      <div className="dc-result-detail">
+                        <MiniSpiderChart scores={r.scores} size={120} />
+                        <dl className="dc-result-attrs">
+                          {ATTRIBUTES.map(attr => (
+                            <div key={attr.id}><dt>{attr.name}</dt><dd>{r.scores?.[attr.id] ?? '—'}</dd></div>
+                          ))}
+                        </dl>
+                        <div className="dc-result-foot">
+                          <span className="dc-meta">Assessor: {r.assessorName || 'Unknown'} · {r.savedAt ? new Date(r.savedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'no date'}</span>
+                          {profile?.is_admin && <button type="button" className="dc-link-btn is-danger" onClick={() => handleDelete(r.id)}>Delete</button>}
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {showAddModal && (
+        <Dialog title="Add manual entry" onClose={() => setShowAddModal(false)}
+          subtitle="For a brand assessed outside the app. It is marked Manual in the results.">
+          <div className="dc-dialog-body">
+            <div className="dc-field">
+              <label htmlFor="man-brand">Brand name</label>
+              <input id="man-brand" type="text" value={manualEntry.brandName} onChange={(e) => setManualEntry({ ...manualEntry, brandName: e.target.value })} placeholder="Enter brand name" />
+            </div>
+            <div className="dc-form-grid">
+              <div className="dc-field">
+                <label htmlFor="man-model">Business model</label>
+                <select id="man-model" value={manualEntry.businessModel} onChange={(e) => setManualEntry({ ...manualEntry, businessModel: e.target.value })}>
+                  {BUSINESS_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div className="dc-field">
+                <label htmlFor="man-ind">Industry</label>
+                <select id="man-ind" value={manualEntry.industry} onChange={(e) => setManualEntry({ ...manualEntry, industry: e.target.value })}>
+                  {industries.map(ind => <option key={ind.id} value={ind.id}>{ind.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="dc-field">
+              <label htmlFor="man-total">Total Compass score (0-100)</label>
+              <p className="dc-meta">The weighted score, entered as given. It is not calculated from the attributes below.</p>
+              <input id="man-total" type="number" min="0" max="100" value={manualEntry.totalScore}
+                onChange={(e) => setManualEntry({ ...manualEntry, totalScore: Math.min(100, Math.max(0, parseInt(e.target.value, 10) || 0)) })} />
+            </div>
+            <div className="dc-field">
+              <span className="dc-label">Attribute scores (0-100)</span>
+              <div className="dc-man-attrs">
+                {ATTRIBUTES.map(attr => (
+                  <label key={attr.id}><span>{attr.name}</span>
+                    <input type="number" min="0" max="100" value={manualEntry.scores[attr.id]} onChange={(e) => setScore(attr.id, e.target.value)} />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="dc-dialog-foot">
+            <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
+            <button type="button" onClick={handleAddManual} className="btn-primary">Add entry</button>
+          </div>
+        </Dialog>
       )}
     </div>
   );
@@ -8938,7 +8244,7 @@ function OnboardingTour({ onComplete }) {
 }
 
 // Portfolio Insights View Component
-function InsightsView({ results, industryBenchmarks, industries, isAdmin = false }) {
+function InsightsView({ results, isAdmin = false }) {
   const [aiInsights, setAiInsights] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -11031,7 +10337,7 @@ function LoadFailed({ message, onRetry }) {
   );
 }
 
-function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport, onExport, onShare, onRescore, profile, loading = false, loadError = null, onRetry }) {
+function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExport, onShare, onRescore, profile, loading = false, loadError = null, onRetry }) {
   const fileInputRef = useRef(null);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
   const [search, setSearch] = useState('');
@@ -11113,7 +10419,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
   };
 
   return (
-    <div className="dc-wrap dc-page pt-8 animate-fade-in">
+    <div className="dc-wrap dc-page animate-fade-in" data-screen="saved">
       {showClientLinks && (
         <ClientLinksModal
           assessments={assessments}
@@ -11121,40 +10427,20 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
           onClose={() => setShowClientLinks(false)}
         />
       )}
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-        <div>
-          <h2 className="dc-h2 text-[#15171A]">Saved Assessments</h2>
-          <p className="text-sm text-[#5B6068]">Your assessments are stored securely in the cloud</p>
+      {/* Packet 08 (v3.100.0): the same header and labelled filter bar as Results. */}
+      <div className="dc-head-row">
+        <div className="dc-page-head">
+          <h1 className="dc-display">Saved Assessments</h1>
+          <p className="dc-standfirst">Your assessments are stored securely in the cloud</p>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
-          {!isReadonly && (
-            <>
-              <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
-              <button onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DEDAD2] bg-white text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors">
-                <Upload className="w-4 h-4" /> Import
-              </button>
-              <button onClick={() => setShowClientLinks(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DEDAD2] bg-white text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors">
-                <ExternalLink className="w-4 h-4" /> Client Links
-              </button>
-            </>
-          )}
-          <button onClick={onBack}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-[#DEDAD2] bg-white text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
-        </div>
+        {!isReadonly && (
+          <div className="dc-head-actions">
+            <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" hidden />
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-secondary">Import JSON</button>
+            <button type="button" onClick={() => setShowClientLinks(true)} className="btn-secondary">Client links</button>
+          </div>
+        )}
       </div>
-
-      {/* The blue tip box was off-palette. The same guidance reads as a meta
-          line above the list, where it does not compete with the rows. */}
-      {!isReadonly && (
-        <p className="dc-meta" style={{ marginBottom: 20 }}>
-          Share copies a link others can view. Export downloads a JSON backup.
-        </p>
-      )}
 
       {loadError && assessments.length > 0 && <RefreshFailedBanner onRetry={onRetry} />}
 
@@ -11163,72 +10449,56 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
       ) : loadError && assessments.length === 0 ? (
         <LoadFailed message={loadError} onRetry={onRetry} />
       ) : assessments.length === 0 ? (
-        <div className="card text-center">
-          <FileText className="w-12 h-12 text-[#DEDAD2] mx-auto mb-4" />
-          <h3 className="dc-kicker text-[#15171A] mb-2">No Saved Assessments</h3>
-          <p className="text-[#5B6068] mb-4">Complete an assessment and click Save to store it here.</p>
-          <p className="text-sm text-[#8A8E95]">Or import a previously exported assessment using the Import button above.</p>
+        <div className="dc-alert">
+          <strong>No saved assessments</strong>
+          <p>Complete an assessment and select Save to store it here{isReadonly ? '' : ', or import a previously exported assessment with Import JSON'}.</p>
         </div>
       ) : (
         <>
-          {/* Search + filters */}
-          <div className="flex flex-col sm:flex-row gap-2 mb-4">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A8E95]" />
-              <input
-                type="text"
-                placeholder="Search brands…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-[#DEDAD2] bg-white focus:outline-none focus:border-[#15171A] transition-colors"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8A8E95] hover:text-[#15171A]">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+          <div className="dc-filterbar">
+            <div className="dc-field is-search">
+              <label htmlFor="saved-q">Search</label>
+              <input className="dc-input" id="saved-q" type="search" placeholder="Search brands…" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            {/* Stage filter */}
             {usedStages.length > 1 && (
-              <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
-                className="px-3.5 py-3 text-sm border border-[#DEDAD2] bg-white focus:outline-none focus:border-[#15171A] transition-colors text-[#2E3238] min-w-[170px]">
-                <option value="">All stages</option>
-                {usedStages.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <div className="dc-field">
+                <label htmlFor="saved-stage">Stage</label>
+                <select className="dc-select" id="saved-stage" value={filterStage} onChange={e => setFilterStage(e.target.value)}>
+                  <option value="">All stages</option>
+                  {usedStages.map(st => <option key={st} value={st}>{st}</option>)}
+                </select>
+              </div>
             )}
-            {/* Industry filter */}
             {usedIndustries.length > 1 && (
-              <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
-                className="px-3.5 py-3 text-sm border border-[#DEDAD2] bg-white focus:outline-none focus:border-[#15171A] transition-colors text-[#2E3238] min-w-[170px]">
-                <option value="">All industries</option>
-                {usedIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
-              </select>
+              <div className="dc-field">
+                <label htmlFor="saved-ind">Industry</label>
+                <select className="dc-select" id="saved-ind" value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}>
+                  <option value="">All industries</option>
+                  {usedIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                </select>
+              </div>
             )}
-            {/* Sort */}
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-              className="px-3.5 py-3 text-sm border border-[#DEDAD2] bg-white focus:outline-none focus:border-[#15171A] transition-colors text-[#2E3238] min-w-[170px]">
-              <option value="date-desc">Newest first</option>
-              <option value="date-asc">Oldest first</option>
-              <option value="score-desc">Highest score</option>
-              <option value="score-asc">Lowest score</option>
-              <option value="name">Brand name</option>
-            </select>
+            <div className="dc-field">
+              <label htmlFor="saved-sort">Sort</label>
+              <select className="dc-select" id="saved-sort" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                <option value="date-desc">Newest first</option>
+                <option value="date-asc">Oldest first</option>
+                <option value="score-desc">Highest score</option>
+                <option value="score-asc">Lowest score</option>
+                <option value="name">Brand name</option>
+              </select>
+            </div>
           </div>
 
-          {/* Results count when filtering */}
-          {hasFilters && (
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-[#5B6068]">{filtered.length} of {assessments.length} assessments</p>
-              <button onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); }}
-                className="text-xs text-[#C23B22] hover:underline">Clear filters</button>
-            </div>
-          )}
+          <div className="dc-head-row is-baseline">
+            <span className="dc-count">{hasFilters ? `${filtered.length} of ${assessments.length} assessments` : `${assessments.length} assessment${assessments.length === 1 ? '' : 's'}`}</span>
+            {hasFilters
+              ? <button type="button" className="dc-link-btn" onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); }}>Clear filters</button>
+              : !isReadonly && <span className="dc-meta">Share copies a link others can view. Export downloads a JSON backup.</span>}
+          </div>
 
           {filtered.length === 0 ? (
-            <div className="card text-center">
-              <p className="text-[#5B6068]">No assessments match your filters.</p>
-            </div>
+            <div className="dc-alert"><strong>No matching assessments</strong><p>Try adjusting your search or filters.</p></div>
           ) : (
             <div className="space-y-2">
               {filtered.map(({ a, i, overallScore, maturity, industryName, challengeCount }) => (
@@ -11249,7 +10519,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
                       </div>
                       <div className="dc-listrow-m">
                         {[industryName, maturity?.name,
-                          a.project.date ? `saved ${new Date(a.project.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : null]
+                          a.project.date ? `saved ${new Date(a.project.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : null]
                           .filter(Boolean).join(' · ') || '—'}
                       </div>
                     </div>
@@ -11325,9 +10595,6 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onBack, onImport,
             </div>
           )}
 
-          <p className="text-center text-sm text-[#8A8E95] mt-8">
-            {assessments.length} assessment{assessments.length !== 1 ? 's' : ''} saved
-          </p>
         </>
       )}
     </div>
@@ -11833,11 +11100,6 @@ function ClientReportView({ payload }) {
   const stage = getMaturityStage(overall);
   const industryName = benchmark?.industryName || benchmark?.cohortLabel || '';
 
-  const sorted = [...ATTRIBUTES].map(a => ({ ...a, score: scores?.[a.id]?.score || 0 }))
-    .sort((x, y) => y.score - x.score);
-  // Order matches the internal report: strengths ascending, growth descending.
-  const strengths = sorted.slice(0, 2).reverse();
-  const growth = sorted.slice(-2).reverse();
 
   const campaign = scores?.campaignCoherence || null;
   const campaignStage = campaign && Number.isFinite(Number(campaign.level))
@@ -11867,19 +11129,6 @@ function ClientReportView({ payload }) {
     ...(payload.conclusion ? ['Conclusions'] : []),
   ];
 
-  const SectionHead = ({ label }) => {
-    const idx = clientSections.indexOf(label);
-    const n = String(idx >= 0 ? idx + 1 : clientSections.length + 1).padStart(2, '0');
-    return (
-      /* Spacing comes from the section wrapper, exactly as in the internal
-         report. Carrying it here as well doubled every gap. */
-      <div className="w-full flex items-baseline gap-4 pb-3"
-        style={{ borderBottom: '2px solid #15171A' }}>
-        <span className="text-[11px] font-bold tracking-[0.16em] text-[#5B6068]">{n}</span>
-        <span className="text-[13px] font-bold tracking-[0.16em] uppercase text-[#15171A]">{label}</span>
-      </div>
-    );
-  };
 
   const benchmarkAvg = benchmark
     ? ATTRIBUTES.reduce((acc, a) => { acc[a.id] = benchmark.attrAvgs?.[a.id] || 0; return acc; }, {})
@@ -11909,7 +11158,7 @@ function ClientReportView({ payload }) {
             {scores?.headline && <p className="dc-cover-thesis">\u201c{scores.headline}\u201d</p>}
             <p className="dc-meta">
               Conscious Compass Assessment{industryName ? ` \u00b7 ${industryName}` : ''}
-              {project.date ? ` \u00b7 ${new Date(project.date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}` : ''}
+              {project.date ? ` \u00b7 ${new Date(project.date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : ''}
               {' \u00b7 '}Framework v{FRAMEWORK_VERSION}
             </p>
           </div>
@@ -11938,7 +11187,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Upper panel ─────────────────────────────────────── */}
         <section className="dc-read-sec dc-reveal">
-          <SectionHead label="Results at a glance" />
+          <SectionHeading order={clientSections} label="Results at a glance" />
           <ReportGlanceSection project={project} scores={scores} overall={overall}
             stage={stage} sortedAttrs={sortedAttrs} />
 
@@ -11953,7 +11202,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Maturity ────────────────────────────────────────── */}
         <div className="dc-reveal">
-        <SectionHead label="Brand maturity" />
+        <SectionHeading order={clientSections} label="Brand maturity" />
         <div>
           <div className="relative">
             <div className="absolute flex flex-col items-center gap-1"
@@ -11981,7 +11230,7 @@ function ClientReportView({ payload }) {
 
         {/* ── Attribute analysis ─────────────────────────────── */}
         <div className="dc-read-sec dc-reveal">
-          <SectionHead label="Attribute analysis" />
+          <SectionHeading order={clientSections} label="Attribute analysis" />
           {/* showInternal false hides the campaign adjustment, the improve
               line and the service mapping. Same component, same formatting. */}
           <ReportAttributeSection scores={scores} benchmark={benchmark}
@@ -11992,7 +11241,7 @@ function ClientReportView({ payload }) {
         {/* ── Brand footprint ─────────────────────────────────── */}
         {hasFootprintData(payload.footprint) && (
           <section className="dc-section dc-reveal" id="footprint">
-            <SectionHead label="Brand footprint" />
+            <SectionHeading order={clientSections} label="Brand footprint" />
             <FootprintMap footprint={payload.footprint} brandName={project.brandName} />
           </section>
         )}
@@ -12000,21 +11249,21 @@ function ClientReportView({ payload }) {
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
           <section className="dc-section dc-reveal" id="campaign-coherence">
-            <SectionHead label="Campaign coherence" />
+            <SectionHeading order={clientSections} label="Campaign coherence" />
             <CampaignCoherencePanel coherence={campaign} audience="client" />
           </section>
         )}
 
         {/* ── Trust and credibility ───────────────────────────── */}
         <section className="dc-section dc-reveal" id="trust-lens">
-          <SectionHead label="Trust and credibility" />
+          <SectionHeading order={clientSections} label="Trust and credibility" />
           <TrustLensPanel scores={scores} overall={overall} showFindings={false} />
         </section>
 
         {/* ── Sustainability narrative (framework 2.10) ───────── */}
         {scores?.sustainabilityNarrative && (
           <div className="dc-reveal" data-section="thesis">
-            <SectionHead label="Sustainability narrative" />
+            <SectionHeading order={clientSections} label="Sustainability narrative" />
             <div style={{ marginTop: 32, marginBottom: 8 }}>
               <ThesisPanel thesis={scores.sustainabilityNarrative} />
             </div>
@@ -12024,7 +11273,7 @@ function ClientReportView({ payload }) {
         {/* ── Benchmark comparison ────────────────────────────── */}
         {benchmark && benchmarkAvg && (
           <div className="dc-reveal">
-            <SectionHead label="Benchmark comparison" />
+            <SectionHeading order={clientSections} label="Benchmark comparison" />
             <ReportBenchmarkSection project={project} scores={scores} overall={overall}
               stage={stage} benchmark={benchmark} benchmarkAvgScores={benchmarkAvg}
               spreadRef={spreadRef} spreadIn={spreadIn} open />
@@ -12034,7 +11283,7 @@ function ClientReportView({ payload }) {
         {/* ── Conclusion ──────────────────────────────────────── */}
         {payload.conclusion && (
           <div className="dc-reveal">
-            <SectionHead label="Conclusions" />
+            <SectionHeading order={clientSections} label="Conclusions" />
             <div className="dc-block">
               <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>{payload.conclusion}</p>
             </div>
@@ -12155,7 +11404,7 @@ function SharedReportView({ report, onClose }) {
   const { project, scores } = report;
   const overall = Math.round(
     Object.entries(scores)
-      .filter(([key, val]) => val && typeof val.score === 'number')
+      .filter(([, val]) => val && typeof val.score === 'number')
       .reduce((a, [, v]) => a + v.score, 0) / 8
   );
   const stage = getMaturityStage(overall);
@@ -12707,68 +11956,6 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
     return lines.join('\n');
   };
 
-  const handleEmailShare = () => {
-    if (!newsletter) return;
-    const ns = newsletter;
-    const CRLF = '%0D%0A';
-    const div  = '─'.repeat(50);
-
-    const line = (text) => encodeURIComponent(text || '').replace(/%0A/g, CRLF) + CRLF;
-
-    let body = '';
-    body += line(`STAY CONSCIOUS  |  Issue #${ns.issueNumber}  |  Week of ${ns.weekOf}`);
-    body += line('Brand intelligence from Antenna Group · Conscious Compass');
-    body += line(div);
-    body += CRLF;
-    body += line(`LEAD STORY — ${ns.leadStory?.category?.toUpperCase()}`);
-    body += line(ns.leadStory?.headline);
-    body += CRLF;
-    body += line(ns.leadStory?.insight);
-    body += CRLF;
-    body += line(`Why it matters: ${ns.leadStory?.whyItMatters}`);
-    body += CRLF;
-    body += line(div);
-    body += CRLF;
-    body += line('BRAND INTELLIGENCE');
-    body += CRLF;
-    (ns.intelligenceItems || []).forEach(item => {
-      body += line(`[${(item.category || '').toUpperCase()}]  ${item.headline}`);
-      body += line(item.insight);
-      body += line(`Why it matters: ${item.whyItMatters}`);
-      body += CRLF;
-    });
-    if (ns.landscapeAnalysis?.summary) {
-      body += line(div);
-      body += CRLF;
-      body += line('LANDSCAPE INSIGHTS');
-      body += CRLF;
-      const combined = [ns.landscapeAnalysis.summary, ns.landscapeAnalysis.insights].filter(Boolean).join(' ');
-      const words = combined.split(/\s+/);
-      body += line(words.length > 250 ? words.slice(0, 250).join(' ') + '…' : combined);
-      body += CRLF;
-    }
-    if (ns.storyOpportunities?.length) {
-      body += line(div);
-      body += CRLF;
-      body += line('STORY OPPORTUNITIES');
-      body += CRLF;
-      ns.storyOpportunities.forEach((s, i) => {
-        const firstSentence = (s.body || '').split(/[.!?]/)[0].trim();
-        body += line(`${i + 1}. ${s.headline}`);
-        body += line(firstSentence + '.');
-        body += CRLF;
-      });
-    }
-    body += line(div);
-    body += CRLF;
-    body += line(`Last updated: ${fmtDate(refreshedAt) || 'Unknown'}`);
-    body += line(`Next update: ${fmtDate(nextSunday())}`);
-    body += CRLF;
-    body += line('Generated by Conscious Compass · Antenna Group');
-
-    const subject = encodeURIComponent(`Stay Conscious — Issue #${ns.issueNumber} | Week of ${ns.weekOf}`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  };
 
   const handleCopyText = () => {
     navigator.clipboard.writeText(buildPlainText()).then(() => {
@@ -12781,6 +11968,7 @@ function StayConsciousPage({ onBack, isAdmin, copyDeepLink }) {
     if (!newsletter) return;
     setExportingDocx(true);
     try {
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer: DocxFooter, Header: DocxHeader, PageNumber, NumberFormat } = await import('docx');   // on demand (v3.101.0)
       const ns = newsletter;
       const LOGO_URL = 'https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg';
 
@@ -13471,7 +12659,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
     try {
       const d = scorecardData(record, baseline, industryNameFull);
       await exportTeaserPack(payload, d, {
-        jsPDF,
+        jsPDF: (await import('jspdf')).jsPDF,   // on demand (v3.101.0)
         JSZip: await loadJSZip(),
         saveAs,
         includeScorecard: scorecard.ready,
@@ -14399,7 +13587,12 @@ function AppContent() {
   const [profile, setProfile] = useState(null);
   const [showAdminPage, setShowAdminPage] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('conscious-compass-apikey') || DEFAULT_API_KEY);
+  // No key in the browser any more (v3.100.1): clear any copy an earlier
+  // version stored, and use the proxy marker.
+  const [apiKey] = useState(() => {
+    try { localStorage.removeItem('conscious-compass-apikey'); } catch { /* storage unavailable */ }
+    return DEFAULT_API_KEY;
+  });
   const [project, setProject] = useState({
     brandName: '', websiteUrl: '',
     businessModel: 'b2b', industry: 'other', companyStage: '', date: new Date().toISOString().split('T')[0], assessorContext: '',
@@ -14435,13 +13628,6 @@ function AppContent() {
     'teaser':            () => { setShowUIKit(false); setShowTeaserPage(true); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
   };
 
-  const navigateTo = (route) => {
-    const fn = HASH_ROUTES[route];
-    if (fn) {
-      fn();
-      window.history.pushState(null, '', `#${route}`);
-    }
-  };
 
   const clearNav = () => {
     setShowStayConsciousPage(false);
@@ -14524,7 +13710,7 @@ function AppContent() {
       };
       localStorage.setItem(key, JSON.stringify(draft));
       setLastAutoSave(new Date());
-    } catch (e) {
+    } catch {
       // localStorage quota exceeded — silently ignore
     }
   }, [project, assessments, scores, currentStep, user]);
@@ -14541,7 +13727,7 @@ function AppContent() {
       if (draft.project?.brandName && draft.currentStep > 0) {
         setDraftRestoreOffer(draft);
       }
-    } catch (e) {
+    } catch {
       localStorage.removeItem(getDraftKey(user.id));
     }
   }, [user]);
@@ -14580,7 +13766,7 @@ function AppContent() {
     };
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
@@ -14651,13 +13837,6 @@ function AppContent() {
     setCompassResults([]);
     setSavedAssessments([]);
   };
-
-  // Persist API key to localStorage whenever it changes
-  useEffect(() => {
-    if (apiKey) {
-      localStorage.setItem('conscious-compass-apikey', apiKey);
-    }
-  }, [apiKey]);
 
   // Auto-save the draft to this browser every 30 seconds if there's data.
   // The latest state rides in a ref so the timer is set once. With the state
@@ -14806,7 +13985,7 @@ function AppContent() {
       if (scores) {
         const overall = Math.round(
           Object.entries(scores)
-            .filter(([key, val]) => val && typeof val.score === 'number')
+            .filter(([, val]) => val && typeof val.score === 'number')
             .reduce((a, [, v]) => a + v.score, 0) / 8
         );
         const stage = getMaturityStage(overall);
@@ -14892,14 +14071,6 @@ function AppContent() {
   };
 
   const handleRescore = (data) => {
-    if (!apiKey) {
-      const key = prompt('Please enter your Anthropic API key to regenerate scores:');
-      if (!key) {
-        alert('API key is required to regenerate scores.');
-        return;
-      }
-      setApiKey(key);
-    }
     setProject(data.project);
     setAssessments(data.assessments);
     setScores(null); // Clear existing scores so user can regenerate
@@ -15283,7 +14454,7 @@ function AppContent() {
           )}
 
           {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
-          {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} onBack={() => setCurrentStep(0)} />}
+          {currentStep === 1 && <SetupPage project={project} setProject={setProject} onNext={() => setCurrentStep(2)} onBack={() => setCurrentStep(0)} />}
           {currentStep === 2 && <WebsiteAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
           {currentStep === 3 && <SocialMediaAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
           {currentStep === 4 && <AIReputationPage onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}

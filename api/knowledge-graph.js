@@ -1,5 +1,8 @@
 // Google Knowledge Graph API Proxy - checks if brand is a known entity
+import { requireUser } from './_auth.js';
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  if (!(await requireUser(req, res))) return;
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');

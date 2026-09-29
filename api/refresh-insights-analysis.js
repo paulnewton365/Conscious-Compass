@@ -3,6 +3,7 @@
 // calls Claude for story opportunities, saves to insights_analysis_cache
 // Schedule defined in vercel.json: "0 23 * * 0"
 
+import { requireUser } from './_auth.js';
 const ATTRIBUTES = [
   { id: 'AWAKE',      name: 'Awake' },
   { id: 'AWARE',      name: 'Aware' },
@@ -15,6 +16,8 @@ const ATTRIBUTES = [
 ];
 
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  if (!(await requireUser(req, res, { allowCron: true }))) return;
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

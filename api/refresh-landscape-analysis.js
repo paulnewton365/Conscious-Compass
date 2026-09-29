@@ -4,6 +4,7 @@
 // Schedule defined in vercel.json: "30 22 * * 0"
 // Also accepts POST for admin-triggered force refresh
 
+import { requireUser } from './_auth.js';
 const ATTRIBUTES = [
   { id: 'AWAKE',      name: 'Awake' },
   { id: 'AWARE',      name: 'Aware' },
@@ -25,6 +26,8 @@ const MATURITY_LABEL = (score) => {
 };
 
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  if (!(await requireUser(req, res, { allowCron: true }))) return;
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

@@ -2,7 +2,11 @@
 // Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel environment variables
 // Deleting from auth.users cascades to profiles table via FK relationship
 
+import { requireUser } from './_auth.js';
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  const caller = await requireUser(req, res, { admin: true });
+  if (!caller) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -21,6 +25,9 @@ export default async function handler(req, res) {
   const { userId } = req.body;
   if (!userId) {
     return res.status(400).json({ error: 'userId is required' });
+  }
+  if (caller.id && userId === caller.id) {
+    return res.status(400).json({ error: 'You cannot delete your own account here.' });
   }
 
   // Strip trailing slash from URL

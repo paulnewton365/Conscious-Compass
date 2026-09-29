@@ -34,7 +34,7 @@ const PAGES = [
   ['EarnedMediaAssessment', 5, 'Earned Media', 'Earned media assessment', 'the report', '05-earned-media-assessment.html'],
 ];
 const render = (name, extra) => new JSDOM(server.renderToStaticMarkup(h(App[name], base(extra)))).window.document;
-const fixture = (f) => new JSDOM(readFileSync(new URL(`./fixtures/design/${f}`, import.meta.url), 'utf8')).window.document;
+const fixture = (f) => new JSDOM(JSON.parse(readFileSync(new URL('./fixtures/design-screens.json', import.meta.url), 'utf8'))[f]).window.document;
 
 for (const [name, step, label, title, next, file] of PAGES) {
   test(`${label}: the packet shell, head, rail and footer`, () => {

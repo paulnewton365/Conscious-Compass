@@ -18,8 +18,6 @@
    uses. */
 .dc-pill-o { font-size: 11px; font-weight: 700; border: 1px solid var(--antenna-rule);
                 color: var(--antenna-muted); padding: 4px 8px; white-space: nowrap; }
-.dc-ledger-top { height: 2px; background: var(--antenna-ink); margin-top: 28px; }
-.dc-results-row > .dc-col-hide, .dc-results-head > .dc-col-hide { display: none; }
 /* Score adjustment: three numbers keep their columns but tighten */
   .dc-adj-row { gap: 6px !important; }
 /* Band ranges only appear once the labels stack: at full width each label
@@ -93,6 +91,10 @@ body { background: var(--cc-paper); color: var(--cc-ink);
   padding: 0 var(--cc-gutter, 48px); }
 .dc-page { padding: var(--cc-s-16) 0 var(--cc-s-24);
   display: flex; flex-direction: column; gap: var(--cc-s-12); }
+/* The app puts dc-wrap and dc-page on one element, where the packet nests
+   them. The shorthand above then zeroed the gutter dc-wrap sets, so every
+   page ran to the screen edge below 1280px (v3.101.1). Restore it. */
+.dc-wrap.dc-page { padding-left: var(--cc-gutter, 48px); padding-right: var(--cc-gutter, 48px); }
 .dc-stack { display: flex; flex-direction: column; gap: var(--cc-s-4); }
 .dc-block { background: var(--cc-paper); border: var(--cc-border);
   border-radius: var(--cc-r-1); padding: var(--cc-s-6); }
@@ -984,12 +986,7 @@ button { font: inherit; color: inherit; }
 .dc-numeral { font-family: var(--cc-serif); font-weight: var(--cc-w-regular); letter-spacing: -.01em; }
 
 /* Results table cells. */
-.dc-rescell-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .dc-brand-mark { width: 7px; height: 7px; transform: rotate(45deg); flex: none; }
-.dc-rescell-score { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
-.dc-resnum { font: var(--cc-w-semi) 15px/1 var(--cc-sans); min-width: 22px; text-align: right; font-variant-numeric: tabular-nums; }
-.dc-resbar { flex: 1; max-width: 88px; height: 3px; background: var(--cc-track); border-radius: var(--cc-r-bar); display: block; }
-.dc-resbar > i { display: block; height: 3px; border-radius: var(--cc-r-bar); background: var(--cc-ink); }
 
 /* Setup: the three-column layout and its step rail. */
 .dc-setup { display: grid; grid-template-columns: 240px minmax(0, 720px) minmax(0, 1fr); gap: 64px; align-items: start; }
@@ -1045,7 +1042,6 @@ button { font: inherit; color: inherit; }
   .dc-steprail { display: none; }
 }
 @media (max-width: 720px) {
-  .dc-resbar { display: none; }
 }
 
 /* Classes our markup still uses that the system does not define. Each maps
@@ -1055,13 +1051,6 @@ button { font: inherit; color: inherit; }
 .dc-pagehead { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--cc-s-6);
   flex-wrap: wrap; padding-bottom: var(--cc-s-5); margin-bottom: var(--cc-s-6);
   border-bottom: 1px solid var(--cc-ink); }
-.dc-results-head { display: grid; align-items: center; gap: var(--cc-s-3);
-  font: var(--cc-w-semi) var(--cc-fs-th)/1 var(--cc-sans); letter-spacing: var(--cc-tracking-label);
-  text-transform: uppercase; color: var(--cc-muted); padding: 0 0 8px;
-  border-bottom: 1px solid var(--cc-ink); }
-.dc-results-row { display: grid; align-items: center; gap: var(--cc-s-3); min-height: 40px;
-  font-size: var(--cc-fs-ui); border-bottom: 1px solid var(--cc-sep); }
-.dc-results-row:hover { background: var(--cc-hover); }
 .dc-listrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
   column-gap: var(--cc-s-6); row-gap: var(--cc-s-3); padding: var(--cc-s-5) 0; min-height: 64px;
   border-bottom: 1px solid var(--cc-rule); }
@@ -1111,6 +1100,30 @@ button { font: inherit; color: inherit; }
 .dc-link-row { display: flex; flex-wrap: wrap; gap: var(--cc-s-2); }
 .dc-action-run { display: flex; flex-direction: column; gap: 6px; margin-top: var(--cc-s-3); }
 .dc-action-run p { font-size: var(--cc-fs-meta); color: var(--cc-dark-label); }
+
+/* Compass Results rows, in the Saved pattern (v3.100.0) */
+.dc-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.dc-result-row { grid-template-columns: minmax(0,1fr) auto; }
+.dc-result-main { min-width: 0; }
+.dc-result-main .dc-listrow-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-result-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; }
+.dc-result-end { display: flex; align-items: center; gap: var(--cc-s-5); }
+.dc-result-score { font-size: 32px; line-height: 1; color: var(--cc-ink); font-variant-numeric: tabular-nums; }
+.dc-result-detail { grid-column: 1 / -1; justify-self: stretch; display: grid; grid-template-columns: 120px minmax(0,1fr); gap: var(--cc-s-5); align-items: center;
+  padding-top: var(--cc-s-4); border-top: var(--cc-border); }
+.dc-result-attrs { display: grid; grid-template-columns: repeat(8, minmax(0,1fr)); gap: 2px; margin: 0; }
+.dc-result-attrs > div { background: var(--cc-paper); border: var(--cc-border); padding: 8px 6px; text-align: center; }
+.dc-result-attrs dt { font-size: 11px; color: var(--cc-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-result-attrs dd { margin: 2px 0 0; font: var(--cc-w-regular) 20px/1.1 var(--cc-serif); color: var(--cc-ink); }
+.dc-result-foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: var(--cc-s-4); flex-wrap: wrap; }
+.dc-man-attrs { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--cc-s-2) var(--cc-s-4); }
+.dc-man-attrs label { display: grid; grid-template-columns: minmax(0,1fr) 88px; align-items: center; gap: var(--cc-s-2); font-size: var(--cc-fs-ui); color: var(--cc-body); }
+@media (max-width: 900px) { .dc-result-attrs { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+@media (max-width: 720px) {
+  .dc-result-detail { grid-template-columns: minmax(0,1fr); justify-items: center; }
+  .dc-result-end { gap: var(--cc-s-3); }
+  .dc-man-attrs { grid-template-columns: minmax(0,1fr); }
+}
 
 /* ---------- From the teaser packet (v3.98.0): screens.css, helpers onward ---------- */
 /* Helpers (replace former inline styles) */
@@ -1415,6 +1428,15 @@ button { font: inherit; color: inherit; }
 .dc-tile + .dc-tile { border-left: 0; padding-left: 0; }
 .dc-tile:not(:nth-child(4n + 1)) { border-left: var(--cc-border); padding-left: var(--cc-s-6); }
 .dc-tile:nth-child(n + 5) { border-top: var(--cc-border); }
+/* On a phone, two per row (v3.101.1). The four-column rules above sit outside
+   the layer, so they also beat the layered phone rules for score tiles; this
+   override has to sit out here beside them. */
+@media (max-width: 720px) {
+  .dc-tiles, .dc-tiles.is-scores, .dc-tiles.is-scores.is-4, .dc-tiles.is-8 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dc-tile:not(:nth-child(4n + 1)) { border-left: 0; padding-left: 0; }
+  .dc-tile:nth-child(even) { border-left: var(--cc-border); padding-left: var(--cc-s-4); }
+  .dc-tile:nth-child(n + 3) { border-top: var(--cc-border); padding-top: var(--cc-s-3); }
+}
 
 /* The masthead already sits above the first section head, which carries its
    own rule. A second line and its space read as an empty band. */

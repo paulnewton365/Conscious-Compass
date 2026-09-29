@@ -1,6 +1,9 @@
 // Vercel Serverless Function - Fetches auth.users data including last_sign_in_at
 
+import { requireUser } from './_auth.js';
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  if (!(await requireUser(req, res, { admin: true }))) return;
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

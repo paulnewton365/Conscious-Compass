@@ -5,7 +5,10 @@
 // page. Going through the function keeps the failure legible and lets us cap
 // the payload before it reaches the model.
 
+import { requireUser } from './_auth.js';
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  if (!(await requireUser(req, res))) return;
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

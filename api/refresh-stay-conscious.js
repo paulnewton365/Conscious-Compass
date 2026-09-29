@@ -2,6 +2,7 @@
 // Calls Claude with web search, saves results to Supabase stay_conscious_cache table
 // Schedule defined in vercel.json: "0 22 * * 0"
 
+import { requireUser } from './_auth.js';
 const STAY_CONSCIOUS_PROMPT = `You are a brand intelligence analyst advising consultants who use the Conscious Compass framework to evaluate brands based purely on publicly available signals — what audiences, prospects, and partners actually encounter. The framework measures eight attributes: Awake (narrative leadership), Aware (audience understanding), Reflective (authenticity), Attentive (experience quality), Cogent (strategic intelligence), Sentient (emotional resonance), Visionary (purpose), and Intentional (credibility).
 
 Generate exactly 6 "Stay Conscious" intelligence items that brand assessors should be aware of right now. These should be emerging trends, platform changes, new signals, shifting standards, or evolving best practices that affect how a brand is publicly experienced or how it should be rigorously assessed. Be specific and current. Avoid generic marketing platitudes. Write with conviction.
@@ -18,6 +19,8 @@ Each item:
 - whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
 
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  if (!(await requireUser(req, res, { allowCron: true }))) return;
   // Vercel cron jobs call with GET; also allow POST for manual triggering
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });

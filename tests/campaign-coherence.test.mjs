@@ -97,7 +97,7 @@ test('an unscored or level-less object yields nothing to render', () => {
 // ── Rendered panel ───────────────────────────────────────────
 
 test('the panel matches the design export element for element', () => {
-  const design = new JSDOM(readFileSync(new URL('./fixtures/design/14-campaign-coherence.html', import.meta.url), 'utf8'))
+  const design = new JSDOM(JSON.parse(readFileSync(new URL('./fixtures/design-screens.json', import.meta.url), 'utf8'))['14-campaign-coherence.html'])
     .window.document.querySelector('section#campaign-coherence');
   const ours = render({ coherence: MKB });
   // tag, classes and aria-current for every element, in order

@@ -29,7 +29,7 @@ before(async () => {
   rubric = await import('../src/data/rubric.js');
 });
 const flush = () => new Promise(r => setTimeout(r, 0));
-const fixture = (f) => new JSDOM(readFileSync(new URL(`./fixtures/design/${f}`, import.meta.url), 'utf8')).window.document;
+const fixture = (f) => new JSDOM(JSON.parse(readFileSync(new URL('./fixtures/design-screens.json', import.meta.url), 'utf8'))[f]).window.document;
 
 function scored(base) {
   const o = { headline: 'Acme is credible in trade press and invisible elsewhere.', summary: 'Verdict first.', fullAssessmentWouldResolve: ['Q'], trustFindings: [], campaignCoherence: { level: 1, confidence: 'low' } };

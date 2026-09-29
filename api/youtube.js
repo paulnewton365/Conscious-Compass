@@ -1,5 +1,8 @@
 // YouTube Data API Proxy - fetches branded channel AND third-party coverage
+import { requireUser } from './_auth.js';
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  if (!(await requireUser(req, res))) return;
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -32,7 +35,7 @@ export default async function handler(req, res) {
       try {
         const url = new URL(website.startsWith('http') ? website : 'https://' + website);
         domainHint = url.hostname.replace('www.', '').split('.')[0].toLowerCase();
-      } catch (e) {}
+      } catch { /* unreadable body: fall through to the status */ }
     }
 
     // 1. SEARCH FOR BRANDED CHANNEL

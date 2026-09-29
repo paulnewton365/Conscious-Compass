@@ -2,7 +2,10 @@
 // Returns the composed weekly newsletter from Supabase cache.
 // Cache is written by /api/refresh-stay-conscious-newsletter every Sunday at 23:30 UTC.
 
+import { requireUser } from './_auth.js';
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  if (!(await requireUser(req, res))) return;
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

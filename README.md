@@ -4,7 +4,7 @@
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-3.99.1-blue)
+![Version](https://img.shields.io/badge/version-3.102.0-blue)
 ![Rubric](https://img.shields.io/badge/rubric-v2.9-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
 
@@ -361,7 +361,8 @@ All cache tables use RLS with a read-only policy for authenticated users. Server
 
 ```
 conscious-compass/
-├── api/                                     # Vercel serverless functions
+├── api/                                     # Vercel serverless functions (all require a signed-in caller)
+│   ├── _auth.js                             # Caller checks (not a route)
 │   ├── claude.js                            # Anthropic API proxy
 │   ├── knowledge-graph.js                   # Google Knowledge Graph lookup
 │   ├── pagespeed.js                         # PageSpeed Insights proxy
@@ -387,11 +388,11 @@ conscious-compass/
 │   │   ├── sectorProfiles.js  # Sector calibration
 │   │   └── serviceMapping.js  # Service recommendations mapped to attributes
 │   └── lib/
-│       ├── api.js, supabase.js                              # AI and database clients
+│       ├── supabase.js, apiAuth.js                          # Database client; session token on /api/ calls
+│       ├── docxFonts.js                                     # Embeds the report fonts in Word exports
 │       ├── campaignCoherence.js, footprintChart.js, trustLensView.js  # Report section view models
 │       ├── teaser.js, teaserReport.js, teaserExport.js      # Teaser assessment, report and Excel export
 │       ├── scorecard.js, cardVector.js, slideVector.js      # Baseball card and proposal slide
-│       ├── deckExport.js, deckCharts.js                     # Readout deck
 │       └── lazyZip.js                                       # JSZip on demand
 ├── public/
 │   ├── fully-conscious-badge.png  # Badge and favicon
@@ -404,6 +405,7 @@ conscious-compass/
 │   ├── SUPABASE_VERIFY.sql        # Run after: 49 checks, reads only
 │   └── WHAT_IS_A_CONSCIOUS_BRAND.md
 ├── tests/                         # npm test; tests/sql runs separately against Postgres
+│                                  # design packet screens: tests/fixtures/design-screens.json
 ├── scripts/
 │   └── bump-version.cjs           # Auto-increments patch version on npm run build
 ├── package.json
@@ -513,6 +515,16 @@ Evidence is gathered automatically and in parallel: website pages, a social scan
 **Stage and sector calibration (v3.56, method 2.4).** Two rubric assumptions were breaking smaller and non-cleantech brands. Company stage is now a required field on the teaser, using Antenna's six-stage framework (`src/data/stages.js`): Startup, Scaleup, Market Leader, Multinational, Conglomerate, Global Brand. Each stage names what a company at it would not yet have (Glassdoor, employee advocacy, analyst recognition, Wikipedia, share of voice, impact reporting, candour about litigation), which then counts neither for nor against, and what to judge instead (founder visibility, named early customers, a findable entity, candour about what is unproven). Stage also steers which services are worth naming. Sector profiles (`src/data/sectorProfiles.js`) give Real Estate & Construction and Energy & Utilities their own audiences, proof, channels, weak indicators and tone; other sectors get guidance to read their own conventions rather than borrowing cleantech's. Both change interpretation only: attribute weights and the overall calculation are untouched, so baselines stay comparable. The export separates Maturity (the band the score falls into) from Stage (where the company is in its evolution).
 
 **The old stylesheet removed (v3.77).** The app had been carrying its entire pre-restyle stylesheet underneath the design system: 653 lines defining 52 of the same classes, including every button, and setting properties the new rules never reset. That is where the stray button colours, the header underlines and the alignment came from. It is gone; eight rules the system does not cover were carried forward. Nineteen of my own earlier patches were also removed, since they predated the system and were overriding it. The header is rebuilt to the export: a 64px shell, the `.dc-wordmark`, a text nav marked with `aria-current` rather than a class, and a Menu button below 900px.
+
+**Word export restyled to the template, with its fonts embedded (v3.102.0).** The full report's Word download follows the restyled MKB template: warm paper page colour, Hanken Grotesk for text and Newsreader for the title, section headings and the score; section headings sit under an ink rule; the score is a large Newsreader numeral with the band in tracked rust capitals; tables use hairline #DEDAD2 rules with tracked uppercase headers in muted grey on white; band colours follow the template (muted below Establishing, rust at Establishing, green above); the Inter type and the old greys, reds and greens are gone. Page size, margins and footer already matched. Both fonts travel inside the file, so the report looks the same on machines that do not have them: Hanken Grotesk regular and bold, Newsreader regular and italic, added by `src/lib/docxFonts.js` after the library writes the file, because the library can embed only a regular face. Each is an obfuscated part per ECMA-376, related from the font table, with the settings that tell Word to use embedded fonts and show the page colour. A test proves a font round-trips byte for byte; the file passes the OOXML validator; and LibreOffice renders it in Hanken Grotesk and Newsreader with neither installed. The fonts add about 150 KB compressed. If a font fails to load, the export still downloads, without embedding.
+
+**Page gutter restored (v3.101.1).** Below 1280px every page ran to the screen edge. The packet nests `.dc-wrap` (which sets the side gutter) and `.dc-page` (which sets the vertical padding) on separate elements; the app puts both on one element, and `.dc-page`'s padding shorthand zeroed the gutter. Sections whose content sits in bordered cards still looked inset, so the fault showed most in brand footprint, campaign coherence and trust, whose text and tables had nothing between them and the edge. `.dc-wrap.dc-page` now restores the gutter: 20px on a phone and 48px from tablet up, the same for every section. Tile rows also go two per row on a phone: an unlayered four-column rule had been overriding every layered phone rule for tiles, including the PageSpeed scores on the Website step, and pushed the report 4px wider than the screen.
+
+**Cleanup and speed (v3.101.0).** The main script is about half its former size: 1,990 KB down to 1,035 KB (588 KB to 308 KB compressed), because the Word, PDF and screenshot libraries now load only when an export runs, as JSZip already did. Three dead modules are removed: `src/lib/api.js` (never imported; it called an older model and carried a leftover Gemini URL) and `src/lib/deckExport.js` with `deckCharts.js` (never imported, and dependent on `pptxgenjs`, which was never installed). Dead code in `App.jsx` is removed: the 388-line PDF generator nothing called, two unused text extractors, the Instagram screenshot handlers with no controls, the email-share handler, and about 30 unused variables, imports and parameters. The full report and the client view now share one module-level section heading; the client view's own was declared inside its render, so every heading remounted on each render, and it still used the old uppercase style. `callClaude` now passes its temperature through; every caller already asked for 0, so scoring is unchanged. The lint config treats `api/`, `scripts/` and `tests/` as Node code, which removes 39 false errors: lint across the codebase goes from 91 problems to 7. The 13 design packet screens used by the parity tests are merged into one file, `tests/fixtures/design-screens.json`, with their CSS stripped, since the tests compare structure only. The repo drops from 107 files to 92.
+
+**Endpoints require a signed-in caller (v3.100.1).** None of the serverless endpoints checked who was calling. `/api/delete-user` deleted any account for anyone who posted an id, `/api/list-users` returned every user, and `/api/claude` relayed any prompt on the Anthropic key; the Google and Jina proxies and the cache readers were open too. Every endpoint now starts with `requireUser` (`api/_auth.js`, which Vercel does not serve as a route): the request must carry the caller's Supabase session token, verified with Supabase itself. The two user endpoints also require the admin flag, read with the service key, and an admin cannot delete their own account there. The four refresh jobs accept Vercel's scheduled run or a signed-in user. Set `CRON_SECRET` in Vercel: with it, only Vercel's scheduled calls get in; without it, the cron user agent is accepted so the weekly refreshes keep running, and that header can be forged. In the browser, `src/lib/apiAuth.js` wraps fetch once at startup so every `/api/` call carries the token, which covers all call sites. The browser-key paths are gone: the build-time `VITE_ANTHROPIC_API_KEY` fallback (which would write a key into the public bundle), the direct browser calls to Anthropic, the API key field on Setup and the rescore key prompt; any key an earlier version stored in the browser is cleared on load. The built bundle contains no Anthropic address.
+
+**Compass Results in the Saved pattern (v3.100.0).** Results was a grid of divs with inline column widths, Tailwind colours, icons and `.card` empty states. It now follows the Saved page: one row per brand with the name, a meta line (band pill, sector label, model, framework version, assessed date, Manual and Challenged where they apply), the serif score in ink, and Details, which opens the attribute breakdown, the mini radar (now ink, not olive), the assessor and, for admins, Delete. A Sort select like Saved's replaces sortable columns. Results and Saved now share the packet's header (display title, count or standfirst, actions on the right) and the labelled filter bar; both Back buttons are gone, since the header navigation covers them. Saved's rows and actions are unchanged. Add manual entry moves onto the shared dialog. Empty and no-match states are plain alerts. Two faults fixed: the Model filter offered "Both", which no result carries, so it always matched nothing (it now lists the models the results actually have), and Saved dates read "31 Aug 2026", against the US English rule; they now read "Aug 31, 2026", as does the one other British date in the app. The grid-table CSS the old Results used is removed. Packet screens 07 and 08 ship as test fixtures.
 
 **Save and exit reopens where you left (v3.99.1).** Save and exit now records the step it was pressed on, inside the project blob, so no migration is needed. Opening that save from Saved returns to that step. Before this, an unscored save always opened on the Welcome screen, with the brand loaded but out of sight. Older unscored saves, which have no recorded step, now open on Setup. Saving strips screenshots to keep the record small, and Website and Social required screenshots before Continue, so a reopened step whose analysis was already done was blocked until they were uploaded again. A completed analysis now satisfies the screenshot requirement, since it already ran on them, and the screenshot block says so. Before any analysis, screenshots are still required.
 

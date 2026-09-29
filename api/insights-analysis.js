@@ -1,7 +1,10 @@
 // GET /api/insights-analysis — returns cached Story Opportunities from Supabase
 // Cache is refreshed weekly by /api/refresh-insights-analysis (Vercel cron, Sunday 23:00 UTC)
 
+import { requireUser } from './_auth.js';
 export default async function handler(req, res) {
+  // Callers must be signed in (v3.100.1); see api/_auth.js.
+  if (!(await requireUser(req, res))) return;
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

@@ -26,4 +26,11 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  // Serverless functions, scripts and tests run in Node, not the browser
+  // (v3.101.0). Linted as browser code, every process.env read was an error,
+  // and that noise hid the real findings.
+  {
+    files: ['api/**/*.js', 'scripts/**/*.{js,cjs}', 'tests/**/*.mjs', 'vite.config.js'],
+    languageOptions: { globals: { ...globals.node } },
+  },
 ])

@@ -328,7 +328,7 @@ test('the visible furniture is styled by the new system, not left on the old rul
   assert.ok(cut > 0, 'the design system is present');
   const newRules = css.slice(cut);
   // page titles, rows and score numerals: the things on every screen
-  ['dc-h2', 'dc-pagehead', 'dc-standfirst', 'dc-listrow', 'dc-listrow-t', 'dc-results-row',
+  ['dc-h2', 'dc-pagehead', 'dc-standfirst', 'dc-listrow', 'dc-listrow-t', 'dc-result-row',
     'dc-stat-n', 'dc-stat-l', 'dc-ledger-row', 'dc-attr-card', 'dc-tab-on', 'dc-rec-row']
     .forEach(c => assert.ok(newRules.includes(`.${c}`), `${c} still on the old rules`));
   // the serif carries titles and scores
@@ -432,20 +432,15 @@ test('numerals are set in the serif at regular weight, never heavy sans', () => 
   assert.match(css, /\.dc-numeral \{[\s\S]*?--cc-serif/);
 });
 
-test('the results table follows screen C: dense rows, a brand mark and a bar beside the score', () => {
+test('the results page uses the Saved row pattern, not the old grid table (v3.100.0)', () => {
+  // rendered checks live in tests/list-pages.test.mjs
   const css = read('src/index.css');
-  assert.match(css, /\.dc-results-row \{[^}]*min-height: 40px/, '40px rows, as the screen specifies');
-  assert.match(css, /\.dc-brand-mark \{[^}]*width: 7px[^}]*rotate\(45deg\)/, 'the 7px diamond');
-  assert.match(css, /\.dc-resnum \{[^}]*tabular-nums/, 'numbers line up');
-  assert.match(css, /\.dc-resbar \{[^}]*height: 3px/);
-  assert.match(css, /\.dc-results-head \{[^}]*border-bottom: 1px solid var\(--cc-ink/);
-  // the table stays in the sans; the serif is for headings
-  const row = css.slice(css.indexOf('.dc-resnum'), css.indexOf('.dc-resbar'));
-  assert.ok(row.includes('--cc-sans'), 'table numerals stay in the sans so columns align');
-  // and the markup carries the mark and the bar
-  assert.ok(app.includes('dc-rescell-brand'), 'the brand cell carries the mark');
-  assert.ok(app.includes('dc-brand-mark'), 'renamed so it cannot clash with the header wordmark');
-  assert.ok(app.includes('dc-resbar'), 'the score carries a bar');
+  assert.ok(!css.includes('.dc-results-row {') && !css.includes('.dc-resbar {'), 'the grid-table rules are gone');
+  assert.match(css, /\.dc-result-score \{[^}]*tabular-nums/, 'numbers line up');
+  // the Results component alone: Insights and Landscape follow it in the file
+  const results = app.slice(app.indexOf('function CompassResultsPage'), app.indexOf('function OnboardingTour'));
+  assert.ok(results.includes('dc-listrow dc-result-row'), 'rows share the Saved list row');
+  assert.ok(!results.includes('gridTemplateColumns'), 'no inline column grid');
 });
 
 test('the report masthead follows screen B', () => {
@@ -504,12 +499,13 @@ test('handoff v2 corrections are applied where they were called out', () => {
   const results = app.slice(app.indexOf('function CompassResultsPage'), app.indexOf('function ComparisonPage'));
   assert.ok(!/dc-resnum" style=\{\{ color: scoreColor/.test(results), 'the score number is ink');
   assert.ok(results.includes('dc-pill" data-band='), 'the band travels in a chip');
-  assert.ok(results.includes("INDUSTRIES.find(x => x.id === r.industry)"), 'sector shows its label, not its key');
+  assert.ok(results.includes("INDUSTRIES.find(x => x.id === id)") && results.includes('industryName(r.industry)'), 'sector shows its label, not its key');
 
   // saved: the off-palette tip is gone
   const saved = app.slice(app.indexOf('function SavedAssessmentsPage'), app.indexOf('function ClientReportView'));
   assert.ok(!saved.includes('#F0F7FF'), 'the blue tip box is removed');
-  assert.ok(saved.includes("toLocaleDateString('en-GB'"), 'dates read as 31 Aug 2026');
+  // v3.100.0: US English, as everywhere else ("Aug 31, 2026")
+  assert.ok(!saved.includes("'en-GB'") && saved.includes("toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })"), 'dates read as Aug 31, 2026');
 });
 
 test('the design system sits in a layer, so the markup\'s own utilities still win', () => {
@@ -566,7 +562,8 @@ test('the report toolbar is a row of text buttons, as the export has it', () => 
 });
 
 test('section heads follow the export: rust number, serif title, text Hide', () => {
-  const head = app.slice(app.indexOf('const SectionHead ='), app.indexOf('const SectionHead =') + 1200);
+  // v3.101.0: one module-level heading serves both reports
+  const head = app.slice(app.indexOf('function SectionHeading('), app.indexOf('function SectionHeading(') + 1200);
   assert.ok(head.includes('className="dc-sec-toggle"'), 'the export\'s toggle');
   assert.ok(head.includes('className="dc-sec-n"') && head.includes('className="dc-h"'), 'number and serif title');
   assert.ok(head.includes("{open ? 'Hide' : 'Show'}"), 'state in words');
