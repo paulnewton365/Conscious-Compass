@@ -99,3 +99,39 @@ export function benchmarkView(benchmark, scores, overall, brand) {
     radar: radarGeometry(brandScores, avgs),
   };
 }
+
+// ── One result per brand (v3.109.0) ──────────────────────────
+// Every save of a full assessment is kept as a results row, so a brand's
+// history survives. Anything that compares brands uses only each brand's
+// latest save: a brand saved five times must count once in an average, a
+// rank or a sector baseline. Brands match on the name, trimmed and ignoring
+// case; the latest is the newest created_at, with id breaking a tie.
+const brandKey = (r) => String(r?.brandName ?? r?.brand_name ?? '').trim().toLowerCase();
+const savedTime = (r) => String(r?.createdAt ?? r?.created_at ?? r?.savedAt ?? '');
+const newestFirst = (a, b) => savedTime(b).localeCompare(savedTime(a)) || String(b?.id ?? '').localeCompare(String(a?.id ?? ''));
+
+export function latestPerBrand(results) {
+  if (!Array.isArray(results)) return [];
+  const latest = new Map();
+  results.forEach(r => {
+    const k = brandKey(r);
+    if (!k) return;
+    const cur = latest.get(k);
+    if (!cur || newestFirst(r, cur) < 0) latest.set(k, r);
+  });
+  return [...latest.values()];
+}
+
+// Each brand's saves, newest first, keyed by the brand.
+export function resultHistory(results) {
+  const byBrand = new Map();
+  (Array.isArray(results) ? results : []).forEach(r => {
+    const k = brandKey(r);
+    if (!k) return;
+    if (!byBrand.has(k)) byBrand.set(k, []);
+    byBrand.get(k).push(r);
+  });
+  byBrand.forEach(list => list.sort(newestFirst));
+  return byBrand;
+}
+export const resultBrandKey = brandKey;

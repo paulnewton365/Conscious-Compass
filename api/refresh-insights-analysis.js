@@ -15,6 +15,19 @@ const ATTRIBUTES = [
   { id: 'INTENTIONAL',name: 'Intentional' },
 ];
 
+// Each brand's latest save only (v3.109.0): every save is kept as a row for
+// history, but a brand must count once in portfolio figures.
+const latestPerBrand = (rows) => {
+  const m = new Map();
+  (rows || []).forEach(r => {
+    const k = String(r.brand_name || '').trim().toLowerCase();
+    if (!k) return;
+    const cur = m.get(k);
+    if (!cur || String(r.created_at || '') > String(cur.created_at || '')) m.set(k, r);
+  });
+  return [...m.values()];
+};
+
 export default async function handler(req, res) {
   // Callers must be signed in (v3.100.1); see api/_auth.js.
   if (!(await requireUser(req, res, { allowCron: true }))) return;
@@ -43,7 +56,7 @@ export default async function handler(req, res) {
     );
 
     if (!resultsRes.ok) throw new Error(`Failed to fetch results: ${resultsRes.status}`);
-    const results = await resultsRes.json();
+    const results = latestPerBrand(await resultsRes.json());
 
     if (!results || results.length === 0) {
       return res.status(200).json({ success: false, error: 'No assessment data available yet.' });

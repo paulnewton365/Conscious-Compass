@@ -302,3 +302,212 @@ test('08: new snapshots save the overall range', () => {
   assert.ok(src.includes('scoreRange: { min: Math.min(...cohort.map(b => b.totalScore)), max: Math.max(...cohort.map(b => b.totalScore)) },'));
   assert.ok(!/Rank: \$\{ordinal\(benchmark\.rank\)\} of \$\{benchmark\.count\}/.test(src), 'the plain-text copy uses the corrected rank too');
 });
+
+// ── Scroll motion for the three reports (v3.108.0) ───────────
+
+function motionWindow({ reduced = false, io = true, height = 800 } = {}) {
+  const d = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true });
+  const win = d.window;
+  win.matchMedia = (q) => ({ matches: reduced && q.includes('reduce') });
+  Object.defineProperty(win, 'innerHeight', { value: height, configurable: true });
+  const observed = [];
+  if (io) {
+    win.IntersectionObserver = class {
+      constructor(cb) { this.cb = cb; }
+      observe(el) { observed.push({ el, obs: this }); }
+      unobserve() {}
+      disconnect() {}
+    };
+  }
+  return { win, doc: win.document, observed };
+}
+function reportRoot(doc, tops) {
+  const root = doc.createElement('div'); root.className = 'dc-wrap dc-page';
+  const ids = ['glance', 'footprint', 'campaign-coherence', 'trust-lens', 'benchmark'];
+  ids.forEach((id, i) => {
+    const s = doc.createElement('section'); s.id = id; s.className = 'dc-section';
+    s.getBoundingClientRect = () => ({ top: tops[i], bottom: tops[i] + 400 });
+    root.appendChild(s);
+  });
+  doc.body.appendChild(root);
+  return root;
+}
+
+test('motion: sections are tagged draw or fade; campaign coherence and trust only fade', async () => {
+  const sm = await import('../src/lib/scrollMotion.js');
+  const { win, doc, observed } = motionWindow();
+  const root = reportRoot(doc, [0, 900, 1400, 1900, 2400]);
+  sm.startScrollMotion(root, win);
+  const kind = (id) => doc.getElementById(id).getAttribute('data-reveal');
+  assert.deepEqual(['glance', 'footprint', 'campaign-coherence', 'trust-lens', 'benchmark'].map(kind), ['draw', 'draw', 'fade', 'fade', 'draw']);
+  assert.ok(root.classList.contains('dc-motion'));
+  assert.ok(doc.getElementById('glance').classList.contains('is-revealed'), 'on screen at load: shown at once, no flash');
+  assert.ok(!doc.getElementById('benchmark').classList.contains('is-revealed'), 'below the fold waits');
+  assert.equal(observed.length, 4, 'only off-screen sections are watched');
+  const b = observed.find(o => o.el.id === 'benchmark');
+  b.obs.cb([{ isIntersecting: true, target: b.el }]);
+  assert.ok(doc.getElementById('benchmark').classList.contains('is-revealed'), 'revealed once it enters');
+});
+
+test('motion: reduced motion or no observer means no motion at all', async () => {
+  const sm = await import('../src/lib/scrollMotion.js');
+  for (const opts of [{ reduced: true }, { io: false }]) {
+    const { win, doc } = motionWindow(opts);
+    const root = reportRoot(doc, [0, 900, 1400, 1900, 2400]);
+    sm.startScrollMotion(root, win);
+    assert.ok(!root.classList.contains('dc-motion'), JSON.stringify(opts));
+  }
+});
+
+test('motion: sections that appear later are picked up; the export sees everything finished', async () => {
+  const sm = await import('../src/lib/scrollMotion.js');
+  const { win, doc, observed } = motionWindow();
+  const root = reportRoot(doc, [0, 900, 1400, 1900, 2400]);
+  sm.startScrollMotion(root, win);
+  const late = doc.createElement('section'); late.id = 'earned-creative';
+  late.getBoundingClientRect = () => ({ top: 3000, bottom: 3400 });
+  root.appendChild(late);
+  assert.equal(sm.retagSections(root, win), 1);
+  assert.equal(late.getAttribute('data-reveal'), 'draw');
+  assert.ok(observed.some(o => o.el === late));
+  // Word export: everything revealed and motion switched off at once
+  const saved = globalThis.document; globalThis.document = doc;
+  sm.revealAll(doc);
+  globalThis.document = saved;
+  assert.ok(!root.classList.contains('dc-motion'));
+  assert.ok([...root.querySelectorAll('[data-reveal]')].every(el => el.classList.contains('is-revealed')));
+});
+
+test('motion: wired into the three reports, guarded for print and reduced motion, never counting numbers', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('<div className="dc-wrap dc-page" ref={motionRef}>'), 'full report');
+  assert.ok(src.includes('<div className="dc-wrap dc-page pt-8" ref={motionRef}>'), 'client report');
+  assert.ok(src.includes('data-teaser-client-view="true" ref={motionRef}'), 'teaser read');
+  assert.ok(src.includes('revealAll();   // the finished state'), 'the export forces the finished state first');
+  assert.ok(!src.includes('animate-fade-in'), 'the dead class is gone');
+  assert.ok(!src.includes('function Reveal('), 'the unused component is gone');
+  const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  assert.ok(css.includes('@media print, (prefers-reduced-motion: reduce) {'));
+  assert.ok(!/data-reveal="fade"\][^{]*\{[^}]*scale/.test(css), 'fade-only sections never draw their data');
+});
+
+// ── Saving from the full report (v3.108.1) ───────────────────
+
+test('Save shows Saving, ignores a second click, then shows Saved', async () => {
+  const { ATTRIBUTES } = await import('../src/data/rubric.js');
+  window.scrollTo = () => {};
+  globalThis.fetch = window.fetch = () => new Promise(() => {});
+  const scores = {};
+  ATTRIBUTES.forEach((a, i) => { scores[a.id] = { score: 40 + i, findings: 'f', impact: 'i' }; });
+  let calls = 0, finish;
+  const onSave = (opts) => { calls++; assert.equal(opts.quiet, true, 'no success alert: the button says it'); return new Promise(r => { finish = r; }); };
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.ReportPage, { project: { brandName: 'MKB', websiteUrl: 'https://mkb.com', industry: 'energy', businessModel: 'b2b', date: '2026-09-28' }, setProject() {}, scores, setScores() {}, assessments: {}, setAssessments() {}, apiKey: 'PROXY', onSave, onPrev() {}, profile: { is_admin: true }, compassResults: [] })); });
+  const btn = () => container.querySelector('[data-field="save"]');
+  assert.equal(btn().textContent, 'Save');
+  await act(async () => { btn().click(); });
+  assert.equal(btn().textContent, 'Saving\u2026');
+  assert.equal(btn().disabled, true);
+  await act(async () => { btn().click(); });
+  assert.equal(calls, 1, 'a second click while saving does nothing');
+  await act(async () => { finish(true); await Promise.resolve(); });
+  assert.equal(btn().textContent, 'Saved');
+  await act(async () => root.unmount());
+});
+
+test('the save handler: one at a time, results failures surfaced, a refresh hiccup is not a failed save', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const at = src.indexOf('  const handleSave = async ({ quiet = false, resumeStep = null } = {}) => {');
+  const fn = src.slice(at - 200, src.indexOf('\n  };\n', at));
+  assert.ok(fn.includes('if (savingRef.current) return false;') && fn.includes('savingRef.current = false;'), 'one save at a time, released in finally');
+  assert.ok(fn.includes('const { error: resultError } = await saveCompassResult(resultData);'), 'the results error is read');
+  assert.ok(fn.includes("try { await loadDataFromSupabase(); } catch (e) { console.warn('Saved, but the lists did not refresh:', e); }"), 'refresh failure does not fail the save');
+});
+
+// ── Saved page dates follow the last save (v3.108.2) ─────────
+
+test('Saved shows and sorts by the last save, so a rescored report saved again moves up with a new date', () => {
+  const rows = [
+    { id: 'a', project: { brandName: 'Alpha', industry: 'energy', date: '2026-01-10T12:00:00Z' }, assessments: {}, scores: null, savedAt: '2026-01-10T12:00:00Z', updatedAt: '2026-09-28T15:00:00Z' },
+    { id: 'b', project: { brandName: 'Beta', industry: 'energy', date: '2026-06-01T12:00:00Z' }, assessments: {}, scores: null, savedAt: '2026-06-01T12:00:00Z', updatedAt: '2026-06-01T12:00:00Z' },
+  ];
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.SavedAssessmentsPage, { assessments: rows, onLoad() {}, onDelete() {}, onImport() {}, onExport() {}, onShare() {}, onRescore() {}, profile: { is_admin: true }, onRetry() {} }))).window.document;
+  const names = [...doc.querySelectorAll('.dc-listrow-t')].map(t => t.textContent);
+  assert.deepEqual(names, ['Alpha', 'Beta'], 'Alpha was saved most recently, though started first');
+  assert.ok(doc.querySelector('.dc-listrow-m').textContent.includes('saved Sep 28, 2026'), 'the date is the last save, not the start date');
+});
+
+test('the Saved list carries each row\'s last-updated time', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('updatedAt: a.updated_at || a.created_at,'));
+  const lib = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
+  const save = lib.slice(lib.indexOf('export const saveAssessment'), lib.indexOf('export const deleteAssessment'));
+  assert.ok(save.includes('updated_at: new Date().toISOString(),'), 'every save stamps updated_at');
+});
+
+// ── One results row per brand, history under Details (v3.109.0) ──
+
+const SAVES = [
+  { id: 'm1', brandName: 'MKB', industry: 'energy', businessModel: 'b2b', totalScore: 40, maturityLevel: 'Establishing', rubricVersion: '2.10', savedAt: '2026-03-01T12:00:00Z', createdAt: '2026-03-01T12:00:00Z', scores: {}, assessorName: 'Paul Newton' },
+  { id: 'm2', brandName: 'MKB', industry: 'energy', businessModel: 'b2b', totalScore: 44, maturityLevel: 'Establishing', rubricVersion: '2.10', savedAt: '2026-06-01T12:00:00Z', createdAt: '2026-06-01T12:00:00Z', scores: {}, assessorName: 'Paul Newton' },
+  { id: 'm3', brandName: 'mkb ', industry: 'energy', businessModel: 'b2b', totalScore: 48, maturityLevel: 'Establishing', rubricVersion: '2.11', savedAt: '2026-09-28T12:00:00Z', createdAt: '2026-09-28T12:00:00Z', scores: {}, assessorName: 'Paul Newton' },
+  { id: 'b1', brandName: 'Beta', industry: 'energy', businessModel: 'b2b', totalScore: 60, maturityLevel: 'Differentiating', rubricVersion: '2.11', savedAt: '2026-07-01T12:00:00Z', createdAt: '2026-07-01T12:00:00Z', scores: {} },
+];
+
+test('Results: one row per brand, the latest save, with the count of saves', () => {
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.CompassResultsPage, { results: SAVES, onUpdateResults() {}, profile: { is_admin: true }, user: {}, onRetry() {} }))).window.document;
+  const rows = [...doc.querySelectorAll('.dc-result-row')];
+  assert.equal(rows.length, 2, 'MKB once, Beta once');
+  const mkb = rows.find(r => /mkb/i.test(r.querySelector('.dc-listrow-t').textContent));
+  assert.equal(mkb.querySelector('.dc-result-score').textContent, '48', 'the latest save');
+  assert.match(mkb.querySelector('.dc-result-meta').textContent, /3 saves/);
+  assert.equal(doc.querySelector('.dc-page-head .dc-count').textContent, '2 brands · 4 saves');
+});
+
+test('Results: Details lists the earlier saves, newest first, with the change to the next', async () => {
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.CompassResultsPage, { results: SAVES, onUpdateResults() {}, profile: { is_admin: true }, user: {}, onRetry() {} })); });
+  const mkb = [...container.querySelectorAll('.dc-result-row')].find(r => /mkb/i.test(r.textContent));
+  await act(async () => { mkb.querySelector('button').click(); });
+  const hist = mkb.querySelectorAll('[data-field="history"] li');
+  assert.equal(hist.length, 2);
+  assert.equal(hist[0].querySelector('.dc-result-history-n').textContent, '44');
+  assert.match(hist[0].textContent, /Jun 1, 2026/);
+  assert.match(hist[0].textContent, /\+4 to the next save/);
+  assert.equal(hist[1].querySelector('.dc-result-history-n').textContent, '40');
+  assert.ok([...mkb.querySelectorAll('button')].some(b => b.textContent === 'Delete latest save'));
+  await act(async () => root.unmount());
+});
+
+test('comparisons count each brand once: benchmarks, Compare, Teaser baselines and the server jobs', async () => {
+  const bv = await import('../src/lib/benchmarkView.js');
+  const latest = bv.latestPerBrand(SAVES);
+  assert.deepEqual(latest.map(r => r.id).sort(), ['b1', 'm3']);
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('benchmarkSnapshot = buildBenchmarkSnapshot(latestResults, {'), 'Save freezes a latest-only benchmark');
+  assert.equal((src.match(/compassResults=\{latestResults\}/g) || []).length, 2, 'both report mounts');
+  assert.ok(src.includes('<ComparisonPage \n          results={latestResults}'), 'Compare');
+  for (const f of ['refresh-landscape-analysis', 'refresh-insights-analysis']) {
+    const api = readFileSync(new URL(`../api/${f}.js`, import.meta.url), 'utf8');
+    assert.ok(api.includes('const results = latestPerBrand(await resultsRes.json());'), f);
+  }
+});
+
+test('clicking the brand name or the row opens its details; clicks inside the panel do not close it', async () => {
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.CompassResultsPage, { results: SAVES, onUpdateResults() {}, profile: { is_admin: true }, user: {}, onRetry() {} })); });
+  const row = () => [...container.querySelectorAll('.dc-result-row')].find(r => /mkb/i.test(r.textContent));
+  await act(async () => { row().querySelector('.dc-listrow-t').click(); });
+  assert.ok(row().querySelector('[data-field="history"]'), 'the brand name opens it');
+  assert.equal(row().querySelector('button[aria-expanded]').textContent, 'Hide');
+  await act(async () => { row().querySelector('.dc-result-history li').click(); });
+  assert.ok(row().querySelector('[data-field="history"]'), 'a click inside the panel leaves it open');
+  await act(async () => { row().querySelector('.dc-result-meta').click(); });
+  assert.equal(row().querySelector('.dc-result-detail'), null, 'a click on the row closes it');
+  await act(async () => { row().querySelector('button[aria-expanded]').click(); });
+  assert.ok(row().querySelector('.dc-result-detail'), 'the Details button still works, once, without the row toggling it back');
+  await act(async () => root.unmount());
+});

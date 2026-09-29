@@ -187,8 +187,9 @@ test('the baseline is fed only from compass_results, never from teaser data', ()
   assert.ok(calls.length >= 2);
   // Both call sites pass a pool built from fetchCompassResults via formatCompassResult.
   calls.forEach(arg => assert.ok(['pool', 'benchPool'].includes(arg), `baseline fed from ${arg}`));
-  assert.match(teaserBlock, /const pool = \(full\.data \|\| \[\]\)\.map\(formatCompassResult\)/);
-  assert.match(teaserBlock, /setBenchPool\(\(data \|\| \[\]\)\.map\(formatCompassResult\)\)/);
+  // v3.109.0: still only compass_results, reduced to each brand's latest save
+  assert.match(teaserBlock, /const pool = latestPerBrand\(\(full\.data \|\| \[\]\)\.map\(formatCompassResult\)\)/);
+  assert.match(teaserBlock, /setBenchPool\(latestPerBrand\(\(data \|\| \[\]\)\.map\(formatCompassResult\)\)\)/);
   const fetchBody = read('src/lib/supabase.js').match(/export const fetchCompassResults = async \(\) => \{[\s\S]*?\n\};/)[0];
   assert.deepEqual([...fetchBody.matchAll(/\.from\('([^']+)'\)/g)].map(m => m[1]), ['compass_results']);
 });
@@ -629,12 +630,12 @@ test('sections sit on the page stack, not on 80px margins of their own', () => {
 test('the report toolbar keeps every action wired', () => {
   // the welcome hero uses the same class, so anchor on the report's own row
   const at = app.indexOf('dc-head-actions', app.indexOf('<header className="dc-page-head">'));
-  const bar = app.slice(at, at + 900);
+  const bar = app.slice(at, at + 1300);
   const wired = [
     ['Copy full report', 'onClick={copyReportText}'],
     ['Challenge', 'setShowChallenge(true)'],
     ['Language', 'setShowLanguage(true)'],
-    ['Save', 'onClick={onSave}'],
+    ['Save', 'onClick={saveReport}'],   // v3.108.1: via saveReport, which shows Saving and Saved
     ['Client link', 'setShowClientLink(true)'],
     ['Export DOCX', 'onClick={generateDocx}'],
   ];

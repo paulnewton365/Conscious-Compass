@@ -311,7 +311,7 @@ test('the weekly jobs store the portfolio average and date the issue in US Engli
   assert.ok(la.includes('averageScore: overallScore,'));
   const nl = readFileSync(new URL('../api/refresh-stay-conscious-newsletter.js', import.meta.url), 'utf8');
   assert.ok(nl.includes('averageScore: Number.isFinite(landscapeAnalysis.averageScore) ? landscapeAnalysis.averageScore : await portfolioAverage()'));
-  assert.ok(nl.includes("compass_results?select=total_score"), 'the fallback averages full assessments');
+  assert.ok(nl.includes("compass_results?select=brand_name,total_score,created_at"), 'the fallback averages full assessments, latest save per brand');
   assert.ok(!nl.includes("'en-GB'") && nl.includes("toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })"));
 });
 

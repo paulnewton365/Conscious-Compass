@@ -5,6 +5,19 @@
 // Also accepts POST for admin force refresh.
 
 import { requireUser } from './_auth.js';
+// Each brand's latest save only (v3.109.0): every save is kept as a row for
+// history, but a brand must count once in portfolio figures.
+const latestPerBrand = (rows) => {
+  const m = new Map();
+  (rows || []).forEach(r => {
+    const k = String(r.brand_name || '').trim().toLowerCase();
+    if (!k) return;
+    const cur = m.get(k);
+    if (!cur || String(r.created_at || '') > String(cur.created_at || '')) m.set(k, r);
+  });
+  return [...m.values()];
+};
+
 export default async function handler(req, res) {
   // Callers must be signed in (v3.100.1); see api/_auth.js.
   if (!(await requireUser(req, res, { allowCron: true }))) return;
@@ -36,11 +49,11 @@ export default async function handler(req, res) {
   // than show an invented one.
   const portfolioAverage = async () => {
     try {
-      const r = await fetch(`${supabaseUrl}/rest/v1/compass_results?select=total_score`, {
+      const r = await fetch(`${supabaseUrl}/rest/v1/compass_results?select=brand_name,total_score,created_at`, {
         headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
       });
       if (!r.ok) return null;
-      const rows = (await r.json()).map(x => Number(x.total_score)).filter(Number.isFinite);
+      const rows = latestPerBrand(await r.json()).map(x => Number(x.total_score)).filter(Number.isFinite);
       return rows.length ? Math.round(rows.reduce((a, b) => a + b, 0) / rows.length) : null;
     } catch {
       return null;

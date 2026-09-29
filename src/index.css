@@ -1115,6 +1115,17 @@ button { font: inherit; color: inherit; }
 .dc-result-attrs > div { background: var(--cc-paper); border: var(--cc-border); padding: 8px 6px; text-align: center; }
 .dc-result-attrs dt { font-size: 11px; color: var(--cc-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-result-attrs dd { margin: 2px 0 0; font: var(--cc-w-regular) 20px/1.1 var(--cc-serif); color: var(--cc-ink); }
+.dc-result-history { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--cc-s-2); padding-top: var(--cc-s-3); border-top: var(--cc-border); }
+.dc-result-history ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.dc-result-history li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: var(--cc-s-3); align-items: baseline; padding: 6px 0; border-bottom: var(--cc-border); font-size: var(--cc-fs-ui); color: var(--cc-body); }
+.dc-result-history-n { font: var(--cc-w-regular) 20px/1 var(--cc-serif); color: var(--cc-ink); font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) { .dc-result-history li { grid-template-columns: 36px minmax(0, 1fr); } .dc-result-history li .dc-meta { grid-column: 2; } }
+/* The list row's last-child rule (justify-self: end) outranked the detail's
+   own stretch, so the opened panel sat in the right column (v3.109.0). */
+.dc-listrow > .dc-result-detail { justify-self: stretch; }
+.dc-result-row { cursor: pointer; }
+.dc-result-row:hover .dc-listrow-t { text-decoration: underline; text-underline-offset: 3px; }
+.dc-result-row .dc-result-detail { cursor: auto; }
 .dc-result-foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: var(--cc-s-4); flex-wrap: wrap; }
 .dc-man-attrs { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--cc-s-2) var(--cc-s-4); }
 .dc-man-attrs label { display: grid; grid-template-columns: minmax(0,1fr) 88px; align-items: center; gap: var(--cc-s-2); font-size: var(--cc-fs-ui); color: var(--cc-body); }
@@ -1481,6 +1492,56 @@ button { font: inherit; color: inherit; }
   .dc-bm-axis.is-rows { margin-left: 94px; margin-right: 88px; }
 }
 
+
+/* ---------- Scroll motion, three reports (v3.108.0) ----------
+   Sections fade up once as they enter; "draw" sections also grow their data.
+   Campaign coherence and the trust lens are "fade" only. Markers only fade,
+   because their transforms position them. See src/lib/scrollMotion.js. */
+.dc-motion [data-reveal] { transition: opacity .45s ease-out, transform .45s cubic-bezier(.22, 1, .36, 1); }
+.dc-motion [data-reveal]:not(.is-revealed) { opacity: 0; transform: translateY(12px); }
+
+.dc-motion [data-reveal="draw"] .dc-lens-bar > i,
+.dc-motion [data-reveal="draw"] .dc-bm-track .range,
+.dc-motion [data-reveal="draw"] .dc-bm-scale-track .range,
+.dc-motion [data-reveal="draw"] .dc-fp-seg i.on { transform-origin: left center; transition: transform .7s cubic-bezier(.22, 1, .36, 1) .15s; }
+.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-lens-bar > i,
+.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-track .range,
+.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-scale-track .range,
+.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-fp-seg i.on { transform: scaleX(0); }
+
+.dc-motion [data-reveal="draw"] .dc-bm-track .subj, .dc-motion [data-reveal="draw"] .dc-bm-track .avg,
+.dc-motion [data-reveal="draw"] .dc-bm-scale-track .subj, .dc-motion [data-reveal="draw"] .dc-bm-scale-track .subj-l,
+.dc-motion [data-reveal="draw"] .dc-bm-scale-track .avg { transition: opacity .35s ease-out .65s; }
+.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-track .subj, .dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-track .avg,
+.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-scale-track .subj, .dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-scale-track .subj-l,
+.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-scale-track .avg { opacity: 0; }
+
+.dc-motion [data-reveal="draw"] .dc-radar .s-subject,
+.dc-motion [data-reveal="draw"] .dc-radar .s-bench { transform-box: fill-box; transform-origin: center; transition: transform .8s cubic-bezier(.22, 1, .36, 1) .2s; }
+.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-radar .s-subject,
+.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-radar .s-bench { transform: scale(0); }
+
+/* A light stagger down rows and across cards */
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(2) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(2) .dc-lens-bar > i { transition-delay: .19s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(3) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(3) .dc-lens-bar > i { transition-delay: .23s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(4) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(4) .dc-lens-bar > i { transition-delay: .27s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(5) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(5) .dc-lens-bar > i { transition-delay: .31s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(6) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(6) .dc-lens-bar > i { transition-delay: .35s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(7) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(7) .dc-lens-bar > i { transition-delay: .39s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(8) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(8) .dc-lens-bar > i { transition-delay: .43s; }
+
+/* Printing and reduced motion always see the finished state */
+@media print, (prefers-reduced-motion: reduce) {
+  .dc-motion [data-reveal], .dc-motion [data-reveal] * { transition: none !important; }
+  .dc-motion [data-reveal]:not(.is-revealed) { opacity: 1 !important; transform: none !important; }
+  .dc-motion [data-reveal]:not(.is-revealed) .dc-lens-bar > i,
+  .dc-motion [data-reveal]:not(.is-revealed) .range,
+  .dc-motion [data-reveal]:not(.is-revealed) .dc-fp-seg i.on,
+  .dc-motion [data-reveal]:not(.is-revealed) .dc-radar polygon { transform: none !important; }
+  .dc-motion [data-reveal]:not(.is-revealed) .subj, .dc-motion [data-reveal]:not(.is-revealed) .subj-l,
+  .dc-motion [data-reveal]:not(.is-revealed) .avg { opacity: 1 !important; }
+}
+@media (prefers-reduced-motion: reduce) { [data-motion-bar] { transform: none !important; transition: none !important; } }
 
 /* ---------- Dialogs (v3.97.2) ----------
    One component for every modal. No design packet yet: built from the tokens,

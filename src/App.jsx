@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers } from './data/rubric';
 import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
@@ -6,10 +6,11 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.107.0';
+const APP_VERSION = '3.109.1';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
-import { benchmarkView, benchmarkPosition } from './lib/benchmarkView';
+import { startScrollMotion, retagSections, revealAll, motionAllowed } from './lib/scrollMotion';
+import { benchmarkView, benchmarkPosition, latestPerBrand, resultHistory, resultBrandKey } from './lib/benchmarkView';
 import { buildLiteSection, applyEarnedCreativeLift, parseActivations, ecoFromReport, round1, ECO_CONFIG } from './lib/eco';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
 import { trustLensView } from './lib/trustLensView';
@@ -865,10 +866,12 @@ IMPORTANT FORMATTING RULES:
 
 // Spider Chart Component
 function SpiderChart({ scores, animate = true }) {
-  const [progress, setProgress] = useState(animate ? 0 : 1);
+  // Reduced motion: drawn at once (v3.108.0).
+  const moving = animate && motionAllowed();
+  const [progress, setProgress] = useState(moving ? 0 : 1);
 
   useEffect(() => {
-    if (!animate) { setProgress(1); return; }
+    if (!moving) { setProgress(1); return; }
     // Small delay so the page has painted before the animation begins
     const delay = setTimeout(() => {
       const duration = 2500;
@@ -884,7 +887,7 @@ function SpiderChart({ scores, animate = true }) {
       requestAnimationFrame(tick);
     }, 150);
     return () => clearTimeout(delay);
-  }, [animate, scores]);
+  }, [moving, scores]);
 
   const data = ATTRIBUTES.map(attr => ({
     name: attr.name,
@@ -1133,6 +1136,21 @@ function ComparisonSpiderChart({ brands, size = 320, industryAvg = null, avgLabe
   );
 }
 
+// Scroll motion for the three reports (v3.108.0): a callback ref for the
+// report's root. Starts the shared observer when the root mounts (which may be
+// after scoring finishes) and picks up any section that appears later.
+function useScrollMotion() {
+  const nodeRef = useRef(null);
+  const stopRef = useRef(null);
+  const ref = useCallback((node) => {
+    if (stopRef.current) { stopRef.current(); stopRef.current = null; }
+    nodeRef.current = node;
+    if (node) stopRef.current = startScrollMotion(node);
+  }, []);
+  useEffect(() => { if (nodeRef.current) retagSections(nodeRef.current); });
+  return ref;
+}
+
 // Maturity Continuum Visual
 // Fires once when the element scrolls into view. Same pattern MaturityContinuum
 // already uses, lifted out so the campaign ladder and the benchmark radar can
@@ -1199,7 +1217,7 @@ function PositionBands({ stageName }) {
       style={{ gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), height: 14 }}>
       {MATURITY_STAGES.map((st, i) => (
         <div key={st.id} style={{ background: '#FBFAF7', overflow: 'hidden' }}>
-          <div style={{
+          <div data-motion-bar="" style={{
             height: '100%',
             background: st.name === stageName ? '#D9442A' : '#DEDAD2',
             transform: `scaleX(${inView ? 1 : 0})`,
@@ -1241,24 +1259,6 @@ function FieldSection({ label, children, tight = false }) {
   );
 }
 
-// Fades and lifts a block once it scrolls into view. Used to restore the
-// section-level reveal that was lost when the benchmark charts were rebuilt
-// as inline markup rather than components.
-function Reveal({ children, delay = 0, y = 16, threshold = 0.15, className = '', style = {} }) {
-  const [ref, inView] = useInView(threshold);
-  return (
-    <div ref={ref} className={className}
-      style={{
-        ...style,
-        opacity: inView ? 1 : 0,
-        transform: inView ? 'translateY(0)' : `translateY(${y}px)`,
-        transition: 'opacity 700ms ease, transform 700ms cubic-bezier(0.22, 1, 0.36, 1)',
-        transitionDelay: `${delay}ms`,
-      }}>
-      {children}
-    </div>
-  );
-}
 
 // ── Earned creative (ECO module, framework 2.11) ────────────
 // The client-facing text blocks, shared by the full report, the client view
@@ -2284,7 +2284,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
             {/* The wordmark itself, kept to the brief's 17px and centred on
                 the same line as the product name. */}
             <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg"
-              alt="Antenna Group" style={{ height: 17, width: 'auto', display: 'block' }} />
+              alt="Antenna Group" style={{ height: 22, width: 'auto', display: 'block' }} />
             <span>Conscious Compass</span>
           </a>
 
@@ -2438,7 +2438,7 @@ function AssessFoot({ onPrev, canProceed, onProceed, blocker }) {
 function AssessPage({ step, name, title, project, rail, standfirst = null, children }) {
   const url = project.websiteUrl;
   return (
-    <div className="dc-wrap dc-page is-form animate-fade-in" data-screen={`assess-${name.toLowerCase().replace(/\s+/g, '-')}`}>
+    <div className="dc-wrap dc-page is-form" data-screen={`assess-${name.toLowerCase().replace(/\s+/g, '-')}`}>
       <MobileAssessmentBanner />
       <div className="dc-page-head">
         <div className="dc-kicker is-accent">Step {step} of 6 · {name}</div>
@@ -2532,7 +2532,7 @@ function DraftNotice({ draft, onResume, onDiscard, afterDiscard }) {
 function WelcomePage({ onStart, draft = null, onResume = () => {}, onDiscard = () => {} }) {
   const startRef = useRef(null);
   return (
-    <div className="dc-wrap dc-page animate-fade-in">
+    <div className="dc-wrap dc-page">
       {draft?.project?.brandName && (
         <DraftNotice draft={draft} onResume={onResume} onDiscard={onDiscard}
           afterDiscard={() => setTimeout(() => startRef.current?.focus(), 0)} />
@@ -2820,7 +2820,7 @@ function SetupPage({ project, setProject, onNext, onBack }) {
   const canProceed = project.brandName && project.websiteUrl;
 
   return (
-    <div className="dc-wrap dc-page animate-fade-in">
+    <div className="dc-wrap dc-page">
       <MobileAssessmentBanner />
       <div className="dc-setup">
         <StepRail steps={SETUP_STEPS} currentStep={1} />
@@ -5349,7 +5349,7 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
   return (
     <>
             {open && (
-              <div className="dc-attr-grid animate-fade-in">
+              <div className="dc-attr-grid">
                 {ATTRIBUTES.map(attr => {
                   const sc = scores[attr.id] || {};
                   const avg = benchmark?.attrAvgs?.[attr.id];
@@ -5564,6 +5564,16 @@ function ReportBenchmarkSection({ project, scores, overall, benchmark, benchmark
 }
 
 function ReportPage({ project, setProject, scores, setScores, assessments, setAssessments, apiKey, onSave, onPrev, profile, compassResults = [], savedBenchmark = null }) {
+  // Save shows its state (v3.108.1): Saving while it runs, then Saved.
+  const [saveState, setSaveState] = useState('idle');
+  const saveReport = async () => {
+    if (saveState === 'saving') return;
+    setSaveState('saving');
+    const ok = await onSave({ quiet: true });
+    setSaveState(ok ? 'saved' : 'idle');
+    if (ok) setTimeout(() => setSaveState(st => (st === 'saved' ? 'idle' : st)), 2500);
+  };
+  const motionRef = useScrollMotion();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isScoring, setIsScoring] = useState(false);
   const [scoringError, setScoringError] = useState(null);
@@ -6308,7 +6318,7 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   // none. It shows real elapsed time and a bar marked as an estimate.
   if (!hasValidScores) {
     return (
-      <div className="dc-wrap dc-page is-form animate-fade-in" data-screen="scoring">
+      <div className="dc-wrap dc-page is-form" data-screen="scoring">
         <div className="dc-scoring">
           <div className="dc-page-head">
             <div className="dc-kicker is-accent">{isScoring ? `Scoring · ${project.brandName}` : 'Step 6 of 6 · Report'}</div>
@@ -6959,6 +6969,7 @@ ${content.slice(0, 8000)}`;
       const captureNode = async (ref, width) => {
         if (!ref?.current) return null;
         try {
+          revealAll();   // the finished state, never a half-drawn panel (v3.108.0)
           const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#FBFAF7', logging: false });
           return { data: canvas.toDataURL('image/png').split(',')[1], w: width, h: Math.round((canvas.height * width) / canvas.width) };
         } catch (err) {
@@ -7540,7 +7551,7 @@ ${content.slice(0, 8000)}`;
 
 
   return (
-    <div className="dc-wrap dc-page animate-fade-in">
+    <div className="dc-wrap dc-page" ref={motionRef}>
       {/* ── Masthead ─────────────────────────────────────────── */}
       <header className="dc-page-head">
         <div className="dc-head-row is-baseline">
@@ -7556,7 +7567,9 @@ ${content.slice(0, 8000)}`;
               <button onClick={copyReportText} className="btn-secondary">Copy full report</button>
               <button onClick={() => setShowChallenge(true)} className="btn-secondary">Challenge</button>
               <button onClick={() => setShowLanguage(true)} className="btn-secondary">Language</button>
-              <button onClick={onSave} className="btn-secondary">Save</button>
+              <button type="button" onClick={saveReport} className="btn-secondary" disabled={saveState === 'saving'} aria-busy={saveState === 'saving' || undefined} aria-live="polite" data-field="save">
+                {saveState === 'saving' ? 'Saving\u2026' : saveState === 'saved' ? 'Saved' : 'Save'}
+              </button>
               <button onClick={() => setShowClientLink(true)} className="btn-secondary">Client link</button>
               <button onClick={generateDocx} disabled={isGenerating} className="btn-primary">
                 {isGenerating ? 'Preparing\u2026' : 'Export DOCX'}
@@ -7679,7 +7692,7 @@ ${content.slice(0, 8000)}`;
         <SectionHeading order={sectionOrder} label="Sustainability narrative" open={expandedSections.thesis}
           onToggle={() => toggleSection('thesis')} />
         {expandedSections.thesis && (
-          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+          <div style={{ marginTop: 32 }}>
             <ThesisPanel thesis={scores.sustainabilityNarrative}
               onRegenerate={() => { setScores(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
           </div>
@@ -7721,7 +7734,7 @@ ${content.slice(0, 8000)}`;
         <SectionHeading order={sectionOrder} label="Recommendations" open={expandedSections.recommendations}
           onToggle={() => toggleSection('recommendations')} />
         {expandedSections.recommendations && (
-          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+          <div style={{ marginTop: 32 }}>
             {/* Ledger rows: ordinal, title and description, attribute chip. */}
             {recommendations.map((r, i) => (
               <div key={i} className="dc-rec-row dc-reveal grid gap-6 items-baseline"
@@ -7754,7 +7767,7 @@ ${content.slice(0, 8000)}`;
         <SectionHeading order={sectionOrder} label="Conclusions" open={expandedSections.conclusions}
           onToggle={() => toggleSection('conclusions')} />
         {expandedSections.conclusions && (
-          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+          <div style={{ marginTop: 32 }}>
             <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
               {scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building an impactful, conscious brand presence. By focusing on the recommendations outlined above, particularly strengthening ${sortedAttrs[0].name} and ${sortedAttrs[1].name} capabilities, the brand can elevate its market position and create deeper connections with its audience.`}
             </p>
@@ -7768,7 +7781,7 @@ ${content.slice(0, 8000)}`;
           <SectionHeading order={sectionOrder} label="Score justification" open={expandedSections.justification}
           onToggle={() => toggleSection('justification')} />
           {expandedSections.justification && (
-            <div className="animate-fade-in" style={{ marginTop: 32 }}>
+            <div style={{ marginTop: 32 }}>
               <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
                 {scores.justification}
               </p>
@@ -7785,7 +7798,7 @@ ${content.slice(0, 8000)}`;
           <SectionHeading order={sectionOrder} label="Challenge history" open={expandedSections.challenges}
             onToggle={() => toggleSection('challenges')} />
           {expandedSections.challenges && (
-            <div className="animate-fade-in" style={{ marginTop: 32 }}>
+            <div style={{ marginTop: 32 }}>
               <ChallengeHistory challenges={scores.challenges} />
             </div>
           )}
@@ -7797,7 +7810,7 @@ ${content.slice(0, 8000)}`;
         <SectionHeading order={sectionOrder} label="What we evaluated" open={expandedSections.evaluated}
           onToggle={() => toggleSection('evaluated')} />
         {expandedSections.evaluated && (
-          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+          <div style={{ marginTop: 32 }}>
             <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>
               This assessment was conducted using Antenna Group's Brand Consciousness Framework v{FRAMEWORK_VERSION}, evaluating {project.brandName} across four key dimensions. {websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model ({project.businessModel.toUpperCase()}) and industry context ({industryName}) were applied to weight attribute importance appropriately.
             </p>
@@ -7810,7 +7823,7 @@ ${content.slice(0, 8000)}`;
         <SectionHeading order={sectionOrder} label="Assessment readouts" open={expandedSections.readouts}
           onToggle={() => toggleSection('readouts')} />
         {expandedSections.readouts && (
-          <div className="animate-fade-in" style={{ marginTop: 32 }}>
+          <div style={{ marginTop: 32 }}>
             {/* Website Assessment Readout */}
             <div className="bg-white" style={{ marginBottom: 2 }}>
               <button 
@@ -8019,7 +8032,11 @@ ${content.slice(0, 8000)}`;
 }
 
 // Compass Results Page - Summary grid of all assessments
-function CompassResultsPage({ results, onUpdateResults, profile, user, loading = false, loadError = null, onRetry }) {
+function CompassResultsPage({ results: allResults, onUpdateResults, profile, user, loading = false, loadError = null, onRetry }) {
+  // One row per brand, its latest save (v3.109.0). Every save is still kept;
+  // a brand's earlier saves are listed under Details.
+  const results = useMemo(() => latestPerBrand(allResults), [allResults]);
+  const history = useMemo(() => resultHistory(allResults), [allResults]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [expandedRows, setExpandedRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -8190,11 +8207,11 @@ function CompassResultsPage({ results, onUpdateResults, profile, user, loading =
   // and one row per brand in Saved's pattern: name, a meta line, the serif
   // score, then Details for the attribute breakdown.
   return (
-    <div className="dc-wrap dc-page animate-fade-in" data-screen="results">
+    <div className="dc-wrap dc-page" data-screen="results">
       <div className="dc-head-row">
         <div className="dc-page-head">
           <h1 className="dc-display">Compass Results</h1>
-          <p className="dc-count">{results.length} assessment{results.length === 1 ? '' : 's'}</p>
+          <p className="dc-count">{results.length} brand{results.length === 1 ? '' : 's'}{allResults.length > results.length ? ` · ${allResults.length} saves` : ''}</p>
         </div>
         <div className="dc-head-actions">
           {profile?.is_admin && <button type="button" onClick={() => setShowAddModal(true)} className="btn-secondary">Add manual entry</button>}
@@ -8260,7 +8277,7 @@ function CompassResultsPage({ results, onUpdateResults, profile, user, loading =
           {/* The header carries the total; this line appears only while filtering. */}
           {hasActiveFilters && (
             <div className="dc-head-row is-baseline">
-              <span className="dc-count">{filteredResults.length} of {results.length} assessments</span>
+              <span className="dc-count">{filteredResults.length} of {results.length} brands</span>
               <button type="button" className="dc-link-btn" onClick={clearFilters}>Clear filters</button>
             </div>
           )}
@@ -8279,10 +8296,15 @@ function CompassResultsPage({ results, onUpdateResults, profile, user, loading =
                   `v${r.rubricVersion || '2.3'}`,
                   fmtDate(r.savedAt) ? `assessed ${fmtDate(r.savedAt)}` : null,
                   r.isManual ? 'Manual' : null,
+                  (history.get(resultBrandKey(r))?.length || 1) > 1 ? `${history.get(resultBrandKey(r)).length} saves` : null,
                   ch?.count ? `Challenged${ch.count > 1 ? ` ×${ch.count}` : ''}${Number.isFinite(ch.netDelta) && ch.netDelta !== 0 ? ` (${ch.netDelta > 0 ? '+' : ''}${ch.netDelta})` : ''}` : null,
                 ].filter(Boolean);
                 return (
-                  <li key={key} className="dc-listrow dc-result-row" data-result={key}>
+                  // The whole row opens and closes it, not only Details (v3.109.1).
+                  // Clicks on buttons, links or inside the open panel are left
+                  // alone. Keyboard users keep the Details button.
+                  <li key={key} className="dc-listrow dc-result-row" data-result={key}
+                    onClick={(e) => { if (e.target.closest('button, a, input, select, textarea, .dc-result-detail')) return; toggleRow(key); }}>
                     <div className="dc-result-main">
                       <div className="dc-listrow-t">{r.brandName}</div>
                       <div className="dc-listrow-m dc-result-meta">
@@ -8302,9 +8324,31 @@ function CompassResultsPage({ results, onUpdateResults, profile, user, loading =
                             <div key={attr.id}><dt>{attr.name}</dt><dd>{r.scores?.[attr.id] ?? '—'}</dd></div>
                           ))}
                         </dl>
+                        {(() => {
+                          const saves = history.get(resultBrandKey(r)) || [];
+                          if (saves.length < 2) return null;
+                          return (
+                            <div className="dc-result-history" data-field="history">
+                              <div className="dc-kicker">Earlier saves</div>
+                              <ol>
+                                {saves.slice(1).map((prev, k) => {
+                                  const newer = saves[k];
+                                  const change = Number.isFinite(newer?.totalScore) && Number.isFinite(prev.totalScore) ? newer.totalScore - prev.totalScore : null;
+                                  return (
+                                    <li key={prev.id || k}>
+                                      <span className="dc-result-history-n">{prev.totalScore}</span>
+                                      <span>{[fmtDate(prev.savedAt), prev.maturityLevel, `v${prev.rubricVersion || '2.3'}`, prev.assessorName].filter(Boolean).join(' · ')}</span>
+                                      {change !== null && change !== 0 && <span className="dc-meta">{change > 0 ? '+' : '\u2212'}{Math.abs(change)} to the next save</span>}
+                                    </li>
+                                  );
+                                })}
+                              </ol>
+                            </div>
+                          );
+                        })()}
                         <div className="dc-result-foot">
                           <span className="dc-meta">Assessor: {r.assessorName || 'Unknown'} · {r.savedAt ? new Date(r.savedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'no date'}</span>
-                          {profile?.is_admin && <button type="button" className="dc-link-btn is-danger" onClick={() => handleDelete(r.id)}>Delete</button>}
+                          {profile?.is_admin && <button type="button" className="dc-link-btn is-danger" onClick={() => handleDelete(r.id)}>{(history.get(resultBrandKey(r))?.length || 1) > 1 ? 'Delete latest save' : 'Delete'}</button>}
                         </div>
                       </div>
                     )}
@@ -8402,7 +8446,7 @@ function OnboardingTour({ onComplete }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#15171A] max-w-lg w-full overflow-hidden animate-fade-in">
+      <div className="bg-[#15171A] max-w-lg w-full overflow-hidden">
         <div className="bg-[#D9442A] p-8 text-center">
           <Icon className="w-16 h-16 text-[#15171A] mx-auto mb-4" />
           <h2 className="text-[22px] font-semibold tracking-tight text-[#15171A]">{currentStep.title}</h2>
@@ -10568,6 +10612,9 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
   const [filterStage, setFilterStage] = useState('');
   const [filterIndustry, setFilterIndustry] = useState('');
   const [sortBy, setSortBy] = useState('date-desc');
+  // When the assessment was last saved: the row's updated_at, falling back to
+  // its creation, then the project date for anything older (v3.108.2).
+  const lastSaved = (a) => String(a.updatedAt || a.savedAt || a.project?.date || '');
 
   const handleFileImport = (e) => {
     const file = e.target.files?.[0];
@@ -10617,8 +10664,8 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
       return true;
     })
     .sort((x, y) => {
-      if (sortBy === 'date-desc') return (y.a.project.date || '').localeCompare(x.a.project.date || '');
-      if (sortBy === 'date-asc') return (x.a.project.date || '').localeCompare(y.a.project.date || '');
+      if (sortBy === 'date-desc') return lastSaved(y.a).localeCompare(lastSaved(x.a));
+      if (sortBy === 'date-asc') return lastSaved(x.a).localeCompare(lastSaved(y.a));
       if (sortBy === 'score-desc') return (y.overallScore || 0) - (x.overallScore || 0);
       if (sortBy === 'score-asc') return (x.overallScore || 0) - (y.overallScore || 0);
       if (sortBy === 'name') return x.a.project.brandName.localeCompare(y.a.project.brandName);
@@ -10643,7 +10690,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
   };
 
   return (
-    <div className="dc-wrap dc-page animate-fade-in" data-screen="saved">
+    <div className="dc-wrap dc-page" data-screen="saved">
       {showClientLinks && (
         <ClientLinksModal
           assessments={assessments}
@@ -10743,7 +10790,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
                       </div>
                       <div className="dc-listrow-m">
                         {[industryName, maturity?.name,
-                          a.project.date ? `saved ${new Date(a.project.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : null]
+                          lastSaved(a) ? `saved ${new Date(lastSaved(a)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : null]
                           .filter(Boolean).join(' · ') || '—'}
                       </div>
                     </div>
@@ -11310,6 +11357,7 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile, existingNo
 // and the conclusion. Nothing else. No navigation, no export controls.
 // ─────────────────────────────────────────────────────────────
 function ClientReportView({ payload }) {
+  const motionRef = useScrollMotion();
   const { project, scores } = payload;
 
   // Links issued before avgScore, rank and percentile were added to the
@@ -11371,7 +11419,7 @@ function ClientReportView({ payload }) {
     // Root matches the internal report exactly. The extra full-bleed wrapper
     // put a second background behind the page panel, which is why the client
     // ground read darker and the sections looked boxed against it.
-    <div className="dc-wrap dc-page pt-8 animate-fade-in">
+    <div className="dc-wrap dc-page pt-8" ref={motionRef}>
       <article className="dc-read">
         {/* A thin strip, not app chrome: a prospect sees this on its own. */}
         <div className="dc-read-top">
@@ -11701,7 +11749,7 @@ function SharedReportView({ report, onClose }) {
         </div>
       </header>
 
-      <div className="dc-wrap dc-page animate-fade-in">
+      <div className="dc-wrap dc-page">
         {/* Report Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-[#15171A] mb-2">Brand Consciousness Report</h1>
@@ -12534,6 +12582,7 @@ async function teaserSearchCall(prompt, { searchUses = 5, maxTokens = 3000 } = {
 // opportunity, services, a sustainability read or a brand image; those are
 // kept, in the packet's vocabulary, whenever the payload carries them.
 function TeaserClientView({ payload, heroImage = null, baseline = null }) {
+  const motionRef = useScrollMotion();
   if (!payload) return null;
   const { scores } = payload;
   const date = payload.scoredAt ? new Date(payload.scoredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
@@ -12583,7 +12632,7 @@ function TeaserClientView({ payload, heroImage = null, baseline = null }) {
   );
 
   return (
-    <article className="dc-teaser" data-teaser-client-view="true">
+    <article className="dc-teaser" data-teaser-client-view="true" ref={motionRef}>
       <header className="dc-teaser-cover">
         <div className="dc-stack is-gap-5">
           <div className="dc-kicker is-accent">Indicative Compass read{date ? ` \u00B7 ${date}` : ''}</div>
@@ -12826,7 +12875,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
   // Packet screen 21 (and 20 while running): toolbar, blocked notice, the
   // internal panel, then the read.
   return (
-    <div className="dc-wrap dc-page animate-fade-in">
+    <div className="dc-wrap dc-page">
       <div className="dc-tz-toolbar">
         <a className="dc-tz-back" href="#teaser" onClick={back} aria-disabled={busy || undefined}>← All teasers</a>
         <div className="dc-head-actions">
@@ -13139,7 +13188,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     setBenchError(null);
     const { data, error: e } = await fetchCompassResults();
     if (e) { setBenchPool(null); setBenchError(e.message); return; }
-    setBenchPool((data || []).map(formatCompassResult));
+    setBenchPool(latestPerBrand((data || []).map(formatCompassResult)));   // latest save per brand (v3.109.0)
   };
 
   const openRecord = async (id) => {
@@ -13253,7 +13302,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       const [{ data, error: e }, full] = await Promise.all([fetchCampaignScores(c.id), fetchCompassResults()]);
       if (e) throw new Error(e.message);
       if (full.error) throw new Error(`Could not load full assessments for the sector baselines: ${full.error.message}`);
-      const pool = (full.data || []).map(formatCompassResult);
+      const pool = latestPerBrand((full.data || []).map(formatCompassResult));   // latest save per brand (v3.109.0)
       const baselines = Object.fromEntries((data || []).map(t => [t.id,
         teaserSectorBaseline(pool, { industry: t.industry, brandName: t.brand_name, totalScore: t.result?.overall })]));
       const { zip, filename } = await buildCampaignWorkbook(c.name, data || [], new Date(), baselines, { thesis: !!c.cso_audience });
@@ -13345,7 +13394,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   return (
     <>
     {staleBanner}
-    <div className="dc-wrap dc-page animate-fade-in">
+    <div className="dc-wrap dc-page">
       <div className="dc-page-head">
         <h1 className="dc-display">Teaser</h1>
         <p className="dc-standfirst">Indicative Compass reads for new business.</p>
@@ -13561,7 +13610,7 @@ function UIKitPage() {
   const swatch = (v) => `var(${v})`;
 
   return (
-    <div className="dc-wrap dc-page animate-fade-in" data-page="uikit">
+    <div className="dc-wrap dc-page" data-page="uikit">
       <div className="dc-pagehead">
         <div>
           <h1 className="dc-h2">UI kit</h1>
@@ -13822,6 +13871,9 @@ function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [savedAssessments, setSavedAssessments] = useState([]);
   const [compassResults, setCompassResults] = useState([]);
+  // Each brand's latest save only (v3.109.0): every comparison (benchmarks,
+  // Compare) counts a brand once. The Results page gets every row, for history.
+  const latestResults = useMemo(() => latestPerBrand(compassResults), [compassResults]);
   // Starts true: the first fetch is kicked off on mount, so an empty list on
   // the first render means "not loaded yet", not "nothing saved". Showing the
   // empty state during that window reads as data loss.
@@ -13936,6 +13988,9 @@ function AppContent() {
           assessments: a.assessments,
           scores: a.scores,
           savedAt: a.created_at,
+          // Last save: updated on every save, so a rescore that is saved again
+          // moves the date and the order on the Saved page (v3.108.2).
+          updatedAt: a.updated_at || a.created_at,
         }));
         setSavedAssessments(formattedAssessments);
       }
@@ -14055,11 +14110,16 @@ function AppContent() {
     return true;
   };
 
+  // One save at a time (v3.108.1): a second click while a save is running
+  // used to start another, and every save adds a results row.
+  const savingRef = useRef(false);
   const handleSave = async ({ quiet = false, resumeStep = null } = {}) => {
     if (!project.brandName) {
       alert('Please enter a brand name before saving.');
       return false;
     }
+    if (savingRef.current) return false;
+    savingRef.current = true;
     try {
       // Create a copy of assessments without large image data
       const assessmentsToSave = {
@@ -14078,7 +14138,7 @@ function AppContent() {
             .filter(([, val]) => val && typeof val.score === 'number')
             .reduce((a, [, v]) => a + v.score, 0) / 8
         );
-        benchmarkSnapshot = buildBenchmarkSnapshot(compassResults, {
+        benchmarkSnapshot = buildBenchmarkSnapshot(latestResults, {
           industry: project.industry,
           industryName: INDUSTRIES.find(i => i.id === project.industry)?.name || null,
           brandName: project.brandName,
@@ -14164,18 +14224,27 @@ function AppContent() {
           rubricVersion: FRAMEWORK_VERSION,
         };
         
-        await saveCompassResult(resultData);
+        // The results summary feeds the Results page and every benchmark. Its
+        // failure used to be ignored while the alert still said "saved".
+        const { error: resultError } = await saveCompassResult(resultData);
+        if (resultError) {
+          console.error('Results summary not saved:', resultError);
+          alert(`The assessment was saved, but its results summary was not, so Results and benchmarks won't include it yet: ${resultError.message || 'unknown error'}. Save again to retry.`);
+        }
       }
 
-      // Reload data from Supabase
-      await loadDataFromSupabase();
       clearDraft();
+      // Refreshing the lists afterwards is not part of the save: a hiccup here
+      // used to report "Save failed" for a save that had worked.
+      try { await loadDataFromSupabase(); } catch (e) { console.warn('Saved, but the lists did not refresh:', e); }
       if (!quiet) alert('Assessment saved!');
       return true;
     } catch (e) {
       console.error('Save failed:', e);
       alert('Save failed: ' + (e.message || 'Unknown error'));
       return false;
+    } finally {
+      savingRef.current = false;
     }
   };
 
@@ -14427,7 +14496,7 @@ function AppContent() {
           onAdmin={() => setShowAdminPage(true)}
         />
         <ComparisonPage 
-          results={compassResults}
+          results={latestResults}
           onBack={() => setShowComparisonPage(false)}
           profile={profile}
           initialTab={compareInitialTab}
@@ -14539,7 +14608,7 @@ function AppContent() {
       {/* Read-only users see simplified welcome page, unless they've loaded a report */}
       {isReadonly ? (
         currentStep === 6 && scores ? (
-          <ReportPage project={project} setProject={setProject} scores={scores} setScores={setScores} assessments={assessments} setAssessments={setAssessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(0)} profile={profile} compassResults={compassResults} savedBenchmark={project.benchmarkSnapshot || null} />
+          <ReportPage project={project} setProject={setProject} scores={scores} setScores={setScores} assessments={assessments} setAssessments={setAssessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(0)} profile={profile} compassResults={latestResults} savedBenchmark={project.benchmarkSnapshot || null} />
         ) : (
           <ReadOnlyWelcomePage 
             onCompassResults={() => setShowResultsPage(true)}
@@ -14559,7 +14628,7 @@ function AppContent() {
           {currentStep === 3 && <SocialMediaAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
           {currentStep === 4 && <AIReputationPage onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
           {currentStep === 5 && <EarnedMediaAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
-          {currentStep === 6 && <ReportPage project={project} setProject={setProject} scores={scores} setScores={setScores} assessments={assessments} setAssessments={setAssessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} compassResults={compassResults} savedBenchmark={project.benchmarkSnapshot || null} />}
+          {currentStep === 6 && <ReportPage project={project} setProject={setProject} scores={scores} setScores={setScores} assessments={assessments} setAssessments={setAssessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} compassResults={latestResults} savedBenchmark={project.benchmarkSnapshot || null} />}
         </>
       )}
     </div>
