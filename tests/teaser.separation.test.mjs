@@ -389,7 +389,8 @@ test('the shell and form rules match the screen examples', () => {
   assert.match(css, /\.dc-nav-links a\[aria-current="page"\][^}]*border-color: var\(--cc-rust-text\)/);
   assert.match(css, /--cc-gutter: 48px/, "the handoff's build files use 48px page padding");
   // fields: 44px, hairline, 2px radius, everywhere rather than per screen
-  assert.match(css, /\.dc-page select \{ height: 44px; \}/);
+  // v3.97.2: the same rule now also covers fields inside dialogs
+  assert.match(css, /\.dc-page select,?[^{]*\{ height: 44px; \}/);
   assert.match(css, /border: 1px solid var\(--cc-faint\)/, 'fields take the hairline border');
 });
 

@@ -957,18 +957,18 @@ button { font: inherit; color: inherit; }
    the stray button colours, header underlines and alignment came from. */
 
 /* Fields, applied from here so every screen picks them up. */
-.dc-page input[type="text"], .dc-page input[type="url"], .dc-page input[type="email"],
-.dc-page input[type="password"], .dc-page input[type="search"], .dc-page input:not([type]),
-.dc-page select, .dc-page textarea {
+.dc-page input[type="text"], .dc-page input[type="url"], .dc-page input[type="email"], .dc-page input[type="password"], .dc-page input[type="search"], .dc-page input:not([type]), .dc-page select, .dc-page textarea,
+.dc-dialog input[type="text"], .dc-dialog input[type="url"], .dc-dialog input[type="email"], .dc-dialog input[type="password"], .dc-dialog input[type="search"], .dc-dialog input:not([type]), .dc-dialog select, .dc-dialog textarea {
   background: var(--cc-paper); border: 1px solid var(--cc-faint);
   border-radius: var(--cc-r-1); color: var(--cc-ink);
   font: var(--cc-w-regular) var(--cc-fs-ui)/1.4 var(--cc-sans); padding: 0 12px;
 }
-.dc-page input[type="text"], .dc-page input[type="url"], .dc-page input[type="email"],
-.dc-page input[type="password"], .dc-page input[type="search"], .dc-page input:not([type]),
-.dc-page select { height: 44px; }
-.dc-page textarea { padding: 12px; line-height: var(--cc-lh-body); }
-.dc-page input:focus-visible, .dc-page select:focus-visible, .dc-page textarea:focus-visible {
+.dc-page input[type="text"], .dc-page input[type="url"], .dc-page input[type="email"], .dc-page input[type="password"], .dc-page input[type="search"], .dc-page input:not([type]), .dc-page select,
+.dc-dialog input[type="text"], .dc-dialog input[type="url"], .dc-dialog input[type="email"], .dc-dialog input[type="password"], .dc-dialog input[type="search"], .dc-dialog input:not([type]), .dc-dialog select { height: 44px; }
+.dc-page textarea,
+.dc-dialog textarea { padding: 12px; line-height: var(--cc-lh-body); }
+.dc-page input:focus-visible, .dc-page select:focus-visible, .dc-page textarea:focus-visible,
+.dc-dialog input:focus-visible, .dc-dialog select:focus-visible, .dc-dialog textarea:focus-visible {
   outline: none; border-color: var(--cc-rust-text); box-shadow: var(--cc-focus);
 }
 .dc-page select {
@@ -1085,6 +1085,113 @@ button { font: inherit; color: inherit; }
   padding: var(--cc-s-4) 0; border-bottom: 1px solid var(--cc-rule); }
 .dc-rec-tags { display: flex; gap: var(--cc-s-2); flex-wrap: wrap; }
 .dc-standfirst { font-size: var(--cc-fs-lead); line-height: 1.5; color: var(--cc-body); max-width: 62ch; }
+
+
+/* ---------- Dialogs (v3.97.2) ----------
+   One component for every modal. No design packet yet: built from the tokens,
+   on the section pattern (ink rule on top, serif heading, paper ground). */
+.dc-dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-start; justify-content: center;
+  padding: var(--cc-s-10) var(--cc-s-4); overflow-y: auto; background: rgba(21, 23, 26, .62); }
+.dc-dialog { width: 100%; max-width: 640px; margin: auto 0; display: flex; flex-direction: column; gap: var(--cc-s-6);
+  background: var(--cc-paper); color: var(--cc-body); border-top: 3px solid var(--cc-ink); border-radius: var(--cc-r-0);
+  padding: var(--cc-s-8); box-shadow: 0 24px 64px rgba(21, 23, 26, .28); }
+.dc-dialog:focus { outline: none; }
+.dc-dialog.is-narrow { max-width: 540px; }
+.dc-dialog-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--cc-s-4); }
+.dc-dialog-head > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dc-dialog-head .dc-h { color: var(--cc-ink); }
+.dc-dialog-x { flex: none; width: 36px; height: 36px; display: grid; place-content: center; padding: 0; border: 0; background: none;
+  color: var(--cc-muted); cursor: pointer; border-radius: var(--cc-r-1); }
+.dc-dialog-head > .dc-dialog-x { margin: -4px -8px 0 0; }
+.dc-dialog-x:hover { color: var(--cc-ink); }
+.dc-dialog-x:disabled { opacity: .3; cursor: default; }
+.dc-dialog-x:focus-visible { outline: none; box-shadow: var(--cc-focus); }
+.dc-dialog-body { display: flex; flex-direction: column; gap: var(--cc-s-6); }
+.dc-dialog-foot { display: flex; gap: var(--cc-s-2); }
+.dc-dialog-foot > * { flex: 1 1 0; justify-content: center; }
+.dc-dialog-foot.is-end { justify-content: flex-end; }
+.dc-dialog-foot.is-end > * { flex: none; }
+.dc-dialog-fine { font-size: var(--cc-fs-meta); line-height: 1.5; color: var(--cc-muted); }
+.dc-dialog-status { display: flex; flex-direction: column; gap: var(--cc-s-3); padding: var(--cc-s-2) 0; }
+.dc-dialog-status > p:not(.dc-dialog-fine) { font-size: var(--cc-fs-ui); color: var(--cc-ink); }
+.dc-dialog-url { padding: 12px; background: var(--cc-hover); border: var(--cc-border); border-radius: var(--cc-r-1);
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--cc-ink); word-break: break-all; }
+.dc-dialog textarea { width: 100%; resize: vertical; }
+.dc-dialog input:not([type="range"]) { width: 100%; }
+.dc-dialog input[type="range"] { accent-color: var(--cc-ink); width: 100%; }
+.dc-error { font-size: var(--cc-fs-meta); color: var(--cc-rust-text); }
+.dc-alert.is-ok { border-color: var(--cc-pos); }
+.dc-alert.is-ok > strong { color: var(--cc-pos); }
+
+/* Fields: label, hint, control */
+.dc-field { display: flex; flex-direction: column; gap: 8px; }
+.dc-field > label { font-size: var(--cc-fs-ui); font-weight: var(--cc-w-semi); color: var(--cc-ink); }
+.dc-field > label small { font-size: inherit; font-weight: var(--cc-w-regular); color: var(--cc-muted); }
+.dc-field > .dc-meta { line-height: 1.5; margin-top: -4px; }
+.dc-link-btn { align-self: flex-start; padding: 0; border: 0; background: none; font-size: var(--cc-fs-ui); color: var(--cc-ink);
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.dc-link-btn:focus-visible { outline: none; box-shadow: var(--cc-focus); }
+
+/* Language: substitutions and tone dials */
+.dc-subs { display: flex; flex-direction: column; gap: var(--cc-s-2); }
+.dc-subs-row { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto; gap: var(--cc-s-2); align-items: center; color: var(--cc-muted); }
+.dc-dial { display: flex; flex-direction: column; gap: 6px; padding: var(--cc-s-2) 0; }
+.dc-dial-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--cc-s-3); }
+.dc-dial-head label { font-size: var(--cc-fs-ui); font-weight: var(--cc-w-medium); color: var(--cc-ink); }
+.dc-dial-row { display: grid; grid-template-columns: 76px minmax(0,1fr) 76px; gap: var(--cc-s-3); align-items: center; }
+.dc-dial-row > span:last-child { text-align: right; }
+
+/* Client links manager */
+.dc-linklist { list-style: none; margin: 0; padding: 0; border-top: var(--cc-border); }
+.dc-linklist > li { padding: var(--cc-s-4) 0; border-bottom: var(--cc-border); display: flex; flex-direction: column; gap: var(--cc-s-3); }
+.dc-linklist-row { display: flex; justify-content: space-between; align-items: center; gap: var(--cc-s-4); flex-wrap: wrap; }
+.dc-linklist-row > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dc-linklist-name { font-size: var(--cc-fs-ui); font-weight: var(--cc-w-semi); color: var(--cc-ink); }
+.dc-linklist-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn-secondary.is-danger { color: var(--cc-rust-text); border-color: var(--cc-rust-text); }
+.dc-linklist-reset { display: flex; flex-direction: column; gap: var(--cc-s-3); }
+.dc-linklist-set { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: var(--cc-s-2); }
+
+/* A 3px bar, as on the assessment progress rail */
+.dc-bar { height: 3px; background: var(--cc-track); border-radius: var(--cc-r-bar); overflow: hidden; }
+.dc-bar > i { display: block; height: 100%; background: var(--cc-ink); transition: width .6s ease-out; }
+.dc-bar.is-indeterminate > i { width: 30%; animation: dc-bar-slide 1.6s ease-in-out infinite; }
+@keyframes dc-bar-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) { .dc-bar.is-indeterminate > i { animation: none; width: 100%; opacity: .35; } .dc-bar > i { transition: none; } }
+
+/* Scoring screen (v3.97.2) */
+.dc-scoring { display: flex; flex-direction: column; gap: var(--cc-s-8); border-top: var(--cc-border-strong); padding-top: var(--cc-s-8); max-width: 820px; }
+.dc-scoring-wait { display: flex; flex-direction: column; gap: var(--cc-s-4); }
+.dc-scoring-line { display: flex; justify-content: space-between; align-items: baseline; gap: var(--cc-s-6); flex-wrap: wrap; }
+.dc-scoring-line .dc-strong { font-size: var(--cc-fs-body); }
+.dc-elapsed { font-size: var(--cc-fs-meta); color: var(--cc-muted); white-space: nowrap; }
+.dc-elapsed b { font: var(--cc-w-regular) 22px/1 var(--cc-serif); color: var(--cc-ink); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.dc-scoring-ready { display: flex; flex-direction: column; gap: var(--cc-s-6); }
+.dc-scoring-ready .dc-lead { max-width: 62ch; color: var(--cc-body); }
+.dc-scoring-stories { display: flex; flex-direction: column; gap: var(--cc-s-3); padding-top: var(--cc-s-4); }
+.dc-scoring-stories ul { list-style: none; margin: 0; padding: 0; border-top: var(--cc-border); }
+.dc-scoring-stories li { padding: var(--cc-s-4) 0; border-bottom: var(--cc-border); display: flex; flex-direction: column; gap: 6px; }
+.dc-scoring-stories h3 { font: var(--cc-w-regular) 20px/1.25 var(--cc-serif); color: var(--cc-ink); }
+.dc-scoring-stories p { font-size: var(--cc-fs-ui); line-height: 1.5; color: var(--cc-body); max-width: 72ch; }
+.dc-debug { margin-top: var(--cc-s-2); padding: var(--cc-s-3); background: var(--cc-hover); overflow: auto; max-height: 240px; font-size: 11px; }
+
+@media (max-width: 720px) {
+  .dc-dialog-backdrop { padding: var(--cc-s-4) var(--cc-s-3); }
+  .dc-dialog { padding: var(--cc-s-6) var(--cc-s-5); gap: var(--cc-s-5); }
+  .dc-dialog-foot { flex-direction: column-reverse; }
+  .dc-dialog-foot.is-end { flex-direction: row; }
+  .dc-subs-row { grid-template-columns: minmax(0,1fr) auto; }
+  .dc-subs-row > svg { display: none; }
+  .dc-subs-row > input:nth-of-type(2) { grid-column: 1; }
+  .dc-dial-row { grid-template-columns: 64px minmax(0,1fr) 64px; }
+}
+
+/* ---------- .card stop-gap (v3.97.2) ----------
+   45 elements across 18 components still carry .card, whose rule was lost in
+   an earlier restyle, so each rendered with no ground, border or padding.
+   This gives them the dc block until each screen is rebuilt to its packet.
+   Inside the layer so Tailwind utilities on the same element still win. */
+.card { background: var(--cc-paper); border: var(--cc-border); border-radius: var(--cc-r-1); padding: var(--cc-s-6); color: var(--cc-body); }
 
 }
 

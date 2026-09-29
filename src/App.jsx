@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.97.1';
+const APP_VERSION = '3.97.2';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
@@ -6144,7 +6144,9 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
   const [isScoring, setIsScoring] = useState(false);
   const [scoringError, setScoringError] = useState(null);
   const [scoringProgress, setScoringProgress] = useState(0);
-  const [scoringStage, setScoringStage] = useState('');
+  // When the scoring call started. The only honest progress signal: the call
+  // itself reports nothing until it returns.
+  const [scoringStartedAt, setScoringStartedAt] = useState(null);
   // Top stories from Stay Conscious, shown on the generating screen to fill the wait.
   const [waitingStories, setWaitingStories] = useState([]);
   useEffect(() => {
@@ -6361,28 +6363,18 @@ ${JSON.stringify(extractLanguageText(source), null, 2)}`;
     setIsScoring(true);
     setScoringError(null);
     setScoringProgress(0);
-    setScoringStage('Absorbing assessment data...');
+    setScoringStartedAt(Date.now());
 
-    // The real work is a single long model call with no mid-call signal, so we
-    // cannot measure true progress. Instead of jumping to 95% and stalling, we
-    // trickle: each tick closes a fraction of the gap to a 95% ceiling, so the
-    // bar keeps moving the whole time and only eases as it nears the end. On
-    // completion we snap to 100%. Calibrated to feel right for a 20 to 45s call.
-    const stageFor = (p) => {
-      if (p < 14) return 'Absorbing website data...';
-      if (p < 28) return 'Absorbing social and paid signals...';
-      if (p < 42) return 'Absorbing AI reputation...';
-      if (p < 56) return 'Absorbing earned media...';
-      if (p < 72) return 'Scoring all 8 attributes...';
-      if (p < 88) return 'Working out what is driving each score...';
-      return 'Writing actions and finalizing the report...';
-    };
+    // The real work is a single long model call with no mid-call signal, so
+    // true progress cannot be measured. The bar trickles toward a 95% ceiling
+    // so it keeps moving, and snaps to 100% on completion. Because it is an
+    // estimate, the screen shows no percentage and names no steps (v3.97.2):
+    // it shows the real elapsed time instead.
     let prog = 0;
     const progressInterval = setInterval(() => {
       prog = prog + (95 - prog) * 0.045;
       if (prog > 94.5) prog = 94.5;
       setScoringProgress(Math.round(prog));
-      setScoringStage(stageFor(prog));
     }, 350);
 
     try {
@@ -6667,7 +6659,6 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
       const result = await callClaude(prompt, apiKey, null, [], 0, true, 12000);
       clearInterval(progressInterval);
       setScoringProgress(100);
-      setScoringStage('Complete!');
       const match = result.match(/\{[\s\S]*\}/);
       if (match) {
         try {
@@ -6877,115 +6868,57 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   const hasValidScores = scores && Object.keys(scores).length > 0 && 
     ATTRIBUTES.some(attr => scores[attr.id]?.score !== undefined);
 
-  // If no scores yet, show scoring prompt
+  // If no scores yet: the generate step, the scoring wait, or a failed run.
   if (!hasValidScores) {
     return (
-      <div className="dc-wrap dc-page pt-8 animate-fade-in">
-        <div className="flex items-start gap-4 mb-8">
-          <div className="w-14 h-14 bg-[#D9442A]/10 flex items-center justify-center flex-shrink-0">
-            <BarChart3 className="w-7 h-7 text-[#C23B22]" />
-          </div>
-          <div>
-            <h2 className="text-[22px] font-semibold tracking-tight text-[#15171A]">Generate Brand Report</h2>
-            <p className="text-[#2E3238] text-sm md:text-base">Ready to analyze {project.brandName} across all eight consciousness attributes.</p>
-          </div>
+      <div className="dc-wrap dc-page animate-fade-in" data-screen="scoring">
+        <div className="dc-page-head">
+          <div className="dc-kicker is-accent">Step 6 of 6 · Report</div>
+          <h1 className="dc-display">{isScoring ? 'Scoring the compass' : 'Generate the report'}</h1>
+          <p className="dc-standfirst">{project.brandName}</p>
         </div>
 
-        <div className="card text-center mb-[2px]">
+        <section className="dc-scoring">
           {isScoring ? (
-            <div className="max-w-lg mx-auto">
-              <Loader2 className="w-16 h-16 text-[#C23B22] mx-auto mb-6 animate-spin" />
-              <h3 className="text-xl font-semibold text-[#15171A] mb-2">Generating Report...</h3>
-              <p className="text-[#5B6068] mb-6">{scoringStage}</p>
-              
-              {/* Progress bar */}
-              <div className="w-full bg-[#FBFAF7] h-3 mb-2">
-                <div 
-                  className="bg-[#D9442A] h-3 transition-all duration-500 ease-out"
-                  style={{ width: `${scoringProgress}%` }}
-                />
+            <div className="dc-scoring-wait" role="status" aria-live="polite">
+              {/* An estimate, so it is hidden from assistive tech and carries no number. */}
+              <div className="dc-bar" aria-hidden="true"><i style={{ width: `${scoringProgress}%` }}></i></div>
+              <div className="dc-scoring-line">
+                <p className="dc-strong">One pass scores all eight attributes against your four readouts and writes the report.</p>
+                <ElapsedTime since={scoringStartedAt} />
               </div>
-              <p className="text-sm text-[#5B6068] mb-8">{scoringProgress}% complete</p>
-              
-              {/* Progress steps - centered */}
-              <div className="space-y-3">
-                {/* Data Collection */}
-                <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 25 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
-                    {scoringProgress >= 25 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
-                    <span>Website</span>
-                  </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 40 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
-                    {scoringProgress >= 40 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
-                    <span>Social</span>
-                  </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 55 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
-                    {scoringProgress >= 55 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
-                    <span>AI Rep</span>
-                  </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 70 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
-                    {scoringProgress >= 70 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
-                    <span>Earned</span>
-                  </div>
-                </div>
-                
-                {/* Processing */}
-                <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 85 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
-                    {scoringProgress >= 85 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
-                    <span>Scoring</span>
-                  </div>
-                  <div className={`flex items-center gap-2 ${scoringProgress >= 95 ? 'text-[#C23B22]' : 'text-[#8A8E95]'}`}>
-                    {scoringProgress >= 95 ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current" />}
-                    <span>Recommendations</span>
-                  </div>
-                </div>
-              </div>
-
-              {waitingStories.length > 0 && (
-                <div className="mt-8 pt-6 border-t border-[#DEDAD2]">
-                  <p className="text-xs font-semibold text-[#8A8E95] uppercase tracking-wider text-center">While you're waiting</p>
-                  <p className="text-xs text-[#5B6068] mb-4 text-center">The latest from Stay Conscious</p>
-                  <div className="space-y-3">
-                    {waitingStories.map((s, i) => (
-                      <div key={i} className="card text-left">
-                        {s.category && (
-                          <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-[#C23B22] mb-1">{s.category}</span>
-                        )}
-                        <div className="font-semibold text-sm text-[#15171A] leading-snug">{s.headline}</div>
-                        {s.summary && <div className="text-xs text-[#5B6068] mt-1 leading-relaxed">{s.summary}</div>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <p className="dc-meta">Leave this page open until it finishes.</p>
             </div>
           ) : (
-            <>
-              <Compass className="w-16 h-16 text-[#C23B22] mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-[#15171A] mb-2">Assessment Complete</h3>
-              <p className="text-[#5B6068] mb-6">All four assessment areas have been evaluated. Generate scores to create your comprehensive brand consciousness report.</p>
-              
-              <button 
-                onClick={() => runScoring()} 
-                disabled={isScoring}
-                className="btn-primary flex items-center gap-2 mx-auto text-lg px-8 py-3"
-              >
-                <Play className="w-5 h-5" /> Generate Brand Report
-              </button>
-            </>
-          )}
-          
-          {scoringError && (
-            <div className="mt-4 bg-[#FBFAF7] border border-[#DEDAD2] p-4 text-[#C23B22] text-sm">
-              {scoringError}
+            <div className="dc-scoring-ready">
+              <p className="dc-lead">Scoring reads the four readouts together and produces the full report: the eight attribute scores, what drives each one, and the actions.</p>
+              <div><button type="button" onClick={() => runScoring()} disabled={isScoring} className="btn-primary">Generate the report</button></div>
             </div>
           )}
-        </div>
 
-        <div className="flex justify-between" style={{ marginTop: 24 }}>
-          <button onClick={onPrev} className="btn-secondary flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" /> {isReadonly ? 'Back' : 'Back to Earned Media'}
+          {scoringError && (
+            <div className="dc-alert is-error" role="alert"><strong>Scoring did not finish</strong>{scoringError}</div>
+          )}
+
+          {isScoring && waitingStories.length > 0 && (
+            <div className="dc-scoring-stories">
+              <div className="dc-kicker">While you wait · Latest from Stay Conscious</div>
+              <ul>
+                {waitingStories.map((st, i) => (
+                  <li key={i}>
+                    {st.category && <span className="dc-kicker is-accent">{st.category}</span>}
+                    <h3>{st.headline}</h3>
+                    {st.summary && <p>{st.summary}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+
+        <div>
+          <button type="button" onClick={onPrev} className="btn-secondary">
+            <ArrowLeft className="w-4 h-4" /> {isReadonly ? 'Back' : 'Back to earned media'}
           </button>
         </div>
       </div>
@@ -6999,21 +6932,23 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   // Safety check - if overall is 0 or NaN, show error
   if (!overall || isNaN(overall)) {
     return (
-      <div className="dc-wrap dc-page">
-        <div className="card text-center">
-          <AlertCircle className="w-12 h-12 text-[#5B6068] mx-auto mb-4" />
-          <h3 className="dc-kicker text-[#15171A] mb-2">Report Generation Issue</h3>
-          <p className="text-[#5B6068] mb-4">The scoring data appears to be incomplete or invalid. Please try generating the report again.</p>
-          <button onClick={() => setScores(null)} className="btn-primary">
-            Try Again
-          </button>
-          <details className="mt-4 text-left text-xs text-[#8A8E95]">
+      <div className="dc-wrap dc-page" data-screen="scoring-invalid">
+        <div className="dc-page-head">
+          <div className="dc-kicker is-accent">Step 6 of 6 · Report</div>
+          <h1 className="dc-display">The report did not generate</h1>
+          <p className="dc-standfirst">{project.brandName}</p>
+        </div>
+        <div className="dc-alert is-error" role="alert">
+          <strong>The scoring data is incomplete or invalid</strong>
+          Run the scoring again.
+          <div><button type="button" onClick={() => setScores(null)} className="btn-primary">Try again</button></div>
+        </div>
+        <details className="dc-meta">
             <summary className="cursor-pointer">Debug Info</summary>
-            <pre className="mt-2 p-2 bg-[#DEDAD2] overflow-auto max-h-40">
+            <pre className="dc-debug">
               {JSON.stringify(scores, null, 2)}
             </pre>
           </details>
-        </div>
       </div>
     );
   }
@@ -11487,6 +11422,91 @@ function AssessmentStatusIndicator({ assessments }) {
   );
 }
 
+// Real elapsed time since a start timestamp, ticking once a second.
+function ElapsedTime({ since }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!since) return null;
+  const secs = Math.max(0, Math.floor((now - since) / 1000));
+  const text = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  return <span className="dc-elapsed"><b>{text}</b> elapsed</span>;
+}
+
+// What a client link shows, in the order the client view renders it. The
+// Client link dialog reads this, and a test checks it against the section
+// heads ClientReportView actually renders, so the two cannot drift.
+const CLIENT_REPORT_SECTIONS = [
+  'results at a glance', 'brand maturity', 'attribute analysis', 'brand footprint',
+  'campaign coherence', 'trust and credibility', 'the sustainability narrative',
+  'the benchmark comparison', 'the conclusions',
+];
+const CLIENT_REPORT_SECTIONS_TEXT = `${CLIENT_REPORT_SECTIONS.slice(0, -1).join(', ')} and ${CLIENT_REPORT_SECTIONS.at(-1)}`;
+
+// ── Dialog ────────────────────────────────────────────────────
+// One component for every modal (v3.97.2). Rendered into document.body: inside
+// the report tree an ancestor with a transform becomes the containing block
+// for position:fixed and the dialog lands halfway down the page.
+//
+// The panel scrolls with the backdrop rather than inside itself, so a tall
+// form never clips its own heading. Escape and a click on the backdrop close
+// it unless it is busy; focus moves into the panel on open, Tab stays inside
+// it, and focus returns to whatever opened it on close.
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function Dialog({ title, subtitle = null, onClose, busy = false, narrow = false, children }) {
+  const panelRef = useRef(null);
+  const titleId = React.useId();
+
+  useEffect(() => {
+    const opener = document.activeElement;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    panelRef.current?.focus();
+    return () => {
+      document.body.style.overflow = prev;
+      if (opener && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
+    };
+  }, []);
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      if (!busy) onClose();
+      return;
+    }
+    if (e.key !== 'Tab' || !panelRef.current) return;
+    const items = [...panelRef.current.querySelectorAll(FOCUSABLE)];
+    if (!items.length) { e.preventDefault(); return; }
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  };
+
+  return createPortal((
+    <div className="dc-dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <div ref={panelRef} className={narrow ? 'dc-dialog is-narrow' : 'dc-dialog'}
+        role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown}>
+        <div className="dc-dialog-head">
+          <div>
+            <h2 id={titleId} className="dc-h is-card">{title}</h2>
+            {subtitle && <p className="dc-meta">{subtitle}</p>}
+          </div>
+          {!busy && (
+            <button type="button" className="dc-dialog-x" aria-label="Close" onClick={onClose}><X className="w-5 h-5" /></button>
+          )}
+        </div>
+        {children}
+      </div>
+    </div>
+  ), document.body);
+}
+
 // Saved Assessments Page
 // Active client links: who issued them, when, and the controls to reset or
 // revoke. Lives on the saved page because that is where the assessments are,
@@ -11499,11 +11519,6 @@ function ClientLinksModal({ assessments, profile, onClose }) {
   const [resetting, setResetting] = useState(null);
   const [newPassword, setNewPassword] = useState('');
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
 
   const load = async () => {
     const { data, error: err } = await listClientReports();
@@ -11564,113 +11579,78 @@ function ClientLinksModal({ assessments, profile, onClose }) {
 
   // Portalled for the same reason as the client link modal: an ancestor with a
   // transform would otherwise become the containing block for position:fixed.
-  return createPortal((
-    <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-[100]"
-      onClick={onClose}>
-      <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-[22px] font-semibold tracking-tight text-[#15171A]">
-              Client links{links ? ` (${links.length})` : ''}
-            </h3>
-            <p className="text-xs text-[#5B6068] mt-0.5">
-              Active password-protected reports shared with clients.
-            </p>
-          </div>
-          <button onClick={onClose} className="text-[#999] hover:text-[#15171A]">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
-          {error && <p className="text-xs text-[#C23B22] mb-3">{error}</p>}
-          {!links && !error && (
-            <p className="text-xs text-[#5B6068] flex items-center gap-1.5 py-4">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading links...
-            </p>
-          )}
-          {links && links.length === 0 && !error && (
-            <p className="text-sm text-[#5B6068] py-6 text-center">
-              No active client links. Create one from the Client Link button on a report.
-            </p>
-          )}
-
-          {links && links.map(link => {
-            const mine = link.created_by === profile?.id;
-            const canManage = mine || profile?.is_admin;
-            return (
-              <div key={link.token} className="py-3 border-b border-[#DEDAD2] last:border-0">
-                {/* Stacked on a phone, single line from sm up. The old row was
-                    flex-wrap with a non-shrinking button group, so one long
-                    label tipped the whole group onto its own line and rows
-                    with and without "(not yours)" laid out differently. */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div className="min-w-0 sm:flex-1">
-                    <div className="font-semibold text-sm text-[#15171A] truncate">{link.brand_name}</div>
-                    <div className="text-[11px] text-[#5B6068] mt-0.5 truncate">
-                      Issued by {link.created_by_name || 'unknown'}
-                      {link.created_at ? ` on ${new Date(link.created_at).toLocaleDateString()}` : ''}
-                      {mine ? '' : ' (not yours)'}
+  return (
+    <Dialog title={`Client links${links ? ` (${links.length})` : ''}`} onClose={onClose}
+      subtitle="Active password-protected reports shared with clients.">
+      <div className="dc-dialog-body">
+        {error && <p className="dc-error" role="alert">{error}</p>}
+        {!links && !error && <p className="dc-meta" role="status">Loading links...</p>}
+        {links && links.length === 0 && !error && (
+          <p className="dc-meta">No active client links. Create one from the Client link button on a report.</p>
+        )}
+        {links && links.length > 0 && (
+          <ul className="dc-linklist">
+            {links.map(link => {
+              const mine = link.created_by === profile?.id;
+              const canManage = mine || profile?.is_admin;
+              return (
+                <li key={link.token}>
+                  <div className="dc-linklist-row">
+                    <div>
+                      <div className="dc-linklist-name">{link.brand_name}</div>
+                      <div className="dc-meta">
+                        Issued by {link.created_by_name || 'unknown'}
+                        {link.created_at ? ` on ${new Date(link.created_at).toLocaleDateString('en-US')}` : ''}
+                        {mine ? '' : ' (not yours)'}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={() => copy(link.token)}
-                      title="Copy the client link"
-                      className="btn-secondary !text-[10px] !px-2.5 !py-0 flex items-center justify-center gap-1 whitespace-nowrap"
-                      style={{ minWidth: 84, height: 28 }}>
-                      {copied === link.token ? <><Check className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
-                    </button>
-                    {canManage && (
-                      <>
-                        <button onClick={() => { setResetting(resetting === link.token ? null : link.token); setNewPassword(''); setError(null); }}
-                          title="Rebuild the report and set a new password. The URL does not change."
-                          className="btn-secondary !text-[10px] !px-2.5 !py-0 whitespace-nowrap"
-                          style={{ height: 28 }}>
-                          Reset password
-                        </button>
-                        <button onClick={() => revoke(link)} disabled={busy === link.token}
-                          title="Revoke this link"
-                          className="btn-secondary !text-[10px] !px-2.5 !py-0 text-[#C23B22] whitespace-nowrap flex items-center justify-center"
-                          style={{ minWidth: 54, height: 28 }}>
-                          {busy === link.token ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Revoke'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {resetting === link.token && (
-                  <div className="mt-3 bg-[#FBFAF7] p-3">
-                    <p className="text-[11px] text-[#5B6068] mb-2 leading-relaxed">
-                      The old password cannot be recovered, so the report is rebuilt from the saved
-                      assessment and re-encrypted. The URL stays the same, so any link already sent keeps working.
-                      Because the report is rebuilt, this also refreshes a link issued before newer
-                      sections existed.
-                      {sourceFor(link) ? '' : ` No saved assessment found for ${link.brand_name}.`}
-                    </p>
-                    <div className="flex gap-2">
-                      <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && doReset(link)}
-                        placeholder="New password"
-                        className="flex-1 px-2 py-1.5 border border-[#DEDAD2] bg-white text-xs" />
-                      <button onClick={() => doReset(link)} disabled={busy === link.token || !sourceFor(link)}
-                        className="btn-primary text-xs px-3 py-1.5">
-                        {busy === link.token ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Set'}
+                    <div className="dc-linklist-actions">
+                      <button type="button" onClick={() => copy(link.token)} title="Copy the client link" className="btn-secondary btn-sm">
+                        {copied === link.token ? 'Copied' : 'Copy'}
                       </button>
+                      {canManage && (
+                        <>
+                          <button type="button" onClick={() => { setResetting(resetting === link.token ? null : link.token); setNewPassword(''); setError(null); }}
+                            title="Rebuild the report and set a new password. The URL does not change."
+                            aria-expanded={resetting === link.token} className="btn-secondary btn-sm">Reset password</button>
+                          <button type="button" onClick={() => revoke(link)} disabled={busy === link.token}
+                            title="Revoke this link" className="btn-secondary btn-sm is-danger">
+                            {busy === link.token ? 'Working...' : 'Revoke'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex justify-end pt-4 mt-2 border-t border-[#DEDAD2]">
-          <button onClick={onClose} className="btn-secondary text-sm px-4 py-2">Close</button>
-        </div>
+                  {resetting === link.token && (
+                    <div className="dc-block dc-linklist-reset">
+                      <p className="dc-meta">
+                        The old password cannot be recovered, so the report is rebuilt from the saved
+                        assessment and re-encrypted. The URL stays the same, so any link already sent keeps working.
+                        Because the report is rebuilt, this also refreshes a link issued before newer
+                        sections existed.
+                        {sourceFor(link) ? '' : ` No saved assessment found for ${link.brand_name}.`}
+                      </p>
+                      <div className="dc-linklist-set">
+                        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && doReset(link)} placeholder="New password"
+                          aria-label={`New password for ${link.brand_name}`} autoComplete="new-password" />
+                        <button type="button" onClick={() => doReset(link)} disabled={busy === link.token || !sourceFor(link)} className="btn-primary">
+                          {busy === link.token ? 'Setting...' : 'Set'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
-    </div>
-  ), document.body);
+      <div className="dc-dialog-foot is-end">
+        <button type="button" onClick={onClose} className="btn-secondary">Close</button>
+      </div>
+    </Dialog>
+  );
 }
 
 // ── Loading and failure states for data-backed lists ───────────
@@ -12052,11 +12032,6 @@ function ChallengeModal({ brandName, onClose, onSubmit, busy, stage, progress, e
     businessContext: '', website: '', social: '', aiReputation: '', earnedMedia: '',
   });
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
 
   const set = (k, v) => setFields(prev => ({ ...prev, [k]: v }));
   const hasAny = Object.values(fields).some(v => v.trim());
@@ -12079,77 +12054,46 @@ function ChallengeModal({ brandName, onClose, onSubmit, busy, stage, progress, e
       placeholder: 'What coverage was missed or misread, and where can it be seen?' },
   ];
 
-  return createPortal((
-    <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-[100]"
-      onClick={busy ? undefined : onClose}>
-      <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-[22px] font-semibold tracking-tight text-[#15171A]">Challenge the assessment</h3>
-            <p className="text-xs text-[#5B6068] mt-0.5">
-              Put additional context to the assessment of {brandName}, then rescore.
-            </p>
-          </div>
-          {!busy && (
-            <button onClick={onClose} className="text-[#999] hover:text-[#15171A]"><X className="w-5 h-5" /></button>
-          )}
-        </div>
-
-        <div className="bg-[#FBFAF7] p-3 mb-4">
-          <p className="text-xs text-[#2E3238] leading-relaxed">
-            Context is weighed as evidence, not followed as instruction. Scores can go up, down,
-            or stay exactly where they are. Claims with nothing publicly observable behind them
-            will be discounted and flagged as unverified. Only the sections you fill in are revised.
-          </p>
-        </div>
-
-        {!busy ? (
-          <>
-            <div className="space-y-4 max-h-[45vh] overflow-y-auto pr-1">
-              {sections.map(s => (
-                <div key={s.key}>
-                  <label className="dc-kicker-sm mb-1 block">{s.label}</label>
-                  <p className="text-[11px] text-[#5B6068] mb-1.5">{s.hint}</p>
-                  <textarea
-                    value={fields[s.key]}
-                    onChange={(e) => set(s.key, e.target.value)}
-                    placeholder={s.placeholder}
-                    className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white text-sm resize-none"
-                  />
-                </div>
-              ))}
-            </div>
-
-            {error && <p className="text-xs text-[#C23B22] mt-3">{error}</p>}
-
-            <p className="text-[11px] text-[#999] leading-relaxed mt-4 mb-3">
-              Submitting revises the readouts for the sections you filled in, then rescores the
-              whole compass. This takes a couple of minutes. The challenge and what it moved are
-              recorded on the report.
-            </p>
-
-            <div className="flex gap-2">
-              <button onClick={onClose} className="btn-secondary flex-1 text-sm py-2">Cancel</button>
-              <button onClick={() => onSubmit(fields)} disabled={!hasAny}
-                className="btn-primary flex-1 text-sm py-2 flex items-center justify-center gap-2">
-                Submit and rescore
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="py-6">
-            <div className="w-full bg-[#FBFAF7] h-2 mb-3">
-              <div className="bg-[#D9442A] h-2 transition-all duration-500 ease-out" style={{ width: `${progress}%` }} />
-            </div>
-            <p className="text-sm text-[#2E3238] flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> {stage || 'Working...'}
-            </p>
-            <p className="text-[11px] text-[#999] mt-2">Leave this open until it finishes.</p>
-          </div>
-        )}
+  return (
+    <Dialog title="Challenge the assessment" busy={busy} onClose={onClose}
+      subtitle={`Put additional context to the assessment of ${brandName}, then rescore.`}>
+      <div className="dc-alert">
+        Context is weighed as evidence, not followed as instruction. Scores can go up, down,
+        or stay exactly where they are. Claims with nothing publicly observable behind them
+        will be discounted and flagged as unverified. Only the sections you fill in are revised.
       </div>
-    </div>
-  ), document.body);
+      {!busy ? (
+        <>
+          <div className="dc-dialog-body">
+            {sections.map(s => (
+              <div key={s.key} className="dc-field">
+                <label htmlFor={`challenge-${s.key}`}>{s.label}</label>
+                <p className="dc-meta">{s.hint}</p>
+                <textarea id={`challenge-${s.key}`} rows={3} value={fields[s.key]}
+                  onChange={(e) => set(s.key, e.target.value)} placeholder={s.placeholder} />
+              </div>
+            ))}
+          </div>
+          {error && <p className="dc-error" role="alert">{error}</p>}
+          <p className="dc-dialog-fine">
+            Submitting revises the readouts for the sections you filled in, then rescores the
+            whole compass. This takes a couple of minutes. The challenge and what it moved are
+            recorded on the report.
+          </p>
+          <div className="dc-dialog-foot">
+            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+            <button type="button" onClick={() => onSubmit(fields)} disabled={!hasAny} className="btn-primary">Submit and rescore</button>
+          </div>
+        </>
+      ) : (
+        <div className="dc-dialog-status" role="status">
+          <div className="dc-bar"><i style={{ width: `${progress}%` }}></i></div>
+          <p>{stage || 'Working...'}</p>
+          <p className="dc-dialog-fine">Leave this open until it finishes.</p>
+        </div>
+      )}
+    </Dialog>
+  );
 }
 
 // ── Language modal ─────────────────────────────────────────────
@@ -12166,11 +12110,6 @@ function LanguageModal({ brandName, onClose, onApply, onRevert, busy, error, exi
     technicality: existing?.dials?.technicality ?? 0,
   });
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
 
   const setSub = (i, k, v) => setSubstitutions(prev => prev.map((s, idx) => idx === i ? { ...s, [k]: v } : s));
   const addSub = () => setSubstitutions(prev => [...prev, { from: '', to: '' }]);
@@ -12186,100 +12125,79 @@ function LanguageModal({ brandName, onClose, onApply, onRevert, busy, error, exi
     || phrasing.trim()
     || Object.values(dials).some(v => v !== 0);
 
-  return createPortal((
-    <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-[100]"
-      onClick={busy ? undefined : onClose}>
-      <div className="card max-w-2xl w-full my-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-[22px] font-semibold tracking-tight text-[#15171A]">Language</h3>
-            <p className="text-xs text-[#5B6068] mt-0.5">
-              Wording and tone for the {brandName} report. Results are not affected.
-            </p>
-          </div>
-          {!busy && (
-            <button onClick={onClose} className="text-[#999] hover:text-[#15171A]"><X className="w-5 h-5" /></button>
-          )}
-        </div>
-
-        <div className="bg-[#FBFAF7] p-3 mb-4">
-          <p className="text-xs text-[#2E3238] leading-relaxed">
-            This changes how things are said, never what is said. Scores, verdicts and
-            conclusions are untouched. A weak finding stays a weak finding, worded differently.
-          </p>
-        </div>
-
-        {!busy ? (
-          <>
-            <div className="max-h-[45vh] overflow-y-auto pr-1">
-              <label className="dc-kicker-sm mb-1 block">Word substitutions</label>
-              <p className="text-[11px] text-[#5B6068] mb-2">Applied wherever they fit, including grammatical variants.</p>
-              {substitutions.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 mb-2">
-                  <input value={s.from} onChange={(e) => setSub(i, 'from', e.target.value)}
-                    placeholder="Instead of" className="flex-1 px-3 py-2 border border-[#DEDAD2] bg-white text-sm" />
-                  <ArrowRight className="w-3.5 h-3.5 text-[#5B6068] flex-shrink-0" />
-                  <input value={s.to} onChange={(e) => setSub(i, 'to', e.target.value)}
-                    placeholder="Use" className="flex-1 px-3 py-2 border border-[#DEDAD2] bg-white text-sm" />
-                  <button onClick={() => removeSub(i)} disabled={substitutions.length === 1}
-                    className="text-[#999] hover:text-[#C23B22] disabled:opacity-30 flex-shrink-0">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-              <button onClick={addSub} className="text-xs text-[#15171A] underline mb-5">Add another</button>
-
-              <label className="dc-kicker-sm mb-1 block">Terminology and phrasing</label>
-              <p className="text-[11px] text-[#5B6068] mb-2">House terms, constructions to avoid, anything the substitutions above cannot express.</p>
-              <textarea value={phrasing} onChange={(e) => setPhrasing(e.target.value)}
-                placeholder={'e.g. Refer to the audience as "specifiers" throughout. Avoid the word "leverage". Prefer "initiative" to "campaign" for anything running over 6 months.'}
-                className="w-full h-24 px-3 py-2 border border-[#DEDAD2] bg-white text-sm resize-none mb-5" />
-
-              <label className="dc-kicker-sm mb-1 block">Tone</label>
-              <p className="text-[11px] text-[#5B6068] mb-3">
-                Small movements only. The house voice holds at every setting; these dial it, they do not replace it.
-              </p>
+  return (
+    <Dialog title="Language" busy={busy} onClose={onClose}
+      subtitle={`Wording and tone for the ${brandName} report. Results are not affected.`}>
+      <div className="dc-alert">
+        This changes how things are said, never what is said. Scores, verdicts and
+        conclusions are untouched. A weak finding stays a weak finding, worded differently.
+      </div>
+      {!busy ? (
+        <>
+          <div className="dc-dialog-body">
+            <div className="dc-field">
+              <label>Word substitutions</label>
+              <p className="dc-meta">Applied wherever they fit, including grammatical variants.</p>
+              <div className="dc-subs">
+                {substitutions.map((s, i) => (
+                  <div key={i} className="dc-subs-row">
+                    <input value={s.from} onChange={(e) => setSub(i, 'from', e.target.value)}
+                      placeholder="Instead of" aria-label={`Substitution ${i + 1}: instead of`} />
+                    <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                    <input value={s.to} onChange={(e) => setSub(i, 'to', e.target.value)}
+                      placeholder="Use" aria-label={`Substitution ${i + 1}: use`} />
+                    <button type="button" className="dc-dialog-x" onClick={() => removeSub(i)}
+                      disabled={substitutions.length === 1} aria-label={`Remove substitution ${i + 1}`}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={addSub} className="dc-link-btn">Add another</button>
+            </div>
+            <div className="dc-field">
+              <label htmlFor="language-phrasing">Terminology and phrasing</label>
+              <p className="dc-meta">House terms, constructions to avoid, anything the substitutions above cannot express.</p>
+              <textarea id="language-phrasing" rows={4} value={phrasing} onChange={(e) => setPhrasing(e.target.value)}
+                placeholder={'e.g. Refer to the audience as "specifiers" throughout. Avoid the word "leverage". Prefer "initiative" to "campaign" for anything running over 6 months.'} />
+            </div>
+            <div className="dc-field">
+              <label>Tone</label>
+              <p className="dc-meta">Small movements only. The house voice holds at every setting; these dial it, they do not replace it.</p>
               {dialDefs.map(d => (
-                <div key={d.key} className="mb-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-[#15171A]">{d.label}</span>
-                    <span className="text-[11px] text-[#5B6068]">
+                <div key={d.key} className="dc-dial">
+                  <div className="dc-dial-head">
+                    <label htmlFor={`dial-${d.key}`}>{d.label}</label>
+                    <span className="dc-meta">
                       {dials[d.key] === 0 ? 'As it is now' : `${Math.abs(dials[d.key])} step${Math.abs(dials[d.key]) > 1 ? 's' : ''} ${dials[d.key] < 0 ? d.low.toLowerCase() : d.high.toLowerCase()}`}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-[#5B6068] w-16 flex-shrink-0">{d.low}</span>
-                    <input type="range" min="-2" max="2" step="1" value={dials[d.key]}
-                      onChange={(e) => setDials(prev => ({ ...prev, [d.key]: Number(e.target.value) }))}
-                      className="flex-1" />
-                    <span className="text-[10px] text-[#5B6068] w-16 text-right flex-shrink-0">{d.high}</span>
+                  <div className="dc-dial-row">
+                    <span className="dc-meta">{d.low}</span>
+                    <input id={`dial-${d.key}`} type="range" min="-2" max="2" step="1" value={dials[d.key]}
+                      onChange={(e) => setDials(prev => ({ ...prev, [d.key]: Number(e.target.value) }))} />
+                    <span className="dc-meta">{d.high}</span>
                   </div>
                 </div>
               ))}
             </div>
-
-            {error && <p className="text-xs text-[#C23B22] mt-3">{error}</p>}
-
-            <div className="flex gap-2 mt-4">
-              <button onClick={onClose} className="btn-secondary flex-1 text-sm py-2">Cancel</button>
-              {canRevert && (
-                <button onClick={onRevert} className="btn-secondary flex-1 text-sm py-2">Revert language</button>
-              )}
-              <button onClick={() => onApply({ substitutions, phrasing, dials })} disabled={!hasAny}
-                className="btn-primary flex-1 text-sm py-2">Apply</button>
-            </div>
-          </>
-        ) : (
-          <div className="py-6">
-            <p className="text-sm text-[#2E3238] flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Rewriting the report language...
-            </p>
-            <p className="text-[11px] text-[#999] mt-2">Results are untouched. Only wording changes.</p>
           </div>
-        )}
-      </div>
-    </div>
-  ), document.body);
+          {error && <p className="dc-error" role="alert">{error}</p>}
+          <div className="dc-dialog-foot">
+            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+            {canRevert && <button type="button" onClick={onRevert} className="btn-secondary">Revert language</button>}
+            <button type="button" onClick={() => onApply({ substitutions, phrasing, dials })} disabled={!hasAny} className="btn-primary">Apply</button>
+          </div>
+        </>
+      ) : (
+        <div className="dc-dialog-status" role="status">
+          <div className="dc-bar is-indeterminate"><i></i></div>
+          <p>Rewriting the report language...</p>
+          <p className="dc-dialog-fine">Results are untouched. Only wording changes.</p>
+        </div>
+      )}
+    </Dialog>
+  );
 }
 
 // ── Challenge history ──────────────────────────────────────────
@@ -12452,11 +12370,6 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile, existingNo
 
   const author = profile?.full_name || profile?.email || 'Antenna Group';
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
 
   const create = async () => {
     if (password.length < 6) { setError('Use at least 6 characters.'); return; }
@@ -12492,108 +12405,77 @@ function ClientLinkModal({ brandName, buildPayload, onClose, profile, existingNo
     });
   };
 
-  // Rendered into document.body. Inside the report tree an ancestor with a
-  // transform (the fade-in animations) becomes the containing block for
-  // position:fixed, which is why this was landing halfway down the page
-  // instead of centred in the viewport.
-  return createPortal((
-    <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-[100]"
-      onClick={onClose}>
-      <div className="card max-w-lg w-full my-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-[22px] font-semibold tracking-tight text-[#15171A]">Client link</h3>
-            <p className="text-xs text-[#5B6068] mt-0.5">
-              A cleansed, password-protected report for {brandName}.
-            </p>
+  return (
+    <Dialog title="Client link" narrow busy={busy} onClose={onClose}
+      subtitle={`A cleansed, password-protected report for ${brandName}.`}>
+      {!url ? (
+        <>
+          <div className="dc-alert" data-field="client-sees">
+            The client sees {CLIENT_REPORT_SECTIONS_TEXT}. They do not see recommendations,
+            channel assessments, the evidence lists behind campaign coherence and the trust
+            lens, or any internal notes.
           </div>
-          <button onClick={onClose} className="text-[#999] hover:text-[#15171A]">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {!url ? (
-          <>
-            <div className="bg-[#FBFAF7] p-3 mb-4">
-              <p className="text-xs text-[#2E3238] leading-relaxed">
-                The client sees scores, maturity, attribute analysis, campaign coherence,
-                the benchmark profile and the conclusion. They do not see recommendations,
-                channel assessments, or any internal notes.
+          <div className="dc-dialog-body">
+            <div className="dc-field">
+              <label htmlFor="client-note">Your note to the client <small>(optional)</small></label>
+              <p className="dc-meta">
+                Context, framing, or anything you want to say in your own voice. It appears under
+                Results at a glance, attributed to you, and is clearly marked as coming from you
+                rather than from the assessment.
               </p>
+              <textarea id="client-note" rows={4} value={noteText} onChange={(e) => setNoteText(e.target.value)}
+                placeholder={`Add any context you want ${brandName} to read alongside the results.`} />
             </div>
-
-            <label className="dc-kicker-sm mb-2 block">Your note to the client <span className="text-[#5B6068] font-normal normal-case tracking-normal">(optional)</span></label>
-            <p className="text-[11px] text-[#5B6068] leading-relaxed mb-2">
-              Context, framing, or anything you want to say in your own voice. It appears under
-              Results at a glance, attributed to you, and is clearly marked as coming from you
-              rather than from the assessment.
-            </p>
-            <textarea
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder={`Add any context you want ${brandName} to read alongside the results.`}
-              className="w-full h-24 px-3 py-2 border border-[#DEDAD2] bg-white text-sm resize-none mb-3"
-            />
-
             {noteText.trim() && (
-              <div className="mb-4">
-                <div className="dc-kicker-sm mb-2">Preview</div>
-                <div style={{ background: '#FBFAF7', padding: 12 }}>
+              <div className="dc-field">
+                <span className="dc-kicker">Preview</span>
+                <div className="dc-block">
                   <ClientAssessorNote note={{ text: noteText, author, date: new Date().toISOString() }} compact />
                 </div>
               </div>
             )}
-
-            <label className="dc-kicker-sm mb-2 block">Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="Set a password for the client"
-              className="w-full px-3 py-2 border border-[#DEDAD2] bg-white text-sm mb-3" />
-
-            <label className="dc-kicker-sm mb-2 block">Confirm password</label>
-            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && create()}
-              placeholder="Repeat it"
-              className="w-full px-3 py-2 border border-[#DEDAD2] bg-white text-sm mb-3" />
-
-            {error && <p className="text-xs text-[#C23B22] mb-3">{error}</p>}
-
-            <p className="text-[11px] text-[#999] leading-relaxed mb-4">
-              The report is encrypted with this password before it is stored. It cannot be
-              recovered or reset, so send it to the client separately from the link.
-              The note above is fixed when the link is created; changing it later means
-              issuing a new link.
-            </p>
-
-            <div className="flex gap-2">
-              <button onClick={onClose} className="btn-secondary flex-1 text-sm py-2">Cancel</button>
-              <button onClick={create} disabled={busy} className="btn-primary flex-1 text-sm py-2 flex items-center justify-center gap-2">
-                {busy ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : 'Create link'}
-              </button>
+            <div className="dc-field">
+              <label htmlFor="client-password">Password</label>
+              <input id="client-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                placeholder="Set a password for the client" autoComplete="new-password" />
             </div>
-          </>
-        ) : (
-          <>
-            <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Check className="w-3.5 h-3.5 text-[#2F6B55]" />
-                <span className="text-xs font-semibold text-[#2F6B55]">Link created</span>
-              </div>
-              <p className="text-xs text-[#2E3238]">Send the password separately.</p>
+            <div className="dc-field">
+              <label htmlFor="client-password-confirm">Confirm password</label>
+              <input id="client-password-confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && create()} placeholder="Repeat it" autoComplete="new-password" />
             </div>
-            <div className="bg-[#FBFAF7] p-3 mb-3 break-all text-xs text-[#2E3238] font-mono">
-              {url}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={copy} className="btn-primary flex-1 text-sm py-2 flex items-center justify-center gap-2">
-                {copied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy link</>}
-              </button>
-              <button onClick={onClose} className="btn-secondary flex-1 text-sm py-2">Done</button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  ), document.body);
+          </div>
+          {error && <p className="dc-error" role="alert">{error}</p>}
+          <p className="dc-dialog-fine">
+            The report is encrypted with this password before it is stored. It cannot be
+            recovered or reset, so send it to the client separately from the link.
+            The note above is fixed when the link is created; changing it later means
+            issuing a new link.
+          </p>
+          <div className="dc-dialog-foot">
+            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+            <button type="button" onClick={create} disabled={busy} aria-busy={busy || undefined} className="btn-primary">
+              {busy ? 'Creating...' : 'Create link'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="dc-alert is-ok" role="status">
+            <strong>Link created</strong>
+            Send the password separately.
+          </div>
+          <div className="dc-dialog-url">{url}</div>
+          <div className="dc-dialog-foot">
+            <button type="button" onClick={onClose} className="btn-secondary">Done</button>
+            <button type="button" onClick={copy} className="btn-primary">
+              {copied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy link</>}
+            </button>
+          </div>
+        </>
+      )}
+    </Dialog>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
