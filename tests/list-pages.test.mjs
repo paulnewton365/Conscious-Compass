@@ -166,8 +166,12 @@ async function mountPanel(initial, profile) {
 test('the ECO panel is internal, and the client blocks carry HOWL with its wordmark', async () => {
   const m = await mountPanel(ecoScores(G1_FAIL), { is_admin: true });
   assert.ok(m.container.querySelector('section.dc-internal[data-field="eco-panel"]'));
-  const verdict = m.container.querySelector('.dc-eco-verdict').textContent;
-  assert.equal(verdict, 'Earned creative could close a real gap for your brand, once the foundations are in place.', 'G1 fails: Build substance first');
+  assert.equal(m.container.querySelector('.dc-eco-verdict').textContent, 'MKB has an earned creative opportunity. Here is how far it can go today, and what would take it further.');
+  const ready = m.container.querySelector('.dc-eco-ladder li.is-ready');
+  assert.equal(ready.querySelector('b').textContent, 'Foundations', 'G1 fails: it starts at Foundations');
+  assert.equal(ready.getAttribute('aria-current'), 'step');
+  assert.equal(ready.querySelector('.dc-eco-badge').textContent, 'Ready now');
+  assert.equal(m.container.querySelector('.dc-eco-ladder li.is-reach .dc-eco-badge').textContent, 'Within reach');
   const howl = m.container.querySelector('.dc-eco-howl');
   assert.equal(howl.getAttribute('data-howl'), 'short');
   assert.equal(howl.querySelector('img').getAttribute('src'), '/howl-logo.svg');
@@ -199,7 +203,8 @@ test('overrides: admin-only, need a reason, store who and when, and cannot recom
   await act(async () => { apply().click(); });
   const o = m.get().eco.override;
   assert.equal(o.outcome, 'Moment-driven'); assert.equal(o.reason, 'A launch moment in Q1.'); assert.equal(o.by, 'Paul Newton'); assert.ok(o.at);
-  assert.equal(m.container.querySelector('.dc-eco-verdict').textContent, 'Your brand is ready for earned creative when the right moment arrives.');
+  // The override is stored, but G1 still fails, so the ladder stays at Foundations.
+  assert.equal(m.container.querySelector('.dc-eco-ladder li.is-ready b').textContent, 'Foundations', 'no override gets past a failed G1');
   await act(async () => m.root.unmount());
 });
 
@@ -237,5 +242,8 @@ test('the Teaser read carries the lite view: verdict, definition, HOWL standard 
   const lite = doc.querySelector('[data-field="eco-lite"]');
   assert.ok(lite, 'in the Teaser read');
   assert.ok(lite.textContent.includes('Most brands have more to say than the world has heard. HOWL exists to change that.'));
-  assert.ok(lite.textContent.includes('Appropriateness: requires full assessment.'));
+  assert.ok(lite.textContent.includes('set by the full assessment'));
+  assert.equal(lite.querySelectorAll('.dc-eco-ladder li').length, 4);
+  assert.equal(lite.querySelector('.dc-eco-ladder li.is-ready'), null, 'no starting step without the gate');
+  assert.equal(lite.querySelector('h2').textContent, 'Earned creative opportunity');
 });

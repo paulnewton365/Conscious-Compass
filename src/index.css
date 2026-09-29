@@ -1403,6 +1403,25 @@ button { font: inherit; color: inherit; }
 .dc-eco-lockup { display: flex; align-items: center; gap: var(--cc-s-3); }
 .dc-eco-lockup img { height: 32px; width: auto; display: block; }
 .dc-eco-lockup span { font-size: var(--cc-fs-meta); font-weight: var(--cc-w-semi); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-muted); }
+/* The opportunity ladder (v3.105.0): four ruled steps. Ready now in ink with
+   a rust rule, within reach in ink, the rest muted. */
+.dc-eco-ladder { list-style: none; margin: var(--cc-s-2) 0 0; padding: 0; border-top: var(--cc-border-strong); }
+.dc-eco-ladder li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: var(--cc-s-4); padding: var(--cc-s-4) 0 var(--cc-s-4) var(--cc-s-3); border-bottom: var(--cc-border); border-left: 3px solid transparent; }
+.dc-eco-n { font: var(--cc-w-regular) 28px/1 var(--cc-serif); color: var(--cc-faint); }
+.dc-eco-step-head { display: flex; align-items: baseline; gap: var(--cc-s-3); flex-wrap: wrap; }
+.dc-eco-step-head b { font: var(--cc-w-regular) 22px/1.2 var(--cc-serif); color: var(--cc-muted); }
+.dc-eco-badge { font-size: 11px; font-weight: var(--cc-w-bold); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-ink); border: var(--cc-border-strong); border-radius: var(--cc-r-1); padding: 2px 8px; }
+.dc-eco-ladder p { margin: 4px 0 0; font-size: var(--cc-fs-ui); line-height: 1.5; color: var(--cc-muted); max-width: 70ch; }
+.dc-eco-ladder .dc-eco-example { color: var(--cc-muted); font-style: italic; }
+.dc-eco-ladder .dc-eco-unlock { color: var(--cc-ink); font-weight: var(--cc-w-semi); }
+.dc-eco-ladder li.is-ready { border-left-color: var(--cc-rust); background: var(--cc-paper); }
+.dc-eco-ladder li.is-ready .dc-eco-n, .dc-eco-ladder li.is-ready b { color: var(--cc-ink); }
+.dc-eco-ladder li.is-ready .dc-eco-badge { background: var(--cc-ink); color: var(--cc-paper); border-color: var(--cc-ink); }
+.dc-eco-ladder li.is-ready p, .dc-eco-ladder li.is-reach p:not(.dc-eco-unlock) { color: var(--cc-body); }
+.dc-eco-ladder li.is-reach .dc-eco-n, .dc-eco-ladder li.is-reach b { color: var(--cc-ink); }
+.dc-eco-ladder li.is-done .dc-eco-n { color: var(--cc-ink); }
+.dc-eco-note { margin: var(--cc-s-3) 0 0; font-size: var(--cc-fs-ui); line-height: 1.5; color: var(--cc-body); max-width: 70ch; }
+.dc-eco-size p { font-size: var(--cc-fs-lead); line-height: 1.45; color: var(--cc-ink); }
 .dc-eco-next { margin: 0; font-size: var(--cc-fs-ui); font-weight: var(--cc-w-semi); color: var(--cc-ink); }
 .dc-eco-panel { display: flex; flex-direction: column; gap: var(--cc-s-5); }
 .dc-eco-set { border: 0; border-top: var(--cc-border); margin: 0; padding: var(--cc-s-4) 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-s-4); }

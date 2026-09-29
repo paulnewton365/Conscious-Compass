@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.104.0';
+const APP_VERSION = '3.105.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
 import { buildLiteSection, applyEarnedCreativeLift, parseActivations, validateOverride, ecoProfileFor, ecoFromReport, round1, ECO_CONFIG } from './lib/eco';
@@ -1274,6 +1274,35 @@ function EcoBlocks({ blocks }) {
     <div className="dc-eco" data-field="eco-blocks">
       {blocks.map(b => {
         if (b.id === 'headline') return <p key={b.id} className="dc-eco-verdict">{b.text}</p>;
+        if (b.id === 'size') {
+          return (
+            <section key={b.id} className="dc-eco-block dc-eco-size" data-size={b.size}>
+              <div className="dc-kicker">{b.title}</div>
+              <p>{b.text}</p>
+            </section>
+          );
+        }
+        if (b.id === 'ladder') {
+          return (
+            <section key={b.id} className="dc-eco-block" data-block="ladder">
+              <div className="dc-kicker">{b.title}</div>
+              <ol className="dc-eco-ladder" aria-label={b.ready ? `Earned creative ladder: ready now at ${b.steps.find(s => s.state === 'ready')?.name}` : 'Earned creative ladder'}>
+                {b.steps.map(st => (
+                  <li key={st.id} className={`is-${st.state}`} aria-current={st.state === 'ready' ? 'step' : undefined}>
+                    <span className="dc-eco-n">{st.n}</span>
+                    <div>
+                      <div className="dc-eco-step-head"><b>{st.name}</b>{st.label && <span className="dc-eco-badge">{st.label}</span>}</div>
+                      <p className="dc-eco-meaning">{st.meaning}</p>
+                      <p className="dc-eco-example">{st.example}</p>
+                      {st.unlock && <p className="dc-eco-unlock">{st.unlock}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              {b.note && <p className="dc-eco-note">{b.note}</p>}
+            </section>
+          );
+        }
         if (b.id === 'next' || b.id === 'gate') return <p key={b.id} className="dc-eco-next">{b.text}</p>;
         if (b.id === 'howl') {
           return (
@@ -7576,7 +7605,7 @@ ${content.slice(0, 8000)}`;
     'Trust and credibility',
     'Sustainability narrative',
     'Benchmark comparison',
-    'Earned creative',
+    'Earned creative opportunity',
     'Recommendations',
     'Conclusions',
     'Score justification',
@@ -7756,7 +7785,7 @@ ${content.slice(0, 8000)}`;
       {/* Earned creative (ECO module v1.0) */}
       {eco && (
         <section className="dc-section dc-reveal" id="earned-creative">
-          <SectionHeading order={sectionOrder} label="Earned creative" open={expandedSections.eco} onToggle={() => toggleSection('eco')} />
+          <SectionHeading order={sectionOrder} label="Earned creative opportunity" open={expandedSections.eco} onToggle={() => toggleSection('eco')} />
           {expandedSections.eco && (
             <>
               <EcoPanel eco={eco} scores={scores} setScores={setScores} isAdmin={!!profile?.is_admin} userName={profile?.full_name || profile?.email} companyStage={project.companyStage} />
@@ -10340,7 +10369,7 @@ function ElapsedTime({ since }) {
 const CLIENT_REPORT_SECTIONS = [
   'results at a glance', 'brand maturity', 'attribute analysis', 'brand footprint',
   'campaign coherence', 'trust and credibility', 'the sustainability narrative',
-  'earned creative', 'the benchmark comparison', 'the conclusions',
+  'the earned creative opportunity', 'the benchmark comparison', 'the conclusions',
 ];
 const CLIENT_REPORT_SECTIONS_TEXT = `${CLIENT_REPORT_SECTIONS.slice(0, -1).join(', ')} and ${CLIENT_REPORT_SECTIONS.at(-1)}`;
 
@@ -11408,7 +11437,7 @@ function ClientReportView({ payload }) {
     ...(campaignStage ? ['Campaign coherence'] : []),
     'Trust and credibility',
     ...(scores?.sustainabilityNarrative ? ['Sustainability narrative'] : []),
-    ...(payload.eco?.blocks?.length ? ['Earned creative'] : []),
+    ...(payload.eco?.blocks?.length ? ['Earned creative opportunity'] : []),
     ...(benchmark ? ['Benchmark comparison'] : []),
     ...(payload.conclusion ? ['Conclusions'] : []),
   ];
@@ -11557,7 +11586,7 @@ function ClientReportView({ payload }) {
         {/* ── Benchmark comparison ────────────────────────────── */}
         {payload.eco?.blocks?.length > 0 && (
           <section className="dc-section dc-reveal" id="earned-creative">
-            <SectionHeading order={clientSections} label="Earned creative" />
+            <SectionHeading order={clientSections} label="Earned creative opportunity" />
             <EcoBlocks blocks={payload.eco.blocks} />
           </section>
         )}
@@ -12749,8 +12778,8 @@ function TeaserClientView({ payload, heroImage = null, baseline = null }) {
         if (ATTRIBUTES.some(a => !Number.isFinite(Number(attrs[a.id])))) return null;
         return (
           <section className="dc-tz-sec" data-field="eco-lite">
-            <h2 className="dc-h">Earned creative</h2>
-            <EcoBlocks blocks={buildLiteSection(attrs).blocks} />
+            <h2 className="dc-h">Earned creative opportunity</h2>
+            <EcoBlocks blocks={buildLiteSection(attrs, payload.brandName).blocks} />
           </section>
         );
       })()}

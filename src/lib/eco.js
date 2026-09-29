@@ -468,48 +468,135 @@ export function runEco(input) {
   };
 }
 
-// ── 5.7 Report blocks ────────────────────────────────────────
+// ── Presentation: the opportunity ladder (v3.105.0) ──────────
+// Every brand has an earned creative opportunity; what varies is how far it
+// can go today. The decision logic above is unchanged (the packet's fixtures
+// still run against it); only what the reader sees is reframed. The ladder
+// has four steps. The step a brand can take now comes from the outcome and
+// ambition level: a gate that is Not yet, or a stage 1 brand, starts at
+// Foundations. The next step up is shown with what unlocks it: the gate's
+// conditions, or a later maturity stage. Examples are drawn from the brand's
+// own verified truths, uncovered assets and cause territory.
+export const ECO_LADDER = {
+  steps: [
+    { id: 'foundations', level: null, name: 'Foundations', meaning: 'Build the proof an idea would stand on.' },
+    { id: 'evidence', level: 'A', name: 'Evidence-led', meaning: 'Ideas built on your data and expertise.' },
+    { id: 'partnered', level: 'B', name: 'Partnered', meaning: 'Ideas delivered with credible allies.' },
+    { id: 'bold', level: 'C', name: 'Bold', meaning: 'Culture-shaping ideas and long-running platforms.' },
+  ],
+  stageNames: { 2: 'Establishing', 3: 'Differentiating', 4: 'Leading', 5: 'Transforming' },
+  examples: {
+    foundations: { withAsset: 'Document {asset} so a journalist could verify it independently.', generic: 'Document two proof points a journalist could verify independently.' },
+    evidence: { withAsset: 'A public release of {asset}, in a form journalists and peers can use.', generic: 'A data release or practical tool built on your expertise.' },
+    partnered: { withCause: 'A program co-created with a credible partner in {territory}, built on {asset}.', withAsset: 'A pilot co-created with a credible partner, built on {asset}.', generic: 'A co-created program or a cause-linked pilot.' },
+    bold: { withAsset: 'A public intervention or long-running platform built on {asset}.', generic: 'A public intervention or a sustained platform idea.' },
+  },
+  copy: {
+    opener: '{brand} has an earned creative opportunity. Here is how far it can go today, and what would take it further.',
+    sizeTitle: 'The opportunity',
+    size: {
+      Significant: 'Significant. Earned creative would close a real gap between what {brand} does and how visible it is.',
+      Targeted: "Targeted. {brand} is already visible, so earned creative adds the most when it's tied to a moment: a launch, a milestone or a live conversation.",
+    },
+    ladderTitle: 'How far it can go',
+    readyNow: 'Ready now',
+    withinReach: 'Within reach',
+    foundationsNote: 'The opportunity starts with proof. Earned attention brings scrutiny, so the first step is making sure every claim an idea rests on can be verified.',
+    whyTitle: 'Where the opportunity comes from',
+    nextTitle: 'What takes it to the next step',
+    unlockConditions: '{next} opens once the steps below are done.',
+    unlockStage: '{next} opens at the {stage} stage.',
+    howlFoundations: "Once the foundations are in place, HOWL, Antenna Group's earned creative sub-brand, can turn them into ideas that earn attention. The work recommended above is the first step.",
+    next: {
+      foundations: 'Next step: {routed_services}, with earned creative as the follow-on.',
+      foundationsGeneric: 'Next step: build the proof points above, with earned creative as the follow-on.',
+      Significant: 'Next step: a HOWL ideation session built on the material above.',
+      Targeted: 'Next step: a HOWL ideation session to line up ideas for the next launch, milestone or live conversation.',
+    },
+    liteReady: 'Where {brand} starts is set by the full assessment, which checks whether the brand can withstand the attention.',
+  },
+};
+const L = ECO_LADDER;
+const stepIndex = (id) => L.steps.findIndex(s => s.id === id);
+
+// The step a brand can take now, from the (possibly overridden) outcome.
+export function readyStepFor(eco) {
+  // A failed hard criterion (G1 proof, G2 conduct) always means Foundations,
+  // whatever the outcome says: no override can put a brand past the proof.
+  if (eco.gate?.criteria && hardFailures(eco.gate).length) return 'foundations';
+  if (!eco.outcome || eco.outcome === O.BUILD || eco.outcome === O.NOT_PRIORITY || !eco.ambitionLevel) return 'foundations';
+  return L.steps.find(s => s.level === eco.ambitionLevel)?.id || 'foundations';
+}
+
+// What opens the next step: the gate's conditions, or a later maturity stage.
+function unlockFor(eco, readyId) {
+  const i = stepIndex(readyId);
+  const next = L.steps[i + 1];
+  if (!next) return null;
+  const hasConditions = Object.values(eco.gate.criteria || {}).some(c => c.result === 'Conditional' || c.result === 'Fail');
+  const stage = eco.maturityStage || 1;
+  const profile = eco.businessProfile;
+  if (readyId === 'foundations' && hasConditions) return { next: next.name, text: fill(L.copy.unlockConditions, { next: next.name }), byConditions: true };
+  // Would passing the gate open the next step at this stage?
+  const passLevel = calibrateAmbition(O.RECOMMEND, 'Pass', stage, profile);
+  if (hasConditions && passLevel && stepIndex(L.steps.find(s => s.level === passLevel).id) > i) {
+    return { next: next.name, text: fill(L.copy.unlockConditions, { next: next.name }), byConditions: true };
+  }
+  for (let s = stage + 1; s <= 5; s++) {
+    const lvl = calibrateAmbition(O.RECOMMEND, 'Pass', s, profile);
+    if (lvl && stepIndex(L.steps.find(x => x.level === lvl).id) > i) {
+      return { next: next.name, text: fill(L.copy.unlockStage, { next: next.name, stage: L.stageNames[s] }), byConditions: false };
+    }
+  }
+  return null;
+}
+
+// One example per step from the brand's own material, rotating so steps
+// don't all name the same thing.
+function ladderExamples(material, territory) {
+  const pick = (i) => (material.length ? material[i % material.length].name : null);
+  const ex = L.examples;
+  return {
+    foundations: pick(0) ? fill(ex.foundations.withAsset, { asset: pick(0) }) : ex.foundations.generic,
+    evidence: pick(0) ? fill(ex.evidence.withAsset, { asset: pick(0) }) : ex.evidence.generic,
+    partnered: territory && pick(1) ? fill(ex.partnered.withCause, { territory, asset: pick(1) }) : pick(1) ? fill(ex.partnered.withAsset, { asset: pick(1) }) : ex.partnered.generic,
+    bold: pick(2) ? fill(ex.bold.withAsset, { asset: pick(2) }) : pick(0) ? fill(ex.bold.withAsset, { asset: pick(0) }) : ex.bold.generic,
+  };
+}
+
+// ── Report blocks ────────────────────────────────────────────
 // ctx: { brand, evidence, gateInputs, e4Assets [{ name, description }],
 //        stakeholder, context }
 export function buildReportSection(eco, ctx = {}) {
   const brand = ctx.brand || 'your brand';
-  const o = eco.outcome;
-  const shows = (key) => {
-    const rule = C.blocks[key];
-    if (rule === 'all') return true;
-    if (key === 'conditions' && o === O.MOMENT && eco.gate.result === 'Conditional') return true;   // Resolution 3
-    return rule.includes(o);
-  };
-  const blocks = [];
   const crit = eco.gate.criteria || {};
-  const conditionLines = [];
-  Object.entries(crit).forEach(([id, c]) => {
-    if (c.result !== 'Conditional' && c.result !== 'Fail') return;
-    const cc = C.copy.conditions;
-    if (id === 'G1') conditionLines.push(fill(cc.G1, { unsupported_claims: ctx.gateInputs?.unsupportedClaims || cc.G1_default }));
-    if (id === 'G2') conditionLines.push(fill(cc.G2, { flag: c.flags?.[0] || cc.G2_default }));
-    if (id === 'G3') conditionLines.push(fill(cc.G3, { territory: c.territory || cc.G3_default }));
-    if (id === 'G4') conditionLines.push(cc.G4);
-    if (id === 'G5') {
-      if (c.missing?.length) conditionLines.push(fill(cc.G5, { missing_checklist_items: listJoin(c.missing) }));
-      else if (c.intentionalResult && c.intentionalResult !== 'Pass') conditionLines.push(cc.G5_intentional);
-      if (c.mediaCondition) conditionLines.push(cc.G5_media);
-    }
-  });
-  const conditionCount = Object.values(crit).filter(c => c.result === 'Conditional' || c.result === 'Fail').length;
-
+  const size = eco.needBand === 'High' ? 'Significant' : 'Targeted';
+  const ready = readyStepFor(eco);
+  const readyIdx = stepIndex(ready);
+  const unlock = unlockFor(eco, ready);
   const truths = ctx.gateInputs?.verifiedTruths || [];
   const assets = ctx.e4Assets || [];
   const material = [...truths, ...assets.filter(a => !truths.some(t => t.name === a.name))];
+  const territory = crit.G3?.causeTerritory ? crit.G3.territory : null;
+  const examples = ladderExamples(material, territory);
+  const blocks = [];
 
-  if (shows('headline')) {
-    const text = o === O.WITH_CONDITIONS && conditionCount === 1 ? C.copy.headlineOneCondition : fill(C.copy.headline[o] || '', { n: conditionCount });
-    blocks.push({ id: 'headline', text });
-  }
-  if (shows('why')) {
+  blocks.push({ id: 'headline', text: fill(L.copy.opener, { brand }) });
+  blocks.push({ id: 'size', title: L.copy.sizeTitle, size, text: fill(L.copy.size[size], { brand }) });
+  blocks.push({
+    id: 'ladder', title: L.copy.ladderTitle, ready,
+    steps: L.steps.map((st, i) => ({
+      id: st.id, n: i + 1, name: st.name, meaning: st.meaning, example: examples[st.id],
+      state: i === readyIdx ? 'ready' : unlock && i === readyIdx + 1 ? 'reach' : i < readyIdx ? 'done' : 'later',
+      label: i === readyIdx ? L.copy.readyNow : unlock && i === readyIdx + 1 ? L.copy.withinReach : null,
+      unlock: unlock && i === readyIdx + 1 ? unlock.text : null,
+    })),
+    note: ready === 'foundations' ? L.copy.foundationsNote : null,
+  });
+
+  // Where the opportunity comes from: the gap, when there is one.
+  if (eco.primaryTriggers.length && size === 'Significant') {
     const e1 = num(ctx.evidence?.E1);
-    // VISIONARY and COGENT each cite the next asset in turn, so two
-    // triggers never name the same one.
     let nextAsset = 0;
     const sentences = eco.primaryTriggers.map(id => {
       const ts = C.copy.triggerSentence;
@@ -521,57 +608,75 @@ export function buildReportSection(eco, ctx = {}) {
       }
       return fill(ts[id], { brand });
     });
-    blocks.push({ id: 'why', title: "Why we're flagging this",
+    blocks.push({ id: 'why', title: L.copy.whyTitle,
       text: fill(C.copy.why, { brand, S: round1(eco.scores.substance), V: round1(eco.scores.visibility), trigger_sentences: sentences.join(' ') }).trim() });
   }
-  if (shows('definition')) blocks.push({ id: 'definition', title: 'What earned creative is', text: C.copy.definition });
-  if (shows('benefits')) {
-    const cause = !!crit.G3?.causeTerritory || ctx.context?.C5 === true;
-    blocks.push({ id: 'benefits', title: 'What it could do for your brand', items: routeBenefits(o, eco.primaryTriggers, { brand, cause, stakeholder: ctx.stakeholder || null }) });
-  }
-  if (shows('appropriate')) {
+
+  blocks.push({ id: 'definition', title: 'What earned creative is', text: C.copy.definition });
+
+  const cause = !!crit.G3?.causeTerritory || ctx.context?.C5 === true;
+  blocks.push({ id: 'benefits', title: 'What it could do for your brand',
+    items: routeBenefits(size === 'Significant' ? O.RECOMMEND : O.MOMENT, eco.primaryTriggers, { brand, cause, stakeholder: ctx.stakeholder || null }) });
+
+  if (ready !== 'foundations') {
     const passing = Object.entries(crit).filter(([, c]) => c.result === 'Pass').map(([id]) => C.copy.passNames[id]);
-    blocks.push({ id: 'appropriate', title: "Why it's appropriate now", text: fill(C.copy.appropriate, { pass_list: listJoin(passing) }) });
+    if (passing.length) blocks.push({ id: 'appropriate', title: "Why it's credible now", text: fill(C.copy.appropriate, { pass_list: listJoin(passing) }) });
   }
-  if (shows('conditions') && conditionLines.length) blocks.push({ id: 'conditions', title: 'What would need to be true', items: conditionLines });
-  if (shows('rawMaterial')) {
-    blocks.push({ id: 'rawMaterial', title: 'Where the raw material is',
-      items: material.length ? material.map(m => `${m.name}: ${String(m.description || '').replace(/\.$/, '')}.`) : null,
-      text: material.length ? null : C.copy.rawMaterialEmpty });
-  }
-  if (shows('ambition') && eco.ambitionLevel) {
-    const a = C.ambition[eco.ambitionLevel];
-    blocks.push({ id: 'ambition', title: 'Recommended ambition level', level: eco.ambitionLevel,
-      text: fill(C.copy.ambitionLine, { level: eco.ambitionLevel, name: a.name, detail: a.detail, example: a.example }) });
-  }
-  if (shows('howl') && eco.howlIntro) {
-    const opener = C.copy.howlOpeners[eco.howlIntro.opener];
-    let text;
-    if (eco.howlIntro.length === 'full') {
-      const short = truths.slice(0, 2).map(t => t.name);
-      const amb = eco.ambitionLevel ? C.ambition[eco.ambitionLevel].description : C.ambition.A.description;
-      text = fill(short.length ? C.copy.howlFull : C.copy.howlFullNoMaterial, { opener, raw_material_short: listJoin(short), ambition_description: amb });
-    } else {
-      text = C.copy.howlShort[o];
+
+  // What takes it to the next step: the gate's conditions, then the stage.
+  const lines = [];
+  Object.entries(crit).forEach(([id, c]) => {
+    if (c.result !== 'Conditional' && c.result !== 'Fail') return;
+    const cc = C.copy.conditions;
+    if (id === 'G1') lines.push(fill(cc.G1, { unsupported_claims: ctx.gateInputs?.unsupportedClaims || cc.G1_default }));
+    if (id === 'G2') lines.push(fill(cc.G2, { flag: c.flags?.[0] || cc.G2_default }));
+    if (id === 'G3') lines.push(fill(cc.G3, { territory: c.territory || cc.G3_default }));
+    if (id === 'G4') lines.push(cc.G4);
+    if (id === 'G5') {
+      if (c.missing?.length) lines.push(fill(cc.G5, { missing_checklist_items: listJoin(c.missing) }));
+      else if (c.intentionalResult && c.intentionalResult !== 'Pass') lines.push(cc.G5_intentional);
+      if (c.mediaCondition) lines.push(cc.G5_media);
     }
-    blocks.push({ id: 'howl', title: 'Introducing HOWL', length: eco.howlIntro.length, opener: eco.howlIntro.opener, text });
+  });
+  if (unlock && !unlock.byConditions) lines.push(unlock.text);
+  if (ready === 'foundations' && eco.routedServices.length && !lines.length) lines.push(`Complete ${listJoin(eco.routedServices)}.`);
+  if (lines.length) blocks.push({ id: 'conditions', title: L.copy.nextTitle, items: lines });
+
+  blocks.push({ id: 'rawMaterial', title: 'Where the raw material is',
+    items: material.length ? material.map(m => `${m.name}: ${String(m.description || '').replace(/\.$/, '')}.`) : null,
+    text: material.length ? null : C.copy.rawMaterialEmpty });
+
+  // HOWL for every brand, scaled to the step.
+  if (ready === 'foundations') {
+    blocks.push({ id: 'howl', title: 'Introducing HOWL', length: 'short', opener: null, text: L.copy.howlFoundations });
+  } else {
+    const openerKey = eco.howlIntro?.opener || selectHowlIntro(O.RECOMMEND, { profile: eco.businessProfile, causeTerritory: !!crit.G3?.causeTerritory, c5: ctx.context?.C5 === true }).opener;
+    const short = truths.slice(0, 2).map(t => t.name);
+    const amb = C.ambition[eco.ambitionLevel]?.description || C.ambition.A.description;
+    blocks.push({ id: 'howl', title: 'Introducing HOWL', length: 'full', opener: openerKey,
+      text: fill(short.length ? C.copy.howlFull : C.copy.howlFullNoMaterial, { opener: C.copy.howlOpeners[openerKey], raw_material_short: listJoin(short), ambition_description: amb }) });
   }
-  if (shows('next')) blocks.push({ id: 'next', text: fill(C.copy.next[o] || '', { routed_services: listJoin(eco.routedServices) }) });
+
+  blocks.push({ id: 'next', text: ready === 'foundations'
+    ? (eco.routedServices.length ? fill(L.copy.next.foundations, { routed_services: listJoin(eco.routedServices) }) : L.copy.next.foundationsGeneric)
+    : L.copy.next[size] });
   return blocks;
 }
 
-// The quick (lite) view for the Teaser read (5.11): verdict, definition, and
-// HOWL with the standard opener. The gate needs the full assessment.
-export function buildLiteSection(attrs) {
+// The Teaser read's lite view (5.11): the opportunity size and the ladder,
+// with the starting step left to the full assessment, then what earned
+// creative is and HOWL with the standard opener.
+export function buildLiteSection(attrs, brand = 'this brand') {
   const eco = runEco({ attrs, lite: true });
-  const verdict = eco.needBand === 'High'
-    ? 'Earned creative could close a real gap for this brand. The full assessment confirms whether it can withstand the attention.'
-    : 'Earned creative is optional for this brand today, and could still suit the right moment. The full assessment confirms it.';
+  const size = eco.needBand === 'High' ? 'Significant' : 'Targeted';
+  const ex = ladderExamples([], null);
   return { eco, blocks: [
-    { id: 'headline', text: verdict },
+    { id: 'size', title: L.copy.sizeTitle, size, text: fill(L.copy.size[size], { brand }) },
+    { id: 'ladder', title: L.copy.ladderTitle, ready: null,
+      steps: L.steps.map((st, i) => ({ id: st.id, n: i + 1, name: st.name, meaning: st.meaning, example: ex[st.id], state: 'later', label: null, unlock: null })),
+      note: fill(L.copy.liteReady, { brand }) },
     { id: 'definition', title: 'What earned creative is', text: C.copy.definition },
     { id: 'howl', title: 'Introducing HOWL', length: 'lite', opener: 'standard', text: C.copy.howlOpeners.standard },
-    { id: 'gate', text: 'Appropriateness: requires full assessment.' },
   ] };
 }
 

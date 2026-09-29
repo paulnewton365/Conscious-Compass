@@ -48,7 +48,10 @@ test('T2 Recommend with conditions', () => {
   assert.equal(r.gate.result, 'Conditional'); assert.equal(r.outcome, 'Recommend with conditions'); assert.equal(r.ambitionLevel, 'B');
   assert.deepEqual(r.howlIntro, { length: 'full', opener: 'standard' });
   const blocks = eco.buildReportSection(r, { brand: 'Acme', gateInputs: T.T2.gateInputs, evidence: T.T2.evidence });
-  assert.equal(blocks[0].text, 'Your brand is a strong candidate for earned creative, with 2 conditions to address first.');
+  // v3.105.0: shown as a ladder. Ready at Partnered; Bold opens once the two conditions are met.
+  const ladder = blocks.find(b => b.id === 'ladder');
+  assert.equal(ladder.ready, 'partnered');
+  assert.equal(ladder.steps.find(s => s.state === 'reach').unlock, 'Bold opens once the steps below are done.');
   assert.equal(blocks.find(b => b.id === 'conditions').items.length, 2);
 });
 
@@ -144,19 +147,48 @@ test('the app maps six maturity stages onto five, and startup from the company s
 });
 
 test('the lite view uses D and G only and marks the gate as needing the full assessment', () => {
-  const { eco: r, blocks } = eco.buildLiteSection(T.T1.attrs);
+  const { eco: r, blocks } = eco.buildLiteSection(T.T1.attrs, 'Acme');
   near(r.needRating, (0.533 * r.scores.deficit + 0.467 * r.scores.gap) / 1.0, 'lite need');
   assert.equal(r.gate.result, 'Requires full assessment');
+  assert.equal(blocks.find(b => b.id === 'size').size, 'Significant');
+  const lad = blocks.find(b => b.id === 'ladder');
+  assert.equal(lad.ready, null); assert.ok(lad.steps.every(s => s.state === 'later'), 'no starting step without the gate');
+  assert.match(lad.note, /set by the full assessment/);
   assert.equal(blocks.find(b => b.id === 'howl').text, eco.ECO_CONFIG.copy.howlOpeners.standard);
 });
 
-test('report blocks show and hide by outcome', () => {
-  const ids = (f, extra) => eco.buildReportSection(run(f, extra), { brand: 'Acme', gateInputs: f.gateInputs }).map(b => b.id);
-  assert.deepEqual(ids(T.T1), ['headline', 'why', 'definition', 'benefits', 'appropriate', 'rawMaterial', 'ambition', 'howl', 'next']);
-  assert.deepEqual(ids(T.T3), ['headline', 'why', 'definition', 'conditions', 'rawMaterial', 'howl', 'next']);
-  assert.deepEqual(ids(T.T5), ['headline', 'definition', 'benefits', 'rawMaterial', 'ambition', 'howl', 'next']);
+test('every brand gets the opportunity ladder; the step it starts on follows the outcome (v3.105.0)', () => {
+  const sec = (f, extra) => eco.buildReportSection(run(f, extra), { brand: 'Acme', gateInputs: f.gateInputs, evidence: f.evidence });
+  const ladder = (bl) => bl.find(b => b.id === 'ladder').steps.map(s => `${s.name}:${s.state}`).join(' ');
+  const t1 = sec(T.T1);
+  assert.deepEqual(t1.map(b => b.id), ['headline', 'size', 'ladder', 'why', 'definition', 'benefits', 'appropriate', 'conditions', 'rawMaterial', 'howl', 'next']);
+  assert.equal(ladder(t1), 'Foundations:done Evidence-led:done Partnered:ready Bold:reach');
+  assert.ok(t1.find(b => b.id === 'conditions').items.includes('Bold opens at the Leading stage.'));
+  const t3 = sec(T.T3);
+  assert.equal(ladder(t3), 'Foundations:ready Evidence-led:reach Partnered:later Bold:later', 'G1 fails: starts at Foundations');
+  assert.equal(t3.find(b => b.id === 'howl').length, 'short');
+  assert.ok(!t3.some(b => b.id === 'appropriate'), 'no credibility claim before the proof');
+  const t5 = sec(T.T5);
+  assert.equal(ladder(t5), 'Foundations:done Evidence-led:done Partnered:done Bold:ready');
+  assert.equal(t5.find(b => b.id === 'size').size, 'Targeted');
+  assert.equal(t5.find(b => b.id === 'howl').length, 'full', 'HOWL scaled to the step, not the size');
+  // A brand the packet called "Not a current priority" still sees its opportunity.
   const np = eco.runEco({ ...T.T7, profile: 'Standard', gateInputs: { ...T.T7.gateInputs, checklist: { riskAppetite: true, approval: true } } });
-  assert.deepEqual(eco.buildReportSection(np, { brand: 'Acme' }).map(b => b.id), ['headline', 'definition', 'next'], 'Not a current priority: no HOWL');
+  assert.equal(np.outcome, 'Not a current priority');
+  const npb = eco.buildReportSection(np, { brand: 'Acme', gateInputs: T.T7.gateInputs });
+  assert.equal(npb[0].text, 'Acme has an earned creative opportunity. Here is how far it can go today, and what would take it further.');
+  assert.equal(npb.find(b => b.id === 'ladder').ready, 'foundations');
+  assert.ok(npb.some(b => b.id === 'howl'), 'HOWL for every brand');
+  for (const f of [T.T1, T.T3, T.T5]) assert.ok(!JSON.stringify(sec(f)).includes('not a priority'), 'nothing reads as optional');
+});
+
+test('ladder examples come from the brand\'s own material, and differ step to step', () => {
+  const r = run(T.T6);
+  const steps = eco.buildReportSection(r, { brand: 'GridCo', gateInputs: T.T6.gateInputs }).find(b => b.id === 'ladder').steps;
+  assert.equal(steps[1].example, 'A public release of Truth 1, in a form journalists and peers can use.');
+  assert.equal(steps[2].example, 'A program co-created with a credible partner in Grid decarbonization, built on Truth 2.');
+  const bare = eco.buildReportSection(run(T.T5, { gateInputs: { ...T.T5.gateInputs } }), { brand: 'X' }).find(b => b.id === 'ladder').steps;
+  assert.equal(bare[0].example, 'Document two proof points a journalist could verify independently.', 'generic when there is no material');
 });
 
 test('no em dashes anywhere in the module copy', () => {
@@ -229,4 +261,12 @@ test('two substance triggers cite different assets', () => {
   const r = run(T.T6);
   const why = eco.buildReportSection(r, { brand: 'GridCo', gateInputs: T.T6.gateInputs }).find(b => b.id === 'why').text;
   assert.ok(why.includes('including Truth 1, is not yet visible') && why.includes('including Truth 2, that could become'), why);
+});
+
+test('no override moves a brand off Foundations while G1 or G2 fails', () => {
+  const r = run(T.T3, { override: { outcome: 'Moment-driven', reason: 'A launch moment.' } });
+  assert.equal(r.outcome, 'Moment-driven', 'the override itself is allowed');
+  assert.equal(eco.readyStepFor(r), 'foundations');
+  const g2 = run(T.T1, { gateInputs: { ...T.T1.gateInputs, flags: [{ label: 'Lobbying contradiction', major: true, resolved: false }] } });
+  assert.equal(eco.readyStepFor(g2), 'foundations');
 });
