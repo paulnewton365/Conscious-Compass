@@ -1437,6 +1437,51 @@ button { font: inherit; color: inherit; }
   .dc-eco-verdict { font-size: 23px; }
 }
 
+/* ---------- From packet 14 (v3.106.0): report section 08 ---------- */
+/* 08 Benchmark comparison */
+.dc-bm { display: flex; flex-direction: column; gap: var(--cc-s-12); }
+.dc-bm-overall { display: flex; flex-direction: column; gap: var(--cc-s-6); }
+.dc-bm-scale { display: flex; flex-direction: column; gap: 8px; padding-top: 30px; }
+.dc-bm-scale-track, .dc-bm-track { position: relative; }
+.dc-bm-scale-track { height: 34px; }
+.dc-bm-scale-track::before, .dc-bm-track::before { content: ""; position: absolute; left: 0; right: 0; height: 1px; background: var(--cc-sep); }
+.dc-bm-scale-track::before { top: 8px; }
+.dc-bm-scale-track > i, .dc-bm-track > i { position: absolute; display: block; }
+.dc-bm-scale-track .range { top: 5px; height: var(--cc-bar-overall); background: var(--cc-rule); }
+.dc-bm-scale-track .avg { top: 0; width: 1px; height: 18px; background: var(--cc-ink); }
+.dc-bm-scale-track .avg span { position: absolute; top: 22px; left: 0; transform: translateX(-50%); white-space: nowrap; font-size: var(--cc-fs-meta); color: var(--cc-muted); font-style: normal; }
+.dc-bm-scale-track .subj { top: 2px; width: 12px; height: 12px; margin-left: -6px; background: var(--cc-rust); transform: rotate(45deg); }
+.dc-bm-scale-track .subj-l { position: absolute; top: -24px; transform: translateX(-50%); white-space: nowrap; font: var(--cc-w-bold) var(--cc-fs-ui)/1 var(--cc-sans); color: var(--cc-ink); }
+.dc-bm-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--cc-faint); }
+.dc-bm-axis.is-rows { margin-left: calc(110px + var(--cc-s-4)); margin-right: calc(96px + var(--cc-s-4) * 2); }
+.dc-bm-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: var(--cc-s-6); border-top: var(--cc-border-strong); padding-top: var(--cc-s-5); }
+.dc-bm-stats > div { display: flex; flex-direction: column; gap: 4px; }
+.dc-bm-stats small { font-size: var(--cc-fs-lead); color: var(--cc-muted); font-family: var(--cc-sans); }
+.dc-bm-grid { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr); gap: var(--cc-s-12); align-items: start; }
+.dc-bm-rows { list-style: none; padding: 0; margin: 0; border-top: var(--cc-border-strong); }
+.dc-bm-row { display: grid; grid-template-columns: 110px minmax(0,1fr) 48px 48px; gap: var(--cc-s-4); align-items: center; min-height: 48px; border-bottom: var(--cc-border); font-size: var(--cc-fs-ui); }
+.dc-bm-name { font-weight: var(--cc-w-semi); color: var(--cc-ink); }
+.dc-bm-track { height: 20px; }
+.dc-bm-track::before { top: 10px; background: var(--cc-track); }
+.dc-bm-track .range { top: 7px; height: 6px; background: var(--cc-rule); }
+.dc-bm-track .avg { top: 3px; width: 1px; height: 15px; background: var(--cc-ink); }
+.dc-bm-track .subj { top: 5px; width: 10px; height: 10px; margin-left: -5px; background: var(--cc-rust); transform: rotate(45deg); }
+.dc-bm-v { text-align: right; font-size: 15px; font-weight: var(--cc-w-semi); color: var(--cc-ink); }
+.dc-bm-d { text-align: right; font-size: var(--cc-fs-meta); color: var(--cc-muted); }
+.dc-radar .s-bench { fill: none; stroke: var(--cc-ink); stroke-width: 1; stroke-dasharray: 4 4; }
+.dc-bm-legend { display: flex; gap: var(--cc-s-6); flex-wrap: wrap; font-size: var(--cc-fs-meta); color: var(--cc-body); }
+.dc-bm-legend span { display: inline-flex; align-items: center; gap: 8px; }
+.dc-bm-legend .k-subj { width: 18px; height: 0; border-top: 2px solid var(--cc-rust); }
+.dc-bm-legend .k-bench { width: 18px; height: 0; border-top: 1px dashed var(--cc-ink); }
+.dc-bm-grid .dc-radar { max-width: 480px; }
+@media (max-width: 1000px) { .dc-bm-grid { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  .dc-bm-stats { grid-template-columns: 1fr; gap: var(--cc-s-4); }
+  .dc-bm-row { grid-template-columns: 84px minmax(0,1fr) 32px 36px; gap: 10px; }
+  .dc-bm-axis.is-rows { margin-left: 94px; margin-right: 88px; }
+}
+
+
 /* ---------- Dialogs (v3.97.2) ----------
    One component for every modal. No design packet yet: built from the tokens,
    on the section pattern (ink rule on top, serif heading, paper ground). */

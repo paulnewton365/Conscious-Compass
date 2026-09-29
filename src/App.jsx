@@ -6,10 +6,11 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.105.0';
+const APP_VERSION = '3.107.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
-import { buildLiteSection, applyEarnedCreativeLift, parseActivations, validateOverride, ecoProfileFor, ecoFromReport, round1, ECO_CONFIG } from './lib/eco';
+import { benchmarkView, benchmarkPosition } from './lib/benchmarkView';
+import { buildLiteSection, applyEarnedCreativeLift, parseActivations, ecoFromReport, round1, ECO_CONFIG } from './lib/eco';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
 import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
@@ -672,6 +673,9 @@ function buildBenchmarkSnapshot(results, { industry, industryName, brandName, to
       acc[attr.id] = { min: Math.min(...vals), max: Math.max(...vals) };
       return acc;
     }, {}),
+    // The group's lowest and highest overall scores, for the range band on the
+    // overall scale (v3.106.0). Older saved snapshots lack it and show no band.
+    scoreRange: { min: Math.min(...cohort.map(b => b.totalScore)), max: Math.max(...cohort.map(b => b.totalScore)) },
     percentile: percentileOf(totalScore, cohort.map(b => b.totalScore)),
     rank: rankOf(totalScore, cohort.map(b => b.totalScore)),
     allBrandsAvg: Math.round(pool.reduce((s, b) => s + b.totalScore, 0) / pool.length),
@@ -699,14 +703,6 @@ function scoreColor(n) {
   if (v >= 70) return SCORE_GREEN;
   if (v >= 45) return SCORE_ORANGE;
   return SCORE_RED;
-}
-
-// Ordinal suffix used by the masthead and the benchmark panel.
-function ordinalSuffix(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '';
-  const v = Math.abs(Math.round(Number(n))), l = v % 100;
-  if (l >= 11 && l <= 13) return `${v}th`;
-  return `${v}${['th', 'st', 'nd', 'rd'][v % 10] || 'th'}`;
 }
 
 // Compress image to max size for Claude API (5MB limit, we target 4MB)
@@ -1333,13 +1329,11 @@ function EcoBlocks({ blocks }) {
 // The analyst panel: internal only, never in the client payload. Every input
 // the packet marks analyst-entered, plus the activations the scoring pass
 // found (the analyst can remove any, which recomputes the SENTIENT and
-// INTENTIONAL lift). Overrides are admin-only, need a reason, and store who
-// and when; G1 or G2 failing blocks any override to a Recommend.
-function EcoPanel({ eco, scores, setScores, isAdmin, userName, companyStage }) {
+// INTENTIONAL lift). There are no overrides: the verdict rests on observed or
+// submitted evidence only (v3.107.0).
+function EcoPanel({ eco, scores, setScores }) {
   const state = scores.eco || {};
   const set = (patch) => setScores(prev => ({ ...prev, eco: { ...(prev.eco || {}), ...patch } }));
-  const [ovr, setOvr] = useState({ outcome: '', ambitionLevel: '', reason: '' });
-  const [ovrMsg, setOvrMsg] = useState(null);
   const r = eco.result;
   const prof = eco.profile;
   const G5 = ECO_CONFIG.gate.G5[prof];
@@ -1375,12 +1369,6 @@ function EcoPanel({ eco, scores, setScores, isAdmin, userName, companyStage }) {
       </div>
     );
   };
-  const applyOverride = () => {
-    const o = { outcome: ovr.outcome || undefined, ambitionLevel: ovr.ambitionLevel === '' ? undefined : (ovr.ambitionLevel === 'none' ? null : ovr.ambitionLevel), reason: ovr.reason.trim(), by: userName || 'Admin', at: new Date().toISOString() };
-    const v = validateOverride(o, r.gate);
-    if (!v.ok) { setOvrMsg(v.message); return; }
-    setOvrMsg(null); set({ override: o });
-  };
   const crit = r.gate.criteria || {};
   return (
     <section className="dc-internal" aria-label="Earned creative inputs" data-field="eco-panel">
@@ -1393,14 +1381,7 @@ function EcoPanel({ eco, scores, setScores, isAdmin, userName, companyStage }) {
       {r.analystReviewRequired && <div className="dc-alert is-warn" role="note">{r.gate.result === 'Pending' ? 'The gate needs the claims audit or REFLECTIVE, the verified truths and the readiness checklist before an outcome can be given. Nothing is shown to the client until then.' : ECO_CONFIG.copy.reviewNote}</div>}
 
       <div className="dc-eco-panel">
-        <div className="dc-field">
-          <label htmlFor="eco-profile">Business profile</label>
-          <select id="eco-profile" className="dc-select" value={state.profile || ''} onChange={e => set({ profile: e.target.value || null })}>
-            <option value="">From the company stage ({ecoProfileFor(companyStage)})</option>
-            <option value="Standard">Standard</option>
-            <option value="Startup">Startup</option>
-          </select>
-        </div>
+        <p className="dc-meta" data-field="eco-profile">Business profile: {prof}, from the company stage set at Setup.</p>
 
         <fieldset className="dc-eco-set"><legend>Earned creative in use (from the scoring pass)</legend>
           {acts.length === 0 ? <p className="dc-meta">None found. The SENTIENT and INTENTIONAL lift applies only with at least one confirmed activation.</p> : (
@@ -1464,28 +1445,6 @@ function EcoPanel({ eco, scores, setScores, isAdmin, userName, companyStage }) {
             <input id="eco-sh" className="dc-input" value={state.stakeholder || ''} onChange={e => set({ stakeholder: e.target.value || null })} placeholder="e.g. regulators and utilities" /></div>
         </fieldset>
 
-        {isAdmin && (
-          <fieldset className="dc-eco-set" data-field="eco-override"><legend>Override (admin)</legend>
-            {state.override ? (
-              <p className="dc-meta">Overridden by {state.override.by} on {new Date(state.override.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: {state.override.reason} <button type="button" className="dc-link-btn" onClick={() => set({ override: null })}>Clear</button></p>
-            ) : (
-              <>
-                <div className="dc-field"><label htmlFor="eco-oo">Outcome</label>
-                  <select id="eco-oo" className="dc-select" value={ovr.outcome} onChange={e => setOvr({ ...ovr, outcome: e.target.value })}>
-                    <option value="">No change</option>{Object.values(ECO_CONFIG.outcomes).map(o => <option key={o} value={o}>{o}</option>)}
-                  </select></div>
-                <div className="dc-field"><label htmlFor="eco-oa">Ambition</label>
-                  <select id="eco-oa" className="dc-select" value={ovr.ambitionLevel} onChange={e => setOvr({ ...ovr, ambitionLevel: e.target.value })}>
-                    <option value="">No change</option><option value="A">A · Evidence-led</option><option value="B">B · Partnered</option><option value="C">C · Bold</option><option value="none">None</option>
-                  </select></div>
-                <div className="dc-field is-wide"><label htmlFor="eco-or">Reason (required)</label>
-                  <input id="eco-or" className="dc-input" value={ovr.reason} onChange={e => setOvr({ ...ovr, reason: e.target.value })} /></div>
-                {ovrMsg && <p className="dc-error" role="alert">{ovrMsg}</p>}
-                <div><button type="button" className="btn-secondary" onClick={applyOverride} disabled={!ovr.outcome && !ovr.ambitionLevel}>Apply override</button></div>
-              </>
-            )}
-          </fieldset>
-        )}
       </div>
     </section>
   );
@@ -2086,7 +2045,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
         </div>
         <div>
           <div className="text-lg font-bold text-[#15171A]">
-            {benchmark.rank ? `${ordinal(benchmark.rank)} of ${benchmark.count}` : `${benchmark.count}`}
+            {benchmarkPosition(benchmark)?.rank ? `${ordinal(benchmarkPosition(benchmark).rank)} of ${benchmarkPosition(benchmark).n}` : `${benchmark.count}`}
           </div>
           <div className="text-[10px] text-[#5B6068] leading-tight">
             {benchmark.rank ? `rank in ${scopeNoun}` : 'brands compared'}
@@ -2094,7 +2053,7 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
         </div>
         <div>
           <div className="text-lg font-bold text-[#15171A]">
-            {benchmark.percentile != null ? ordinal(benchmark.percentile) : '—'}
+            {benchmarkPosition(benchmark)?.percentile != null ? ordinal(benchmarkPosition(benchmark).percentile) : '—'}
           </div>
           <div className="text-[10px] text-[#5B6068] leading-tight">percentile</div>
         </div>
@@ -5507,131 +5466,100 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
   );
 }
 
-function ReportBenchmarkSection({ project, scores, overall, stage, benchmark, benchmarkAvgScores,
-  benchmarkPositionRef, benchmarkSpreadRef, benchmarkRadarRef, spreadRef, spreadIn, open = true }) {
+// Report section 08, benchmark comparison, to packet 14 (v3.106.0). Shared by
+// the full report and the client view. The brand is a rust diamond, the group
+// average a 1px ink tick (a dashed outline on the radar), the group range a
+// pale band. Positions are the only inline styles. The Word export captures
+// the overall block and the grid through the two refs.
+function ReportBenchmarkSection({ project, scores, overall, benchmark, benchmarkPositionRef = null, benchmarkSpreadRef = null, open = true }) {
+  if (!open) return null;
+  if (!benchmark) {
+    return (
+      <div className="dc-alert">
+        <strong>Nothing to compare yet</strong>
+        <p>No assessed brands are loaded, so there is nothing to benchmark against yet.</p>
+      </div>
+    );
+  }
+  const brand = project.brandName;
+  const v = benchmarkView(benchmark, scores, overall, brand);
+  const w = v.words;
+  const hasAvg = Number.isFinite(v.avg);
   return (
-    <>
-      {benchmark && open && (
-                <div className="animate-fade-in">
-                  {/* Overall position */}
-                  <div className="bg-white" style={{ marginTop: 24, padding: '28px 32px' }} ref={benchmarkPositionRef}>
-                    <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Overall Position</h4>
-                    <p className="text-[13px] text-[#5B6068] mt-1">
-                      Where {project.brandName} sits against {benchmark.cohortLabel.toLowerCase()}.
-                    </p>
+    <div className="dc-bm">
+      <div className="dc-bm-overall" ref={benchmarkPositionRef}>
+        <div className="dc-stack is-gap-2">
+          <div className="dc-kicker">Overall position</div>
+          <p className="dc-meta">
+            Where {brand} sits against <span data-value="sector-n">{benchmark.count}</span> other <span data-value="sector">{w.group}</span>.
+          </p>
+        </div>
+        <div className="dc-bm-scale" role="img" aria-label={v.scaleLabel}>
+          <div className="dc-bm-scale-track">
+            {v.range && <i className="range" style={{ left: `${v.range.left}%`, width: `${v.range.width}%` }}></i>}
+            {hasAvg && <i className="avg" style={{ left: `${v.avg}%` }}><span>{w.avg} {v.avg}</span></i>}
+            <i className="subj" style={{ left: `${overall}%` }}></i>
+            <b className="subj-l" style={{ left: `${overall}%` }}>{brand} {overall}</b>
+          </div>
+          <div className="dc-bm-axis" aria-hidden="true">{[0, 25, 50, 75, 100].map(t => <span key={t}>{t}</span>)}</div>
+        </div>
+        <div className="dc-bm-stats">
+          {/* Rank and percentile need the whole group; a link issued before
+              they were carried leaves them out rather than showing dashes. */}
+          {v.vsAvg !== null && <div><div className="dc-stat-n" data-value="vs-avg">{v.vsAvg}</div><span className="dc-meta">vs {w.avgLong}</span></div>}
+          {v.pos?.rank && (
+            <div><div className="dc-stat-n"><span data-value="rank">{ordinal(v.pos.rank)}</span> <small>of <span data-value="rank-n">{v.pos.n}</span></small></div><span className="dc-meta">{w.rank}</span></div>
+          )}
+          {v.pos?.percentile != null && v.pos?.rank && (
+            <div><div className="dc-stat-n" data-value="percentile">{ordinal(v.pos.percentile)}</div><span className="dc-meta">Percentile</span></div>
+          )}
+        </div>
+      </div>
 
-                    <div className="relative" style={{ padding: '56px 0 8px' }}>
-                      <div className="absolute flex flex-col items-center gap-1.5"
-                        style={{ left: `${overall}%`, top: 8, transform: 'translateX(-50%)' }}>
-                        {/* The pill is absolutely positioned at the score, so a long
-                            brand name overflows the track on a phone. The name drops
-                            below 640px; the score always stays. */}
-                        <div style={{ background: '#15171A', color: '#FBFAF7', fontSize: 11, fontWeight: 700, letterSpacing: '.02em', padding: '5px 9px', whiteSpace: 'nowrap' }}>
-                          <span className="dc-pill-brand">{project.brandName} </span>{overall}
-                        </div>
-                        <div style={{ width: 2, height: 14, background: '#15171A' }} />
-                      </div>
-
-                      <PositionBands stageName={stage.name} />
-
-                      <div className="absolute flex flex-col items-center gap-1"
-                        style={{ left: `${benchmark.avgScore}%`, top: 70, transform: 'translateX(-50%)' }}>
-                        <div style={{ width: 2, height: 14, background: '#5B6068' }} />
-                        <div className="text-[11px] font-bold text-[#5B6068]" style={{ whiteSpace: 'nowrap' }}>
-                          sector {benchmark.avgScore}
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between text-[10px] font-semibold text-[#8A8E95]" style={{ marginTop: 48 }}>
-                        {[0, 25, 50, 75, 100].map(v => <span key={v}>{v}</span>)}
-                      </div>
-                    </div>
-
-                    <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', borderTop: '2px solid #15171A', paddingTop: 20 }}>
-                      {[
-                        /* Rank and percentile need the whole cohort, so a link
-                           issued before they were added to the payload cannot
-                           recover them. Drop the tiles rather than showing
-                           dashes: an empty stat reads as a fault, a missing
-                           one reads as deliberate. */
-                        Number.isFinite(Number(benchmark.avgScore))
-                          ? [`${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore}`, 'vs sector average']
-                          : null,
-                        benchmark.rank && benchmark.count
-                          ? [`${ordinalSuffix(benchmark.rank)} of ${benchmark.count}`, 'rank in sector']
-                          : null,
-                        benchmark.percentile != null
-                          ? [ordinalSuffix(benchmark.percentile), 'percentile']
-                          : null,
-                      ].filter(Boolean).map(([v, l]) => (
-                        <div key={l} style={{ paddingRight: 20 }}>
-                          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>{v}</div>
-                          <div className="dc-kicker-sm" style={{ marginTop: 6 }}>{l}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Spread and profile side by side */}
-                  <div className="dc-split grid gap-[2px] items-start" style={{ gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,.85fr)', marginTop: 2 }}>
-                    <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkSpreadRef}>
-                      <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute Benchmark Spread</h4>
-                      <p className="text-[13px] leading-relaxed text-[#5B6068] mt-1" style={{ maxWidth: '52ch' }}>
-                        The band is the range across those brands, the line is their average, the dot is {project.brandName}.
-                      </p>
-                      <div style={{ marginTop: 24, borderTop: '1px solid #DEDAD2' }} ref={spreadRef}>
-                        {ATTRIBUTES.map((attr, ri) => {
-                          const v = scores[attr.id]?.score || 0;
-                          const avg = benchmark.attrAvgs?.[attr.id] ?? 0;
-                          const rng = benchmark.attrRanges?.[attr.id] || { min: avg, max: avg };
-                          const d = v - avg;
-                          return (
-                            <div key={attr.id} className="dc-ledger-row grid gap-4 items-center"
-                              style={{ gridTemplateColumns: '110px minmax(0,1fr) 74px', padding: '11px 0', borderBottom: '1px solid #DEDAD2' }}>
-                              <div className="text-[13px] font-bold">{attr.name}</div>
-                              <div className="dc-ledger-track relative" style={{ height: 22 }}>
-                                <div className="absolute" style={{ left: 0, right: 0, top: 10, height: 2, background: '#FBFAF7' }} />
-                                <div className="absolute origin-left" style={{ left: `${rng.min}%`, width: `${Math.max(rng.max - rng.min, 1)}%`, top: 7, height: 8, background: '#DEDAD2',
-                                  transform: `scaleX(${spreadIn ? 1 : 0})`,
-                                  transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)', transitionDelay: `${ri * 70}ms` }} />
-                                <div className="absolute" style={{ left: `${avg}%`, top: 2, width: 2, height: 18, background: '#5B6068',
-                                  opacity: spreadIn ? 1 : 0, transition: 'opacity 400ms ease', transitionDelay: `${ri * 70 + 260}ms` }} />
-                                <div className="absolute" style={{ left: `${spreadIn ? v : rng.min}%`, top: 4, width: 14, height: 14, transform: 'translateX(-50%)', background: '#15171A', border: '2px solid #FBFAF7',
-                                  opacity: spreadIn ? 1 : 0,
-                                  transition: 'left 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease', transitionDelay: `${ri * 70 + 120}ms` }} />
-                              </div>
-                              <div className="dc-ledger-value text-right">
-                                <span className="text-[19px] font-semibold" style={{ color: scoreColor(v) }}>{v}</span>
-                                <span className="block text-[10px] font-bold" style={{ color: '#15171A', background: d > 0 ? '#D9442A' : 'transparent', border: d > 0 ? 'none' : '1px solid #DEDAD2', padding: '1px 4px', marginLeft: 'auto', width: 'fit-content' }}>
-                                  {d > 0 ? '+' : ''}{d}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="bg-white" style={{ padding: '28px 32px' }} ref={benchmarkRadarRef}>
-                      <h4 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Profile Against Benchmark</h4>
-                      <p className="text-[13px] leading-relaxed text-[#5B6068] mt-1" style={{ maxWidth: '52ch' }}>
-                        {project.brandName} in solid, the {benchmark.cohortLabel.toLowerCase()} average as the dashed outline.
-                      </p>
-                      <div style={{ marginTop: 20 }}>
-                        <ComparisonSpiderChart
-                          brands={[{ id: 'subject', brandName: project.brandName, totalScore: overall,
-                            scores: ATTRIBUTES.reduce((acc, a) => { acc[a.id] = scores[a.id]?.score || 0; return acc; }, {}) }]}
-                          size={380}
-                          industryAvg={benchmarkAvgScores}
-                          avgLabel={`${benchmark.cohortLabel} avg`}
-                          animateOnScroll
-                        />
-                      </div>
-                    </div>
-                  </div>
+      <div className="dc-bm-grid" ref={benchmarkSpreadRef}>
+        <div className="dc-stack is-gap-5">
+          <div className="dc-stack is-gap-2">
+            <div className="dc-kicker">Attribute spread</div>
+            <p className="dc-meta">The band is the {w.rangeLong}, the tick is the {w.avgLong}, the diamond is {brand}. The last column is the gap to average.</p>
+          </div>
+          <ol className="dc-bm-rows">
+            {v.rows.map(r => (
+              <li key={r.id} className="dc-bm-row">
+                <span className="dc-bm-name">{r.name}</span>
+                <div className="dc-bm-track" role="img" aria-label={r.label}>
+                  {r.range && <i className="range" style={{ left: `${r.range.left}%`, width: `${r.range.width}%` }}></i>}
+                  {r.avg !== null && <i className="avg" style={{ left: `${r.avg}%` }}></i>}
+                  <i className="subj" style={{ left: `${r.score}%` }}></i>
                 </div>
-      )}
-    </>
+                <span className="dc-bm-v" data-value="score">{r.score}</span>
+                <span className="dc-bm-d" data-value="delta">{r.delta}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="dc-bm-axis is-rows" aria-hidden="true">{[0, 25, 50, 75, 100].map(t => <span key={t}>{t}</span>)}</div>
+        </div>
+        <div className="dc-stack is-gap-5">
+          <div className="dc-stack is-gap-2">
+            <div className="dc-kicker">Profile against benchmark</div>
+            <p className="dc-meta">{brand} in rust, the {w.avgLong} as the dashed outline.</p>
+          </div>
+          <figure className="dc-radar">
+            <svg viewBox={v.radar.viewBox} role="img" aria-label={`Radar of ${brand}'s eight attribute scores against the ${w.avgLong}. Values are listed in the attribute spread.`}>
+              {v.radar.grid.map((g, i) => <polygon key={i} className="grid" points={g} />)}
+              {v.radar.spokes.map(sp => (
+                <React.Fragment key={sp.id}>
+                  <line className="grid" x1={v.radar.cx} y1={v.radar.cy} x2={sp.x2} y2={sp.y2} />
+                  <text x={sp.lx} y={sp.ly} textAnchor={sp.anchor}>{sp.name}</text>
+                </React.Fragment>
+              ))}
+              {hasAvg && <polygon className="s-bench" points={v.radar.bench} />}
+              <polygon className="s-subject" points={v.radar.subject} />
+            </svg>
+          </figure>
+          <div className="dc-bm-legend"><span><i className="k-subj"></i>{brand}</span><span><i className="k-bench"></i>{w.avg === 'Sector avg' ? `${benchmark.cohortLabel} average` : 'Average across all assessed brands'}</span></div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -5701,12 +5629,10 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
 
   // Declared here, above every early return, so the hook count never changes
   // between the pre-scoring and scored renders.
-  const [spreadRef, spreadIn] = useInView(0.15);
   useSectionReveal([scores, expandedSections]);
   const chartRef = useRef(null);
   const benchmarkSpreadRef = useRef(null);
   const benchmarkPositionRef = useRef(null);
-  const benchmarkRadarRef = useRef(null);
   
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
 
@@ -6499,9 +6425,6 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   const benchmarkUnavailableReason = benchmarkResult?.unavailable ? benchmarkResult.reason : null;
 
   // Shaped for ComparisonSpiderChart, which expects a scores-like object.
-  const benchmarkAvgScores = benchmark
-    ? ATTRIBUTES.reduce((acc, attr) => { acc[attr.id] = benchmark.attrAvgs?.[attr.id] || 0; return acc; }, {})
-    : null;
 
   const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
   
@@ -6632,8 +6555,8 @@ ${subDivider}
 Benchmarked against: ${benchmark.cohortLabel} (n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''})
 ${benchmark.fallbackReason ? `Note: ${benchmark.fallbackReason}\n` : ''}
 Overall: ${overall} vs ${benchmark.scope === 'industry' ? 'sector' : 'all brands'} average ${benchmark.avgScore} (${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore})
-${benchmark.rank ? `Rank: ${ordinal(benchmark.rank)} of ${benchmark.count}` : ''}
-Percentile: ${benchmark.percentile != null ? ordinal(benchmark.percentile) : 'n/a'}
+${benchmarkPosition(benchmark)?.rank ? `Rank: ${ordinal(benchmarkPosition(benchmark).rank)} of ${benchmarkPosition(benchmark).n}` : ''}
+Percentile: ${benchmarkPosition(benchmark)?.percentile != null ? ordinal(benchmarkPosition(benchmark).percentile) : 'n/a'}
 All assessed brands average: ${benchmark.allBrandsAvg}
 
 Attribute vs ${benchmark.scope === 'industry' ? 'sector' : 'all brands'} average:
@@ -7036,7 +6959,7 @@ ${content.slice(0, 8000)}`;
       const captureNode = async (ref, width) => {
         if (!ref?.current) return null;
         try {
-          const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', logging: false });
+          const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#FBFAF7', logging: false });
           return { data: canvas.toDataURL('image/png').split(',')[1], w: width, h: Math.round((canvas.height * width) / canvas.width) };
         } catch (err) {
           console.warn('Benchmark chart capture failed:', err);
@@ -7775,10 +7698,8 @@ ${content.slice(0, 8000)}`;
       <div className="dc-reveal">
         <SectionHeading order={sectionOrder} label="Benchmark comparison" open={expandedSections.benchmark}
           onToggle={() => toggleSection('benchmark')} />
-        <ReportBenchmarkSection project={project} scores={scores} overall={overall} stage={stage}
-          benchmark={benchmark} benchmarkAvgScores={benchmarkAvgScores}
+        <ReportBenchmarkSection project={project} scores={scores} overall={overall} benchmark={benchmark}
           benchmarkPositionRef={benchmarkPositionRef} benchmarkSpreadRef={benchmarkSpreadRef}
-          benchmarkRadarRef={benchmarkRadarRef} spreadRef={spreadRef} spreadIn={spreadIn}
           open={expandedSections.benchmark} />
       </div>
 
@@ -7788,7 +7709,7 @@ ${content.slice(0, 8000)}`;
           <SectionHeading order={sectionOrder} label="Earned creative opportunity" open={expandedSections.eco} onToggle={() => toggleSection('eco')} />
           {expandedSections.eco && (
             <>
-              <EcoPanel eco={eco} scores={scores} setScores={setScores} isAdmin={!!profile?.is_admin} userName={profile?.full_name || profile?.email} companyStage={project.companyStage} />
+              <EcoPanel eco={eco} scores={scores} setScores={setScores} />
               {eco.blocks.length ? <EcoBlocks blocks={eco.blocks} /> : <p className="dc-meta">The client-facing section appears once the gate inputs are in.</p>}
             </>
           )}
@@ -11425,7 +11346,6 @@ function ClientReportView({ payload }) {
   const sortedAttrs = [...ATTRIBUTES]
     .map(a => ({ ...a, score: scores?.[a.id]?.score || 0 }))
     .sort((x, y) => x.score - y.score);
-  const [spreadRef, spreadIn] = useInView(0.15);
 
   // Client-facing sections only. Recommendations, services, justification,
   // readouts and the score adjustment panel are intentionally absent.
@@ -11594,9 +11514,7 @@ function ClientReportView({ payload }) {
         {benchmark && benchmarkAvg && (
           <div className="dc-reveal">
             <SectionHeading order={clientSections} label="Benchmark comparison" />
-            <ReportBenchmarkSection project={project} scores={scores} overall={overall}
-              stage={stage} benchmark={benchmark} benchmarkAvgScores={benchmarkAvg}
-              spreadRef={spreadRef} spreadIn={spreadIn} open />
+            <ReportBenchmarkSection project={project} scores={scores} overall={overall} benchmark={benchmark} open />
           </div>
         )}
 

@@ -105,19 +105,7 @@ test('T7 startup the standard profile would shut out, and the contrast check', (
   assert.equal(std.gate.criteria.G5.result, 'Fail'); assert.equal(std.gate.result, 'Not yet'); assert.equal(std.outcome, 'Not a current priority');
 });
 
-test('T8 analyst override accepted', () => {
-  const r = run(T.T5, { override: { outcome: 'Recommend', reason: 'Category-first product launch creates a clear moment.', by: 'Paul Newton', at: '2026-09-29T12:00:00Z' } });
-  assert.equal(r.outcome, 'Recommend'); assert.equal(r.override.reason, 'Category-first product launch creates a clear moment.');
-  assert.equal(r.override.by, 'Paul Newton'); assert.deepEqual(r.howlIntro, { length: 'full', opener: 'standard' });
-});
 
-test('T9 analyst override rejected while G1 fails', () => {
-  const r = run(T.T3, { override: { outcome: 'Recommend', reason: 'We believe in them.' } });
-  assert.equal(r.outcome, 'Build substance first'); assert.equal(r.override, null);
-  assert.match(r.overrideRejected, /G1 Proof threshold failed/);
-  assert.equal(eco.validateOverride({ outcome: 'Recommend with conditions', reason: 'x' }, run(T.T3).gate).ok, false);
-  assert.equal(eco.validateOverride({ outcome: 'Moment-driven', reason: '' }, run(T.T5).gate).ok, false, 'a reason is required');
-});
 
 // ── Acceptance checks ────────────────────────────────────────
 
@@ -143,7 +131,8 @@ test('stage 1 standard brands convert a Recommend to Build substance first (Reso
 
 test('the app maps six maturity stages onto five, and startup from the company stage', () => {
   assert.deepEqual(['Pre-Foundational', 'Foundational', 'Establishing', 'Differentiating', 'Leading', 'Transforming'].map(eco.ecoStageFor), [1, 1, 2, 3, 4, 5]);
-  assert.equal(eco.ecoProfileFor('startup'), 'Startup'); assert.equal(eco.ecoProfileFor('scaleup'), 'Standard'); assert.equal(eco.ecoProfileFor('scaleup', 'Startup'), 'Startup');
+  assert.equal(eco.ecoProfileFor('startup'), 'Startup'); assert.equal(eco.ecoProfileFor('scaleup'), 'Standard');
+  assert.equal(eco.ecoProfileFor('scaleup', 'Startup'), 'Standard', 'no analyst choice: the company stage decides');
 });
 
 test('the lite view uses D and G only and marks the gate as needing the full assessment', () => {
@@ -263,10 +252,25 @@ test('two substance triggers cite different assets', () => {
   assert.ok(why.includes('including Truth 1, is not yet visible') && why.includes('including Truth 2, that could become'), why);
 });
 
-test('no override moves a brand off Foundations while G1 or G2 fails', () => {
-  const r = run(T.T3, { override: { outcome: 'Moment-driven', reason: 'A launch moment.' } });
-  assert.equal(r.outcome, 'Moment-driven', 'the override itself is allowed');
-  assert.equal(eco.readyStepFor(r), 'foundations');
-  const g2 = run(T.T1, { gateInputs: { ...T.T1.gateInputs, flags: [{ label: 'Lobbying contradiction', major: true, resolved: false }] } });
-  assert.equal(eco.readyStepFor(g2), 'foundations');
+
+// ── v3.107.0: evidence only, no overrides ────────────────────
+// The packet's T8 and T9 tested overrides. Overrides are removed: nothing an
+// analyst asserts can move the verdict, and overrides saved before are ignored.
+test('T8/T9 replaced: an override in the input changes nothing, accepted or not', () => {
+  const plain = run(T.T5);
+  const withOverride = run(T.T5, { override: { outcome: 'Recommend', reason: 'Category-first product launch creates a clear moment.' } });
+  assert.equal(withOverride.outcome, plain.outcome);
+  assert.equal(withOverride.ambitionLevel, plain.ambitionLevel);
+  assert.equal('override' in withOverride, false);
+  assert.equal(run(T.T3, { override: { outcome: 'Recommend', reason: 'x' } }).outcome, 'Build substance first');
+  assert.equal(typeof eco.validateOverride, 'undefined', 'the function is gone');
+});
+
+test('a saved report with an old override and an old profile choice is judged on its evidence alone', () => {
+  const s = Object.fromEntries(Object.entries({ AWAKE: 78, SENTIENT: 74, AWARE: 72, VISIONARY: 76, COGENT: 70, ATTENTIVE: 75, INTENTIONAL: 72, REFLECTIVE: 78 }).map(([k, v]) => [k, { score: v }]));
+  const base = { claimsPct: 95, glassdoor: 4.2, truthsEntered: true, verifiedTruths: [{ name: 'A' }, { name: 'B' }], checklistEntered: true, checklist: { riskAppetite: true, spokesperson: true, approval: true, followThrough: true } };
+  const clean = eco.ecoFromReport({ ...s, eco: base }, { brand: 'X', companyStage: 'leader', stageName: 'Transforming' });
+  const old = eco.ecoFromReport({ ...s, eco: { ...base, override: { outcome: 'Not a current priority', reason: 'r', by: 'p', at: 'a' }, profile: 'Startup' } }, { brand: 'X', companyStage: 'leader', stageName: 'Transforming' });
+  assert.equal(old.result.outcome, clean.result.outcome);
+  assert.equal(old.profile, 'Standard', 'the saved profile choice is ignored');
 });

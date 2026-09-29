@@ -156,7 +156,7 @@ async function mountPanel(initial, profile) {
     latest = s;
     const data = eco.ecoFromReport(s, { brand: 'MKB', companyStage: 'scaleup', stageName: 'Differentiating' });
     return h(React.Fragment, null,
-      h(App.EcoPanel, { eco: data, scores: s, setScores: setS, isAdmin: profile.is_admin, userName: 'Paul Newton', companyStage: 'scaleup' }),
+      h(App.EcoPanel, { eco: data, scores: s, setScores: setS }),
       h(App.EcoBlocks, { blocks: data.blocks }));
   };
   await act(async () => { root.render(h(Harness)); });
@@ -180,31 +180,12 @@ test('the ECO panel is internal, and the client blocks carry HOWL with its wordm
   await act(async () => m.root.unmount());
 });
 
-test('overrides: admin-only, need a reason, store who and when, and cannot recommend past a failed G1', async () => {
-  const noAdmin = await mountPanel(ecoScores(G1_FAIL), { is_admin: false });
-  assert.equal(noAdmin.container.querySelector('[data-field="eco-override"]'), null, 'not for non-admins');
-  await act(async () => noAdmin.root.unmount());
-
+test('the ECO panel has no override and no profile choice: evidence only (v3.107.0)', async () => {
   const m = await mountPanel(ecoScores(G1_FAIL), { is_admin: true });
-  const set = async (sel, v) => {
-    const el = m.container.querySelector(sel);
-    const proto = el.tagName === 'SELECT' ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype;
-    await act(async () => { Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v); el.dispatchEvent(new window.Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); });
-  };
-  const apply = () => [...m.container.querySelectorAll('button')].find(b => b.textContent === 'Apply override');
-  await set('#eco-oo', 'Recommend'); await set('#eco-or', 'Client insists.');
-  await act(async () => { apply().click(); });
-  assert.match(m.container.querySelector('[data-field="eco-override"] .dc-error').textContent, /G1 Proof threshold failed/);
-  assert.equal(m.get().eco.override, undefined, 'nothing stored');
-  await set('#eco-oo', 'Moment-driven'); await set('#eco-or', '');
-  await act(async () => { apply().click(); });
-  assert.match(m.container.querySelector('[data-field="eco-override"] .dc-error').textContent, /needs a reason/);
-  await set('#eco-or', 'A launch moment in Q1.');
-  await act(async () => { apply().click(); });
-  const o = m.get().eco.override;
-  assert.equal(o.outcome, 'Moment-driven'); assert.equal(o.reason, 'A launch moment in Q1.'); assert.equal(o.by, 'Paul Newton'); assert.ok(o.at);
-  // The override is stored, but G1 still fails, so the ladder stays at Foundations.
-  assert.equal(m.container.querySelector('.dc-eco-ladder li.is-ready b').textContent, 'Foundations', 'no override gets past a failed G1');
+  assert.equal(m.container.querySelector('[data-field="eco-override"]'), null, 'no override, even for admins');
+  assert.equal(m.container.querySelector('#eco-profile'), null, 'no profile selector');
+  assert.match(m.container.querySelector('[data-field="eco-profile"]').textContent, /from the company stage set at Setup/);
+  assert.ok(![...m.container.querySelectorAll('button')].some(b => /override/i.test(b.textContent)));
   await act(async () => m.root.unmount());
 });
 
@@ -246,4 +227,78 @@ test('the Teaser read carries the lite view: verdict, definition, HOWL standard 
   assert.equal(lite.querySelectorAll('.dc-eco-ladder li').length, 4);
   assert.equal(lite.querySelector('.dc-eco-ladder li.is-ready'), null, 'no starting step without the gate');
   assert.equal(lite.querySelector('h2').textContent, 'Earned creative opportunity');
+});
+
+// ── Report section 08, benchmark comparison (packet 14, v3.106.0) ──
+
+const BM = {
+  scope: 'industry', cohortLabel: 'Energy & Utilities', count: 26, avgScore: 48, rank: 17, percentile: 3,
+  scoreRange: { min: 21, max: 80 },
+  attrAvgs: { AWAKE: 44, AWARE: 46, REFLECTIVE: 49, ATTENTIVE: 52, COGENT: 47, SENTIENT: 45, VISIONARY: 53, INTENTIONAL: 50 },
+  attrRanges: { AWAKE: { min: 12, max: 72 }, AWARE: { min: 15, max: 70 }, REFLECTIVE: { min: 20, max: 74 }, ATTENTIVE: { min: 28, max: 80 }, COGENT: { min: 14, max: 76 }, SENTIENT: { min: 10, max: 71 }, VISIONARY: { min: 22, max: 79 }, INTENTIONAL: { min: 18, max: 77 } },
+};
+const MKB = Object.fromEntries(Object.entries({ AWAKE: 21, AWARE: 31, REFLECTIVE: 47, ATTENTIVE: 62, COGENT: 25, SENTIENT: 33, VISIONARY: 58, INTENTIONAL: 43 }).map(([k, v]) => [k, { score: v }]));
+const bmDoc = (benchmark, overall = 40) => new JSDOM(server.renderToStaticMarkup(h(App.ReportBenchmarkSection, { project: { brandName: 'MKB' }, scores: MKB, overall, benchmark }))).window.document;
+
+test('08: rank counts the brand within the set, and the percentile follows the packet formula', async () => {
+  const bv = await import('../src/lib/benchmarkView.js');
+  assert.deepEqual(bv.benchmarkPosition({ count: 26, rank: 27 }), { others: 26, n: 27, rank: 27, percentile: 0 }, 'never "27th of 26"');
+  assert.equal(bv.benchmarkPosition({ count: 26, rank: 1 }).percentile, 100, 'first place is the 100th');
+  assert.equal(bv.benchmarkPosition({ count: 26, rank: 17 }).percentile, Math.round((27 - 17) / 26 * 100));
+  assert.equal(bv.benchmarkPosition({ count: 26, rank: 40 }).rank, 27, 'clamped to n');
+  assert.equal(bv.signed(-8), '\u22128', 'a true minus sign');
+});
+
+test('08: the section matches the packet element for element', () => {
+  const ours = bmDoc(BM).querySelector('.dc-bm');
+  const design = new JSDOM(JSON.parse(readFileSync(new URL('./fixtures/design-screens.json', import.meta.url), 'utf8'))['08-benchmark-section.html']).window.document.querySelector('.dc-bm');
+  const sig = (el) => [...el.querySelectorAll('*')].map(e => `${e.tagName.toLowerCase()}.${[...(e.classList || [])].sort().join('.')}`);
+  assert.deepEqual(sig(ours), sig(design));
+});
+
+test('08: values, marks and wording', () => {
+  const doc = bmDoc(BM);
+  assert.equal(doc.querySelector('[data-value="vs-avg"]').textContent, '\u22128');
+  assert.equal(doc.querySelector('[data-value="rank"]').textContent, '17th');
+  assert.equal(doc.querySelector('[data-value="rank-n"]').textContent, '27', 'n includes the brand');
+  assert.equal(doc.querySelector('.dc-bm-overall .dc-meta').textContent, 'Where MKB sits against 26 other Energy & Utilities brands.');
+  assert.equal(doc.querySelector('[data-value="percentile"]').textContent, '38th', 'recomputed, not the stored figure');
+  const track = doc.querySelector('.dc-bm-scale-track');
+  assert.equal(track.querySelector('.range').getAttribute('style'), 'left:21%;width:59%');
+  assert.equal(track.querySelector('.avg').textContent, 'Sector avg 48');
+  assert.equal(track.querySelector('.subj-l').textContent, 'MKB 40');
+  const awake = doc.querySelector('.dc-bm-row');
+  assert.equal(awake.querySelector('.dc-bm-d').textContent, '\u221223');
+  assert.equal(awake.querySelector('.dc-bm-track').getAttribute('aria-label'), 'Awake: MKB 21, sector average 44, sector range 12 to 72');
+  const styled = [...doc.querySelectorAll('[style]')].map(e => e.getAttribute('style'));
+  assert.ok(styled.every(st => /^(left:[\d.]+%)(;width:[\d.]+%)?$/.test(st)), 'positions are the only inline styles');
+  assert.equal(doc.querySelectorAll('[class*="text-["], .card').length, 0, 'no legacy classes, no red scores');
+  assert.ok(doc.querySelector('.dc-radar polygon.s-bench') && doc.querySelector('.dc-radar polygon.s-subject'));
+});
+
+test('08: older saved reports have no overall band, and nothing is invented', () => {
+  const { scoreRange, ...old } = BM;
+  assert.ok(scoreRange);
+  const doc = bmDoc(old);
+  assert.equal(doc.querySelector('.dc-bm-scale-track .range'), null);
+  assert.ok(!doc.querySelector('.dc-bm-scale').getAttribute('aria-label').includes('range'));
+});
+
+test('08: an all-brands group is never called a sector', () => {
+  const doc = bmDoc({ ...BM, scope: 'all', cohortLabel: 'All assessed brands' });
+  assert.equal(doc.querySelector('.dc-bm-scale-track .avg').textContent, 'Avg 48');
+  assert.equal(doc.querySelectorAll('.dc-bm-stats .dc-meta')[1].textContent, 'Rank among all brands');
+  assert.ok(!doc.body.textContent.includes('Sector'), 'no sector wording anywhere');
+});
+
+test('08: with no benchmark, the empty-state alert', () => {
+  const doc = bmDoc(null);
+  assert.equal(doc.querySelector('.dc-alert strong').textContent, 'Nothing to compare yet');
+  assert.equal(doc.querySelector('.dc-bm'), null);
+});
+
+test('08: new snapshots save the overall range', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('scoreRange: { min: Math.min(...cohort.map(b => b.totalScore)), max: Math.max(...cohort.map(b => b.totalScore)) },'));
+  assert.ok(!/Rank: \$\{ordinal\(benchmark\.rank\)\} of \$\{benchmark\.count\}/.test(src), 'the plain-text copy uses the corrected rank too');
 });

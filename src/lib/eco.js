@@ -173,7 +173,6 @@ export const ECO_CONFIG = {
     },
     floorNote: 'Limited raw material: build verifiable proof points before earned creative can carry the brand.',
     reviewNote: 'Two or more gate criteria rest on limited evidence. Review before this recommendation goes to the client.',
-    overrideRejected: 'This override is not allowed: {criteria} failed, and earned creative cannot be recommended while the brand would not withstand the attention. Address it first.',
   },
 
   // 5.8 benefit statements
@@ -220,8 +219,10 @@ export const round1 = (v) => (v === null || v === undefined ? null : Math.round(
 
 // Map the app's six maturity stages onto the packet's five.
 export const ecoStageFor = (stageName) => C.stageMap[stageName] ?? null;
-// Startup profile from the app's company stage; the analyst can override.
-export const ecoProfileFor = (companyStageId, override = null) => override || (companyStageId === 'startup' ? 'Startup' : 'Standard');
+// Startup profile from the company stage entered at Setup, and nothing else
+// (v3.107.0): the profile changes the substance floor and the readiness bar,
+// so it follows submitted evidence, never an analyst's choice.
+export const ecoProfileFor = (companyStageId) => (companyStageId === 'startup' ? 'Startup' : 'Standard');
 
 // ── 5.3 Visibility, Substance and the four components ───────
 export function computeScores(attrs, evidence = {}, context = {}, { lite = false } = {}) {
@@ -402,20 +403,15 @@ export function selectHowlIntro(outcome, { profile = 'Standard', causeTerritory 
   return { length, opener };
 }
 
-// ── 5.10 Analyst overrides (Resolution 8) ────────────────────
-export function validateOverride(override, gate) {
-  if (!override) return { ok: true };
-  if (!override.reason || !String(override.reason).trim()) return { ok: false, message: 'An override needs a reason.' };
-  const hard = hardFailures(gate);
-  if (hard.length && [O.RECOMMEND, O.WITH_CONDITIONS].includes(override.outcome)) {
-    return { ok: false, message: fill(C.copy.overrideRejected, { criteria: listJoin(hard.map(id => (id === 'G1' ? 'G1 Proof threshold' : 'G2 Conduct consistency'))) }) };
-  }
-  return { ok: true };
-}
+// ── No overrides (v3.107.0) ──────────────────────────────────
+// The packet allowed an analyst to override the outcome and ambition level
+// (5.10). That is removed: the verdict rests on observed or submitted evidence
+// only, so nothing a person asserts can move it. Overrides saved on reports
+// before this change are ignored.
 
 // ── The whole module, to the 5.9 data model ──────────────────
 // input: { attrs, evidence, context, gateInputs, maturityStage, profile,
-//          openerOverride, stakeholder, override, lite }
+//          openerOverride, stakeholder, lite }
 export function runEco(input) {
   const { attrs, evidence = {}, context = {}, gateInputs = {}, maturityStage, profile = 'Standard', lite = false } = input;
   const scores = computeScores(attrs, evidence, context, { lite });
@@ -423,25 +419,8 @@ export function runEco(input) {
   const gate = lite
     ? { result: 'Requires full assessment', criteria: {}, analystReviewRequired: false }
     : evaluateGate(attrs, gateInputs, profile);
-  let { outcome, routedServices } = lite ? { outcome: null, routedServices: [] } : decideOutcome(need.needBand, gate, maturityStage, profile);
-  let ambitionLevel = calibrateAmbition(outcome, gate.result, maturityStage, profile);
-
-  let override = null;
-  let overrideRejected = null;
-  if (input.override && !lite) {
-    const v = validateOverride(input.override, gate);
-    if (v.ok) {
-      override = { ...input.override };
-      if (override.outcome) {
-        outcome = override.outcome;
-        ambitionLevel = calibrateAmbition(outcome, gate.result, maturityStage, profile);
-        if (outcome !== O.BUILD) routedServices = [];
-      }
-      if (override.ambitionLevel !== undefined) ambitionLevel = override.ambitionLevel;
-    } else {
-      overrideRejected = v.message;
-    }
-  }
+  const { outcome, routedServices } = lite ? { outcome: null, routedServices: [] } : decideOutcome(need.needBand, gate, maturityStage, profile);
+  const ambitionLevel = calibrateAmbition(outcome, gate.result, maturityStage, profile);
 
   const causeTerritory = !!gate.criteria?.G3?.causeTerritory;
   const howlIntro = selectHowlIntro(outcome, { profile, causeTerritory, c5: context.C5 === true, openerOverride: input.openerOverride });
@@ -462,8 +441,6 @@ export function runEco(input) {
     routedServices,
     howlIntro,
     analystReviewRequired: !!gate.analystReviewRequired,
-    override,
-    overrideRejected,
     lite,
   };
 }
@@ -522,7 +499,7 @@ const stepIndex = (id) => L.steps.findIndex(s => s.id === id);
 // The step a brand can take now, from the (possibly overridden) outcome.
 export function readyStepFor(eco) {
   // A failed hard criterion (G1 proof, G2 conduct) always means Foundations,
-  // whatever the outcome says: no override can put a brand past the proof.
+  // whatever the outcome says.
   if (eco.gate?.criteria && hardFailures(eco.gate).length) return 'foundations';
   if (!eco.outcome || eco.outcome === O.BUILD || eco.outcome === O.NOT_PRIORITY || !eco.ambitionLevel) return 'foundations';
   return L.steps.find(s => s.level === eco.ambitionLevel)?.id || 'foundations';
@@ -749,11 +726,11 @@ export function ecoFromReport(scores, { brand, companyStage, stageName }) {
     checklist: state.checklistEntered ? (state.checklist || {}) : null,
     mediaTrained: state.mediaTrained === undefined ? undefined : state.mediaTrained,
   };
-  const profile = ecoProfileFor(companyStage, state.profile || null);
+  const profile = ecoProfileFor(companyStage);
   const result = runEco({
     attrs, evidence, context: state.context || {}, gateInputs,
     maturityStage: ecoStageFor(stageName), profile,
-    openerOverride: state.openerOverride || null, override: state.override || null,
+    openerOverride: state.openerOverride || null,
   });
   const blocks = result.outcome
     ? buildReportSection(result, { brand, evidence, gateInputs, e4Assets: assets, stakeholder: state.stakeholder || null, context: state.context || {} })
