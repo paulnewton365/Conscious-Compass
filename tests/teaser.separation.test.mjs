@@ -473,12 +473,14 @@ test('the stepper follows the handoff: state in words, not colour alone', () => 
 });
 
 test('the website step opens the way the handoff has it', () => {
+  // v3.99.0: the head lives in the shared AssessPage frame; the rendered
+  // check is in tests/assessment-packet.test.mjs
+  const frame = app.slice(app.indexOf('function AssessPage('), app.indexOf('function AssessPage(') + 1400);
+  assert.ok(frame.includes('dc-kicker is-accent') && frame.includes('Step {step} of 6'), 'rust kicker with the step');
+  assert.ok(frame.includes('className="dc-display"'), 'the title is the display serif');
+  assert.ok(frame.includes('dc-standfirst'), 'brand and site as the standfirst');
   const page = app.slice(app.indexOf('function WebsiteAssessment'), app.indexOf('function SocialMediaAssessment'));
-  const head = page.slice(page.indexOf('dc-page-head'), page.indexOf('CompletionIndicator'));
-  assert.ok(head.includes('dc-kicker is-accent') && head.includes('Step 2 of 6'), 'rust kicker with the step');
-  assert.ok(head.includes('className="dc-display"'), 'the title is the display serif');
-  assert.ok(head.includes('dc-standfirst'), 'brand and site as the standfirst');
-  // the duplicated score row at the top is gone; those numbers live in the audit
+  assert.ok(page.includes('<AssessPage step={2} name="Website"'));
   assert.ok(!page.includes('label="SEO visibility"'), 'the top score summary is removed');
 });
 

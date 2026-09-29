@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.98.0';
+const APP_VERSION = '3.99.1';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
@@ -692,12 +692,6 @@ const SCORE_RED    = '#C23B22';   // 0-44,   hue 359
 // Hue separation between orange and red is now 31 degrees, up from 26, and the
 // red is a true red rather than the previous brick.
 
-// Text colour for a chip filled with a band colour. White reads on green and
-// red; on orange it drops to 3.98, so that one takes ink instead (4.95).
-function onScoreColor(n) {
-  const v = Number(n) || 0;
-  return (v >= 45 && v < 70) ? '#15171A' : '#FBFAF7';
-}
 
 function scoreColor(n) {
   const v = Number(n) || 0;
@@ -2182,37 +2176,108 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
 }
 
 // Completion Indicator for Assessment Pages
-function CompletionIndicator({ items }) {
-  const completed = items.filter(i => i.done).length;
-  const total = items.length;
-  const percentage = Math.round((completed / total) * 100);
-  
+// Where a loaded saved assessment opens (v3.99.1). A scored one opens on the
+// report. An unscored one opens on the step it was saved from (Save and exit
+// records it); older saves without that open on Setup, not the Welcome
+// screen, so the loaded brand is on the page.
+function resumeStepFor(data) {
+  if (data?.scores) return 6;
+  const step = Number(data?.project?.resumeStep);
+  return Number.isInteger(step) && step >= 1 && step <= 5 ? step : 1;
+}
+
+// ── Assessment shell (packet 02-05, v3.99.0) ────────────────
+// The four assessment steps share one frame: the page head, the form column
+// with its footer, and a sticky progress rail. Items and the Continue rule
+// stay with each page; the frame only lays them out.
+
+// The first required item still open, as the reason beside a disabled Continue.
+function stillNeeded(items) {
+  const open = items.find(i => !i.done && !i.optional);
+  return open ? `Still needed: ${open.label.charAt(0).toLowerCase()}${open.label.slice(1)}` : null;
+}
+
+// A form block: sentence-case title, description, optional actions, content.
+function AssessBlock({ title, labelFor = null, tag = null, status = null, desc = null, actions = null, className = '', children, ...rest }) {
+  const t = labelFor ? <label htmlFor={labelFor}>{title}</label> : title;
   return (
-    <div className="bg-white border border-[#DEDAD2] p-3 mb-6">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-[#5B6068] uppercase tracking-wide">Progress</span>
-        <span className="text-xs font-medium text-[#15171A]">{completed}/{total} complete</span>
+    <section className={className ? `dc-block ${className}` : 'dc-block'} {...rest}>
+      <div className="dc-block-head">
+        <div>
+          <h2 className="dc-block-t">
+            {t}
+            {tag && <> <span className={tag === 'Required' ? 'dc-req' : 'dc-opt'}>{tag}</span></>}
+            {status && <> <span className="dc-status is-done">{status}</span></>}
+          </h2>
+          {Array.isArray(desc) ? desc.map((d, i) => <p key={i} className="dc-block-d">{d}</p>) : desc && <p className="dc-block-d">{desc}</p>}
+        </div>
+        {actions && <div className="dc-block-actions">{actions}</div>}
       </div>
-      <div className="h-1.5 bg-[#FBFAF7] overflow-hidden mb-3">
-        <div 
-          className="h-full bg-[#D9442A] transition-all duration-300"
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {items.map((item, i) => (
-          <span 
-            key={i}
-            className={`text-xs px-2 py-1 flex items-center gap-1 ${
-              item.done 
-                ? 'bg-[#D9442A]/10 text-[#C23B22]' 
-                : 'bg-[#DEDAD2] text-[#2E3238]'
-            }`}
-          >
-            {item.done ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 border border-current" />}
-            {item.label}
-          </span>
+      {children}
+    </section>
+  );
+}
+
+// The analysis text a step produced, in a ruled box that scrolls.
+function AssessOutput({ children, small = false }) {
+  return <div className={small ? 'dc-output is-sm' : 'dc-output'}>{children}</div>;
+}
+
+// Progress rail: count, bar, checklist, and the rail's own Continue plus Save
+// and exit. Below 1100px it moves above the form and its buttons hide.
+function AssessRail({ items, next, canProceed, onProceed, onSaveExit = null, saving = false }) {
+  const done = items.filter(i => i.done).length;
+  const total = items.length;
+  return (
+    <aside className="dc-assess-rail" aria-label="Progress">
+      <div className="dc-progress-head"><span className="dc-kicker">Progress</span><strong>{done} of {total}</strong></div>
+      <div className="dc-lens-bar" role="img" aria-label={`${done} of ${total} complete`}><i style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }}></i></div>
+      <ul className="dc-checklist">
+        {items.map(it => (
+          <li key={it.label} className={it.done ? 'is-done' : undefined}><span>{it.label}</span>{it.optional && <em>Optional</em>}</li>
         ))}
+      </ul>
+      <div className="dc-rail-actions">
+        <button type="button" className="btn-primary" onClick={onProceed} disabled={!canProceed}>Continue to {next} →</button>
+        {onSaveExit && (
+          <button type="button" className="btn-secondary" onClick={onSaveExit} disabled={saving} aria-busy={saving || undefined}>
+            {saving ? 'Saving...' : 'Save and exit'}
+          </button>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+// Footer: Back, then Continue with the first unmet requirement beside it.
+function AssessFoot({ onPrev, canProceed, onProceed, blocker }) {
+  return (
+    <div className="dc-assess-foot">
+      <button type="button" className="btn-secondary" onClick={onPrev}>← Back</button>
+      <div>
+        {!canProceed && blocker && <span className="dc-meta" data-field="blocker">{blocker}</span>}
+        <button type="button" className="btn-primary" onClick={onProceed} disabled={!canProceed}>Continue →</button>
+      </div>
+    </div>
+  );
+}
+
+// The whole step: notice, head, then the form beside the rail.
+function AssessPage({ step, name, title, project, rail, standfirst = null, children }) {
+  const url = project.websiteUrl;
+  return (
+    <div className="dc-wrap dc-page is-form animate-fade-in" data-screen={`assess-${name.toLowerCase().replace(/\s+/g, '-')}`}>
+      <MobileAssessmentBanner />
+      <div className="dc-page-head">
+        <div className="dc-kicker is-accent">Step {step} of 6 · {name}</div>
+        <h1 className="dc-display">{title}</h1>
+        <p className="dc-standfirst">
+          {standfirst || <>{project.brandName}{url ? <> · <a href={url.startsWith('http') ? url : `https://${url}`} target="_blank" rel="noopener noreferrer">{url}</a></> : null}</>}
+        </p>
+      </div>
+      <div className="dc-assess">
+        <div className="dc-assess-main">{children}</div>
+        {rail}
       </div>
     </div>
   );
@@ -2221,7 +2286,7 @@ function CompletionIndicator({ items }) {
 // Progress Steps, to the handoff: six steps on a rule, each naming its own
 // state in words so the reading never depends on colour. Below 720px it
 // becomes "Step 2 of 6 · Website" with a segmented bar.
-function ProgressSteps({ currentStep, steps }) {
+function ProgressSteps({ currentStep, steps, savedAt = null }) {
   const stateOf = (i) => (i < currentStep ? 'is-done' : i === currentStep ? 'is-current' : '');
   const label = (i) => (i < currentStep ? 'Done' : i === currentStep ? 'In progress' : 'Not started');
   const next = steps[currentStep + 1];
@@ -2244,6 +2309,12 @@ function ProgressSteps({ currentStep, steps }) {
             {steps.map((step, i) => <i key={step.id} className={stateOf(i)} />)}
           </div>
         </div>
+        {/* Left out until the first save. The draft is kept in this browser. */}
+        {savedAt && (
+          <span className="dc-save-state" aria-live="polite">
+            Draft saved {savedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        )}
       </div>
     </nav>
   );
@@ -2373,14 +2444,10 @@ function MobileAssessmentBanner() {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
   return (
-    <div className="sm:hidden mb-5 flex items-start gap-3 bg-[#FFFBEB] border border-[#FCD34D] px-4 py-3">
-      <span className="text-lg leading-none mt-0.5">💡</span>
-      <p className="flex-1 text-xs text-[#8C5A0B] leading-relaxed">
-        <strong>Best on a larger screen.</strong> This assessment is designed for tablet or desktop. You can continue on mobile, but the experience will be better with more space.
-      </p>
-      <button onClick={() => setDismissed(true)} className="text-[#B45309] hover:text-[#8C5A0B] flex-shrink-0 mt-0.5">
-        <X className="w-4 h-4" />
-      </button>
+    <div className="dc-alert is-warn dc-mobile-only" role="note">
+      <strong>Best on a larger screen</strong>
+      <p>This assessment is designed for tablet or desktop. You can continue on mobile, but the experience will be better with more space.</p>
+      <button className="dc-alert-x" type="button" onClick={() => setDismissed(true)}>Dismiss</button>
     </div>
   );
 }
@@ -2812,136 +2879,64 @@ End with OVERALL RISK RATING: Low / Medium / High and one sentence explaining wh
     return '#C23B22';
   };
 
-  const riskColor = (text) => {
-    if (!text) return null;
-    const m = text.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i);
-    if (!m) return null;
-    return m[1].toLowerCase() === 'low' ? '#2F6B55' : m[1].toLowerCase() === 'medium' ? '#8C5A0B' : '#C23B22';
-  };
 
   const extractRisk = (text) => {
     const m = text?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i);
     return m ? m[1] : null;
   };
 
+  // A normal block (v3.99.0): it used a second dark panel with ink text on the
+  // dark ground, which made its heading unreadable. The dark panel is kept for
+  // each page's one automated action.
+  const risk = extractRisk(propertyData.consistencyAnalysis);
   return (
-    <div className="dc-panel-dark mb-[2px]">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h3 className="text-sm font-medium text-[#15171A] mb-1 flex items-center gap-2">
-            <Globe className="w-4 h-4 text-[#1976D2]" />
-            Digital Property Consistency
-            <span className="text-xs font-normal text-[#5B6068]">— {additionalProperties.length} additional {additionalProperties.length === 1 ? 'property' : 'properties'}</span>
-          </h3>
-          <p className="text-xs text-[#5B6068]">Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis.</p>
-        </div>
-        {extractRisk(propertyData.consistencyAnalysis) && (
-          <span className="text-xs font-bold px-3 py-1 text-white flex-shrink-0"
-            style={{ backgroundColor: riskColor(propertyData.consistencyAnalysis) }}>
-            {extractRisk(propertyData.consistencyAnalysis)} Risk
-          </span>
-        )}
-      </div>
-
-      {/* Property table */}
-      <div className="overflow-x-auto mb-4">
-        <table className="w-full text-xs border-collapse">
+    <AssessBlock title="Digital property consistency" data-field="property-consistency"
+      status={risk ? `${risk} risk` : null}
+      desc={`Compare performance, SEO and accessibility across all registered properties, then run a consistency analysis. ${additionalProperties.length} additional ${additionalProperties.length === 1 ? 'property' : 'properties'}.`}
+      actions={<>
+        <button type="button" onClick={runPropertyChecks} disabled={isRunning} aria-busy={isRunning || undefined} className="btn-secondary btn-sm">
+          {isRunning ? (progress || 'Fetching...') : 'Fetch scores and content'}
+        </button>
+        <button type="button" onClick={runConsistencyAnalysis} disabled={isAnalysing || scrapedCount === 0} aria-busy={isAnalysing || undefined} className="btn-secondary btn-sm"
+          title={scrapedCount === 0 ? 'Run Fetch scores and content first so there is page content to compare' : undefined}>
+          {isAnalysing ? 'Comparing properties...' : 'Consistency analysis'}
+        </button>
+      </>}>
+      <div className="dc-table-wrap">
+        <table className="dc-table is-static">
           <thead>
-            <tr className="border-b border-[#DEDAD2]">
-              <th className="text-left py-2 pr-3 font-semibold text-[#666] w-32">Property</th>
-              <th className="text-left py-2 pr-3 font-semibold text-[#666]">URL</th>
-              <th className="text-left py-2 pr-3 font-semibold text-[#666] w-20">Type</th>
-              <th className="text-left py-2 pr-3 font-semibold text-[#666] w-20">Language</th>
-              <th className="text-center py-2 px-1 font-semibold text-[#666] w-16">Perf</th>
-              <th className="text-center py-2 px-1 font-semibold text-[#666] w-12">SEO</th>
-              <th className="text-center py-2 px-1 font-semibold text-[#666] w-16">Access.</th>
-            </tr>
+            <tr><th>Property</th><th>URL</th><th>Type</th><th>Language</th><th className="num">Perf</th><th className="num">SEO</th><th className="num">Access.</th></tr>
           </thead>
           <tbody>
             {allProperties.map((prop, i) => {
+              const d = i === 0 ? primaryScores : (propertyData[prop.url] || {});
+              const hasError = propertyData[prop.url]?.error;
               return (
-                <tr key={i} className={i % 2 === 0 ? 'bg-[#FBFAF7]' : ''}>
-                  <td className="py-2 pr-3 font-semibold text-[#15171A]">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
-                  <td className="py-2 pr-3 text-[#666] max-w-[180px] truncate" title={prop.url}>{prop.url}</td>
-                  <td className="py-2 pr-3">
-                    <span className="px-2 py-0.5 text-[10px] font-semibold bg-[#FBFAF7] text-[#444]">
-                      {PROPERTY_TYPES.find(t => t.id === prop.type)?.label || prop.type}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-3 text-[#666]">{prop.language || '—'}</td>
-                  {['performance', 'seo', 'accessibility'].map(metric => {
-                    const d = i === 0
-                      ? primaryScores
-                      : (propertyData[prop.url] || {});
-                    const val = d[metric];
-                    const hasError = propertyData[prop.url]?.error;
-                    return (
-                      <td key={metric} className="py-2 px-1 text-center">
-                        {val != null ? (
-                          <span className="inline-block w-10 text-center py-0.5 font-bold tabular-nums text-[11px]"
-                            style={{ backgroundColor: scoreColor(val), color: onScoreColor(val) }}>
-                            {val}
-                          </span>
-                        ) : hasError && i > 0 ? (
-                          <span className="text-[#C23B22] text-[10px]">err</span>
-                        ) : i === 0 ? (
-                          <span className="text-[10px] text-[#BBB]" title="Run Technical Performance Audit above">—</span>
-                        ) : (
-                          <span className="text-[#CCC]">—</span>
-                        )}
-                      </td>
-                    );
-                  })}
+                <tr key={i}>
+                  <td className="is-strong">{prop.label || (i === 0 ? 'Primary' : `Property ${i}`)}</td>
+                  <td title={prop.url}>{prop.url}</td>
+                  <td>{PROPERTY_TYPES.find(t => t.id === prop.type)?.label || prop.type}</td>
+                  <td>{prop.language || '—'}</td>
+                  {['performance', 'seo', 'accessibility'].map(metric => (
+                    <td key={metric} className="num" title={i === 0 && d[metric] == null ? 'Run the technical performance audit first' : undefined}>
+                      {d[metric] != null ? d[metric] : hasError && i > 0 ? <span className="dc-error">error</span> : '—'}
+                    </td>
+                  ))}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-
-      <p className="text-[10px] text-[#999] mb-3">
-        Primary site scores are read from the Technical Performance Audit above, so run that first. Fetch reads every property's homepage text as well, which is what the consistency analysis compares.
+      <p className="dc-hint">
+        Primary site scores are read from the technical performance audit, so run that first. Fetch reads every property's homepage text as well, which is what the consistency analysis compares.
+        {' '}{scrapedCount > 0
+          ? `Homepage content read from ${scrapedCount} of ${allProperties.length} properties.${scrapedCount < allProperties.length ? ' Properties that could not be read are excluded from the comparison rather than guessed at.' : ''}`
+          : !isRunning ? 'Without the page text the analysis can only describe risks in general terms.' : ''}
       </p>
-
-      <div className="flex gap-2 flex-wrap">
-        <button
-          onClick={runPropertyChecks}
-          disabled={isRunning}
-          className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-        >
-          {isRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> {progress || 'Fetching...'}</> : <><RefreshCw className="w-4 h-4" /> Fetch Scores &amp; Content</>}
-        </button>
-        <button
-          onClick={runConsistencyAnalysis}
-          disabled={isAnalysing || scrapedCount === 0}
-          title={scrapedCount === 0 ? 'Run Fetch Scores & Content first so there is page content to compare' : undefined}
-          className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-        >
-          {isAnalysing ? <><Loader2 className="w-4 h-4 animate-spin" /> Comparing properties...</> : <><Sparkles className="w-4 h-4" /> Consistency Analysis</>}
-        </button>
-      </div>
-
-      {scrapedCount > 0 && (
-        <p className="text-xs text-[#5B6068] mt-2">
-          Homepage content read from {scrapedCount} of {allProperties.length} properties.
-          {scrapedCount < allProperties.length && ' Properties that could not be read are excluded from the comparison rather than guessed at.'}
-        </p>
-      )}
-      {scrapedCount === 0 && !isRunning && (
-        <p className="text-xs text-[#5B6068] mt-2">
-          Fetch scores and content first. Without the page text the analysis can only describe risks in general terms.
-        </p>
-      )}
-
-      {error && <p className="text-xs text-[#C23B22] mt-2">{error}</p>}
-
-      {propertyData.consistencyAnalysis && (
-        <div className="mt-4 bg-[#DEDAD2] p-4">
-          <div className="text-[10px] font-semibold text-[#666] uppercase tracking-wider mb-2">Consistency Analysis</div>
-          <pre className="text-sm text-[#333] whitespace-pre-wrap font-sans leading-relaxed">{propertyData.consistencyAnalysis}</pre>
-        </div>
-      )}
-    </div>
+      {error && <p className="dc-error" role="alert">{error}</p>}
+      {propertyData.consistencyAnalysis && <AssessOutput>{propertyData.consistencyAnalysis}</AssessOutput>}
+    </AssessBlock>
   );
 }
 
@@ -2953,14 +2948,6 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
-  // Helper function to get color based on PageSpeed score
-  const getScoreColor = (score) => {
-    if (score === '' || score === undefined || score === null) return '#5B6068';
-    const num = parseInt(score);
-    if (num >= 90) return '#2F6B55'; // Green - Good
-    if (num >= 50) return '#8C5A0B'; // Amber - Needs Improvement
-    return '#DC2626'; // Red - Poor
-  };
 
   // Helper function to get label based on PageSpeed score
   const getScoreLabel = (score) => {
@@ -3051,91 +3038,49 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
 
   const hasAnyScore = Object.values(techAudit.scores).some(s => s !== '' && s !== undefined);
 
+  // Packet 02: four editable Newsreader numerals with a status word. The
+  // status reads by word and colour together; an empty score shows no word.
+  const statusCls = (label) => (label === 'Good' ? 'is-good' : label === 'Poor' ? 'is-poor' : label ? 'is-warn' : undefined);
   return (
-    <div className="card mb-[2px]">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h3 className="text-sm font-medium text-[#15171A]">Technical Performance Audit</h3>
-          <p className="text-xs text-[#5B6068]">PageSpeed scores impact ATTENTIVE & COGENT</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={fetchPageSpeedScores}
-            disabled={isFetching || !websiteUrl}
-            className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1"
-          >
-            {isFetching ? <><Loader2 className="w-3 h-3 animate-spin" /> Fetching...</> : <><Sparkles className="w-3 h-3" /> Auto-Fetch</>}
-          </button>
-          {pageSpeedUrl && (
-            <a 
-              href={pageSpeedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
-            >
-              <ExternalLink className="w-3 h-3" /> Manual
-            </a>
-          )}
-        </div>
-      </div>
-
-      {fetchError && (
-        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4 text-xs text-[#C23B22]">
-          {fetchError} — Try the Manual button instead.
-        </div>
-      )}
-
-      {!fetchError && (
-        <p className="text-[12px] text-[#2E3238]" style={{ marginBottom: 16 }}>
-          Auto-fetch pulls the scores, or verify them manually on Google PageSpeed.
-        </p>
-      )}
-
-      {/* Score Input Grid — stat blocks with the figure as the input */}
-      <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))' }}>
+    <AssessBlock title="Technical performance audit"
+      desc="PageSpeed scores affect Attentive and Cogent. Auto-fetch pulls the scores, or verify them manually on Google PageSpeed."
+      actions={<>
+        <button type="button" onClick={fetchPageSpeedScores} disabled={isFetching || !websiteUrl} aria-busy={isFetching || undefined} className="btn-primary btn-sm">
+          {isFetching ? 'Fetching...' : 'Auto-fetch'}
+        </button>
+        {pageSpeedUrl && <a href={pageSpeedUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm">Check manually ↗</a>}
+      </>}>
+      {fetchError && <div className="dc-alert is-error" role="alert">{fetchError}. Try Check manually instead.</div>}
+      <div className="dc-tiles is-scores is-4">
         {[
           { key: 'performance', label: 'Performance' },
           { key: 'accessibility', label: 'Accessibility' },
           { key: 'bestPractices', label: 'Best practices' },
           { key: 'seo', label: 'SEO' },
-        ].map((item) => (
-          <div key={item.key} className="bg-white" style={{ padding: '18px 20px' }}>
-            <div className="flex items-baseline gap-1">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={techAudit.scores[item.key] ?? ''}
-                onChange={(e) => updateScore(item.key, e.target.value)}
-                placeholder="—"
-                className="bg-transparent border-0 p-0 focus:outline-none"
-                style={{ width: '3.4ch', fontSize: 34, fontWeight: 700, letterSpacing: '-.03em',
-                  lineHeight: 1, MozAppearance: 'textfield', appearance: 'textfield',
-                  color: techAudit.scores[item.key] === '' ? '#8A8E95' : scoreColor(techAudit.scores[item.key]) }}
-              />
-              <span style={{ fontSize: 15, fontWeight: 500, color: '#5B6068' }}>/100</span>
+        ].map((item) => {
+          const v = techAudit.scores[item.key] ?? '';
+          const word = getScoreLabel(v);
+          return (
+            <div key={item.key} className="dc-tile">
+              <div className="dc-kicker">{item.label}</div>
+              <div className="dc-score-n">
+                <input className="dc-stat-n" type="number" min="0" max="100" value={v} placeholder="—"
+                  onChange={(e) => updateScore(item.key, e.target.value)} aria-label={`${item.label} score`} />
+                <small>/100</small>
+              </div>
+              <div className={statusCls(word) ? `dc-tile-status ${statusCls(word)}` : 'dc-tile-status'}>{word === 'Needs Work' ? 'Needs work' : word}</div>
             </div>
-            <div className="dc-kicker-sm" style={{ marginTop: 8 }}>{item.label}</div>
-            <div className="text-[10px] font-bold" style={{ marginTop: 3, color: '#5B6068' }}>
-              {getScoreLabel(techAudit.scores[item.key])}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-
-      {hasAnyScore && (
-        <div className="mt-3 pt-3 border-t border-[#DEDAD2] flex items-center gap-2">
-          <Check className="w-4 h-4 text-[#2F6B55]" />
-          <span className="text-xs text-[#5B6068]">Scores will be included in assessment</span>
-        </div>
-      )}
-    </div>
+      {hasAnyScore && <span className="dc-status is-done">Scores will be included in assessment</span>}
+    </AssessBlock>
   );
 }
 
 // Website Assessment with Image Upload
 // Website Assessment with Multiple Image Upload (up to 4)
-function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
+function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAutoAssessing, setIsAutoAssessing] = useState(false);
@@ -3542,17 +3487,24 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
   const isComplete = assessmentData.status === 'complete';
 
   // Completion tracking
+  // Saving strips screenshots to keep the record small (v3.99.1). Once the
+  // analysis has run on them, a reopened assessment is not sent back to
+  // upload them again just to continue.
+  const screenshotsDone = images.length > 0 || isComplete;
+  // Every item is required: Continue checks each of them, screenshots
+  // included (the analysis runs on them), so none is labelled optional.
   const completionItems = [
-    { label: 'Auto-Assess', done: !!assessmentData.autoAssessContent },
-    { label: 'SEO Check', done: !!seoAssessment },
-    { label: 'Screenshots', done: images.length > 0 },
-    { label: 'Pages Listed', done: !!pagesReviewed },
+    { label: 'Auto-assess', done: !!assessmentData.autoAssessContent },
+    { label: 'SEO check', done: !!seoAssessment },
+    { label: 'Screenshots', done: screenshotsDone },
+    { label: 'Pages listed', done: !!pagesReviewed },
     { label: 'Content', done: !!websiteContent.trim() },
     { label: 'Analysis', done: isComplete },
   ];
+  const blocker = stillNeeded(completionItems);
 
   // Required checks before proceeding - ALL items mandatory
-  const canProceed = isComplete && !!assessmentData.autoAssessContent && !!seoAssessment && images.length > 0 && !!pagesReviewed && !!websiteContent.trim();
+  const canProceed = isComplete && !!assessmentData.autoAssessContent && !!seoAssessment && screenshotsDone && !!pagesReviewed && !!websiteContent.trim();
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
@@ -3564,7 +3516,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
       setProceedError('Please complete the SEO Visibility Assessment before proceeding.');
       return;
     }
-    if (images.length === 0) {
+    if (!screenshotsDone) {
       setProceedError('Please upload at least one screenshot of the website before proceeding.');
       return;
     }
@@ -3584,302 +3536,107 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
     onNext();
   };
 
+  const jinaUrl = project.websiteUrl ? `https://r.jina.ai/${project.websiteUrl.startsWith('http') ? project.websiteUrl : 'https://' + project.websiteUrl}` : null;
   return (
-    <div className="dc-wrap dc-page animate-fade-in">
-      <MobileAssessmentBanner />
-      <div className="dc-page-head">
-        <div className="dc-kicker is-accent">Step 2 of 6 · Website</div>
-        <h1 className="dc-display">Website assessment</h1>
-        <p className="dc-standfirst">
-          {project.brandName}{project.websiteUrl ? <> · <a href={project.websiteUrl} target="_blank" rel="noopener noreferrer">{project.websiteUrl}</a></> : null}
-        </p>
-      </div>
+    <AssessPage step={2} name="Website" title="Website assessment" project={project}
+      rail={<AssessRail items={completionItems} next="Social" canProceed={canProceed} onProceed={handleProceed} onSaveExit={onSaveExit} saving={savingExit} />}>
 
-      <CompletionIndicator items={completionItems} />
-
-      {/* Auto-Assess Website */}
-      <div className="dc-panel-dark mb-[2px]">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <div className="flex items-center gap-2" style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.01em', color: '#FBFAF7' }}>
-              <Sparkles className="w-4 h-4" style={{ color: '#D9442A' }} />
-              Auto-Assess Website
-            </div>
-            <p className="text-[13px] text-[#8A8E95] mt-1.5">
-              AI-powered comprehensive analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization.
-            </p>
-          </div>
-          <button 
-            onClick={runAutoAssess} 
-            disabled={isAutoAssessing} 
-            className="btn-secondary text-sm py-2 px-4 flex items-center gap-2 flex-shrink-0"
-          >
-            {isAutoAssessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Assessing...</> : <><Bot className="w-4 h-4" /> Auto-Assess</>}
-          </button>
+      <section className="dc-panel-dark dc-action">
+        <div>
+          <div className="dc-kicker">Automated</div>
+          <h2 className="dc-h is-card">Auto-assess website</h2>
+          <p>AI-powered comprehensive analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization.</p>
         </div>
-        
-        {assessmentData.autoAssessContent && (
-          <div className="mt-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#2F6B55]" />
-              <span className="text-sm font-medium text-[#15171A]">Website Assessment Complete</span>
-            </div>
-            <div className="bg-[#DEDAD2] p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Pages Reviewed */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="dc-kicker" style={{ marginBottom: 14 }}>Pages Reviewed</div>
-        <p className="text-sm text-[#5B6068] mb-3">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p>
-        <input 
-          type="text" 
-          value={pagesReviewed} 
-          onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ pagesReviewed: e.target.value }); }}
-          placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact"
-          className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]"
-        />
-      </div>
-
-      {/* Recognition & Credentials */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="dc-kicker">Recognition & Credentials (Optional)</div>
-          <button 
-            onClick={runCredentialsAssess} 
-            disabled={isAssessingCredentials || !project.brandName}
-            className="px-3 py-1.5 bg-[#15171A] text-white text-xs font-medium hover:bg-[#15171A] transition-colors flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {isAssessingCredentials ? (
-              <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</>
-            ) : (
-              <><Sparkles className="w-3 h-3" /> Auto-Search</>
-            )}
-          </button>
-        </div>
-        <p className="text-sm text-[#5B6068] mb-3">Awards, certifications, memberships, speaking engagements, or industry recognition.</p>
-        <textarea 
-          value={credentialsContent} 
-          onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ credentialsContent: e.target.value }); }}
-          placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor..."
-          className={`w-full h-24 px-4 py-3 border border-[#DEDAD2]  bg-white resize-none ${credentialsContent ? 'bg-[#DEDAD2]' : ''}`}
-        />
-        {credentialsContent && (
-          <p className="text-xs text-[#2F6B55] mt-1">✓ Recognition data captured</p>
-        )}
-      </div>
-
-      {/* Screenshots */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="dc-kicker flex items-center gap-2" style={{ marginBottom: 14 }}>
-          <Image className="w-4 h-4" /> Screenshots (up to 2)
-        </div>
-        <p className="text-sm text-[#5B6068] mb-4">Upload screenshots of homepage and key subpages for visual analysis.</p>
-        
-        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
-        
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {images.map((img, index) => (
-            <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DEDAD2]" />
-              <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white p-1 hover:bg-[#DEDAD2]">
-                <X className="w-4 h-4" />
-              </button>
-              <div className="absolute bottom-2 left-2 bg-[#15171A] text-white text-xs px-2 py-1 ">
-                {index + 1}
-              </div>
-            </div>
-          ))}
-          
-          {images.length < 2 && (
-            <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#15171A] flex flex-col items-center justify-center gap-2 hover:bg-[#D9442A]/5 transition-colors">
-              {isCompressing ? (
-                <><Loader2 className="w-6 h-6 text-[#C23B22] animate-spin" /><span className="text-sm text-[#C23B22]">Compressing...</span></>
-              ) : (
-                <><Upload className="w-6 h-6 text-[#15171A]" /><span className="text-sm text-[#15171A] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#5B6068]">{2 - images.length} remaining</span></>
-              )}
-            </button>
-          )}
-        </div>
-        
-        {images.length > 0 && (
-          <div className="text-sm text-[#2F6B55]">
-            {images.length} screenshot(s) ready for analysis
-          </div>
-        )}
-      </div>
-
-      {/* Website Content */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="flex items-start justify-between gap-4" style={{ marginBottom: 14 }}>
-          <div className="dc-kicker">Website Content <span className="text-[#C23B22]">*</span></div>
-          {project.websiteUrl && (
-            <a
-              href={`https://r.jina.ai/${project.websiteUrl.startsWith('http') ? project.websiteUrl : 'https://' + project.websiteUrl}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1 flex-shrink-0"
-            >
-              <ExternalLink className="w-3 h-3" /> Scrape with Jina
-            </a>
-          )}
-        </div>
-        <p className="text-sm text-[#5B6068] mb-2">Paste key content from the website: headlines, taglines, about text, value propositions, etc. Required to proceed.</p>
-        <p className="text-xs text-[#5B6068] mb-3">
-          To pull clean text from any page, put{' '}
-          <a href="https://r.jina.ai/" target="_blank" rel="noopener noreferrer" className="text-[#15171A] underline">https://r.jina.ai/</a>
-          {' '}in front of its URL. The button above does this for the primary site homepage only.
-        </p>
-        <textarea 
-          value={websiteContent} 
-          onChange={(e) => { setWebsiteContent(e.target.value); setAssessmentData({ websiteContent: e.target.value }); }}
-          placeholder="Paste key website copy here...
-
-Example:
-HOMEPAGE HEADLINE: 'Transform Your Business with AI'
-TAGLINE: 'Enterprise solutions for the modern era'
-ABOUT: 'Founded in 2015, we help companies...'
-VALUE PROP: 'Reduce costs by 40% while improving...'
-..."
-          className="w-full h-28 px-4 py-3 border border-[#DEDAD2] bg-white resize-none text-sm"
-        />
-      </div>
-
-      {/* SEO Visibility Assessment */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="dc-kicker">SEO Visibility Assessment</div>
-            <p className="text-sm text-[#5B6068]">AI-powered analysis of search visibility potential (influences COGENT score)</p>
-          </div>
-        </div>
-
-        {!seoAssessment ? (
-          <div>
-            <p className="text-sm text-[#5B6068] mb-4">
-              Claude will analyze {project.brandName}'s likely SEO visibility based on brand name uniqueness, 
-              industry competitiveness, content signals, and identify target keywords they should rank for.
-            </p>
-            <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4">
-              <p className="text-sm text-[#15171A]">
-                <strong>💡 Tip:</strong> Run this before the main Website Analysis for best results. 
-                SEO insights will be automatically integrated into the full assessment.
-              </p>
-            </div>
-            <button 
-              onClick={runSeoAssessment} 
-              disabled={isAssessingSeo || !apiKey}
-              className="btn-secondary flex items-center gap-2"
-            >
-              {isAssessingSeo ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing SEO Visibility...</>
-              ) : (
-                <><Play className="w-4 h-4" /> Auto-Assess SEO Visibility</>
-              )}
-            </button>
-          </div>
-        ) : (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[20px] font-semibold tracking-tight text-[#15171A] flex items-center gap-2">
-                <Check className="w-4 h-4 text-[#2F6B55]" /> SEO Assessment Complete
-                <span className="text-xs text-[#5B6068] font-normal">(will be included in Website Analysis)</span>
-              </span>
-              <button 
-                onClick={runSeoAssessment} 
-                disabled={isAssessingSeo}
-                className="text-sm text-[#C23B22] hover:underline flex items-center gap-1"
-              >
-                {isAssessingSeo ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                Regenerate Analysis
-              </button>
-            </div>
-            <div className="bg-[#DEDAD2] p-4 max-h-64 overflow-y-auto">
-              <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{seoAssessment}</pre>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Digital Property Consistency — only shown if additional properties registered */}
-      <PropertyConsistencyPanel
-        project={project}
-        assessmentData={assessmentData}
-        setAssessmentData={setAssessmentData}
-        apiKey={apiKey}
-      />
-
-      {/* Technical Performance Audit */}
-      <TechnicalAuditSection 
-        websiteUrl={project.websiteUrl} 
-        assessmentData={assessmentData}
-        setAssessmentData={setAssessmentData}
-      />
-
-      {/* Assessor Observations */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
-        <p className="text-sm text-[#5B6068] mb-3">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
-          placeholder="Add your observations about:
-- Brand alignment issues
-- Storytelling strengths/weaknesses  
-- Consistency across pages
-- Navigation or UX concerns
-- Content gaps
-- Competitive positioning..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none" />
-      </div>
-
-      {!isComplete && (
-        <button onClick={runAnalysis} disabled={isProcessing || images.length === 0 || isCompressing} className="btn-primary flex items-center gap-2 mb-6">
-          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing Website...</> : 
-           isCompressing ? <><Loader2 className="w-4 h-4 animate-spin" /> Compressing Images...</> :
-           <><Play className="w-4 h-4" /> {images.length > 0 ? 'Run Website Analysis' : 'Upload Screenshots First'}</>}
+        <button type="button" onClick={runAutoAssess} disabled={isAutoAssessing} aria-busy={isAutoAssessing || undefined} className="btn-primary is-on-dark">
+          {isAutoAssessing ? 'Assessing...' : assessmentData.autoAssessContent ? 'Run again' : 'Run auto-assess'}
         </button>
+      </section>
+      {assessmentData.autoAssessContent && (
+        <AssessBlock title="Website auto-assessment" status="Complete">
+          <AssessOutput>{assessmentData.autoAssessContent}</AssessOutput>
+        </AssessBlock>
       )}
 
-      {error && <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-6 text-[#C23B22]">{error}</div>}
+      <AssessBlock title="Pages reviewed" labelFor="ws-pages" desc="List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)">
+        <input className="dc-input" id="ws-pages" type="text" value={pagesReviewed}
+          onChange={(e) => { setPagesReviewed(e.target.value); setAssessmentData({ pagesReviewed: e.target.value }); }}
+          placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact" />
+      </AssessBlock>
 
-      {isComplete && (
-        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#C23B22]" /> Analysis Complete
-            </h3>
-            <button 
-              onClick={() => {
-                runAnalysis();
-                if (onClearScores) onClearScores();
-              }} 
-              disabled={isProcessing} 
-              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
+      <AssessBlock title="Recognition & credentials" labelFor="ws-recog" tag="Optional"
+        desc="Awards, certifications, memberships, speaking engagements, or industry recognition."
+        actions={<button type="button" onClick={runCredentialsAssess} disabled={isAssessingCredentials || !project.brandName} aria-busy={isAssessingCredentials || undefined} className="btn-secondary btn-sm">
+          {isAssessingCredentials ? 'Searching...' : 'Auto-search'}
+        </button>}>
+        <textarea className="dc-textarea" id="ws-recog" value={credentialsContent}
+          onChange={(e) => { setCredentialsContent(e.target.value); setAssessmentData({ credentialsContent: e.target.value }); }}
+          placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor..." />
+        {credentialsContent && <span className="dc-status is-done">Recognition data captured</span>}
+      </AssessBlock>
+
+      <AssessBlock title="Screenshots" tag="Required" desc="Upload screenshots of homepage and key subpages for visual analysis. Up to 2; the analysis runs on them.">
+        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple hidden />
+        <div className="dc-drops">
+          {images.map((img, index) => (
+            <figure key={index} className="dc-shot">
+              <img src={img} alt={`Screenshot ${index + 1}`} />
+              <figcaption>{index + 1}</figcaption>
+              <button type="button" className="dc-link-btn" onClick={() => removeImage(index)} aria-label={`Remove screenshot ${index + 1}`}>Remove</button>
+            </figure>
+          ))}
+          {images.length < 2 && (
+            <button type="button" className="dc-drop" onClick={() => fileInputRef.current?.click()} disabled={isCompressing}>
+              <strong>{isCompressing ? 'Compressing...' : 'Add screenshot'}</strong>
+              {!isCompressing && <span>{2 - images.length} remaining</span>}
             </button>
-          </div>
-          <div className="bg-[#DEDAD2] p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
-          </div>
+          )}
         </div>
-      )}
+        {images.length > 0 && <span className="dc-status is-done">{images.length} screenshot{images.length === 1 ? '' : 's'} ready for analysis</span>}
+        {images.length === 0 && isComplete && <p className="dc-hint" data-field="shots-not-kept">The analysis already ran on the screenshots. Saving does not keep them, so add them again only to rerun the analysis.</p>}
+      </AssessBlock>
 
-      {proceedError && (
-        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-4 text-[#15171A] text-sm flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          {proceedError}
-        </div>
-      )}
+      <AssessBlock title="Website content" labelFor="ws-content" tag="Required"
+        desc={['Paste key content from the website: headlines, taglines, about text, value propositions, etc. Required to proceed.',
+          <>To pull clean text from any page, put <a href="https://r.jina.ai/" target="_blank" rel="noopener noreferrer">https://r.jina.ai/</a> in front of its URL. The button does this for the primary site homepage only.</>]}
+        actions={jinaUrl && <a href={jinaUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm">Scrape with Jina ↗</a>}>
+        <textarea className="dc-textarea is-tall" id="ws-content" value={websiteContent}
+          onChange={(e) => { setWebsiteContent(e.target.value); setAssessmentData({ websiteContent: e.target.value }); }}
+          placeholder={"Paste key website copy here...\n\nExample:\nHOMEPAGE HEADLINE: 'Transform Your Business with AI'\nTAGLINE: 'Enterprise solutions for the modern era'\nABOUT: 'Founded in 2015, we help companies...'\nVALUE PROP: 'Reduce costs by 40% while improving...'\n..."} />
+      </AssessBlock>
 
-      <div className="flex items-center justify-between pt-6 border-t border-[#DEDAD2]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
-      </div>
-    </div>
+      <AssessBlock title="SEO visibility assessment" status={seoAssessment ? 'Complete' : null}
+        desc={seoAssessment
+          ? 'AI-powered analysis of search visibility potential. Influences the Cogent score. Included in the website analysis.'
+          : `Claude will analyze ${project.brandName}'s likely SEO visibility based on brand name uniqueness, industry competitiveness, content signals, and identify target keywords they should rank for. Run this before the website analysis for best results.`}
+        actions={<button type="button" onClick={runSeoAssessment} disabled={isAssessingSeo || (!seoAssessment && !apiKey)} aria-busy={isAssessingSeo || undefined} className="btn-secondary btn-sm">
+          {isAssessingSeo ? 'Analyzing...' : seoAssessment ? 'Regenerate' : 'Run SEO check'}
+        </button>}>
+        {seoAssessment && <AssessOutput small>{seoAssessment}</AssessOutput>}
+      </AssessBlock>
+
+      {/* Only shown when additional properties are registered */}
+      <PropertyConsistencyPanel project={project} assessmentData={assessmentData} setAssessmentData={setAssessmentData} apiKey={apiKey} />
+
+      <TechnicalAuditSection websiteUrl={project.websiteUrl} assessmentData={assessmentData} setAssessmentData={setAssessmentData} />
+
+      <AssessBlock title="Assessor observations" labelFor="ws-obs" desc="Your observations on brand alignment, storytelling, consistency issues, or other concerns.">
+        <textarea className="dc-textarea" id="ws-obs" value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
+          placeholder={"Add your observations about:\n- Brand alignment issues\n- Storytelling strengths/weaknesses\n- Consistency across pages\n- Navigation or UX concerns\n- Content gaps\n- Competitive positioning..."} />
+      </AssessBlock>
+
+      <AssessBlock title="Analysis" status={isComplete ? 'Complete' : null}
+        desc={isComplete ? null : 'Runs on the screenshots, the content and everything above. Upload at least one screenshot first.'}
+        actions={<button type="button" onClick={() => { runAnalysis(); if (isComplete && onClearScores) onClearScores(); }}
+          disabled={isProcessing || isCompressing || images.length === 0} aria-busy={isProcessing || undefined} className={isComplete ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}>
+          {isProcessing ? 'Analyzing...' : isCompressing ? 'Compressing images...' : isComplete ? 'Regenerate analysis' : images.length > 0 ? 'Run website analysis' : 'Upload screenshots first'}
+        </button>}>
+        {error && <div className="dc-alert is-error" role="alert">{error}</div>}
+        {isComplete && <AssessOutput>{assessmentData.content}</AssessOutput>}
+      </AssessBlock>
+
+      {proceedError && <div className="dc-alert is-warn" role="alert">{proceedError}</div>}
+      <AssessFoot onPrev={onPrev} canProceed={canProceed} onProceed={handleProceed} blocker={blocker} />
+    </AssessPage>
   );
 }
 
@@ -3905,39 +3662,22 @@ const CHANNEL_RELEVANCE = {
 function SocialAutoPanel({ content, isEditing, isEdited, onStartEdit, onDoneEdit, onChange }) {
   if (!content && !isEditing) return null;
   return (
-    <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3">
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-1.5">
-          {isEdited ? <Pencil className="w-3.5 h-3.5 text-[#8C5A0B]" /> : <Check className="w-3.5 h-3.5 text-[#2F6B55]" />}
-          <span
-            className="text-[10px] font-semibold uppercase tracking-wider"
-            style={{ color: isEdited ? '#8C5A0B' : '#2F6B55' }}
-          >
-            {isEdited ? 'Auto-checked, corrected' : 'Auto-checked'}
-          </span>
-        </div>
-        <button
-          onClick={isEditing ? onDoneEdit : onStartEdit}
-          className="px-2 py-0.5 bg-[#DEDAD2] text-[#15171A] text-[10px] font-medium hover:bg-[#DEDAD2] transition-colors flex items-center gap-1"
-        >
-          {isEditing ? <><Check className="w-2.5 h-2.5" /> Done</> : <><Pencil className="w-2.5 h-2.5" /> Correct</>}
-        </button>
+    <div className={isEdited ? 'dc-autopanel is-edited' : 'dc-autopanel'}>
+      <div className="dc-field-row">
+        <span className="dc-kicker">{isEdited ? 'Auto-checked, corrected' : 'Auto-checked'}</span>
+        <button type="button" className="dc-link-btn" onClick={isEditing ? onDoneEdit : onStartEdit}>{isEditing ? 'Done' : 'Correct'}</button>
       </div>
       {isEditing ? (
-        <textarea
-          value={content}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Correct anything the auto-check got wrong. Delete what is not true."
-          className="w-full h-44 px-3 py-2 border border-[#DEDAD2] bg-white resize-y text-xs leading-relaxed"
-        />
+        <textarea className="dc-textarea is-tall" value={content} onChange={(e) => onChange(e.target.value)} aria-label="Correct the auto-checked content"
+          placeholder="Correct anything the auto-check got wrong. Delete what is not true." />
       ) : (
-        <pre className="text-xs text-[#2E3238] whitespace-pre-wrap font-sans leading-relaxed max-h-44 overflow-y-auto">{content}</pre>
+        <div className="dc-output is-sm">{content}</div>
       )}
     </div>
   );
 }
 
-function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
+function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAutoChecking, setIsAutoChecking] = useState(false);
@@ -4548,19 +4288,26 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
   // gates, because there is nothing to cover or photograph. It does not excuse
   // WIPO or the analysis, which are independent of social.
   const noSocialDeclared = noSocialPresence && !!noSocialNote.trim();
+  // Saving strips screenshots (v3.99.1): a completed analysis stands in for them.
+  const screenshotsDone = images.length > 0 || isComplete;
 
+  // Health check and campaign signals feed the analysis, but Continue does not
+  // check them, so they are labelled optional (v3.99.0).
   const completionItems = [
-    { label: 'Health Check', done: !!socialHealthCheck },
+    { label: 'Health check', done: !!socialHealthCheck, optional: true },
     { label: 'Channels', done: noSocialDeclared || leadChannelsCovered >= REQUIRED_LEAD_CHANNELS },
-    { label: 'Screenshot', done: noSocialDeclared || images.length > 0 },
-    { label: 'Campaign', done: noSocialDeclared || !!(inputs.campaignAuto || inputs.campaignContent) },
+    { label: 'Screenshot', done: noSocialDeclared || screenshotsDone },
+    { label: 'Campaign', done: noSocialDeclared || !!(inputs.campaignAuto || inputs.campaignContent), optional: true },
     { label: 'WIPO', done: !!inputs.wipoContent },
     { label: 'Analysis', done: isComplete },
   ];
+  const blocker = noSocialPresence && !noSocialNote.trim()
+    ? 'Still needed: what you checked, for no social presence'
+    : stillNeeded(completionItems);
 
   // Required checks before proceeding
   const canProceed = isComplete && !!inputs.wipoContent
-    && (noSocialDeclared || (leadChannelsCovered >= REQUIRED_LEAD_CHANNELS && images.length > 0));
+    && (noSocialDeclared || (leadChannelsCovered >= REQUIRED_LEAD_CHANNELS && screenshotsDone));
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
@@ -4573,7 +4320,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       setProceedError(`Please cover at least ${REQUIRED_LEAD_CHANNELS} of the priority channels for a ${project.businessModel?.toUpperCase()} brand (${names}). Running the health check fills most of this automatically. If the brand genuinely has no social presence, tick "No social presence found" above.`);
       return;
     }
-    if (!noSocialDeclared && images.length === 0) {
+    if (!noSocialDeclared && !screenshotsDone) {
       setProceedError('Please upload at least one screenshot of social media profiles before proceeding. If the brand genuinely has no social presence, tick "No social presence found" above.');
       return;
     }
@@ -4589,12 +4336,10 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
     onNext();
   };
 
-  // Accordion Header Component
-  // Read-only panel for auto-checked content. Sits above the notes field so it
-  // is obvious which content the assessor owns and which was fetched.
-  // Thin wrapper over the module-level panel. Takes the field key so a
-  // correction writes straight back to the auto field it came from.
-  const AutoPanel = ({ field }) => (
+  // Render functions, not components declared in render: a component declared
+  // here remounts on every keystroke, which dropped focus from the correction
+  // field inside each auto-checked panel (v3.99.0).
+  const autoPanel = (field) => (
     <SocialAutoPanel
       content={inputs[field] || ''}
       isEditing={!!editingAuto[field]}
@@ -4604,507 +4349,227 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
       onChange={(value) => updateAutoField(field, value)}
     />
   );
-
-  const AccordionHeader = ({ title, icon: Icon, isOpen, onClick, badge, hasContent }) => (
-    <button 
-      onClick={onClick}
-      className={`w-full flex items-center justify-between px-5 py-4 bg-white transition-colors ${isOpen ? 'border-b border-[#DEDAD2]' : 'hover:bg-[#FBFAF7]'}`}
-    >
-      <div className="flex items-center gap-3">
-        <Icon className="w-4 h-4 text-[#5B6068]" />
-        <span className="text-[17px] font-semibold tracking-tight text-[#15171A]">{title}</span>
-        {badge && <span className="dc-meta">{badge}</span>}
-        {hasContent && <Check className="w-4 h-4 text-[#2F6B55]" />}
-      </div>
-      <ChevronDown className={`w-4 h-4 text-[#5B6068] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-    </button>
+  // One channel in the accordion list (packet 03): a text Open/Close, a neutral
+  // pill, and a tick in the name once there is content.
+  const channel = (id, title, section, pill, hasContent, body) => (
+    <div className="dc-acc" key={id} data-channel={id}>
+      <button type="button" className="dc-acc-h" aria-expanded={!!expanded[section]} onClick={() => toggleSection(section)}>
+        <strong>{title}{hasContent && <span className="dc-acc-done" aria-label="has content"> ✓</span>}</strong>
+        {pill ? <span className="dc-pill">{pill}</span> : <span></span>}
+        <span className="dc-acc-x">{expanded[section] ? 'Close' : 'Open'}</span>
+      </button>
+      {expanded[section] && <div className="dc-acc-b">{body}</div>}
+    </div>
   );
+  const urlField = (id, key, placeholder) => (
+    <div className="dc-field">
+      <label htmlFor={id}>Profile URL</label>
+      <div className="dc-inline">
+        <input className="dc-input" id={id} type="url" value={inputs[key]} onChange={(e) => updateInput(key, e.target.value)} placeholder={placeholder} />
+        {inputs[key] && <a className="btn-secondary" href={inputs[key]} target="_blank" rel="noopener noreferrer">Open ↗</a>}
+      </div>
+    </div>
+  );
+  const notesField = (id, key, label = 'Your notes', placeholder = 'Anything the auto-check missed or got wrong...') => (
+    <div className="dc-field">
+      <label htmlFor={id}>{label}</label>
+      <textarea className="dc-textarea" id={id} value={inputs[key]} onChange={(e) => updateInput(key, e.target.value)} placeholder={placeholder} />
+    </div>
+  );
+  const tag = (s) => s.toLowerCase().replace(/\s+/g, '');
 
   return (
-    <div className="dc-wrap dc-page animate-fade-in">
-      <MobileAssessmentBanner />
-      <div className="flex items-start gap-4 mb-6">
-        <div>
-          <h2 className="dc-h2">Social Media Assessment</h2>
-          <p className="dc-standfirst">{project.brandName}'s social presence</p>
-        </div>
-      </div>
-
-      <CompletionIndicator items={completionItems} />
+    <AssessPage step={3} name="Social" title="Social media assessment" project={project} standfirst={`${project.brandName}'s social presence`}
+      rail={<AssessRail items={completionItems} next="AI Reputation" canProceed={canProceed} onProceed={handleProceed} onSaveExit={onSaveExit} saving={savingExit} />}>
 
       {/* No social presence. Absence is a finding in its own right, so it is
           recorded and scored rather than treated as an incomplete assessment. */}
-      <div className="bg-white mb-[2px]" style={{ padding: 24 }}>
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={noSocialPresence}
-            onChange={(e) => {
-              const checked = e.target.checked;
-              setNoSocialPresence(checked);
-              setAssessmentData({ noSocialPresence: checked, noSocialNote });
-            }}
-            className="mt-1 w-4 h-4 flex-shrink-0"
-          />
-          <span>
-            <span className="text-[15px] font-semibold text-[#15171A] flex items-center gap-2">
-              <Ban className="w-4 h-4 text-[#5B6068]" /> No social presence found
-            </span>
-            <span className="block text-sm text-[#5B6068] mt-1">
-              Tick this only when the brand has no meaningful social presence to assess. Channel coverage, screenshots and campaign signals stop being required. WIPO and the analysis are still required, and the absence will be scored as an absence.
-            </span>
+      <section className="dc-block">
+        <label className="dc-check">
+          <input type="checkbox" checked={noSocialPresence} data-field="no-social"
+            onChange={(e) => { const checked = e.target.checked; setNoSocialPresence(checked); setAssessmentData({ noSocialPresence: checked, noSocialNote }); }} />
+          <span className="dc-stack is-gap-1">
+            <span className="dc-block-t">No social presence found</span>
+            <span className="dc-block-d">Tick this only when the brand has no meaningful social presence to assess. Channel coverage, screenshots and campaign signals stop being required. WIPO and the analysis are still required, and the absence will be scored as an absence.</span>
           </span>
         </label>
-
         {noSocialPresence && (
-          <div className="mt-4">
-            <div className="dc-kicker" style={{ marginBottom: 10 }}>What you checked <span className="text-[#C23B22]">*</span></div>
-            <textarea
-              value={noSocialNote}
-              onChange={(e) => {
-                setNoSocialNote(e.target.value);
-                setAssessmentData({ noSocialPresence: true, noSocialNote: e.target.value });
-              }}
-              placeholder={`Record which platforms you searched for ${project.brandName} and what you found. Note any dormant, abandoned or unofficial accounts, employee or founder accounts standing in for the brand, and anything that suggests a presence exists but could not be verified.`}
-              className="w-full h-24 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm"
-            />
-            {!noSocialNote.trim() && (
-              <p className="text-xs text-[#C23B22] mt-2">Required. An unexplained absence cannot be scored.</p>
-            )}
+          <div className="dc-field">
+            <label htmlFor="so-nosocial">What you checked <span className="dc-req">Required</span></label>
+            <textarea className="dc-textarea" id="so-nosocial" value={noSocialNote}
+              onChange={(e) => { setNoSocialNote(e.target.value); setAssessmentData({ noSocialPresence: true, noSocialNote: e.target.value }); }}
+              placeholder={`Record which platforms you searched for ${project.brandName} and what you found. Note any dormant, abandoned or unofficial accounts, employee or founder accounts standing in for the brand, and anything that suggests a presence exists but could not be verified.`} />
+            {!noSocialNote.trim() && <p className="dc-error">Required. An unexplained absence cannot be scored.</p>}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Run Everything */}
-      <div className="dc-panel-dark mb-[2px]">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-          <div className="min-w-0">
-            <h3 className="text-[20px] font-semibold tracking-tight text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#C23B22]" />
-              Run Everything
-            </h3>
-            <p className="text-[13px] text-[#8A8E95] mt-1">Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
-          </div>
-          <button
-            onClick={runEverything}
-            disabled={isRunningAll || isAutoChecking || isProcessing}
-            className="btn-primary text-sm py-2 px-4 flex items-center gap-2 flex-shrink-0"
-          >
-            {isRunningAll ? <><Loader2 className="w-4 h-4 animate-spin" /> Running...</> : <><Play className="w-4 h-4" /> Run Everything</>}
-          </button>
-        </div>
-        {isRunningAll && (
-          <div className="mt-3">
-            <div className="w-full bg-[#FBFAF7] h-2 mb-1.5">
-              <div className="bg-[#D9442A] h-2 transition-all duration-500 ease-out" style={{ width: `${runAllProgress}%` }} />
+      <section className="dc-panel-dark dc-action">
+        <div>
+          <div className="dc-kicker">Automated</div>
+          <h2 className="dc-h is-card">Run everything</h2>
+          <p>Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
+          {isRunningAll && (
+            <div className="dc-action-run" role="status" aria-live="polite">
+              <div className="dc-lens-bar is-overall"><i style={{ width: `${runAllProgress}%` }}></i></div>
+              <p>{runAllStage}</p>
             </div>
-            <p className="text-xs text-[#5B6068]">{runAllStage}</p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+        <button type="button" onClick={runEverything} disabled={isRunningAll || isAutoChecking || isProcessing} aria-busy={isRunningAll || undefined} className="btn-primary is-on-dark">
+          {isRunningAll ? 'Running...' : 'Run everything'}
+        </button>
+      </section>
 
-      {/* Social Media Health Check Section */}
-      <div className="dc-panel-dark mb-[2px]">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-[20px] font-semibold tracking-tight text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#15171A]" />
-              Social Media Health Check
-            </h3>
-            <p className="text-[13px] text-[#8A8E95] mt-1">Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes.</p>
-          </div>
-          <button 
-            onClick={() => runAutoCheck()} 
-            disabled={isAutoChecking || isRunningAll}
-            className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-          >
-            {isAutoChecking ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Bot className="w-4 h-4" /> Health Check Only</>}
-          </button>
-        </div>
-        
-        {socialHealthCheck && (
-          <div className="mt-3 border-t border-[#DEDAD2] pt-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#2F6B55]" />
-              <span className="text-sm font-medium text-[#15171A]">Health Check Complete</span>
-            </div>
-            <div className="bg-[#DEDAD2] p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{socialHealthCheck}</pre>
-            </div>
-          </div>
-        )}
-      </div>
+      <AssessBlock title="Social media health check" status={socialHealthCheck ? 'Complete' : null}
+        desc="Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes."
+        actions={<button type="button" onClick={() => runAutoCheck()} disabled={isAutoChecking || isRunningAll} aria-busy={isAutoChecking || undefined} className="btn-secondary btn-sm">
+          {isAutoChecking ? 'Analyzing...' : 'Health check only'}
+        </button>}>
+        {socialHealthCheck && <AssessOutput small>{socialHealthCheck}</AssessOutput>}
+      </AssessBlock>
 
-      {/* Screenshots - Matching Website Style */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="dc-kicker flex items-center gap-2" style={{ marginBottom: 14 }}>
-          <Image className="w-5 h-5" /> Social Media Screenshots (up to 4) {!noSocialDeclared && <span className="text-[#C23B22]">*</span>}
-        </div>
-        <p className="text-sm text-[#5B6068] mb-4">
-          {noSocialDeclared
-            ? 'Not required. No social presence has been declared for this brand. Upload anything you did find, such as a dormant or unofficial account, if it helps evidence the finding.'
-            : 'Upload screenshots of key social profiles for visual analysis. Required to proceed.'}
-        </p>
-        
-        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple className="hidden" />
-        
-        <div className="grid grid-cols-2 gap-4 mb-4">
+      <AssessBlock title="Social media screenshots" tag={noSocialDeclared ? 'Optional' : 'Required'}
+        desc={noSocialDeclared
+          ? 'Not required. No social presence has been declared for this brand. Upload anything you did find, such as a dormant or unofficial account, if it helps evidence the finding.'
+          : `Upload screenshots of key social profiles for visual analysis. Up to ${SOCIAL_SCREENSHOT_MAX}. Required to proceed.`}>
+        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" multiple hidden />
+        <div className="dc-drops">
           {images.map((img, index) => (
-            <div key={index} className="relative">
-              <img src={img} alt={`Screenshot ${index + 1}`} className="w-full h-40 object-cover border border-[#DEDAD2]" />
-              <button onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-white p-1 hover:bg-[#DEDAD2]">
-                <X className="w-4 h-4" />
-              </button>
-              <div className="absolute bottom-2 left-2 bg-[#15171A] text-white text-xs px-2 py-1 ">
-                {index + 1}
-              </div>
-            </div>
+            <figure key={index} className="dc-shot">
+              <img src={img} alt={`Screenshot ${index + 1}`} />
+              <figcaption>{index + 1}</figcaption>
+              <button type="button" className="dc-link-btn" onClick={() => removeImage(index)} aria-label={`Remove screenshot ${index + 1}`}>Remove</button>
+            </figure>
           ))}
-          
           {images.length < SOCIAL_SCREENSHOT_MAX && (
-            <button onClick={() => fileInputRef.current?.click()}
-              className="h-40 border-2 border-dashed border-[#15171A] flex flex-col items-center justify-center gap-2 hover:bg-[#D9442A]/5 transition-colors">
-              {isCompressing ? (
-                <><Loader2 className="w-6 h-6 text-[#C23B22] animate-spin" /><span className="text-sm text-[#C23B22]">Compressing...</span></>
-              ) : (
-                <><Upload className="w-6 h-6 text-[#15171A]" /><span className="text-sm text-[#15171A] font-bold uppercase tracking-[0.12em]">Add screenshot</span><span className="text-xs text-[#5B6068]">{SOCIAL_SCREENSHOT_MAX - images.length} remaining</span></>
-              )}
+            <button type="button" className="dc-drop" onClick={() => fileInputRef.current?.click()} disabled={isCompressing}>
+              <strong>{isCompressing ? 'Compressing...' : 'Add screenshot'}</strong>
+              {!isCompressing && <span>{SOCIAL_SCREENSHOT_MAX - images.length} remaining</span>}
             </button>
           )}
         </div>
-        
-        {images.length > 0 && (
-          <div className="text-sm text-[#2F6B55]">
-            {images.length} screenshot(s) ready for analysis
-          </div>
-        )}
-      </div>
+        {images.length > 0 && <span className="dc-status is-done">{images.length} screenshot{images.length === 1 ? '' : 's'} ready for analysis</span>}
+        {images.length === 0 && isComplete && <p className="dc-hint" data-field="shots-not-kept">The analysis already ran on the screenshots. Saving does not keep them, so add them again only to rerun the analysis.</p>}
+      </AssessBlock>
 
-      {/* LinkedIn Section */}
-      {isChannelVisible('linkedin') && (
-      <div className="mb-[2px]">
-        <AccordionHeader 
-          title="LinkedIn" 
-          icon={ExternalLink} 
-          isOpen={expanded.linkedin} 
-          onClick={() => toggleSection('linkedin')}
-          badge={relevance.lead.includes('linkedin') ? 'Priority' : null}
-          hasContent={!!(inputs.linkedinAuto || inputs.linkedinAbout || inputs.linkedinPosts)}
-        />
-        {expanded.linkedin && (
-          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
-            <AutoPanel field="linkedinAuto" />
-            <div className="flex gap-2">
-              <input type="url" value={inputs.linkedinUrl} onChange={(e) => updateInput('linkedinUrl', e.target.value)}
-                placeholder="https://linkedin.com/company/..." className="flex-1 px-3 py-2 border border-[#DEDAD2] bg-white text-sm" />
-              {inputs.linkedinUrl && (
-                <a href={inputs.linkedinUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#0A66C2] text-white text-xs hover:bg-[#004182] flex items-center gap-1">
-                  <ExternalLink className="w-3 h-3" /> Open
-                </a>
-              )}
-            </div>
-            <div>
-              <label className="dc-kicker-sm mb-2 block">Company Profile & About Section</label>
-              <textarea value={inputs.linkedinAbout} onChange={(e) => updateInput('linkedinAbout', e.target.value)}
-                placeholder="Paste the company description from the 'About' tab: overview, mission, employee count, specialties..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
-            </div>
-            <div>
-              <label className="dc-kicker-sm mb-2 block">Recent Posts & Engagement</label>
-              <textarea value={inputs.linkedinPosts} onChange={(e) => updateInput('linkedinPosts', e.target.value)}
-                placeholder="Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
-            </div>
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* X/Twitter Section */}
-      {isChannelVisible('x') && (
-      <div className="mb-[2px]">
-        <AccordionHeader 
-          title="X (Twitter)" 
-          icon={ExternalLink} 
-          isOpen={expanded.x} 
-          onClick={() => toggleSection('x')}
-          badge={relevance.lead.includes('x') ? 'Priority' : null}
-          hasContent={!!(inputs.xAuto || inputs.xContent)}
-        />
-        {expanded.x && (
-          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
-            <AutoPanel field="xAuto" />
-            <div className="flex gap-2">
-              <input type="url" value={inputs.xUrl} onChange={(e) => updateInput('xUrl', e.target.value)}
-                placeholder="https://x.com/..." className="flex-1 px-3 py-2 border border-[#DEDAD2] bg-white text-sm" />
-              {inputs.xUrl && (
-                <a href={inputs.xUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-[#15171A] text-white text-xs hover:bg-[#333] flex items-center gap-1">
-                  <ExternalLink className="w-3 h-3" /> Open
-                </a>
-              )}
-            </div>
-            <textarea value={inputs.xContent} onChange={(e) => updateInput('xContent', e.target.value)}
-              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* Instagram Section */}
-      {isChannelVisible('instagram') && (
-      <div className="mb-[2px]">
-        <AccordionHeader 
-          title="Instagram" 
-          icon={Image} 
-          isOpen={expanded.instagram} 
-          onClick={() => toggleSection('instagram')}
-          badge={relevance.lead.includes('instagram') ? 'Priority' : null}
-          hasContent={!!(inputs.instagramAuto || inputs.instagramContent)}
-        />
-        {expanded.instagram && (
-          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
-            <AutoPanel field="instagramAuto" />
-            <textarea value={inputs.instagramContent} onChange={(e) => updateInput('instagramContent', e.target.value)}
-              placeholder="Anything the auto-check missed or got wrong..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* YouTube */}
-      {isChannelVisible('youtube') && (
-      <div className="mb-[2px]">
-        <AccordionHeader 
-          title="YouTube" 
-          icon={Play} 
-          isOpen={expanded.other} 
-          onClick={() => toggleSection('other')}
-          badge={inputs.youtubeAuto?.includes('[API Data]') ? 'Verified' : (relevance.lead.includes('youtube') ? 'Priority' : null)}
-          hasContent={!!(inputs.youtubeAuto || inputs.youtubeContent)}
-        />
-        {expanded.other && (
-          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
-            <AutoPanel field="youtubeAuto" />
-            <div>
-              <div className="flex items-center justify-end mb-1">
-                <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-0.5 bg-[#FBFAF7] text-[#C23B22] text-[10px] font-medium hover:bg-[#DEDAD2] transition-colors flex items-center gap-1">
-                  Verify <ExternalLink className="w-2.5 h-2.5" />
-                </a>
-              </div>
-              <textarea value={inputs.youtubeContent} onChange={(e) => updateInput('youtubeContent', e.target.value)}
-                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
-            </div>
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* Other platforms, auto only */}
-      {inputs.otherPlatformsAuto && (
-        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <div className="dc-kicker" style={{ marginBottom: 14 }}>Facebook, TikTok, Bluesky, Substack</div>
-          <AutoPanel field="otherPlatformsAuto" />
+      <AssessBlock className="is-list" title="Channels" desc="Paste what each profile shows. The health check fills these where it can.">
+        <div className="dc-acc-list">
+          {isChannelVisible('linkedin') && channel('linkedin', 'LinkedIn', 'linkedin', relevance.lead.includes('linkedin') ? 'Priority' : null,
+            !!(inputs.linkedinAuto || inputs.linkedinAbout || inputs.linkedinPosts), <>
+              {autoPanel('linkedinAuto')}
+              {urlField('so-li-url', 'linkedinUrl', 'https://linkedin.com/company/...')}
+              {notesField('so-li-about', 'linkedinAbout', 'Company profile & about section', "Paste the company description from the 'About' tab: overview, mission, employee count, specialties...")}
+              {notesField('so-li-posts', 'linkedinPosts', 'Recent posts & engagement', 'Paste 5-10 recent posts with engagement: post text, likes, comments, reposts. Include any notable articles.')}
+            </>)}
+          {isChannelVisible('x') && channel('x', 'X (Twitter)', 'x', relevance.lead.includes('x') ? 'Priority' : null,
+            !!(inputs.xAuto || inputs.xContent), <>
+              {autoPanel('xAuto')}
+              {urlField('so-x-url', 'xUrl', 'https://x.com/...')}
+              {notesField('so-x-notes', 'xContent')}
+            </>)}
+          {isChannelVisible('instagram') && channel('instagram', 'Instagram', 'instagram', relevance.lead.includes('instagram') ? 'Priority' : null,
+            !!(inputs.instagramAuto || inputs.instagramContent), <>
+              {autoPanel('instagramAuto')}
+              {notesField('so-ig-notes', 'instagramContent')}
+            </>)}
+          {isChannelVisible('youtube') && channel('youtube', 'YouTube', 'other',
+            inputs.youtubeAuto?.includes('[API Data]') ? 'Verified' : (relevance.lead.includes('youtube') ? 'Priority' : null),
+            !!(inputs.youtubeAuto || inputs.youtubeContent), <>
+              {autoPanel('youtubeAuto')}
+              <div className="dc-field-row"><span></span><a className="btn-secondary btn-sm" href={`https://www.youtube.com/results?search_query=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer">Verify on YouTube ↗</a></div>
+              {notesField('so-yt-notes', 'youtubeContent')}
+            </>)}
         </div>
-      )}
-
-      {/* Show all channels toggle */}
-      {relevance.secondary.length > 0 && (
-        <button
-          onClick={() => setShowAllChannels(v => !v)}
-          className="text-xs text-[#5B6068] hover:text-[#15171A] transition-colors mb-4 flex items-center gap-1.5"
-        >
-          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAllChannels ? 'rotate-180' : ''}`} />
-          {showAllChannels ? 'Show priority channels only' : `Show all channels (${relevance.secondary.length} more)`}
-        </button>
-      )}
-
-      {/* Reputation Section (Glassdoor, WIPO) */}
-      <div className="mb-[2px]">
-        <AccordionHeader 
-          title="Reputation & Trust Signals" 
-          icon={Shield} 
-          isOpen={expanded.reputation} 
-          onClick={() => toggleSection('reputation')}
-          badge="Score Impact"
-          hasContent={!!(inputs.glassdoorContent || inputs.wipoContent)}
-        />
-        {expanded.reputation && (
-          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#5B6068]">Glassdoor <span className="text-[#2E3238]">(→ Reflective)</span></label>
-                <a href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-0.5 bg-[#DEDAD2] text-[#2E3238] text-[10px] font-medium hover:bg-[#DEDAD2] transition-colors flex items-center gap-1">
-                  Verify <ExternalLink className="w-2.5 h-2.5" />
-                </a>
+        {relevance.secondary.length > 0 && (
+          <button type="button" className="dc-more" onClick={() => setShowAllChannels(v => !v)} aria-expanded={showAllChannels}>
+            {showAllChannels ? 'Show priority channels only' : `Show all channels (${relevance.secondary.length} more)`}
+          </button>
+        )}
+        <div className="dc-acc-list is-secondary">
+          {channel('reputation', 'Reputation & trust signals', 'reputation', 'Score impact', !!(inputs.glassdoorContent || inputs.wipoContent), <>
+            <div className="dc-field">
+              <div className="dc-field-row">
+                <label htmlFor="so-glassdoor">Glassdoor <span className="dc-opt">Feeds Reflective</span></label>
+                <a className="btn-secondary btn-sm" href="https://www.glassdoor.com/Search/results.htm" target="_blank" rel="noopener noreferrer">Verify ↗</a>
               </div>
-              {inputs.glassdoorAuto && <div className="mb-2"><AutoPanel field="glassdoorAuto" /></div>}
-              <textarea value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)}
-                placeholder="Anything the auto-check missed or got wrong..." className="w-full h-16 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
+              {inputs.glassdoorAuto && autoPanel('glassdoorAuto')}
+              <textarea className="dc-textarea" id="so-glassdoor" value={inputs.glassdoorContent} onChange={(e) => updateInput('glassdoorContent', e.target.value)} placeholder="Anything the auto-check missed or got wrong..." />
             </div>
-            <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-[#15171A]">WIPO Trademark <span className="font-normal">(→ Intentional)</span></label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={runWipoSearch}
-                    disabled={isSearchingWipo || !project.brandName}
-                    className="px-3 py-1 bg-[#15171A] text-white text-xs font-medium hover:bg-[#15171A] transition-colors flex items-center gap-1 disabled:opacity-50"
-                  >
-                    {isSearchingWipo ? <><Loader2 className="w-3 h-3 animate-spin" /> Searching...</> : <><Sparkles className="w-3 h-3" /> Auto-Search</>}
+            <div className="dc-field">
+              <div className="dc-field-row">
+                <label htmlFor="so-wipo">WIPO trademark <span className="dc-req">Required</span> <span className="dc-opt">Feeds Intentional</span></label>
+                <div className="dc-block-actions">
+                  <button type="button" className="btn-secondary btn-sm" onClick={runWipoSearch} disabled={isSearchingWipo || !project.brandName} aria-busy={isSearchingWipo || undefined}>
+                    {isSearchingWipo ? 'Searching...' : 'Auto-search'}
                   </button>
-                  <a href="https://branddb.wipo.int/en/similarname" target="_blank" rel="noopener noreferrer" 
-                     className="px-3 py-1 bg-[#0067B9] text-white text-xs font-medium hover:bg-[#005299] transition-colors flex items-center gap-1">
-                    Manual <ExternalLink className="w-3 h-3" />
-                  </a>
+                  <a className="btn-secondary btn-sm" href="https://branddb.wipo.int/en/similarname" target="_blank" rel="noopener noreferrer">Check manually ↗</a>
                 </div>
               </div>
-              {inputs.wipoContent?.includes('[Auto-searched]') && (
-                <p className="text-xs text-[#2F6B55] mb-2">✓ Trademark data auto-searched</p>
-              )}
-              <textarea value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
-                placeholder={`Trademark status for ${project.brandName}: registrations found, jurisdictions covered, any similar/conflicting marks, protection status...`}
-                className={`w-full h-20 px-3 py-2 border border-[#DEDAD2]  bg-white resize-none text-sm ${inputs.wipoContent ? 'bg-[#FBFAF7]' : ''}`} />
+              {inputs.wipoContent?.includes('[Auto-searched]') && <span className="dc-status is-done">Trademark data auto-searched</span>}
+              <textarea className="dc-textarea" id="so-wipo" value={inputs.wipoContent} onChange={(e) => updateInput('wipoContent', e.target.value)}
+                placeholder={`Trademark status for ${project.brandName}: registrations found, jurisdictions covered, any similar/conflicting marks, protection status...`} />
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Campaign & Paid Signals - merged from Hashtags and Paid Media */}
-      <div className="mb-[2px]">
-        <AccordionHeader 
-          title="Campaign & Paid Signals" 
-          icon={Target} 
-          isOpen={expanded.campaign} 
-          onClick={() => toggleSection('campaign')}
-          badge="Campaign Score"
-          hasContent={!!(inputs.campaignAuto || inputs.campaignContent)}
-        />
-        {expanded.campaign && (
-          <div className="border border-t-0 border-[#DEDAD2] -b-lg p-4 bg-white space-y-3">
-            <p className="text-xs text-[#5B6068]">
+          </>)}
+          {channel('campaign', 'Campaign & paid signals', 'campaign', 'Campaign score', !!(inputs.campaignAuto || inputs.campaignContent), <>
+            <p className="dc-hint">
               This is what drives the Campaign Coherence score. What matters is whether a strategy and a creative idea thread the activity together, not how much activity there is.
-              {project.businessModel === 'b2b'
-                ? ' For B2B, LinkedIn Ads and Google Search usually carry the weight.'
-                : project.businessModel === 'b2c'
-                ? ' For B2C, check Meta, TikTok, Google and YouTube.'
+              {project.businessModel === 'b2b' ? ' For B2B, LinkedIn Ads and Google Search usually carry the weight.'
+                : project.businessModel === 'b2c' ? ' For B2C, check Meta, TikTok, Google and YouTube.'
                 : ' Check both B2B channels and consumer channels for hybrid brands.'}
             </p>
-
-            <AutoPanel field="campaignAuto" />
-
-            <div>
-              <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Ad libraries</div>
-              <div className="grid grid-cols-2 gap-2">
-                <a href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q="${encodeURIComponent(project.brandName)}"&search_type=keyword_exact_phrase`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-[#1877F2] text-white text-xs font-medium hover:bg-[#166FE5] transition-colors flex items-center justify-center gap-1">
-                  <span>Meta</span> <ExternalLink className="w-3 h-3" />
-                </a>
-                <a href={`https://adstransparency.google.com/?region=anywhere&text="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-[#4285F4] text-white text-xs font-medium hover:bg-[#3367D6] transition-colors flex items-center justify-center gap-1">
-                  <span>Google</span> <ExternalLink className="w-3 h-3" />
-                </a>
-                <a href={`https://www.linkedin.com/ad-library/search?accountOwner="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#0A66C2] hover:bg-[#004182] ring-2 ring-[#0A66C2] ring-offset-1' : 'bg-[#0A66C2] hover:bg-[#004182]'}`}>
-                  <span>LinkedIn{project.businessModel === 'b2b' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
-                </a>
-                <a href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer" 
-                   className={`px-2 py-1.5 text-white text-xs font-medium  transition-colors flex items-center justify-center gap-1 ${project.businessModel === 'b2b' ? 'bg-[#8A8E95] hover:bg-[#5B6068]' : project.businessModel === 'b2c' ? 'bg-black hover:bg-[#15171A] ring-2 ring-black ring-offset-1' : 'bg-black hover:bg-[#15171A]'}`}>
-                  <span>TikTok{project.businessModel === 'b2c' ? ' ★' : ''}</span> <ExternalLink className="w-3 h-3" />
-                </a>
+            {autoPanel('campaignAuto')}
+            <div className="dc-field">
+              <span className="dc-label">Ad libraries</span>
+              <div className="dc-link-row">
+                <a className="btn-secondary btn-sm" href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q="${encodeURIComponent(project.brandName)}"&search_type=keyword_exact_phrase`} target="_blank" rel="noopener noreferrer">Meta ↗</a>
+                <a className="btn-secondary btn-sm" href={`https://adstransparency.google.com/?region=anywhere&text="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer">Google ↗</a>
+                <a className="btn-secondary btn-sm" href={`https://www.linkedin.com/ad-library/search?accountOwner="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer">LinkedIn{project.businessModel === 'b2b' ? ' · priority' : ''} ↗</a>
+                <a className="btn-secondary btn-sm" href={`https://library.tiktok.com/ads?region=all&adv_name="${encodeURIComponent(project.brandName)}"`} target="_blank" rel="noopener noreferrer">TikTok{project.businessModel === 'b2c' ? ' · priority' : ''} ↗</a>
               </div>
             </div>
-
-            <div>
-              <div className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Hashtag search</div>
-              <div className="grid grid-cols-2 gap-2">
-                <a href={`https://www.instagram.com/explore/tags/${project.brandName?.toLowerCase().replace(/\s+/g, '')}/`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-gradient-to-r from-[#5B6068] to-pink-500 text-white text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1">
-                  <span>Instagram #</span> <ExternalLink className="w-3 h-3" />
-                </a>
-                <a href={`https://www.linkedin.com/search/results/content/?keywords=%23${project.brandName?.toLowerCase().replace(/\s+/g, '')}`} target="_blank" rel="noopener noreferrer" 
-                   className="px-2 py-1.5 bg-[#0A66C2] text-white text-xs font-medium hover:bg-[#004182] transition-colors flex items-center justify-center gap-1">
-                  <span>LinkedIn #</span> <ExternalLink className="w-3 h-3" />
-                </a>
+            <div className="dc-field">
+              <span className="dc-label">Hashtag search</span>
+              <div className="dc-link-row">
+                <a className="btn-secondary btn-sm" href={`https://www.instagram.com/explore/tags/${tag(project.brandName || '')}/`} target="_blank" rel="noopener noreferrer">Instagram # ↗</a>
+                <a className="btn-secondary btn-sm" href={`https://www.linkedin.com/search/results/content/?keywords=%23${tag(project.brandName || '')}`} target="_blank" rel="noopener noreferrer">LinkedIn # ↗</a>
               </div>
             </div>
+            {notesField('so-campaign', 'campaignContent', 'Your notes', `Anything the auto-check missed. Most useful:\n\n• Named campaigns and where they run\n• Whether one idea threads them together, or they are separate bursts\n• Whether paid creative matches the organic work\n• Whether anyone outside the brand has picked the idea up`)}
+          </>)}
+        </div>
+      </AssessBlock>
 
-            <div>
-              <label className="dc-kicker-sm mb-2 block">Your notes</label>
-              <textarea value={inputs.campaignContent} onChange={(e) => updateInput('campaignContent', e.target.value)}
-                placeholder={`Anything the auto-check missed. Most useful:
-
-• Named campaigns and where they run
-• Whether one idea threads them together, or they are separate bursts
-• Whether paid creative matches the organic work
-• Whether anyone outside the brand has picked the idea up`} 
-                className="w-full h-28 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Third-party conversation, auto only */}
+      {inputs.otherPlatformsAuto && (
+        <AssessBlock title="Facebook, TikTok, Bluesky, Substack">{autoPanel('otherPlatformsAuto')}</AssessBlock>
+      )}
       {inputs.thirdPartyAuto && (
-        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <div className="dc-kicker" style={{ marginBottom: 14 }}>Third-Party Conversation</div>
-          <AutoPanel field="thirdPartyAuto" />
-        </div>
+        <AssessBlock title="Third-party conversation">{autoPanel('thirdPartyAuto')}</AssessBlock>
       )}
 
-      {/* Observations - Simplified */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Notes</div>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
-          placeholder="Your observations about their social presence..." className="w-full h-16 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm" />
-      </div>
+      <AssessBlock title="Assessor notes" labelFor="so-notes">
+        <textarea className="dc-textarea" id="so-notes" value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
+          placeholder="Your observations about their social presence..." />
+      </AssessBlock>
 
-      {/* Analysis Button & Results */}
-      {!isComplete && (
-        <button onClick={runAnalysis} disabled={isProcessing || !hasMinimumContent} className="btn-primary flex items-center gap-2 mb-4">
-          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> Run Social Analysis</>}
-        </button>
-      )}
+      <AssessBlock title="Analysis" status={isComplete ? 'Complete' : null}
+        desc={isComplete ? null : hasMinimumContent ? null : 'Add channel content, a screenshot or a no-presence finding first.'}
+        actions={<button type="button" onClick={() => { runAnalysis(); if (isComplete && onClearScores) onClearScores(); }}
+          disabled={isProcessing || (!isComplete && !hasMinimumContent)} aria-busy={isProcessing || undefined} className={isComplete ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}>
+          {isProcessing ? 'Analyzing...' : isComplete ? 'Regenerate analysis' : 'Run social analysis'}
+        </button>}>
+        {error && <div className="dc-alert is-error" role="alert">{error}</div>}
+        {isComplete && <AssessOutput>{assessmentData.content}</AssessOutput>}
+      </AssessBlock>
 
-      {error && <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4 text-[#C23B22] text-sm">{error}</div>}
-
-      {isComplete && (
-        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#15171A]" /> Analysis Complete
-            </h3>
-            <button 
-              onClick={() => { runAnalysis(); if (onClearScores) onClearScores(); }} 
-              disabled={isProcessing} 
-              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
-            </button>
-          </div>
-          <div className="bg-[#DEDAD2] p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
-          </div>
-        </div>
-      )}
-
-      {proceedError && (
-        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-4 text-[#15171A] text-sm flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          {proceedError}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-4 border-t border-[#DEDAD2]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
-      </div>
-    </div>
+      {proceedError && <div className="dc-alert is-warn" role="alert">{proceedError}</div>}
+      <AssessFoot onPrev={onPrev} canProceed={canProceed} onProceed={handleProceed} blocker={blocker} />
+    </AssessPage>
   );
 }
 
 // AI Reputation Page
-function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
+function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false }) {
   const [manualInput, setManualInput] = useState({
     claude: assessmentData.claudeManual || '',
     gemini: assessmentData.geminiManual || '',
@@ -5304,12 +4769,17 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
     finally { setIsProcessing(p => ({ ...p, synthesis: false })); }
   };
 
+  // Engines are not individually required: any three of them are. Wikipedia
+  // and Reddit feed the synthesis but Continue does not check them.
   const completionItems = [
     ...engines.map(e => ({ label: e.name, done: !!manualInput[e.key] })),
-    { label: 'Wikipedia', done: !!wikipediaContent },
-    { label: 'Reddit', done: !!redditContent },
+    { label: 'Wikipedia', done: !!wikipediaContent, optional: true },
+    { label: 'Reddit', done: !!redditContent, optional: true },
     { label: 'Synthesis', done: isComplete },
   ];
+  const blocker = filledCount < 3
+    ? `Still needed: ${3 - filledCount} more AI engine response${3 - filledCount === 1 ? '' : 's'} (3 of ${engines.length})`
+    : !isComplete ? 'Still needed: synthesis' : null;
 
   const canProceed = isComplete && canSynthesize;
   const [proceedError, setProceedError] = useState(null);
@@ -5327,201 +4797,115 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
     onNext();
   };
 
+  const sources = [
+    { key: 'news', label: 'Google News', value: googleNewsContent, setter: setGoogleNewsContent, field: 'googleNewsContent', run: fetchGoogleNews, placeholder: `Recent press and news coverage of ${project.brandName}...` },
+    { key: 'trustpilot', label: 'Trustpilot', value: trustpilotContent, setter: setTrustpilotContent, field: 'trustpilotContent', run: fetchTrustpilot, placeholder: 'Trustpilot rating, review volume, recurring praise and complaints...' },
+    { key: 'search', label: 'Search Snapshot', display: 'Search snapshot', sub: 'Synthesised from top results; stands in for Google AI Overview', value: searchSnapshotContent, setter: setSearchSnapshotContent, field: 'searchSnapshotContent', run: fetchSearchSnapshot, placeholder: `What the top of a Google search surfaces for ${project.brandName}...` },
+  ];
   return (
-    <div className="dc-wrap dc-page animate-fade-in">
-      <MobileAssessmentBanner />
-      <div className="flex items-start gap-4 mb-6">
+    <AssessPage step={4} name="AI Reputation" title="AI reputation assessment" project={project}
+      standfirst={`What prospects discover when researching ${project.brandName}`}
+      rail={<AssessRail items={completionItems} next="Earned Media" canProceed={canProceed} onProceed={handleProceed} onSaveExit={onSaveExit} saving={savingExit} />}>
+
+      <section className="dc-panel-dark dc-action is-stacked">
         <div>
-          <h2 className="dc-h2">AI Reputation Assessment</h2>
-          <p className="dc-standfirst">What prospects discover when researching {project.brandName}</p>
+          <div className="dc-kicker">Step one</div>
+          <h2 className="dc-h is-card">AI brand research prompt</h2>
+          <p>Copy this prompt and run it in each AI engine below. Paste each response back.</p>
         </div>
-      </div>
-
-      <CompletionIndicator items={completionItems} />
-
-      {/* AI Brand Perception Prompt */}
-      <div className="dc-panel-dark mb-[2px]">
-        <div className="flex items-start justify-between mb-2">
-          <div>
-            <h3 className="text-sm font-medium text-[#15171A] mb-0.5">AI Brand Research Prompt</h3>
-            <p className="text-xs text-[#5B6068]">Copy this prompt and run it in each AI engine below. Paste each response back.</p>
-          </div>
+        <pre className="dc-prompt">{aiPerceptionPrompt.substring(0, 400)}...</pre>
+        <div className="dc-action-foot">
+          <p>Customised for <strong>{project.brandName}</strong> · {industryName}</p>
+          <button type="button" className="btn-primary is-on-dark" onClick={() => copyToClipboard(aiPerceptionPrompt)}>Copy prompt</button>
         </div>
-        <div className="bg-[#FBFAF7] p-3 max-h-32 overflow-y-auto mb-2">
-          <pre className="text-xs text-[#2E3238] whitespace-pre-wrap font-sans leading-relaxed">{aiPerceptionPrompt.substring(0, 400)}...</pre>
-        </div>
-        <p className="text-xs text-[#8A8E95]">Customised for <strong>{project.brandName}</strong> · {industryName}</p>
-      </div>
+      </section>
 
-      {error && <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-3 mb-4 text-[#C23B22] text-sm">{error}</div>}
+      {error && <div className="dc-alert is-error" role="alert">{error}</div>}
 
-      {/* AI Engine Cards — uniform pattern */}
-      <div className="space-y-3 mb-4">
-        {engines.map(engine => (
-          <div key={engine.key} className={`card p-4 ${manualInput[engine.key] ? 'bg-[#DEDAD2]' : ''}`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 flex items-center justify-center ${manualInput[engine.key] ? 'bg-[#D9442A] text-[#15171A]' : 'bg-[#DEDAD2]'}`}>
-                  {manualInput[engine.key] ? <Check className="w-5 h-5" /> : <Bot className="w-5 h-5 text-[#8A8E95]" />}
+      <AssessBlock className="is-list" title="AI engines"
+        desc="Each button copies the prompt and opens the engine in a new tab. Paste the full response back here.">
+        <span className={filledCount >= 3 ? 'dc-status is-done' : 'dc-status is-empty'} data-field="engine-count">{filledCount} of {engines.length} pasted</span>
+        <div className="dc-engines">
+          {engines.map(engine => {
+            const pasted = !!manualInput[engine.key];
+            return (
+              <div key={engine.key} className="dc-engine" data-engine={engine.key}>
+                <div className="dc-engine-side">
+                  <strong>{engine.name}</strong>
+                  <span className="dc-meta">{engine.brand}</span>
+                  <span className={pasted ? 'dc-status is-done' : 'dc-status is-empty'}>{pasted ? 'Pasted' : 'Not pasted'}</span>
+                  <a className="btn-secondary btn-sm" href={engine.url} target="_blank" rel="noopener noreferrer" onClick={() => copyToClipboard(aiPerceptionPrompt)}>Copy &amp; open {engine.name} ↗</a>
                 </div>
-                <div>
-                  <h4 className="font-medium">{engine.name}</h4>
-                  <p className="text-sm text-[#5B6068]">{engine.brand}</p>
-                </div>
+                <textarea className="dc-textarea" aria-label={`${engine.name} response`} value={manualInput[engine.key]}
+                  onChange={(e) => { const val = e.target.value; setManualInput(m => ({ ...m, [engine.key]: val })); setAssessmentData({ [`${engine.key}Manual`]: val }); }}
+                  placeholder={`Paste ${engine.name}'s response here...`} />
               </div>
-              <a
-                href={engine.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => copyToClipboard(aiPerceptionPrompt)}
-                className="px-3 py-1.5 text-white text-xs font-medium transition-colors flex items-center gap-1"
-                style={{ backgroundColor: engine.color }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = engine.hover}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = engine.color}
-              >
-                <Copy className="w-3 h-3" /> Copy & Open {engine.name} <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-            <textarea
-              value={manualInput[engine.key]}
-              onChange={(e) => {
-                const val = e.target.value;
-                setManualInput(m => ({ ...m, [engine.key]: val }));
-                setAssessmentData({ [`${engine.key}Manual`]: val });
-              }}
-              placeholder={`Paste ${engine.name}'s response here...`}
-              className={`w-full h-24 px-3 py-2 border border-[#DEDAD2]  text-sm ${manualInput[engine.key] ? 'bg-[#DEDAD2]' : 'bg-white'}`}
-            />
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      </AssessBlock>
 
-      {/* AI Training Sources */}
-      <div className="dc-panel-dark mb-[2px]">
-        <h3 className="text-sm font-medium text-[#15171A] mb-1">AI Training Sources</h3>
-        <p className="text-xs text-[#5B6068] mb-3">Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.</p>
-        <div className="space-y-3">
-          {/* Wikipedia */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#5B6068]">Wikipedia</label>
-              <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer"
-                 className="px-2 py-0.5 bg-[#DEDAD2] text-[#2E3238] text-[10px] font-medium hover:bg-[#DEDAD2] transition-colors flex items-center gap-1">
-                Search Wikipedia <ExternalLink className="w-2.5 h-2.5" />
-              </a>
-            </div>
-            <textarea
-              value={wikipediaContent}
-              onChange={(e) => { setWikipediaContent(e.target.value); setAssessmentData({ wikipediaContent: e.target.value }); }}
-              placeholder={`Does ${project.brandName} have a Wikipedia page? Record what it says — or note its absence.`}
-              className="w-full h-16 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm"
-            />
+      <AssessBlock title="AI training sources" desc="Wikipedia and Reddit shape how AI models understand and describe a brand. Check both and record what you find.">
+        <div className="dc-field">
+          <div className="dc-field-row">
+            <label htmlFor="ai-wiki">Wikipedia</label>
+            <a className="btn-secondary btn-sm" href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(project.brandName)}`} target="_blank" rel="noopener noreferrer">Search Wikipedia ↗</a>
           </div>
-          {/* Reddit Answers */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#15171A]">Reddit Answers <span className="text-[#5B6068] font-normal">(AI search visibility)</span></label>
-              <button
-                onClick={handleRedditPromptAndOpen}
-                className="px-2 py-0.5 bg-[#FF4500] text-white text-[10px] font-medium hover:bg-[#E03D00] transition-colors flex items-center gap-1"
-              >
-                {redditCopied
-                  ? <><Check className="w-2.5 h-2.5" /> Prompt copied</>
-                  : <><Copy className="w-2.5 h-2.5" /> Copy prompt &amp; open Reddit <ExternalLink className="w-2.5 h-2.5" /></>}
+          <textarea className="dc-textarea" id="ai-wiki" value={wikipediaContent}
+            onChange={(e) => { setWikipediaContent(e.target.value); setAssessmentData({ wikipediaContent: e.target.value }); }}
+            placeholder={`Does ${project.brandName} have a Wikipedia page? Record what it says, or note its absence.`} />
+        </div>
+        <div className="dc-field">
+          <div className="dc-field-row">
+            <label htmlFor="ai-reddit">Reddit Answers <span className="dc-opt">AI search visibility</span></label>
+            <button type="button" className="btn-secondary btn-sm" onClick={handleRedditPromptAndOpen}>{redditCopied ? 'Prompt copied' : 'Copy prompt & open Reddit ↗'}</button>
+          </div>
+          <textarea className="dc-textarea" id="ai-reddit" value={redditContent}
+            onChange={(e) => { setRedditContent(e.target.value); setAssessmentData({ redditAnswersContent: e.target.value }); }}
+            placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation and community perception...`} />
+        </div>
+      </AssessBlock>
+
+      <AssessBlock title="Third-party & search signals" desc="News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.">
+        {sources.map(row => (
+          <div key={row.key} className="dc-field">
+            <div className="dc-field-row">
+              <label htmlFor={`ai-${row.key}`}>{row.display || row.label} {row.sub && <span className="dc-opt">{row.sub}</span>}</label>
+              <button type="button" className="btn-secondary btn-sm" onClick={row.run} disabled={!!fetching[row.label]} aria-busy={!!fetching[row.label] || undefined}>
+                {fetching[row.label] ? 'Fetching...' : 'Auto-fetch'}
               </button>
             </div>
-            <textarea
-              value={redditContent}
-              onChange={(e) => { setRedditContent(e.target.value); setAssessmentData({ redditAnswersContent: e.target.value }); }}
-              placeholder={`Paste Reddit Answers response about ${project.brandName}'s reputation and community perception...`}
-              className="w-full h-24 px-3 py-2 border border-[#DEDAD2] bg-[#FBFAF7] resize-none text-sm"
-            />
+            <textarea className="dc-textarea" id={`ai-${row.key}`} value={row.value}
+              onChange={(e) => { row.setter(e.target.value); setAssessmentData({ [row.field]: e.target.value }); }} placeholder={row.placeholder} />
           </div>
-        </div>
-      </div>
+        ))}
+      </AssessBlock>
 
-      {/* Third-Party & Search Signals (auto-fetched, NOT AI engines) */}
-      <div className="dc-panel-dark mb-[2px]">
-        <h3 className="text-sm font-medium text-[#15171A] mb-1">Third-Party &amp; Search Signals</h3>
-        <p className="text-xs text-[#5B6068] mb-3">News, reviews, and what search surfaces. These feed the reputation analysis but do not count as AI engines. Auto-fetch each, then edit if needed.</p>
-        <div className="space-y-3">
-          {[
-            { key: 'news', label: 'Google News', value: googleNewsContent, setter: setGoogleNewsContent, field: 'googleNewsContent', run: fetchGoogleNews, placeholder: `Recent press and news coverage of ${project.brandName}...` },
-            { key: 'trustpilot', label: 'Trustpilot', value: trustpilotContent, setter: setTrustpilotContent, field: 'trustpilotContent', run: fetchTrustpilot, placeholder: `Trustpilot rating, review volume, recurring praise and complaints...` },
-            { key: 'search', label: 'Search Snapshot', sub: '(synthesised from top results, stands in for Google AI Overview)', value: searchSnapshotContent, setter: setSearchSnapshotContent, field: 'searchSnapshotContent', run: fetchSearchSnapshot, placeholder: `What the top of a Google search surfaces for ${project.brandName}...` },
-          ].map(row => (
-            <div key={row.key}>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#5B6068]">{row.label} {row.sub && <span className="font-normal text-[#999]">{row.sub}</span>}</label>
-                <button
-                  onClick={row.run}
-                  disabled={!!fetching[row.label]}
-                  className="px-2 py-0.5 bg-[#D9442A] text-[#15171A] text-[10px] font-bold hover:bg-[#CBD11F] transition-colors flex items-center gap-1 disabled:opacity-50"
-                >
-                  {fetching[row.label] ? <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Fetching</> : <><Search className="w-2.5 h-2.5" /> Auto-fetch</>}
-                </button>
-              </div>
-              <textarea
-                value={row.value}
-                onChange={(e) => { row.setter(e.target.value); setAssessmentData({ [row.field]: e.target.value }); }}
-                placeholder={row.placeholder}
-                className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+      <AssessBlock title="Assessor observations" labelFor="ai-obs" desc="Your observations will be included in the synthesis.">
+        <textarea className="dc-textarea" id="ai-obs" value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
+          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." />
+      </AssessBlock>
 
-      {/* Assessor Observations */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
-        <p className="text-sm text-[#5B6068] mb-3">Your observations will be included in the synthesis.</p>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
-          placeholder="Note discrepancies between engines, anything surprising, or gaps you observed..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none" />
-      </div>
+      <AssessBlock title="Synthesis" status={isComplete ? 'Complete' : null}
+        desc={isComplete ? null : canSynthesize ? `Ready: ${filledCount} engines pasted.` : 'Paste responses from at least 3 AI engines to generate the synthesis.'}
+        actions={(isComplete || canSynthesize) && (
+          <button type="button" onClick={() => { generateSynthesis(); if (isComplete && onClearScores) onClearScores(); }}
+            disabled={isProcessing.synthesis} aria-busy={isProcessing.synthesis || undefined} className={isComplete ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}>
+            {isProcessing.synthesis ? 'Generating...' : isComplete ? 'Regenerate analysis' : `Generate synthesis (${filledCount} engines)`}
+          </button>
+        )}>
+        {isComplete && <AssessOutput>{assessmentData.content}</AssessOutput>}
+      </AssessBlock>
 
-      {canSynthesize && !isComplete && (
-        <button onClick={generateSynthesis} disabled={isProcessing.synthesis} className="btn-primary flex items-center gap-2 mb-6">
-          {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Play className="w-4 h-4" /> Generate Synthesis ({filledCount} engines)</>}
-        </button>
-      )}
-
-      {isComplete && (
-        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#15171A]" /> Synthesis Complete
-            </h3>
-            <button
-              onClick={() => { generateSynthesis(); if (onClearScores) onClearScores(); }}
-              disabled={isProcessing.synthesis}
-              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isProcessing.synthesis ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
-            </button>
-          </div>
-          <div className="bg-[#DEDAD2] p-4 max-h-64 overflow-y-auto text-sm text-[#2E3238]">{assessmentData.content}</div>
-        </div>
-      )}
-
-      {proceedError && (
-        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-4 text-[#15171A] text-sm flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          {proceedError}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-6 border-t border-[#DEDAD2]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
-      </div>
-    </div>
+      {proceedError && <div className="dc-alert is-warn" role="alert">{proceedError}</div>}
+      <AssessFoot onPrev={onPrev} canProceed={canProceed} onProceed={handleProceed} blocker={blocker} />
+    </AssessPage>
   );
 }
 
 
 // Earned Media Assessment with paste field
-function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores }) {
+function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAutoAssessing, setIsAutoAssessing] = useState(false);
   const [error, setError] = useState(null);
@@ -5673,10 +5057,11 @@ Write in flowing prose with specific examples. End with priority recommendations
 
   // Completion tracking
   const completionItems = [
-    { label: 'Auto-Assess', done: !!assessmentData.autoAssessContent },
-    { label: 'Coverage Added', done: !!coveragePaste },
+    { label: 'Auto-assess', done: !!assessmentData.autoAssessContent },
+    { label: 'Coverage added', done: !!coveragePaste },
     { label: 'Analysis', done: isComplete },
   ];
+  const blocker = stillNeeded(completionItems);
 
   // Required checks before proceeding - ALL items mandatory
   const canProceed = isComplete && !!assessmentData.autoAssessContent && !!coveragePaste;
@@ -5700,128 +5085,49 @@ Write in flowing prose with specific examples. End with priority recommendations
   };
 
   return (
-    <div className="dc-wrap dc-page animate-fade-in">
-      <MobileAssessmentBanner />
-      <div className="flex items-start gap-4 mb-6">
+    <AssessPage step={5} name="Earned Media" title="Earned media assessment" project={project} standfirst={`${project.brandName}'s press coverage`}
+      rail={<AssessRail items={completionItems} next="the report" canProceed={canProceed} onProceed={handleProceed} onSaveExit={onSaveExit} saving={savingExit} />}>
+
+      <AssessBlock title="Media coverage" labelFor="em-coverage" tag="Required"
+        desc="Paste any press coverage, news articles, mentions, or media clips from the last 3 months.">
+        <textarea className="dc-textarea is-tall" id="em-coverage" value={coveragePaste} onChange={(e) => setCoveragePaste(e.target.value)}
+          placeholder={"Paste media coverage here...\n\nExample:\n- TechCrunch (Jan 15, 2026): 'Company X Raises $50M' - Featured as lead story\n- Forbes (Jan 8, 2026): CEO quoted on industry trends\n- Industry Podcast (Dec 20, 2025): 30-min interview with CTO\n- SXSW 2025: Keynote presentation on AI trends\n- Gartner Cool Vendor 2025: Named in category report\n- Inc. 5000 (2025): Ranked #234 fastest growing\n..."} />
+        <p className="dc-hint">Include: news articles, podcast appearances, conference keynotes, analyst mentions, awards announcements, industry rankings.</p>
+      </AssessBlock>
+
+      <section className="dc-panel-dark dc-action">
         <div>
-          <h2 className="dc-h2">Earned Media Assessment</h2>
-          <p className="dc-standfirst">{project.brandName}'s press coverage</p>
+          <div className="dc-kicker">Automated</div>
+          <h2 className="dc-h is-card">Auto-assess earned media performance</h2>
+          <p>Web-searched analysis across 10 dimensions: Outlet Caliber, Announcement-Driven vs Third-Party Earned, Reach, Sentiment, Share of Voice, Audience Relevance, Thought Leadership &amp; Executive Visibility, Narrative Influence, Contradictions, and Credibility Built.</p>
         </div>
-      </div>
-
-      <CompletionIndicator items={completionItems} />
-
-      {/* Coverage Paste Field */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="dc-kicker" style={{ marginBottom: 14 }}>Media Coverage (Last 3 Months)</div>
-        <p className="text-sm text-[#5B6068] mb-4">
-          Paste any press coverage, news articles, mentions, or media clips from the last 3 months.
-        </p>
-        <textarea 
-          value={coveragePaste} 
-          onChange={(e) => setCoveragePaste(e.target.value)}
-          placeholder="Paste media coverage here...
-
-Example:
-- TechCrunch (Jan 15, 2026): 'Company X Raises $50M' - Featured as lead story
-- Forbes (Jan 8, 2026): CEO quoted on industry trends
-- Industry Podcast (Dec 20, 2025): 30-min interview with CTO
-- SXSW 2025: Keynote presentation on AI trends
-- Gartner Cool Vendor 2025: Named in category report
-- Inc. 5000 (2025): Ranked #234 fastest growing
-..."
-          className="w-full h-28 px-3 py-2 border border-[#DEDAD2] bg-white resize-none text-sm"
-        />
-        <p className="text-xs text-[#5B6068] mt-2">
-          Include: news articles, podcast appearances, conference keynotes, analyst mentions, awards announcements, industry rankings
-        </p>
-      </div>
-
-      {/* Auto-Assess Earned Media Performance */}
-      <div className="dc-panel-dark mb-[2px]">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <div className="dc-kicker" style={{ marginBottom: 6 }}>
-              <Sparkles className="w-4 h-4 text-[#2F6B55]" />
-              Auto-Assess Earned Media Performance
-            </div>
-            <p className="text-xs text-[#5B6068]">
-              Web-searched analysis across 10 dimensions: Outlet Caliber, Announcement-Driven vs Third-Party Earned, Reach, Sentiment, Share of Voice, Audience Relevance, Thought Leadership &amp; Executive Visibility, Narrative Influence, Contradictions, and Credibility Built.
-            </p>
-          </div>
-          <button 
-            onClick={runAutoAssess} 
-            disabled={isAutoAssessing} 
-            className="btn-secondary text-sm py-2 px-4 flex items-center gap-2 flex-shrink-0"
-          >
-            {isAutoAssessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Assessing...</> : <><Bot className="w-4 h-4" /> Auto-Assess</>}
-          </button>
-        </div>
-        
-        {assessmentData.autoAssessContent && (
-          <div className="mt-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Check className="w-4 h-4 text-[#2F6B55]" />
-              <span className="text-sm font-medium text-[#15171A]">Performance Assessment Complete</span>
-            </div>
-            <div className="bg-[#DEDAD2] p-4 max-h-80 overflow-y-auto">
-              <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.autoAssessContent}</pre>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Assessor Observations - before analysis button */}
-      <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-        <div className="dc-kicker" style={{ marginBottom: 14 }}>Assessor Observations</div>
-        <p className="text-sm text-[#5B6068] mb-3">Your observations will be included in the analysis and final report.</p>
-        <textarea value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
-          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." className="w-full h-20 px-3 py-2 border border-[#DEDAD2] bg-white resize-none" />
-      </div>
-
-      {!isComplete && (
-        <button onClick={runAnalysis} disabled={isProcessing} className="btn-primary flex items-center gap-2 mb-6">
-          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Play className="w-4 h-4" /> Run Earned Media Analysis</>}
+        <button type="button" onClick={runAutoAssess} disabled={isAutoAssessing} aria-busy={isAutoAssessing || undefined} className="btn-primary is-on-dark">
+          {isAutoAssessing ? 'Assessing...' : assessmentData.autoAssessContent ? 'Run again' : 'Run auto-assess'}
         </button>
+      </section>
+      {assessmentData.autoAssessContent && (
+        <AssessBlock title="Performance assessment" status="Complete">
+          <AssessOutput>{assessmentData.autoAssessContent}</AssessOutput>
+        </AssessBlock>
       )}
 
-      {error && <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-6 text-[#C23B22]">{error}</div>}
+      <AssessBlock title="Assessor observations" labelFor="em-obs" desc="Your observations will be included in the analysis and final report.">
+        <textarea className="dc-textarea" id="em-obs" value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
+          placeholder="Add your own observations about their media presence, PR strategy, coverage quality..." />
+      </AssessBlock>
 
-      {isComplete && (
-        <div className="bg-white" style={{ padding: 24, marginBottom: 2 }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
-              <Check className="w-5 h-5 text-[#2F6B55]" /> Analysis Complete
-            </h3>
-            <button 
-              onClick={() => {
-                runAnalysis();
-                if (onClearScores) onClearScores();
-              }} 
-              disabled={isProcessing} 
-              className="btn-secondary text-sm py-2 px-4 flex items-center gap-2"
-            >
-              {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerating...</> : <><Play className="w-4 h-4" /> Regenerate Analysis</>}
-            </button>
-          </div>
-          <div className="bg-[#DEDAD2] p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessmentData.content}</pre>
-          </div>
-        </div>
-      )}
+      <AssessBlock title="Analysis" status={isComplete ? 'Complete' : null}
+        actions={<button type="button" onClick={() => { runAnalysis(); if (isComplete && onClearScores) onClearScores(); }}
+          disabled={isProcessing} aria-busy={isProcessing || undefined} className={isComplete ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}>
+          {isProcessing ? 'Analyzing...' : isComplete ? 'Regenerate analysis' : 'Run earned media analysis'}
+        </button>}>
+        {error && <div className="dc-alert is-error" role="alert">{error}</div>}
+        {isComplete && <AssessOutput>{assessmentData.content}</AssessOutput>}
+      </AssessBlock>
 
-      {proceedError && (
-        <div className="bg-[#FBFAF7] border border-[#DEDAD2] p-4 mb-4 text-[#15171A] text-sm flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          {proceedError}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-6 border-t border-[#DEDAD2]">
-        <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
-        <button onClick={handleProceed} disabled={!canProceed} className="btn-primary flex items-center gap-2">Continue <ArrowRight className="w-4 h-4" /></button>
-      </div>
-    </div>
+      {proceedError && <div className="dc-alert is-warn" role="alert">{proceedError}</div>}
+      <AssessFoot onPrev={onPrev} canProceed={canProceed} onProceed={handleProceed} blocker={blocker} />
+    </AssessPage>
   );
 }
 // Report Page
@@ -15353,17 +14659,25 @@ function AppContent() {
     }
   }, [apiKey]);
 
-  // Auto-save draft every 30 seconds if there's data
+  // Auto-save the draft to this browser every 30 seconds if there's data.
+  // The latest state rides in a ref so the timer is set once. With the state
+  // as effect dependencies, every keystroke restarted the 30-second clock, so
+  // a draft was only saved after half a minute of no changes at all (v3.99.0).
+  const draftRef = useRef({ project, assessments, currentStep });
+  draftRef.current = { project, assessments, currentStep };
   useEffect(() => {
     const autoSaveInterval = setInterval(() => {
-      if (project.brandName && currentStep > 0) {
-        const draft = { project, assessments, currentStep, savedAt: new Date().toISOString() };
-        localStorage.setItem('conscious-compass-draft', JSON.stringify(draft));
-        setLastAutoSave(new Date());
+      const { project: p, assessments: a, currentStep: step } = draftRef.current;
+      if (p.brandName && step > 0) {
+        const draft = { project: p, assessments: a, currentStep: step, savedAt: new Date().toISOString() };
+        try {
+          localStorage.setItem('conscious-compass-draft', JSON.stringify(draft));
+          setLastAutoSave(new Date());
+        } catch { /* storage full or unavailable: leave the last saved time as it was */ }
       }
     }, 30000);
     return () => clearInterval(autoSaveInterval);
-  }, [project, assessments, currentStep]);
+  }, []);
 
   const steps = [
     { id: 'setup', name: 'Setup' },
@@ -15435,10 +14749,10 @@ function AppContent() {
     return true;
   };
 
-  const handleSave = async () => {
+  const handleSave = async ({ quiet = false, resumeStep = null } = {}) => {
     if (!project.brandName) {
       alert('Please enter a brand name before saving.');
-      return;
+      return false;
     }
     try {
       // Create a copy of assessments without large image data
@@ -15469,9 +14783,12 @@ function AppContent() {
 
       // Stored inside the project blob rather than a new column, so this
       // needs no Supabase migration. project is already an open JSON field.
-      const projectToSave = benchmarkSnapshot
-        ? { ...project, benchmarkSnapshot }
-        : project;
+      // Save and exit also records the step to reopen on (v3.99.1).
+      const projectToSave = {
+        ...project,
+        ...(benchmarkSnapshot ? { benchmarkSnapshot } : {}),
+        ...(resumeStep != null ? { resumeStep } : {}),
+      };
 
       // Save to Supabase - saved assessments
       const { error: saveError } = await saveAssessment({
@@ -15547,18 +14864,30 @@ function AppContent() {
       // Reload data from Supabase
       await loadDataFromSupabase();
       clearDraft();
-      alert('Assessment saved!');
+      if (!quiet) alert('Assessment saved!');
+      return true;
     } catch (e) {
       console.error('Save failed:', e);
       alert('Save failed: ' + (e.message || 'Unknown error'));
+      return false;
     }
+  };
+
+  // Save and exit (assessment steps): the same save as the report's Save, then
+  // the Saved page. On failure the save's own alert explains and the step stays.
+  const [savingExit, setSavingExit] = useState(false);
+  const handleSaveExit = async () => {
+    setSavingExit(true);
+    const ok = await handleSave({ quiet: true, resumeStep: currentStep });
+    setSavingExit(false);
+    if (ok) { setCurrentStep(0); setShowSavedPage(true); }
   };
 
   const handleLoad = (data) => {
     setProject(data.project);
     setAssessments(data.assessments);
     setScores(data.scores);
-    setCurrentStep(data.scores ? 6 : 0);
+    setCurrentStep(resumeStepFor(data));
     setShowSavedPage(false);
   };
 
@@ -15923,7 +15252,7 @@ function AppContent() {
         )
       ) : (
         <>
-          {currentStep > 1 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} assessments={assessments} />}
+          {currentStep > 1 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} savedAt={lastAutoSave} />}
 
           {/* Draft restore banner */}
           {currentStep === 0 && draftRestoreOffer && (
@@ -15955,10 +15284,10 @@ function AppContent() {
 
           {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} />}
           {currentStep === 1 && <SetupPage project={project} setProject={setProject} apiKey={apiKey} setApiKey={setApiKey} onNext={() => setCurrentStep(2)} onBack={() => setCurrentStep(0)} />}
-          {currentStep === 2 && <WebsiteAssessment assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
-          {currentStep === 3 && <SocialMediaAssessment assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
-          {currentStep === 4 && <AIReputationPage assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
-          {currentStep === 5 && <EarnedMediaAssessment assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
+          {currentStep === 2 && <WebsiteAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
+          {currentStep === 3 && <SocialMediaAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
+          {currentStep === 4 && <AIReputationPage onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
+          {currentStep === 5 && <EarnedMediaAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
           {currentStep === 6 && <ReportPage project={project} setProject={setProject} scores={scores} setScores={setScores} assessments={assessments} setAssessments={setAssessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} compassResults={compassResults} savedBenchmark={project.benchmarkSnapshot || null} />}
         </>
       )}

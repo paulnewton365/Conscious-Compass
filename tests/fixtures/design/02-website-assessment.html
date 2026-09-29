@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Website Assessment · MKB</title>
+<!-- Preview only: replace with self-hosted @font-face from public/ -->
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/compass-tokens.css">
+<link rel="stylesheet" href="../css/assessment.css">
+</head>
+<body>
+
+<header class="dc-header">
+  <div class="dc-wrap">
+    <a class="dc-wordmark" href="/"><b>.antenna</b><span>Conscious Compass</span></a>
+    <nav aria-label="Main">
+      <ul class="dc-nav-links">
+        <li><a href="/stay-conscious">Stay Conscious</a></li>
+        <li><a href="/compare">Compare</a></li>
+        <li><a href="/results">Results</a></li>
+        <li><a href="/saved">Saved</a></li>
+        <li><a href="/teaser">Teaser</a></li>
+        <li><a href="/admin">Admin</a></li>
+      </ul>
+    </nav>
+    <div class="dc-session">
+      <a class="btn-primary" href="/new">New assessment</a>
+      <div class="dc-account">
+        <button type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu">Paul Newton</button>
+        <ul class="dc-account-menu" id="account-menu" role="menu" hidden>
+          <li class="dc-account-email" role="none">paul.newton@antennagroup.com</li>
+          <li role="none"><button type="button" role="menuitem">Sign out</button></li>
+        </ul>
+      </div>
+      <button class="btn-secondary dc-menu-btn" type="button" aria-expanded="false">Menu</button>
+    </div>
+  </div>
+</header>
+
+<nav class="dc-steps" aria-label="Assessment steps">
+  <div class="dc-wrap">
+    <ol><li class="is-done"><b>Setup</b><span>Done</span></li><li class="is-current" aria-current="step"><b>Website</b><span>In progress</span></li><li class=""><b>Social</b><span>Not started</span></li><li class=""><b>AI Reputation</b><span>Not started</span></li><li class=""><b>Earned Media</b><span>Not started</span></li><li class=""><b>Report</b><span>Not started</span></li></ol>
+    <div class="dc-steps-compact"><div><strong>Step 2 of 6 · Website</strong><span class="dc-meta">Next: Social</span></div><div class="dc-steps-bar"><i class="is-done"></i><i class="is-current"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></div></div>
+    <span class="dc-save-state" aria-live="polite">Draft saved 5:08 PM</span>
+  </div>
+</nav>
+
+<main class="dc-wrap">
+  <div class="dc-page is-form">
+
+    <div class="dc-alert is-warn dc-mobile-only" role="note">
+      <strong>Best on a larger screen</strong>
+      <p>This assessment is designed for tablet or desktop. You can continue on mobile, but the experience will be better with more space.</p>
+      <button class="dc-alert-x" type="button">Dismiss</button>
+    </div>
+
+    <div class="dc-page-head">
+      <div class="dc-kicker is-accent">Step 2 of 6 · Website</div>
+      <h1 class="dc-display">Website Assessment</h1>
+      <p class="dc-standfirst">MKB · <a href="https://www.mkb.com">https://www.mkb.com</a></p>
+    </div>
+
+    <div class="dc-assess">
+      <div class="dc-assess-main">
+        <section class="dc-panel-dark dc-action">
+          <div><div class="dc-kicker">Automated</div><h2 class="dc-h is-card">Auto-assess website</h2><p>AI-powered comprehensive analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization.</p></div>
+          <button class="btn-primary is-on-dark" type="button">Run auto-assess</button>
+        </section>
+        <section class="dc-block">
+          <div class="dc-block-head">
+            <div><h2 class="dc-block-t"><label for="pages">Pages reviewed</label></h2><p class="dc-block-d">List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)</p></div>
+            
+          </div>
+          <input class="dc-input" id="pages" type="text" placeholder="e.g., Homepage, About Us, Services, Case Studies, Contact" value="Home, About, Solutions, Insights, Contact">
+          
+        </section>
+        <section class="dc-block">
+          <div class="dc-block-head">
+            <div><h2 class="dc-block-t"><label for="recog">Recognition &amp; credentials</label> <span class="dc-opt">Optional</span></h2><p class="dc-block-d">Awards, certifications, memberships, speaking engagements, or industry recognition.</p></div>
+            <div class="dc-block-actions"><button class="btn-secondary btn-sm" type="button">Auto-search</button></div>
+          </div>
+          <textarea class="dc-textarea" id="recog" placeholder="e.g., Inc. 5000 2024, ISO 27001 certified, Forbes Council member, keynote at SXSW 2025, Gartner Cool Vendor...">ISO 14001, B Corp pending.</textarea>
+          <span class="dc-status is-done">Recognition data captured</span>
+        </section>
+        <section class="dc-block">
+          <div class="dc-block-head"><div><h2 class="dc-block-t">Screenshots <span class="dc-opt">Up to 2</span></h2><p class="dc-block-d">Upload screenshots of homepage and key subpages for visual analysis.</p></div></div>
+          <input type="file" accept="image/*" multiple hidden id="shots">
+          <div class="dc-drops"><button class="dc-drop" type="button"><strong>Add screenshot</strong><span>2 remaining</span></button></div>
+        </section>
+        <section class="dc-block">
+          <div class="dc-block-head">
+            <div><h2 class="dc-block-t"><label for="content">Website content</label> <span class="dc-req">Required</span></h2><p class="dc-block-d">Paste key content from the website: headlines, taglines, about text, value propositions, etc. Required to proceed.</p><p class="dc-block-d">To pull clean text from any page, put <a href="https://r.jina.ai/">https://r.jina.ai/</a> in front of its URL. The button above does this for the primary site homepage only.</p></div>
+            <div class="dc-block-actions"><a class="btn-secondary btn-sm" href="https://r.jina.ai/https://www.mkb.com" target="_blank" rel="noopener noreferrer">Scrape with Jina ↗</a></div>
+          </div>
+          <textarea class="dc-textarea is-tall" id="content" placeholder="Paste key website copy here...
+
+Example:
+HOMEPAGE HEADLINE: &#x27;Transform Your Business with AI&#x27;
+TAGLINE: &#x27;Enterprise solutions for the modern era&#x27;
+ABOUT: &#x27;Founded in 2015, we help companies...&#x27;
+VALUE PROP: &#x27;Reduce costs by 40% while improving...&#x27;
+...">Full text of the pages reviewed sits here.</textarea>
+          
+        </section>
+        <section class="dc-block">
+          <div class="dc-block-head">
+            <div><h2 class="dc-block-t">SEO visibility assessment <span class="dc-status is-done">Complete</span></h2><p class="dc-block-d">AI-powered analysis of search visibility potential. Influences the Cogent score. Included in the website analysis.</p></div>
+            <div class="dc-block-actions"><button class="btn-secondary btn-sm" type="button">Regenerate</button></div>
+          </div>
+          <div class="dc-output is-sm">Indexed, weak internal linking, no schema on case studies.</div>
+        </section>
+        <section class="dc-block">
+          <div class="dc-block-head">
+            <div><h2 class="dc-block-t">Technical performance audit</h2><p class="dc-block-d">PageSpeed scores affect Attentive and Cogent. Auto-fetch pulls the scores, or verify them manually on Google PageSpeed.</p></div>
+            <div class="dc-block-actions"><button class="btn-primary btn-sm" type="button">Auto-fetch</button><a class="btn-secondary btn-sm" href="https://pagespeed.web.dev/analysis?url=https%3A%2F%2Fwww.mkb.com&amp;form_factor=desktop" target="_blank" rel="noopener noreferrer">Check manually ↗</a></div>
+          </div>
+          <div class="dc-tiles is-scores is-4">
+            <div class="dc-tile">
+              <div class="dc-kicker">Performance</div>
+              <div class="dc-score-n"><input class="dc-stat-n" type="number" min="0" max="100" value="61" aria-label="Performance score"><small>/100</small></div>
+              <div class="dc-tile-status is-warn">Needs work</div>
+            </div>
+            <div class="dc-tile">
+              <div class="dc-kicker">Accessibility</div>
+              <div class="dc-score-n"><input class="dc-stat-n" type="number" min="0" max="100" value="78" aria-label="Accessibility score"><small>/100</small></div>
+              <div class="dc-tile-status is-warn">Needs work</div>
+            </div>
+            <div class="dc-tile">
+              <div class="dc-kicker">Best practices</div>
+              <div class="dc-score-n"><input class="dc-stat-n" type="number" min="0" max="100" value="83" aria-label="Best practices score"><small>/100</small></div>
+              <div class="dc-tile-status is-warn">Needs work</div>
+            </div>
+            <div class="dc-tile">
+              <div class="dc-kicker">SEO</div>
+              <div class="dc-score-n"><input class="dc-stat-n" type="number" min="0" max="100" value="90" aria-label="SEO score"><small>/100</small></div>
+              <div class="dc-tile-status is-good">Good</div>
+            </div>
+          </div>
+          <span class="dc-status is-done">Scores will be included in assessment</span>
+        </section>
+        <section class="dc-block">
+          <div class="dc-block-head">
+            <div><h2 class="dc-block-t"><label for="obs">Assessor observations</label></h2><p class="dc-block-d">Your observations on brand alignment, storytelling, consistency issues, or other concerns.</p></div>
+            
+          </div>
+          <textarea class="dc-textarea" id="obs" placeholder="Add your observations about:
+- Brand alignment issues
+- Storytelling strengths/weaknesses  
+- Consistency across pages
+- Navigation or UX concerns
+- Content gaps
+- Competitive positioning...">Consistent tone. Credentials page thin. /about returns 404.</textarea>
+          
+        </section>
+        <section class="dc-block">
+          <div class="dc-block-head">
+            <div><h2 class="dc-block-t">Analysis <span class="dc-status is-done">Complete</span></h2></div>
+            <div class="dc-block-actions"><button class="btn-secondary btn-sm" type="button">Regenerate analysis</button></div>
+          </div>
+          <div class="dc-output">Homepage, about, solutions and insights reviewed. Clear proposition, dated case studies, no named leadership.</div>
+        </section>
+        <div class="dc-assess-foot">
+          <button class="btn-secondary" type="button">← Back</button>
+          <div><span class="dc-meta">Complete the required items to continue</span><button class="btn-primary" type="button" disabled>Continue →</button></div>
+        </div>
+      </div>
+
+      <aside class="dc-assess-rail" aria-label="Progress">
+        <div class="dc-progress-head"><span class="dc-kicker">Progress</span><strong>4 of 6</strong></div>
+        <div class="dc-lens-bar" role="img" aria-label="4 of 6 complete"><i style="width:67%"></i></div>
+        <ul class="dc-checklist">
+          <li class=""><span>Auto-assess</span></li>
+          <li class="is-done"><span>SEO check</span></li>
+          <li class=""><span>Screenshots</span><em>Optional</em></li>
+          <li class="is-done"><span>Pages listed</span></li>
+          <li class="is-done"><span>Content</span></li>
+          <li class="is-done"><span>Analysis</span></li>
+        </ul>
+        <div class="dc-rail-actions">
+          <button class="btn-primary" type="button" disabled>Continue to Social →</button>
+          <button class="btn-secondary" type="button">Save and exit</button>
+        </div>
+      </aside>
+    </div>
+
+  </div>
+</main>
+</body>
+</html>

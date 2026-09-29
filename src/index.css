@@ -390,6 +390,7 @@ a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
 .dc-tile-status { font-size: 12px; font-weight: var(--cc-w-semi); color: var(--cc-muted); }
 .dc-tile-status.is-good { color: var(--cc-pos); }
 .dc-tile-status.is-warn { color: var(--cc-warn); }
+.dc-tile-status.is-poor { color: var(--cc-rust-text); } /* below 50 (v3.99.0) */
 
 /* Output (analysis / synthesis text) */
 .dc-output { border: var(--cc-border); border-radius: var(--cc-r-1); padding: var(--cc-s-4) var(--cc-s-5); max-height: 360px; overflow-y: auto;
@@ -1086,6 +1087,30 @@ button { font: inherit; color: inherit; }
 .dc-rec-tags { display: flex; gap: var(--cc-s-2); flex-wrap: wrap; }
 .dc-standfirst { font-size: var(--cc-fs-lead); line-height: 1.5; color: var(--cc-body); max-width: 62ch; }
 
+
+/* Save state: sits in the step bar, right of the steps. Assessment steps only. (packet assessment.css, v3.99.0) */
+.dc-steps .dc-wrap { display: grid; grid-template-columns: minmax(0,1fr) auto; column-gap: var(--cc-s-8); }
+.dc-save-state { align-self: start; padding-top: 13px; font-size: var(--cc-fs-meta); color: var(--cc-muted); white-space: nowrap; }
+@media (max-width: 720px) {
+  .dc-steps .dc-wrap { grid-template-columns: minmax(0,1fr); row-gap: var(--cc-s-2); }
+  .dc-save-state { padding-top: 0; }
+}
+
+/* Assessment additions the packet's samples did not show (v3.99.0) */
+.dc-shot { position: relative; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.dc-shot img { display: block; width: 100%; height: 160px; object-fit: cover; border: var(--cc-border); border-radius: var(--cc-r-1); }
+.dc-shot figcaption { position: absolute; top: 8px; left: 8px; min-width: 22px; height: 22px; display: grid; place-content: center; background: var(--cc-ink); color: var(--cc-paper); font-size: 12px; font-weight: var(--cc-w-semi); border-radius: var(--cc-r-1); }
+.dc-shot .dc-link-btn { align-self: flex-start; height: 28px; padding: 0; }
+.dc-table-wrap { overflow-x: auto; }
+
+.dc-acc-done { color: var(--cc-pos); font-weight: var(--cc-w-semi); }
+.dc-autopanel { display: flex; flex-direction: column; gap: 8px; padding: var(--cc-s-3); background: var(--cc-hover); border: var(--cc-border); border-radius: var(--cc-r-1); }
+.dc-autopanel .dc-kicker { color: var(--cc-pos); }
+.dc-autopanel.is-edited .dc-kicker { color: var(--cc-warn); }
+.dc-autopanel .dc-link-btn { height: 28px; }
+.dc-link-row { display: flex; flex-wrap: wrap; gap: var(--cc-s-2); }
+.dc-action-run { display: flex; flex-direction: column; gap: 6px; margin-top: var(--cc-s-3); }
+.dc-action-run p { font-size: var(--cc-fs-meta); color: var(--cc-dark-label); }
 
 /* ---------- From the teaser packet (v3.98.0): screens.css, helpers onward ---------- */
 /* Helpers (replace former inline styles) */
