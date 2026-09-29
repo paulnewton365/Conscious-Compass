@@ -30,6 +30,23 @@ export default async function handler(req, res) {
     return rows?.[0] || null;
   };
 
+  // Portfolio average out of 100 from full assessments (compass_results), for
+  // a landscape cache written before it stored averageScore (v3.103.0). Null
+  // when there is nothing to average, so the page hides the numeral rather
+  // than show an invented one.
+  const portfolioAverage = async () => {
+    try {
+      const r = await fetch(`${supabaseUrl}/rest/v1/compass_results?select=total_score`, {
+        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+      });
+      if (!r.ok) return null;
+      const rows = (await r.json()).map(x => Number(x.total_score)).filter(Number.isFinite);
+      return rows.length ? Math.round(rows.reduce((a, b) => a + b, 0) / rows.length) : null;
+    } catch {
+      return null;
+    }
+  };
+
   try {
     // Pull all three caches in parallel
     const [scRow, laRow, iaRow] = await Promise.all([
@@ -100,12 +117,13 @@ ${combinedText}`;
         summary: twoParaSummary,
         brandCount: landscapeAnalysis.brandCount || null,
         sectorCount: landscapeAnalysis.sectorCount || null,
+        averageScore: Number.isFinite(landscapeAnalysis.averageScore) ? landscapeAnalysis.averageScore : await portfolioAverage(),
       };
     }
 
     const newsletter = {
       issueNumber,
-      weekOf: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+      weekOf: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),   // US English (v3.103.0)
       leadStory: {
         category: leadItem.category,
         headline: leadItem.headline,

@@ -136,12 +136,12 @@ test('the step bar shows the save state only once a draft has been saved', () =>
   assert.match(el.textContent, /^Draft saved \d{1,2}:\d{2}\s?[AP]M$/);
 });
 
-test('the draft autosave no longer restarts its clock on every change', () => {
+test('one draft saver: per user, on every change, without screenshots; the stray 30-second copy is gone (v3.103.0)', () => {
   const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  const at = src.indexOf("localStorage.setItem('conscious-compass-draft'");
-  const block = src.slice(at - 900, at + 500);
-  assert.ok(block.includes('draftRef.current'), 'reads the latest state from a ref');
-  assert.match(block, /\}, 30000\);\s*return \(\) => clearInterval\(autoSaveInterval\);\s*\}, \[\]\);/, 'the timer is set once');
+  assert.equal((src.match(/localStorage\.setItem\(key, JSON\.stringify\(draft\)\)/g) || []).length, 1, 'the per-user saver');
+  assert.ok(!src.includes("localStorage.setItem('conscious-compass-draft'"), 'the key nothing read is no longer written');
+  assert.ok(src.includes("localStorage.removeItem('conscious-compass-draft')"), 'and old copies are cleared');
+  assert.ok(!src.includes('autoSaveInterval'));
 });
 
 // ── Save and exit, then reopen (v3.99.1) ─────────────────────
@@ -179,4 +179,148 @@ test('Social: the same holds for its screenshots', () => {
   const shot = [...soc.querySelectorAll('.dc-checklist li')].find(li => li.querySelector('span').textContent === 'Screenshot');
   assert.equal(shot.className, 'is-done');
   assert.ok(soc.querySelector('[data-field="shots-not-kept"]'));
+});
+
+
+// ── Draft notice (packet 13, v3.103.0) ───────────────────────
+
+const draft = (step, extra = {}) => ({ project: { brandName: 'MKB' }, assessments: {}, currentStep: step, savedAt: '2026-09-29T08:55:00Z', ...extra });
+
+test('the draft notice follows the packet: rust kicker, brand in Newsreader, sentence-case meta', () => {
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.WelcomePage, { onStart() {}, draft: draft(3) }))).window.document;
+  const n = doc.querySelector('.dc-page > section.dc-draft:first-child');
+  assert.ok(n, 'first thing on the page, before the hero');
+  assert.equal(n.nextElementSibling.className, 'dc-hero');
+  assert.equal(n.getAttribute('role'), 'status');
+  assert.equal(n.querySelector('.dc-kicker.is-accent').textContent, 'Unsaved assessment');
+  assert.equal(n.querySelector('h2.dc-draft-name').textContent, 'MKB');
+  const meta = n.querySelector('.dc-meta').textContent;
+  assert.match(meta, /^Step 3 of 5 · Last saved [A-Z][a-z]{2} \d{1,2}, 2026, \d{1,2}:\d{2}\s?[AP]M$/);
+  assert.ok(!meta.includes('\u2014'), 'no em dash');
+  assert.equal(n.querySelector('time').getAttribute('datetime'), '2026-09-29T08:55:00.000Z');
+  assert.deepEqual([...n.querySelectorAll('.dc-head-actions button')].map(b => [b.className, b.textContent]), [['btn-primary', 'Resume assessment'], ['btn-secondary', 'Discard']]);
+});
+
+test('the step is clamped: the report stage reads 5 of 5, never 6 of 5', () => {
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.WelcomePage, { onStart() {}, draft: draft(6) }))).window.document;
+  assert.match(doc.querySelector('.dc-draft .dc-meta').textContent, /^Step 5 of 5/);
+});
+
+test('no draft, no notice: nothing rendered, not an empty box', () => {
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.WelcomePage, { onStart() {} }))).window.document;
+  assert.equal(doc.querySelector('.dc-draft'), null);
+});
+
+test('Discard asks first, then removes the draft and moves focus to Start new assessment', async () => {
+  let discarded = 0, resumed = 0;
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  const Harness = () => {
+    const [d, setD] = React.useState(draft(2));
+    return h(App.WelcomePage, { onStart() {}, draft: d, onResume: () => { resumed++; }, onDiscard: () => { discarded++; setD(null); } });
+  };
+  await act(async () => { root.render(h(Harness)); });
+  const btn = (t) => [...container.querySelectorAll('button')].find(b => b.textContent === t);
+  await act(async () => { btn('Discard').click(); });
+  assert.equal(discarded, 0, 'not yet');
+  assert.ok(container.textContent.includes('Discard this draft?'));
+  await act(async () => { btn('Cancel').click(); });
+  assert.ok(btn('Resume assessment'), 'Cancel restores the buttons');
+  await act(async () => { btn('Discard').click(); });
+  await act(async () => { btn('Discard').click(); await new Promise(r => setTimeout(r, 5)); });
+  assert.equal(discarded, 1);
+  assert.equal(container.querySelector('.dc-draft'), null, 'the notice is gone');
+  assert.equal(document.activeElement?.textContent, 'Start new assessment');
+  await act(async () => root.unmount());
+});
+
+// ── Stay Conscious as a newspaper (packet 13, 09b) ───────────
+
+const ITEM = (n) => ({ category: `Topic ${n}`, headline: `Headline ${n}`, insight: `Insight ${n}.`, whyItMatters: `Why ${n}.` });
+const ISSUE = (items = 5, avg = 51) => ({ issueNumber: 29, weekOf: 'September 27, 2026',
+  leadStory: { category: 'AI Visibility', headline: 'AI Engines Cite Third Parties', insight: 'First paragraph.\n\nSecond paragraph.', whyItMatters: 'Because.' },
+  intelligenceItems: Array.from({ length: items }, (_, i) => ITEM(i + 1)),
+  landscapeAnalysis: { brandCount: 58, sectorCount: 11, averageScore: avg, headline: 'Brands know where they are going.', summary: 'One.\n\nTwo.' },
+  storyOpportunities: [{ headline: 'Opp one', body: 'Body one.' }, { headline: 'Opp two', body: 'Body two.' }] });
+
+async function mountIssue(issue, props = {}) {
+  globalThis.fetch = window.fetch = async () => ({ ok: true, json: async () => ({ newsletter: issue, refreshedAt: '2026-09-27T19:30:00Z' }) });
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.StayConsciousPage, { onBack() {}, isAdmin: false, ...props })); });
+  for (let i = 0; i < 5; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+  return { container, root };
+}
+
+test('the issue takes the packet structure: tools, masthead, front page, sections, footer', async () => {
+  const { container, root } = await mountIssue(ISSUE());
+  const page = container.querySelector('.dc-page.dc-np');
+  const design = new JSDOM(JSON.parse(readFileSync(new URL('./fixtures/design-screens.json', import.meta.url), 'utf8'))['09b-stay-conscious-newspaper.html']).window.document.querySelector('.dc-np');
+  const top = (el) => [...el.children].map(c => c.className);
+  assert.deepEqual(top(page), top(design));
+  assert.equal(page.querySelector('.dc-np-lead .dc-kicker').textContent, 'AI Visibility · Lead story');
+  assert.equal(page.querySelectorAll('.dc-np-lead .dc-np-text.is-cols p').length, 2, 'paragraphs flow in the columns');
+  assert.equal(page.querySelector('.dc-np-lead figure'), null, 'no image, no figure and no placeholder');
+  assert.equal(page.querySelector('[data-value="average"]').textContent, '51');
+  assert.match(page.querySelector('.dc-np-figure .dc-meta').textContent, /^Average score out of 100 · Based on 58 brands across 11 sectors$/);
+  assert.deepEqual([...page.querySelectorAll('.dc-np-opp .dc-np-ord')].map(o => o.textContent), ['1', '2']);
+  assert.equal(page.querySelectorAll('[style*="color"], [class*="text-["], .card, svg.lucide').length, 0, 'no chips, legacy classes or icons');
+  assert.equal(page.querySelector('.dc-np-dateline time').getAttribute('datetime'), '2026-09-27T19:30:00.000Z');
+  await act(async () => root.unmount());
+});
+
+test('brand intelligence rows follow the agreed layout for 3, 4 and 5+ stories', async () => {
+  for (const [n, want] of [[3, ['is-3:3']], [4, ['is-2:2', 'is-2:2']], [5, ['is-2:2', 'is-3:3']], [8, ['is-2:2', 'is-3:3', 'is-3:3']], [2, ['is-2:2']]]) {
+    const { container, root } = await mountIssue(ISSUE(n));
+    const rows = [...container.querySelectorAll('.dc-np-sec .dc-np-grid')].map(g => `${g.classList[1]}:${g.children.length}`);
+    assert.deepEqual(rows, want, `${n} stories`);
+    await act(async () => root.unmount());
+  }
+});
+
+test('without a stored average the numeral is left out, never invented', async () => {
+  const issue = ISSUE(5); delete issue.landscapeAnalysis.averageScore;
+  const { container, root } = await mountIssue(issue);
+  assert.equal(container.querySelector('[data-value="average"]'), null);
+  assert.match(container.querySelector('.dc-np-figure .dc-meta').textContent, /^Based on 58 brands/);
+  await act(async () => root.unmount());
+});
+
+test('Share link copies the current issue and says so; Force refresh is admin-only and asks first', async () => {
+  let copied = null;
+  Object.defineProperty(globalThis.navigator, 'clipboard', { value: { writeText: async (t) => { copied = t; } }, configurable: true });
+  const { container, root } = await mountIssue(ISSUE(), { isAdmin: false });
+  const btn = (t) => [...container.querySelectorAll('.dc-np-tools button')].find(b => b.textContent === t);
+  assert.equal(btn('Force refresh'), undefined, 'not for non-admins');
+  await act(async () => { btn('Share link').click(); await new Promise(r => setTimeout(r, 0)); });
+  assert.match(copied, /#newsletter$/);
+  assert.ok(btn('Link copied'), 'the label confirms it');
+  await act(async () => root.unmount());
+  let posted = 0;
+  const admin = await mountIssue(ISSUE(), { isAdmin: true });
+  const f = globalThis.fetch;
+  globalThis.fetch = window.fetch = async (url, o) => { if (o?.method === 'POST') posted++; return f(url, o); };
+  window.confirm = () => false;
+  await act(async () => { [...admin.container.querySelectorAll('button')].find(b => b.textContent === 'Force refresh').click(); });
+  assert.equal(posted, 0, 'declining the confirmation runs nothing');
+  await act(async () => admin.root.unmount());
+});
+
+test('the weekly jobs store the portfolio average and date the issue in US English', () => {
+  const la = readFileSync(new URL('../api/refresh-landscape-analysis.js', import.meta.url), 'utf8');
+  assert.ok(la.includes('averageScore: overallScore,'));
+  const nl = readFileSync(new URL('../api/refresh-stay-conscious-newsletter.js', import.meta.url), 'utf8');
+  assert.ok(nl.includes('averageScore: Number.isFinite(landscapeAnalysis.averageScore) ? landscapeAnalysis.averageScore : await portfolioAverage()'));
+  assert.ok(nl.includes("compass_results?select=total_score"), 'the fallback averages full assessments');
+  assert.ok(!nl.includes("'en-GB'") && nl.includes("toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })"));
+});
+
+test('the newsletter Word export uses the newspaper system and embeds the fonts', () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const at = app.indexOf("const handleExportDocx = async () => {\n    if (!newsletter) return;");
+  const gen = app.slice(at, app.indexOf('\n  };\n', at));
+  assert.ok(!gen.includes("'Inter'") && !gen.includes('E8FF00') && !gen.includes('catColor'), 'old font, lime and category colours gone');
+  assert.ok(gen.includes("const SANS = 'Hanken Grotesk', SERIF = 'Newsreader';"));
+  assert.ok(gen.includes('BorderStyle.DOUBLE'), 'double rules under the dateline and section heads');
+  assert.ok(gen.includes('embedReportFonts(await Packer.toBlob(doc)'));
 });

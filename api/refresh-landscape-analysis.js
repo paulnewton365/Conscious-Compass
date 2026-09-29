@@ -188,6 +188,9 @@ HEADLINE: [a single punchy headline of max 10 words capturing the single most st
       insights: extractSection('KEY INSIGHTS', null).replace(/\n*HEADLINE:.*$/s, '').trim(),
       brandCount: results.length,
       sectorCount: sectors.length,
+      // The portfolio average out of 100, full assessments only (v3.103.0).
+      // Calculated above for the prompt; now stored for the newsletter.
+      averageScore: overallScore,
     };
 
     // 8. Upsert into Supabase cache (single row, id=1)
