@@ -6,12 +6,12 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.109.2';
+const APP_VERSION = '3.110.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
 import { startScrollMotion, retagSections, revealAll, motionAllowed } from './lib/scrollMotion';
 import { benchmarkView, benchmarkPosition, latestPerBrand, resultHistory, resultBrandKey } from './lib/benchmarkView';
-import { buildLiteSection, applyEarnedCreativeLift, parseActivations, ecoFromReport, round1, ECO_CONFIG } from './lib/eco';
+import { buildLiteSection, applyEarnedCreativeLift, ecoFromReport, parseObservedEvidence } from './lib/eco';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
 import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
@@ -1326,129 +1326,6 @@ function EcoBlocks({ blocks }) {
   );
 }
 
-// The analyst panel: internal only, never in the client payload. Every input
-// the packet marks analyst-entered, plus the activations the scoring pass
-// found (the analyst can remove any, which recomputes the SENTIENT and
-// INTENTIONAL lift). There are no overrides: the verdict rests on observed or
-// submitted evidence only (v3.107.0).
-function EcoPanel({ eco, scores, setScores }) {
-  const state = scores.eco || {};
-  const set = (patch) => setScores(prev => ({ ...prev, eco: { ...(prev.eco || {}), ...patch } }));
-  const r = eco.result;
-  const prof = eco.profile;
-  const G5 = ECO_CONFIG.gate.G5[prof];
-  const acts = parseActivations(scores.earnedCreative);
-  const toggleAct = (i) => setScores(prev => {
-    const list = parseActivations(prev.earnedCreative).map((a, k) => (k === i ? { ...a, removed: !a.removed } : a));
-    return applyEarnedCreativeLift({ ...prev, earnedCreative: { ...(prev.earnedCreative || {}), activations: list } }, prev.earnedCreative?.frameworkVersion || null);
-  });
-  const numField = (key, label, hint, step = '1') => (
-    <div className="dc-field">
-      <label htmlFor={`eco-${key}`}>{label}</label>
-      <input id={`eco-${key}`} className="dc-input" type="number" step={step} value={state[key] ?? ''} onChange={e => set({ [key]: e.target.value === '' ? null : e.target.value })} />
-      {hint && <p className="dc-hint">{hint}</p>}
-    </div>
-  );
-  const listField = (key, label, fields, extra = null) => {
-    const list = Array.isArray(state[key]) ? state[key] : [];
-    const upd = (i, f, v) => set({ [key]: list.map((x, k) => (k === i ? { ...x, [f]: v } : x)) });
-    return (
-      <div className="dc-field is-wide" data-field={`eco-${key}`}>
-        <span className="dc-label">{label}</span>
-        {list.map((it, i) => (
-          <div key={i} className="dc-eco-row">
-            {fields.map(([f, ph, type]) => (type === 'check'
-              ? <label key={f} className="dc-check-inline"><input type="checkbox" checked={!!it[f]} onChange={e => upd(i, f, e.target.checked)} /> {ph}</label>
-              : <input key={f} className="dc-input" placeholder={ph} aria-label={`${label} ${i + 1}: ${ph}`} value={it[f] || ''} onChange={e => upd(i, f, e.target.value)} />))}
-            <button type="button" className="dc-link-btn" onClick={() => set({ [key]: list.filter((_, k) => k !== i) })}>Remove</button>
-          </div>
-        ))}
-        <div className="dc-inline">
-          <button type="button" className="dc-link-btn" onClick={() => set({ [key]: [...list, {}], ...(extra || {}) })}>Add</button>
-        </div>
-      </div>
-    );
-  };
-  const crit = r.gate.criteria || {};
-  return (
-    <section className="dc-internal" aria-label="Earned creative inputs" data-field="eco-panel">
-      <header className="dc-internal-head">
-        <span className="dc-kicker">Internal · earned creative inputs</span>
-        <span className="dc-meta">
-          Need {round1(r.needRating)} ({r.needBand}){r.substanceFloorApplied ? ' · limited raw material' : ''} · gate {r.gate.result} · {r.outcome || 'awaiting inputs'}{r.ambitionLevel ? ` · ambition ${r.ambitionLevel}` : ''}
-        </span>
-      </header>
-      {r.analystReviewRequired && <div className="dc-alert is-warn" role="note">{r.gate.result === 'Pending' ? 'The gate needs the claims audit or REFLECTIVE, the verified truths and the readiness checklist before an outcome can be given. Nothing is shown to the client until then.' : ECO_CONFIG.copy.reviewNote}</div>}
-
-      <div className="dc-eco-panel">
-        <p className="dc-meta" data-field="eco-profile">Business profile: {prof}, from the company stage set at Setup.</p>
-
-        <fieldset className="dc-eco-set"><legend>Earned creative in use (from the scoring pass)</legend>
-          {acts.length === 0 ? <p className="dc-meta">None found. The SENTIENT and INTENTIONAL lift applies only with at least one confirmed activation.</p> : (
-            <ul className="dc-eco-acts">
-              {acts.map((a, i) => (
-                <li key={i} className={a.removed ? 'is-removed' : undefined}>
-                  <div><b>{a.name}</b>{a.what && <span> · {a.what}</span>}{a.evidence && <span className="dc-meta"> · {a.evidence}</span>}</div>
-                  <button type="button" className="dc-link-btn" onClick={() => toggleAct(i)}>{a.removed ? 'Restore' : 'Remove'}</button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {acts.length > 0 && <p className="dc-hint">{acts.some(a => !a.removed) ? `Confirmed: +${ECO_CONFIG.usageLift.points} to SENTIENT and INTENTIONAL.` : 'All removed: no lift.'}</p>}
-        </fieldset>
-
-        <fieldset className="dc-eco-set"><legend>Evidence (leave blank if unknown)</legend>
-          {numField('announcementPct', 'E1 · % of coverage from brand announcements', 'Last 12 months.')}
-          {numField('sovVsLeaderPct', "E2 · Brand share of voice as % of the leader's", 'Against the top three competitors.')}
-          {numField('organicPct', 'E3 · % of mentions not prompted by brand posts', 'Leave blank for B2B brands with little social presence.')}
-          {numField('ideaStories', 'E5 · Idea-driven stories in priority outlets', 'Count, last 12 months. Leave blank with under 12 months of coverage.')}
-          {listField('e4Assets', 'E4 · Assets with no coverage in 24 months', [['name', 'Asset'], ['description', 'One-line description']])}
-          <label className="dc-check-inline"><input type="checkbox" checked={!!state.e4NoneFound} onChange={e => set({ e4NoneFound: e.target.checked })} /> Checked: no uncovered assets</label>
-        </fieldset>
-
-        <fieldset className="dc-eco-set"><legend>Context</legend>
-          {[['C1', 'Launch, repositioning or market entry within 12 months'], ['C2', 'Paid media budget constrained vs competitors'], ['C3', 'Perception lags a real change in the business'], ['C4', 'A live conversation the brand has expertise in'], ['C5', 'An existing credible partner or cause relationship']].map(([id, l]) => (
-            <label key={id} className="dc-check-inline"><input type="checkbox" checked={!!state.context?.[id]} onChange={e => set({ context: { ...(state.context || {}), [id]: e.target.checked } })} /> {id} · {l}</label>
-          ))}
-        </fieldset>
-
-        <fieldset className="dc-eco-set"><legend>Appropriateness gate</legend>
-          <p className="dc-meta">G1 {crit.G1?.result} · G2 {crit.G2?.result} · G3 {crit.G3?.result} · G4 {crit.G4?.result} · G5 {crit.G5?.result}</p>
-          {numField('claimsPct', 'G1 · % of central claims independently substantiated')}
-          <div className="dc-field is-wide"><label htmlFor="eco-uc">G1 · Claims that need stronger evidence</label>
-            <input id="eco-uc" className="dc-input" value={state.unsupportedClaims || ''} onChange={e => set({ unsupportedClaims: e.target.value })} placeholder="e.g. the net-zero-by-2030 claim" /></div>
-          {listField('flags', 'G2 · Red flags (controversy, lobbying contradiction, regulatory action)', [['label', 'Flag'], ['major', 'Major', 'check'], ['resolved', 'Resolved', 'check']])}
-          {numField('glassdoor', 'G2 · Glassdoor rating', 'Blank if there is no profile.', '0.1')}
-          <div className="dc-field"><label htmlFor="eco-cause">G3 · Cause territory</label>
-            <input id="eco-cause" className="dc-input" value={state.causeName || ''} onChange={e => set({ causeName: e.target.value })} placeholder="Blank if none" /></div>
-          <div className="dc-field"><label htmlFor="eco-link">G3 · Link to the business</label>
-            <select id="eco-link" className="dc-select" value={state.causeLink || 'adjacent'} onChange={e => set({ causeLink: e.target.value })}>
-              <option value="direct">Direct</option><option value="adjacent">Adjacent</option><option value="none">No credible link</option>
-            </select></div>
-          {listField('verifiedTruths', 'G4 · Verified truths (a journalist could confirm each independently)', [['name', 'Truth'], ['description', 'One-line description']], { truthsEntered: true })}
-          <label className="dc-check-inline"><input type="checkbox" checked={!!state.truthsEntered} onChange={e => set({ truthsEntered: e.target.checked })} /> G4 reviewed{Array.isArray(state.verifiedTruths) && state.verifiedTruths.length ? '' : ' (none found)'}</label>
-          <div className="dc-field is-wide"><span className="dc-label">G5 · Readiness checklist ({prof})</span>
-            {G5.items.map(i => (
-              <label key={i} className="dc-check-inline"><input type="checkbox" checked={!!state.checklist?.[i]}
-                onChange={e => set({ checklistEntered: true, checklist: { ...(state.checklist || {}), [i]: e.target.checked } })} /> {prof === 'Startup' && i === 'approval' ? ECO_CONFIG.startupApprovalLabel : ECO_CONFIG.checklistLabels[i]}</label>
-            ))}
-            {prof === 'Startup' && <label className="dc-check-inline"><input type="checkbox" checked={state.mediaTrained === true} onChange={e => set({ mediaTrained: e.target.checked })} /> Spokesperson media-trained</label>}
-          </div>
-        </fieldset>
-
-        <fieldset className="dc-eco-set"><legend>Report settings</legend>
-          <div className="dc-field"><label htmlFor="eco-opener">HOWL opener</label>
-            <select id="eco-opener" className="dc-select" value={state.openerOverride || ''} onChange={e => set({ openerOverride: e.target.value || null })}>
-              <option value="">Automatic ({r.howlIntro?.opener || 'none shown'})</option><option value="standard">Standard</option><option value="sustainability">Sustainability and purpose</option><option value="startup">Startup</option>
-            </select></div>
-          <div className="dc-field"><label htmlFor="eco-sh">Stakeholder language</label>
-            <input id="eco-sh" className="dc-input" value={state.stakeholder || ''} onChange={e => set({ stakeholder: e.target.value || null })} placeholder="e.g. regulators and utilities" /></div>
-        </fieldset>
-
-      </div>
-    </section>
-  );
-}
 
 // Campaign coherence, report section 05. Renders everything after the section
 // toggle, to the design export's DOM: level and verdict, the five-step scale,
@@ -5952,6 +5829,11 @@ EARNED CREATIVE IN USE (framework 2.11):
 
 List any earned creative activations this brand has run in the last 24 months, from the earned media and social evidence above. Earned creative is an idea designed to be talked about rather than paid to be seen: the brand DID something in the world (a visible action, an installation, a product intervention, a data release, a partnership) and journalists, creators or the public carried it. It is NOT a press release, a funding or hiring announcement, a paid ad, a sponsorship logo, or routine content. Include an activation only if the evidence shows both the act and third parties carrying it. Name what you can see; if there is none, return an empty list. Do not change any score because of this list: the framework applies its own adjustment in code.
 
+EARNED CREATIVE EVIDENCE (v3.110.0): record, from the evidence above only, the raw material an earned creative idea could rest on and anything that would make attention risky. Record only what is observed, each with where it was seen; never infer or assume. Leave a list empty rather than guess.
+- verifiedTruths: specific, checkable material a journalist could confirm independently: a named data set or research, a patent, a live program or pilot, a named partnership, a measurable result. Not claims, slogans or values.
+- redFlags: controversy, regulatory or legal action, a lobbying or conduct record that contradicts the brand's message, or a pattern of serious complaints. "major" is true for anything current and material; "resolved" is true only where the evidence shows it was resolved.
+- causeTerritory: a cause or issue the brand visibly engages with, if any, and how directly it links to what the business does ("direct", "adjacent" or "none"). Null if there is none.
+
 CAMPAIGN COHERENCE ASSESSMENT (v2.9):
 
 Look across ALL the evidence above together, website, social, paid media, hashtags, and earned media, and determine whether this brand's marketing is held together by a strategy and a creative idea, or whether it is isolated tactical activity.
@@ -6072,6 +5954,11 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
 ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "max 6 words, or 'No evidence found'", "sentiment": -100 to 100 or null }`).join(',\n')}
     }
   },
+  "earnedCreativeEvidence": {
+    "verifiedTruths": [ { "name": "Short name", "description": "What it is, one line.", "source": "Where it was seen" } ],
+    "redFlags": [ { "label": "What it is, one line.", "major": false, "resolved": false, "source": "Where it was seen" } ],
+    "causeTerritory": { "name": "The cause", "link": "direct|adjacent|none" }
+  },
   "earnedCreative": {
     "activations": [
       { "name": "Short name for the activation", "what": "What the brand did in the world, one line.", "evidence": "Who carried it and where: outlet, creator or platform, with month and year." }
@@ -6132,6 +6019,8 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             // Campaign modifiers first, then the earned creative lift, which
             // stacks on them (framework 2.11).
             const adjusted = applyEarnedCreativeLift(applyCampaignModifiers(parsed, level), FRAMEWORK_VERSION);
+            // Observed earned creative evidence, cleaned; the report reads only this (v3.110.0).
+            adjusted.earnedCreativeEvidence = parseObservedEvidence(parsed.earnedCreativeEvidence) || { verifiedTruths: [], redFlags: [], causeTerritory: null };
             // Sustainability narrative read (framework 2.10). Parsed, never
             // guessed: missing means the report offers to regenerate.
             adjusted.sustainabilityNarrative = parseThesis(parsed.sustainabilityNarrative);
@@ -7720,12 +7609,11 @@ ${content.slice(0, 8000)}`;
       {eco && (
         <section className="dc-section dc-reveal" id="earned-creative">
           <SectionHeading order={sectionOrder} label="Earned creative opportunity" open={expandedSections.eco} onToggle={() => toggleSection('eco')} />
-          {expandedSections.eco && (
-            <>
-              <EcoPanel eco={eco} scores={scores} setScores={setScores} />
-              {eco.blocks.length ? <EcoBlocks blocks={eco.blocks} /> : <p className="dc-meta">The client-facing section appears once the gate inputs are in.</p>}
-            </>
-          )}
+          {/* Recommendations only, from observed evidence: no inputs (v3.110.0).
+              A report scored before the evidence was recorded needs a rescore. */}
+          {expandedSections.eco && (eco.blocks.length
+            ? <EcoBlocks blocks={eco.blocks} />
+            : <p className="dc-meta" data-field="eco-rescore">Rescore this report to generate its earned creative opportunity.</p>)}
         </section>
       )}
 

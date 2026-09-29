@@ -232,8 +232,11 @@ export function computeScores(attrs, evidence = {}, context = {}, { lite = false
   const gap = Math.min(C.need.gapCap, Math.max(0, S - V) * C.need.gapMultiplier);
   const ev = lite ? [] : C.evidenceIds.map(id => num(evidence[id])).filter(v => v !== null);
   const evidenceScore = ev.length ? ev.reduce((a, b) => a + b, 0) / ev.length : null;
-  const flags = lite ? null : C.contextIds.filter(id => context[id] === true).length;
-  const contextScore = lite ? null : Math.min(C.need.contextCap, flags * C.need.contextPerFlag);
+  // No context supplied (null) is missing, excluded from the Need Rating like
+  // any other missing input; an empty object means checked and none apply.
+  const noContext = lite || context === null;
+  const flags = noContext ? null : C.contextIds.filter(id => context[id] === true).length;
+  const contextScore = noContext ? null : Math.min(C.need.contextCap, flags * C.need.contextPerFlag);
   return { visibility: V, substance: S, deficit, gap, evidence: evidenceScore, context: contextScore };
 }
 
@@ -413,7 +416,8 @@ export function selectHowlIntro(outcome, { profile = 'Standard', causeTerritory 
 // input: { attrs, evidence, context, gateInputs, maturityStage, profile,
 //          openerOverride, stakeholder, lite }
 export function runEco(input) {
-  const { attrs, evidence = {}, context = {}, gateInputs = {}, maturityStage, profile = 'Standard', lite = false } = input;
+  const { attrs, evidence = {}, gateInputs = {}, maturityStage, profile = 'Standard', lite = false } = input;
+  const context = input.context === null ? null : (input.context || {});
   const scores = computeScores(attrs, evidence, context, { lite });
   const need = computeNeed(scores, attrs, profile, { lite });
   const gate = lite
@@ -423,7 +427,7 @@ export function runEco(input) {
   const ambitionLevel = calibrateAmbition(outcome, gate.result, maturityStage, profile);
 
   const causeTerritory = !!gate.criteria?.G3?.causeTerritory;
-  const howlIntro = selectHowlIntro(outcome, { profile, causeTerritory, c5: context.C5 === true, openerOverride: input.openerOverride });
+  const howlIntro = selectHowlIntro(outcome, { profile, causeTerritory, c5: context?.C5 === true, openerOverride: input.openerOverride });
 
   return {
     version: C.version,
@@ -688,52 +692,44 @@ export function applyEarnedCreativeLift(scores, frameworkVersion = null) {
   return out;
 }
 
-// ── From a saved report to the module's result ───────────────
-// The analyst's inputs live on the report as scores.eco (JSONB, no
-// migration). The panel collects plain facts; the evidence scores are derived
-// here so the arithmetic stays in one place:
-//   E1  % of coverage triggered by announcements (entered directly)
-//   E2  100 minus the brand's share of voice as a % of the leader's, floor 0
-//   E3  100 minus the % of mentions not prompted by the brand
-//   E4  from the count of uncovered assets (0, 1, 2, 3+)
-//   E5  from the count of idea-driven stories in priority outlets
-// Anything left blank is missing, and missing is excluded, never zero.
-export function ecoEvidence(state = {}) {
-  const n = (v) => (v === '' || v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
-  const e = {};
-  if (n(state.announcementPct) !== null) e.E1 = Math.max(0, Math.min(100, n(state.announcementPct)));
-  if (n(state.sovVsLeaderPct) !== null) e.E2 = Math.max(0, 100 - n(state.sovVsLeaderPct));
-  if (n(state.organicPct) !== null) e.E3 = Math.max(0, Math.min(100, 100 - n(state.organicPct)));
-  const assets = Array.isArray(state.e4Assets) ? state.e4Assets.filter(a => String(a?.name || '').trim()) : [];
-  if (assets.length || state.e4NoneFound) e.E4 = C.e4Scale[Math.min(assets.length, C.e4Scale.length - 1)];
-  const stories = n(state.ideaStories);
-  if (stories !== null) e.E5 = stories === 0 ? C.e5Scale.none : stories <= 2 ? C.e5Scale.oneToTwo : C.e5Scale.threePlus;
-  return { evidence: e, assets };
+// ── From a saved report to the module's result (v3.110.0) ────
+// The final report carries recommendations, not an input form. Everything
+// the module reads is observed: the attribute scores, plus what the scoring
+// pass records from the readouts in scores.earnedCreativeEvidence:
+//   verifiedTruths  named, checkable material (data sets, patents, programs,
+//                   partnerships), each with where it was seen: G4 and the
+//                   raw material and ladder examples
+//   redFlags        controversy, regulatory action, lobbying contradictions,
+//                   each with its source: G2
+//   causeTerritory  a cause the brand visibly engages with, and how directly
+//                   it links to the business: G3
+// G1 proof rests on REFLECTIVE and G5 readiness on INTENTIONAL, since claims
+// audits and readiness checklists can't be observed from outside. The evidence
+// figures and context flags were internal knowledge and are not used, so the
+// Need Rating rests on the visibility deficit and the substance gap. A report
+// scored before this has no recorded evidence: its gate stays Pending and no
+// earned creative section is shown until it is rescored.
+export function parseObservedEvidence(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const text = (v) => String(v ?? '').trim();
+  const list = (arr, map) => (Array.isArray(arr) ? arr.map(map).filter(Boolean) : []);
+  const verifiedTruths = list(raw.verifiedTruths, t => (text(t?.name) ? { name: text(t.name), description: text(t.description), source: text(t.source) } : null));
+  const redFlags = list(raw.redFlags, f => (text(f?.label) ? { label: text(f.label), major: f.major === true, resolved: f.resolved === true, source: text(f.source) } : null));
+  const ct = raw.causeTerritory;
+  const causeTerritory = ct && text(ct.name) ? { name: text(ct.name), link: ['direct', 'adjacent', 'none'].includes(ct.link) ? ct.link : 'adjacent' } : null;
+  return { verifiedTruths, redFlags, causeTerritory };
 }
 
 export function ecoFromReport(scores, { brand, companyStage, stageName }) {
-  const state = scores?.eco || {};
   const attrs = Object.fromEntries(['AWAKE', 'SENTIENT', 'AWARE', 'VISIONARY', 'COGENT', 'ATTENTIVE', 'INTENTIONAL', 'REFLECTIVE'].map(id => [id, scores?.[id]?.score]));
-  const { evidence, assets } = ecoEvidence(state);
-  const clean = (list) => (Array.isArray(list) ? list.filter(x => String(x?.name || x?.label || '').trim()) : null);
+  const observed = parseObservedEvidence(scores?.earnedCreativeEvidence);
   const gateInputs = {
-    claimsPct: state.claimsPct,
-    unsupportedClaims: state.unsupportedClaims || '',
-    flags: clean(state.flags) || [],
-    glassdoor: state.glassdoor,
-    causeTerritory: String(state.causeName || '').trim() ? { name: state.causeName.trim(), link: state.causeLink || 'adjacent' } : null,
-    verifiedTruths: state.truthsEntered ? (clean(state.verifiedTruths) || []) : null,
-    checklist: state.checklistEntered ? (state.checklist || {}) : null,
-    mediaTrained: state.mediaTrained === undefined ? undefined : state.mediaTrained,
+    flags: observed ? observed.redFlags.map(f => ({ label: f.label, major: f.major, resolved: f.resolved })) : [],
+    causeTerritory: observed?.causeTerritory || null,
+    verifiedTruths: observed ? observed.verifiedTruths : null,   // null: not recorded, so G4 is Pending
   };
   const profile = ecoProfileFor(companyStage);
-  const result = runEco({
-    attrs, evidence, context: state.context || {}, gateInputs,
-    maturityStage: ecoStageFor(stageName), profile,
-    openerOverride: state.openerOverride || null,
-  });
-  const blocks = result.outcome
-    ? buildReportSection(result, { brand, evidence, gateInputs, e4Assets: assets, stakeholder: state.stakeholder || null, context: state.context || {} })
-    : [];
-  return { result, blocks, evidence, gateInputs, profile, state };
+  const result = runEco({ attrs, evidence: {}, context: null, gateInputs, maturityStage: ecoStageFor(stageName), profile });
+  const blocks = result.outcome ? buildReportSection(result, { brand, evidence: {}, gateInputs, e4Assets: [], context: null }) : [];
+  return { result, blocks, gateInputs, profile, observed };
 }

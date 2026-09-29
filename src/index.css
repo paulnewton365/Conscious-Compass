@@ -1444,17 +1444,7 @@ button { font: inherit; color: inherit; }
 .dc-eco-note { margin: var(--cc-s-3) 0 0; font-size: var(--cc-fs-ui); line-height: 1.5; color: var(--cc-body); max-width: 70ch; }
 .dc-eco-size p { font-size: var(--cc-fs-lead); line-height: 1.45; color: var(--cc-ink); }
 .dc-eco-next { margin: 0; font-size: var(--cc-fs-ui); font-weight: var(--cc-w-semi); color: var(--cc-ink); }
-.dc-eco-panel { display: flex; flex-direction: column; gap: var(--cc-s-5); }
-.dc-eco-set { border: 0; border-top: var(--cc-border); margin: 0; padding: var(--cc-s-4) 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-s-4); }
-.dc-eco-set > legend { padding: 0 var(--cc-s-2) 0 0; font-size: var(--cc-fs-meta); font-weight: var(--cc-w-semi); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-muted); }
-.dc-eco-set > .dc-field.is-wide, .dc-eco-set > p, .dc-eco-set > ul, .dc-eco-set > .dc-check-inline { grid-column: 1 / -1; }
-.dc-eco-row { display: flex; flex-wrap: wrap; gap: var(--cc-s-2); align-items: center; }
-.dc-eco-row .dc-input { flex: 1 1 200px; }
-.dc-eco-acts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--cc-s-2); }
-.dc-eco-acts li { display: flex; justify-content: space-between; align-items: baseline; gap: var(--cc-s-4); font-size: var(--cc-fs-ui); color: var(--cc-body); }
-.dc-eco-acts li.is-removed > div { text-decoration: line-through; color: var(--cc-faint); }
 @media (max-width: 720px) {
-  .dc-eco-set { grid-template-columns: minmax(0, 1fr); }
   .dc-eco-verdict { font-size: 23px; }
 }
 

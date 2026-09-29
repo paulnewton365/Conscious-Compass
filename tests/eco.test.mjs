@@ -212,23 +212,7 @@ test('the lift stacks on the campaign coherence modifier', () => {
   assert.equal(s.SENTIENT.baseScore, 40);
 });
 
-test('the panel facts become evidence scores; blanks stay missing', () => {
-  const { evidence } = eco.ecoEvidence({ announcementPct: 80, sovVsLeaderPct: 40, organicPct: 30, e4Assets: [{ name: 'A' }, { name: 'B' }], ideaStories: 0 });
-  assert.deepEqual(evidence, { E1: 80, E2: 60, E3: 70, E4: 70, E5: 100 });
-  assert.deepEqual(eco.ecoEvidence({}).evidence, {}, 'nothing entered, nothing scored');
-  assert.equal(eco.ecoEvidence({ e4NoneFound: true }).evidence.E4, 0, 'checked and none found is a real zero');
-  assert.equal(eco.ecoEvidence({ sovVsLeaderPct: 140 }).evidence.E2, 0, 'floor 0');
-});
 
-test('from a saved report: nothing is shown until the gate has its inputs', () => {
-  const r = eco.ecoFromReport(scored(), { brand: 'Acme', companyStage: 'scaleup', stageName: 'Establishing' });
-  assert.equal(r.result.gate.result, 'Pending'); assert.deepEqual(r.blocks, []);
-  const full = eco.ecoFromReport({ ...scored(), eco: { claimsPct: 90, glassdoor: 4, truthsEntered: true, verifiedTruths: [{ name: 'A', description: 'x' }, { name: 'B', description: 'y' }], checklistEntered: true, checklist: { riskAppetite: true, spokesperson: true, approval: true, followThrough: true } } },
-    { brand: 'Acme', companyStage: 'startup', stageName: 'Foundational' });
-  assert.equal(full.profile, 'Startup', 'derived from the company stage');
-  assert.equal(full.result.maturityStage, 1);
-  assert.ok(full.blocks.length > 0);
-});
 
 test('the scoring pass lists activations, and the lift is applied in code after the campaign modifiers', () => {
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
@@ -266,11 +250,50 @@ test('T8/T9 replaced: an override in the input changes nothing, accepted or not'
   assert.equal(typeof eco.validateOverride, 'undefined', 'the function is gone');
 });
 
-test('a saved report with an old override and an old profile choice is judged on its evidence alone', () => {
-  const s = Object.fromEntries(Object.entries({ AWAKE: 78, SENTIENT: 74, AWARE: 72, VISIONARY: 76, COGENT: 70, ATTENTIVE: 75, INTENTIONAL: 72, REFLECTIVE: 78 }).map(([k, v]) => [k, { score: v }]));
-  const base = { claimsPct: 95, glassdoor: 4.2, truthsEntered: true, verifiedTruths: [{ name: 'A' }, { name: 'B' }], checklistEntered: true, checklist: { riskAppetite: true, spokesperson: true, approval: true, followThrough: true } };
-  const clean = eco.ecoFromReport({ ...s, eco: base }, { brand: 'X', companyStage: 'leader', stageName: 'Transforming' });
-  const old = eco.ecoFromReport({ ...s, eco: { ...base, override: { outcome: 'Not a current priority', reason: 'r', by: 'p', at: 'a' }, profile: 'Startup' } }, { brand: 'X', companyStage: 'leader', stageName: 'Transforming' });
-  assert.equal(old.result.outcome, clean.result.outcome);
-  assert.equal(old.profile, 'Standard', 'the saved profile choice is ignored');
+
+// ── v3.110.0: recommendations from observed evidence, no inputs ──
+
+const obsScores = (evidence, over = {}) => ({ ...Object.fromEntries(Object.entries({ AWAKE: 35, SENTIENT: 40, AWARE: 50, VISIONARY: 80, COGENT: 70, ATTENTIVE: 70, INTENTIONAL: 70, REFLECTIVE: 72, ...over }).map(([k, v]) => [k, { score: v }])), earnedCreativeEvidence: evidence });
+
+test('a report scored before the evidence was recorded shows nothing until rescored', () => {
+  const r = eco.ecoFromReport(obsScores(undefined), { brand: 'Acme', companyStage: 'scaleup', stageName: 'Differentiating' });
+  assert.equal(r.result.gate.criteria.G4.result, 'Pending'); assert.deepEqual(r.blocks, []);
+});
+
+test('observed evidence drives the gate; proof and readiness rest on the scores', () => {
+  const ev = { verifiedTruths: [{ name: 'Grid pilot data set', description: 'Published with the utility commission', source: 'Utility Dive, March 2026' }, { name: 'Patent US1234567', description: 'Storage control', source: 'USPTO' }],
+    redFlags: [], causeTerritory: { name: 'Grid decarbonization', link: 'direct' } };
+  const r = eco.ecoFromReport(obsScores(ev), { brand: 'GridCo', companyStage: 'leader', stageName: 'Differentiating' });
+  const c = r.result.gate.criteria;
+  assert.deepEqual(['G1', 'G2', 'G3', 'G4', 'G5'].map(id => c[id].result), ['Pass', 'Pass', 'Pass', 'Pass', 'Pass']);
+  assert.equal(c.G1.limitedEvidence, true, 'REFLECTIVE only'); assert.equal(c.G5.limitedEvidence, true, 'INTENTIONAL only');
+  assert.equal(r.result.scores.evidence, null); assert.equal(r.result.scores.context, null, 'no internal-only inputs');
+  assert.ok(Math.abs(r.result.needRating - (0.40 * r.result.scores.deficit + 0.35 * r.result.scores.gap) / 0.75) < 1e-9, 'need rests on D and G');
+  assert.ok(r.blocks.find(b => b.id === 'rawMaterial').items[0].startsWith('Grid pilot data set'));
+  const flagged = eco.ecoFromReport(obsScores({ ...ev, redFlags: [{ label: 'Lobbying against a clean energy bill', major: true, resolved: false, source: 'InfluenceMap' }] }), { brand: 'GridCo', companyStage: 'leader', stageName: 'Differentiating' });
+  assert.equal(flagged.result.gate.criteria.G2.result, 'Fail');
+  assert.equal(flagged.blocks.find(b => b.id === 'ladder').ready, 'foundations', 'a major unresolved flag keeps it at Foundations');
+});
+
+test('whatever an old report carried in its inputs panel is ignored', () => {
+  const ev = { verifiedTruths: [{ name: 'A' }, { name: 'B' }], redFlags: [], causeTerritory: null };
+  const clean = eco.ecoFromReport(obsScores(ev), { brand: 'X', companyStage: 'leader', stageName: 'Leading' });
+  const old = eco.ecoFromReport({ ...obsScores(ev), eco: { claimsPct: 10, checklistEntered: true, checklist: {}, context: { C1: true }, override: { outcome: 'Recommend', reason: 'x' }, profile: 'Startup', announcementPct: 99 } }, { brand: 'X', companyStage: 'leader', stageName: 'Leading' });
+  assert.deepEqual(old.result.outcome, clean.result.outcome); assert.equal(old.profile, 'Standard'); assert.equal(old.result.needRating, clean.result.needRating);
+});
+
+test('the evidence parser keeps only named, checkable items', () => {
+  const p = eco.parseObservedEvidence({ verifiedTruths: [{ name: ' X ', description: 'd' }, { name: '' }, null], redFlags: [{ label: 'Y', major: 'yes' }], causeTerritory: { name: 'Z', link: 'sideways' } });
+  assert.deepEqual(p.verifiedTruths.map(t => t.name), ['X']);
+  assert.equal(p.redFlags[0].major, false, 'only a true boolean counts as major');
+  assert.equal(p.causeTerritory.link, 'adjacent');
+  assert.equal(eco.parseObservedEvidence(null), null);
+});
+
+test('the scoring pass records the evidence, observed only', () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('"earnedCreativeEvidence": {'));
+  assert.ok(app.includes('Record only what is observed, each with where it was seen; never infer or assume.'));
+  assert.ok(app.includes('adjusted.earnedCreativeEvidence = parseObservedEvidence(parsed.earnedCreativeEvidence)'));
+  assert.ok(!app.includes('function EcoPanel('), 'no inputs panel');
 });

@@ -138,75 +138,28 @@ test('Saved: read-only users get no import or client links', () => {
   assert.equal(doc.querySelector('.dc-head-actions'), null);
 });
 
-// ── Earned creative panel and views (ECO module, v3.104.0) ───
+// ── Earned creative on the report: recommendations only (v3.110.0) ──
 
-const ecoScores = (eco = {}, extra = {}) => ({
+const ecoScores = (evidence, extra = {}) => ({
   AWAKE: { score: 38 }, SENTIENT: { score: 42 }, AWARE: { score: 45 }, VISIONARY: { score: 70 }, COGENT: { score: 60 },
-  ATTENTIVE: { score: 60 }, INTENTIONAL: { score: 62 }, REFLECTIVE: { score: 40 }, eco, ...extra });
-const G1_FAIL = { claimsPct: 70, glassdoor: 3.9, truthsEntered: true, verifiedTruths: [{ name: 'Grid pilot data set', description: 'Published 2025' }, { name: 'Patent US1234567', description: 'Storage control' }],
-  checklistEntered: true, checklist: { riskAppetite: true, spokesperson: true, approval: true, followThrough: true }, announcementPct: 75 };
+  ATTENTIVE: { score: 60 }, INTENTIONAL: { score: 62 }, REFLECTIVE: { score: 40 }, earnedCreativeEvidence: evidence, ...extra });
+const G1_FAIL = { verifiedTruths: [{ name: 'Grid pilot data set', description: 'Published 2025', source: 'Utility Dive' }, { name: 'Patent US1234567', description: 'Storage control', source: 'USPTO' }], redFlags: [], causeTerritory: null };
 
-async function mountPanel(initial, profile) {
+test('the report shows the recommendation and HOWL, with no inputs anywhere', async () => {
   const eco = await import('../src/lib/eco.js');
-  const container = document.createElement('div'); document.body.appendChild(container);
-  const root = client.createRoot(container);
-  let latest = initial;
-  const Harness = () => {
-    const [s, setS] = React.useState(initial);
-    latest = s;
-    const data = eco.ecoFromReport(s, { brand: 'MKB', companyStage: 'scaleup', stageName: 'Differentiating' });
-    return h(React.Fragment, null,
-      h(App.EcoPanel, { eco: data, scores: s, setScores: setS }),
-      h(App.EcoBlocks, { blocks: data.blocks }));
-  };
-  await act(async () => { root.render(h(Harness)); });
-  return { container, root, get: () => latest };
-}
-
-test('the ECO panel is internal, and the client blocks carry HOWL with its wordmark', async () => {
-  const m = await mountPanel(ecoScores(G1_FAIL), { is_admin: true });
-  assert.ok(m.container.querySelector('section.dc-internal[data-field="eco-panel"]'));
-  assert.equal(m.container.querySelector('.dc-eco-verdict').textContent, 'MKB has an earned creative opportunity. Here is how far it can go today, and what would take it further.');
-  const ready = m.container.querySelector('.dc-eco-ladder li.is-ready');
-  assert.equal(ready.querySelector('b').textContent, 'Foundations', 'G1 fails: it starts at Foundations');
-  assert.equal(ready.getAttribute('aria-current'), 'step');
-  assert.equal(ready.querySelector('.dc-eco-badge').textContent, 'Ready now');
-  assert.equal(m.container.querySelector('.dc-eco-ladder li.is-reach .dc-eco-badge').textContent, 'Within reach');
-  const howl = m.container.querySelector('.dc-eco-howl');
-  assert.equal(howl.getAttribute('data-howl'), 'short');
-  assert.equal(howl.querySelector('img').getAttribute('src'), '/howl-logo.svg');
-  assert.equal(howl.querySelector('.dc-eco-lockup span').textContent, 'by Antenna');
-  assert.equal(m.container.querySelector('.dc-eco').textContent.includes('\u2014'), false, 'no em dashes');
-  await act(async () => m.root.unmount());
-});
-
-test('the ECO panel has no override and no profile choice: evidence only (v3.107.0)', async () => {
-  const m = await mountPanel(ecoScores(G1_FAIL), { is_admin: true });
-  assert.equal(m.container.querySelector('[data-field="eco-override"]'), null, 'no override, even for admins');
-  assert.equal(m.container.querySelector('#eco-profile'), null, 'no profile selector');
-  assert.match(m.container.querySelector('[data-field="eco-profile"]').textContent, /from the company stage set at Setup/);
-  assert.ok(![...m.container.querySelectorAll('button')].some(b => /override/i.test(b.textContent)));
-  await act(async () => m.root.unmount());
-});
-
-test('removing the scoring pass activations takes the SENTIENT and INTENTIONAL lift away', async () => {
-  const eco = await import('../src/lib/eco.js');
-  const start = eco.applyEarnedCreativeLift(ecoScores(G1_FAIL, { earnedCreative: { activations: [{ name: 'Open grid data', what: 'Released grid data', evidence: 'Canary Media, March 2026' }] } }));
-  assert.equal(start.SENTIENT.score, 45);
-  const m = await mountPanel(start, { is_admin: true });
-  const btn = [...m.container.querySelectorAll('.dc-eco-acts button')].find(b => b.textContent === 'Remove');
-  await act(async () => { btn.click(); });
-  assert.equal(m.get().SENTIENT.score, 42); assert.equal(m.get().INTENTIONAL.score, 62);
-  assert.ok(m.container.querySelector('.dc-eco-acts li.is-removed'));
-  await act(async () => { [...m.container.querySelectorAll('.dc-eco-acts button')].find(b => b.textContent === 'Restore').click(); });
-  assert.equal(m.get().SENTIENT.score, 45, 'restoring brings it back');
-  await act(async () => m.root.unmount());
+  const data = eco.ecoFromReport(ecoScores(G1_FAIL), { brand: 'MKB', companyStage: 'scaleup', stageName: 'Differentiating' });
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.EcoBlocks, { blocks: data.blocks }))).window.document;
+  assert.equal(doc.querySelectorAll('input, select, textarea, fieldset').length, 0, 'no form controls');
+  assert.equal(doc.querySelector('.dc-eco-ladder li.is-ready b').textContent, 'Foundations', 'REFLECTIVE 40 fails G1: it starts at Foundations');
+  assert.equal(doc.querySelector('.dc-eco-howl img').getAttribute('src'), '/howl-logo.svg');
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('Rescore this report to generate its earned creative opportunity.'), 'older reports are told to rescore, not given a form');
 });
 
 test('the client payload sends the blocks only, and nothing while the gate is pending', () => {
-  const pending = App.makeClientPayload({ project: { brandName: 'MKB', industry: 'energy' }, scores: ecoScores({}), benchmark: null });
+  const pending = App.makeClientPayload({ project: { brandName: 'MKB', industry: 'energy' }, scores: ecoScores(undefined), benchmark: null });
   assert.equal(pending.eco, null);
-  const ready = App.makeClientPayload({ project: { brandName: 'MKB', industry: 'energy' }, scores: ecoScores({ ...G1_FAIL, override: { outcome: 'Moment-driven', reason: 'secret reason', by: 'Paul', at: 'x' } }), benchmark: null });
+  const ready = App.makeClientPayload({ project: { brandName: 'MKB', industry: 'energy' }, scores: ecoScores(G1_FAIL, { eco: { override: { outcome: 'Moment-driven', reason: 'secret reason' }, claimsPct: 90, glassdoor: 4, announcementPct: 70 } }), benchmark: null });
   assert.deepEqual(Object.keys(ready.eco), ['blocks']);
   const json = JSON.stringify(ready);
   for (const leak of ['secret reason', 'claimsPct', 'glassdoor', 'announcementPct']) assert.ok(!json.includes(leak), leak);
