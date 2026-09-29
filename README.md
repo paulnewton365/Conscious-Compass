@@ -4,7 +4,7 @@
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-3.96.0-blue)
+![Version](https://img.shields.io/badge/version-3.97.1-blue)
 ![Rubric](https://img.shields.io/badge/rubric-v2.9-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
 
@@ -309,7 +309,6 @@ Browser → /api/claude (Vercel serverless) → Anthropic API
 | `api/claude.js` | 300 | The scoring prompt runs to roughly 6,000 tokens and asks for about 3,400 back |
 | `api/pagespeed.js` | 300 | A four-category desktop Lighthouse run regularly takes 30 to 90 seconds |
 | `api/scrape.js` | 60 | Jina Reader fetch for property homepage text |
-| `api/search.js` | 120 | Web search round trip |
 | All four cron endpoints | 300 | Weekly AI composition |
 
 **300 seconds requires a Pro plan** — on Hobby the ceiling is 60, which is usually still enough.
@@ -339,8 +338,6 @@ It is idempotent and safe on a live database. Every statement uses `IF NOT EXIST
 
 Then run **`docs/SUPABASE_VERIFY.sql`** to confirm. It reads only and reports PASS or the specific problem for 49 checks: tables, columns, RLS enabled, policies present, the signup trigger, cascade delete, at least one admin, orphaned auth users, and duplicate brand names that would break saving.
 
-`supabase-schema.sql` and the two files in `docs/CLIENT_REPORTS_MIGRATION*.sql` are superseded and kept for reference. Do not run them: the original left the cache tables and several columns as commented-out instructions, so a fresh deploy from it produced a database the app could not use.
-
 ### Tables
 
 | Table | Purpose |
@@ -364,46 +361,53 @@ All cache tables use RLS with a read-only policy for authenticated users. Server
 
 ```
 conscious-compass/
-├── api/
+├── api/                                     # Vercel serverless functions
 │   ├── claude.js                            # Anthropic API proxy
 │   ├── knowledge-graph.js                   # Google Knowledge Graph lookup
 │   ├── pagespeed.js                         # PageSpeed Insights proxy
 │   ├── scrape.js                            # Jina Reader proxy for homepage text
 │   ├── youtube.js                           # YouTube Data API proxy
-│   ├── search.js                            # Web search proxy
-│   ├── stay-conscious.js                    # GET brand intelligence cache
-│   ├── refresh-stay-conscious.js            # Cron: refresh brand intelligence
-│   ├── landscape-analysis.js               # GET landscape analysis cache
-│   ├── refresh-landscape-analysis.js       # Cron: refresh landscape analysis
-│   ├── insights-analysis.js                # GET story opportunities cache
-│   ├── refresh-insights-analysis.js        # Cron: refresh story opportunities
-│   ├── stay-conscious-newsletter.js        # GET newsletter cache
+│   ├── refresh-stay-conscious.js            # Cron: brand intelligence (feeds the newsletter)
+│   ├── landscape-analysis.js                # GET landscape analysis cache
+│   ├── refresh-landscape-analysis.js        # Cron: refresh landscape analysis
+│   ├── insights-analysis.js                 # GET story opportunities cache
+│   ├── refresh-insights-analysis.js         # Cron: refresh story opportunities
+│   ├── stay-conscious-newsletter.js         # GET newsletter cache
 │   ├── refresh-stay-conscious-newsletter.js # Cron: compose newsletter
-│   ├── list-users.js                       # Admin: list all users
-│   └── delete-user.js                      # Admin: delete user
+│   ├── list-users.js                        # Admin: list all users
+│   └── delete-user.js                       # Admin: delete user
 ├── src/
-│   ├── App.jsx             # Main application (~14,700 lines)
+│   ├── App.jsx                # Main application (~16,100 lines)
+│   ├── index.css              # Design tokens and every dc-* rule
+│   ├── main.jsx               # Entry point
 │   ├── data/
-│   │   ├── rubric.js       # Framework v2.9 — attributes, campaign ladder, footprint channels
+│   │   ├── rubric.js          # Framework 2.10: attributes, campaign ladder, footprint, trust lenses
+│   │   ├── thesis.js          # Sustainability narrative thesis
+│   │   ├── stages.js          # Company stage framework
+│   │   ├── sectorProfiles.js  # Sector calibration
 │   │   └── serviceMapping.js  # Service recommendations mapped to attributes
-│   ├── lib/
-│   │   ├── api.js          # API helper utilities
-│   │   └── supabase.js     # Supabase client and auth functions
-│   ├── index.css           # Global styles and design tokens
-│   └── main.jsx            # Entry point
-├── docs/
-│   ├── SUPABASE_SETUP.sql              # Run this: complete idempotent setup
-│   ├── SUPABASE_VERIFY.sql             # Run after: 49 checks, reads only
-│   ├── WHAT_IS_A_CONSCIOUS_BRAND.md
-│   ├── CLIENT_REPORTS_MIGRATION.sql    # Superseded, reference only
-│   └── CLIENT_REPORTS_MIGRATION_2.sql  # Superseded, reference only
+│   └── lib/
+│       ├── api.js, supabase.js                              # AI and database clients
+│       ├── campaignCoherence.js, footprintChart.js, trustLensView.js  # Report section view models
+│       ├── teaser.js, teaserReport.js, teaserExport.js      # Teaser assessment, report and Excel export
+│       ├── scorecard.js, cardVector.js, slideVector.js      # Baseball card and proposal slide
+│       ├── deckExport.js, deckCharts.js                     # Readout deck
+│       └── lazyZip.js                                       # JSZip on demand
 ├── public/
-│   └── fully-conscious-badge.png
+│   ├── fully-conscious-badge.png  # Badge and favicon
+│   ├── fonts/                     # woff2 for the browser
+│   ├── report/                    # TTF embedded in PDF exports
+│   ├── scorecard/                 # Card and slide assets
+│   └── version.json
+├── docs/
+│   ├── SUPABASE_SETUP.sql         # Run this: complete idempotent setup
+│   ├── SUPABASE_VERIFY.sql        # Run after: 49 checks, reads only
+│   └── WHAT_IS_A_CONSCIOUS_BRAND.md
+├── tests/                         # npm test; tests/sql runs separately against Postgres
 ├── scripts/
-│   └── bump-version.cjs    # Auto-increments patch version on build
-├── supabase-schema.sql
+│   └── bump-version.cjs           # Auto-increments patch version on npm run build
 ├── package.json
-├── vercel.json             # Build config + cron schedules
+├── vercel.json                    # Build config, function timeouts, cron schedules
 └── vite.config.js
 ```
 
@@ -509,6 +513,10 @@ Evidence is gathered automatically and in parallel: website pages, a social scan
 **Stage and sector calibration (v3.56, method 2.4).** Two rubric assumptions were breaking smaller and non-cleantech brands. Company stage is now a required field on the teaser, using Antenna's six-stage framework (`src/data/stages.js`): Startup, Scaleup, Market Leader, Multinational, Conglomerate, Global Brand. Each stage names what a company at it would not yet have (Glassdoor, employee advocacy, analyst recognition, Wikipedia, share of voice, impact reporting, candour about litigation), which then counts neither for nor against, and what to judge instead (founder visibility, named early customers, a findable entity, candour about what is unproven). Stage also steers which services are worth naming. Sector profiles (`src/data/sectorProfiles.js`) give Real Estate & Construction and Energy & Utilities their own audiences, proof, channels, weak indicators and tone; other sectors get guidance to read their own conventions rather than borrowing cleantech's. Both change interpretation only: attribute weights and the overall calculation are untouched, so baselines stay comparable. The export separates Maturity (the band the score falls into) from Stage (where the company is in its evolution).
 
 **The old stylesheet removed (v3.77).** The app had been carrying its entire pre-restyle stylesheet underneath the design system: 653 lines defining 52 of the same classes, including every button, and setting properties the new rules never reset. That is where the stray button colours, the header underlines and the alignment came from. It is gone; eight rules the system does not cover were carried forward. Nineteen of my own earlier patches were also removed, since they predated the system and were overriding it. The header is rebuilt to the export: a 64px shell, the `.dc-wordmark`, a text nav marked with `aria-current` rather than a class, and a Menu button below 900px.
+
+**Redundant files removed (v3.97.1).** Fourteen files that nothing loaded, ran or should run are gone: the Vite starter leftovers (`src/App.css`, `src/assets/react.svg`, `public/vite.svg`); `public/favicon.png`, a byte-identical copy of `fully-conscious-badge.png`, which `index.html` now points at directly; `api/search.js` and `api/stay-conscious.js`, which nothing called (the weekly `refresh-stay-conscious` cron stays, since the newsletter reads its cache); the always-skipped Welcome parity test and its `dom-diff` helper, which pointed at a path outside the repo; the superseded `supabase-schema.sql` and both client report migrations; and `ARCHITECTURE.html`, `ARCHITECTURE.mermaid` and `STYLE_GUIDE.md`, which described v2.x and the retired chartreuse and Inter design system. The `api/search.js` timeout entry is removed from `vercel.json`, since Vercel rejects a function config that matches no file. The project structure above is rewritten to match the repo. No app behaviour changes.
+
+**Brand footprint and trust lens, rebuilt (v3.97).** Sections 04 and 06 are rebuilt to the design packet, replacing the last inline-styled markup on the report. Both sit in `section.dc-section` with the packet's ids (`#footprint`, `#trust-lens`) and are shared literally by the full report and the client report; the trust lens also renders in the teaser prospect view. The footprint chart is drawn from the packet's geometry in `src/lib/footprintChart.js`: fixed channel angles with market on the right and brand on the left, node radius 12 + score × 3.2, links bowed 45% toward the centre. A test checks every coordinate against the packet's own SVG. The table sorts highest first with ties alphabetical. The corroboration sentence names the linked pairs. Two things the packet drops are kept because they are the evidence behind the scores: what was observed on each channel, as a muted line under its name, and what the model found connecting each linked pair. Long brand names step the core label down a size. The trust lens is built from `button.dc-weight` columns, with heights for reach out of 4 and weights out of 40%. Clicking a column spotlights that attribute across all five rows through `data-spot` and `aria-pressed`, and clicking again clears it. The scale keeps its dynamic window, sized to the lens scores and the Compass overall, because a fixed 25 to 50 would pin any lens above 50 at the right edge; 25 to 50 is what the window produces for the packet's own sample. Findings sit in `.dc-behind`, with a "Findings not captured" alert when there are none, and stay off the client view and its payload. Presence bands keep the rubric's names (Present, not Incidental). Retired: the hover tooltip, the count-up and bar animations, the rust lead bar, the `FP_*` palette and the dead `.dc-fpmap`, `.dc-fp-line`, `.dc-lens-row` and `.dc-lens-bars` rules. Finding pills now sit left under their text rather than inheriting the recommendations' right alignment.
 
 **Campaign coherence, rebuilt (v3.96).** Section 05 is rebuilt to the design packet as one shared component, `CampaignCoherencePanel`, used by the full report, the client report and the legacy shared view, so the three can no longer drift. It shows the level and verdict, a five-step scale (`.is-reached` below, `.is-current` at, with `aria-current`), notes for why this level, the next step and confidence, then the campaigns found. Level names and one-line definitions come from the rubric ladder, not the packet's placeholder text, so the report never defines a level differently from the ladder the brand was scored against. Level 0 reads "Below level 1" with no step marked; level 5 drops the next-step note. The confidence basis is counted in code from the campaigns returned ("Based on 3 campaigns found across 5 channels"); the model supplies only low, medium or high. The client view keeps its existing payload: level, verdict, rationale and next step, with no campaign list or confidence. The animated ladder is retired. Unscored reports show a "Not scored yet" alert with Regenerate. Attribute reach columns for one to three lenses move from #C9C4BA to `--cc-faint` (#8A8E95), which clears 3:1 against the paper. DOCX, PDF and plain-text exports are unchanged.
 

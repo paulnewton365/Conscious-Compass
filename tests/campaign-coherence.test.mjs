@@ -238,6 +238,4 @@ test('the stylesheet carries the packet block verbatim and the new reach tone', 
   const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   for (const c of ['.dc-cc {', '.dc-cc-scale li.is-current i', '.dc-cc-notes {', '.dc-cc-campaigns {', '.dc-cc-card {']) assert.ok(css.includes(c), c);
   assert.ok(css.includes('.dc-reach .dc-weight-col > i { background: var(--cc-faint); }'));
-  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  assert.ok(src.includes("count === 0 ? RULE : '#8A8E95'"), 'the rendered reach columns use the faint tone');
 });

@@ -607,17 +607,6 @@ test('the score adjustment panel spans the attribute grid', () => {
   assert.ok(panel.includes('className="dc-h is-card"'), 'its heading uses the system');
 });
 
-test('brand footprint follows the export: head, chart and the channel table', () => {
-  const fp = app.slice(app.indexOf('dc-fp-head') - 400, app.indexOf('dc-fp-table') + 2200);
-  assert.ok(fp.includes('<div className="dc-fp-head">'), 'the export\'s head');
-  assert.ok(fp.includes('className="dc-fp-stats"') && fp.includes('className="dc-stat-n"'), 'counts as serif numerals');
-  assert.ok(fp.includes('<div className="dc-fp">') && fp.includes('<figure>'), 'chart and table side by side');
-  assert.ok(fp.includes('className="dc-fp-table"'), 'the channel table');
-  assert.ok(fp.includes('className="dc-fp-seg"'), 'presence as a ten-segment scale');
-  assert.ok(fp.includes("isBrandVoice(r.id) ? 'Brand' : 'Market'"), 'who drives each channel, from the data');
-  assert.ok(fp.includes('getPresenceLevel(r.level)?.name'), 'the level in words');
-});
-
 test('the evidence panel is one block with findings as a list and lenses as pills', () => {
   const at = app.indexOf('className="dc-findings-grid"');
   const ev = app.slice(at - 700, at + 900);
@@ -630,39 +619,10 @@ test('the evidence panel is one block with findings as a list and lenses as pill
   assert.ok(app.includes('className="dc-fp-legend"'), 'the export\'s legend');
 });
 
-test('the footprint chart and table speak the design\'s language', () => {
-  const at = app.indexOf('dc-fpmap');
-  const fp = app.slice(at - 200, at + 6000);
-  // brand filled, market outlined, absent dashed: rust is for corroboration
-  assert.ok(fp.includes('fill={has ? (brandVoice ? FP_INK : FP_PAPER) : \'transparent\'}'), 'market nodes are outlined');
-  assert.ok(!fp.includes('brandVoice ? FP_INK : FP_LIME'), 'market nodes are no longer filled rust');
-  // the table reads strongest first and marks the conscious threshold
-  assert.ok(app.includes('[...rows].sort((a, b) => b.level - a.level)'), 'sorted by presence');
-  assert.ok(app.includes("k === 6 ? ' t' : ''"), 'the threshold tick at 7');
-  // the legend explains every mark
-  const li = app.indexOf('dc-fp-legend', app.indexOf('dc-fpmap'));
-  const legend = app.slice(li, li + 900);
-  ['Brand controls', 'Market generates', 'Absent', 'Corroborated', 'Partly corroborated', 'conscious threshold (7)']
-    .forEach(t => assert.ok(legend.includes(t), t));
-});
-
 test('sections sit on the page stack, not on 80px margins of their own', () => {
   assert.ok(!app.includes('marginTop: 80'), 'no section carries its own 80px margin');
   const css = read('src/index.css');
   assert.match(css, /\.dc-page > section, \.dc-page > \.dc-reveal \{ margin-top: 0; \}/);
-});
-
-test('lens reach columns read by count, not by shade', () => {
-  const lens = app.slice(app.indexOf('function TrustLensPanel'), app.indexOf('function TrustLensPanel') + 2000);
-  assert.ok(lens.includes("count === total ? INK : count === 0 ? RULE : '#8A8E95'"), 'ink at full reach, --cc-faint otherwise (v3.96: #C9C4BA was 1.6:1)');
-  assert.ok(!lens.includes('count >= total - 1 ? INK'), 'the four-step colour scale is gone');
-});
-
-test('the lens panel reads by mark, not by colour name', () => {
-  const lens = app.slice(app.indexOf('function TrustLensPanel'), app.indexOf('function TrustLensPanel') + 9000);
-  assert.ok(lens.includes('tick = Compass overall'), 'the legend names the mark, not a colour');
-  assert.ok(!lens.includes('>lime</span>'), 'the word lime is gone');
-  assert.ok(!/color: dark \? LIME : scoreColor\(row\.score\)/.test(lens), 'lens scores are not coloured by band');
 });
 
 test('the report toolbar keeps every action wired', () => {
@@ -684,11 +644,5 @@ test('the report toolbar keeps every action wired', () => {
   assert.ok(bar.includes('disabled={isGenerating}'), 'export reports its own progress');
 });
 
-test('the lens panel is one surface with ruled rows and honest weight columns', () => {
-  const lens = app.slice(app.indexOf('function TrustLensPanel'), app.indexOf('function TrustLensPanel') + 12000);
-  assert.ok(lens.includes('className="dc-lens"') && lens.includes('className="dc-lens-intro"'), 'the export\'s classes');
-  assert.ok(!lens.includes('background: CARD,'), 'no second surface behind the rows');
-  // a weight of zero is a dashed baseline, not a sliver of colour
-  assert.ok(lens.includes('borderTop: `1px dashed'), 'zero weights show a baseline');
-  assert.ok(!lens.includes("Math.max(it.pct, it.value ? 4 : 2)"), 'no minimum height for a zero weight');
-});
+// v3.97: the footprint and trust lens source-string checks above were replaced
+// by rendered behaviour tests in tests/footprint-trust.test.mjs.

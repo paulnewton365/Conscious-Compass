@@ -8,9 +8,10 @@
 -- are dropped and recreated. Running it twice changes nothing the second time.
 -- It creates no data and drops no data.
 --
--- This file supersedes supabase-schema.sql and both files in docs/. Those
--- left the cache tables and several columns commented out as instructions,
--- so a fresh deploy from them produced a database the app could not use.
+-- This file replaced the earlier supabase-schema.sql and the two client
+-- report migrations (removed in v3.97.1). Those left the cache tables and
+-- several columns commented out as instructions, so a fresh deploy from them
+-- produced a database the app could not use.
 --
 -- Verify afterwards with docs/SUPABASE_VERIFY.sql.
 -- ─────────────────────────────────────────────────────────────

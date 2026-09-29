@@ -22,9 +22,6 @@
 .dc-results-row > .dc-col-hide, .dc-results-head > .dc-col-hide { display: none; }
 /* Score adjustment: three numbers keep their columns but tighten */
   .dc-adj-row { gap: 6px !important; }
-.dc-fpmap { min-height: 320px; }
-.dc-lens-row > div:first-child { flex: 1 1 100% !important; width: 100% !important; }
-.dc-lens-bars > button { flex: 0 0 calc(25% - 2px) !important; }
 /* Band ranges only appear once the labels stack: at full width each label
    already sits beneath its own segment of the bar. */
 .dc-band-range { display: none; }
@@ -796,6 +793,8 @@ button { font: inherit; color: inherit; }
 .dc-lens.is-foundation .dc-weight-ab { color: var(--cc-paper); }
 .dc-lens.is-foundation .dc-weight.is-zero .dc-weight-ab { color: var(--cc-dark-label); }
 .dc-behind { display: flex; flex-direction: column; gap: var(--cc-s-3); padding-top: var(--cc-s-8); }
+/* Spotlight: one attribute picked out across all five rows (notes/06) */
+[data-spot] .dc-weight:not([aria-pressed="true"]) { opacity: .35; }
 
 /* 09 Recommendations */
 .dc-rec-row { display: grid; grid-template-columns: 56px minmax(0,1fr) 200px; gap: var(--cc-s-6); align-items: baseline; padding: var(--cc-s-6) 0; border-bottom: var(--cc-border); }
@@ -849,6 +848,9 @@ button { font: inherit; color: inherit; }
 .dc-fp-chart .link.is-part { stroke-width: 1.5; stroke-dasharray: 5 5; }
 .dc-fp-chart .core { fill: var(--cc-ink); }
 .dc-fp-chart .core-l { font: 600 16px var(--cc-sans); fill: var(--cc-paper); text-anchor: middle; dominant-baseline: middle; }
+/* Long brand names step down so two lines stay inside the 124-unit core */
+.dc-fp-chart .core-l.is-long { font-size: 13px; }
+.dc-fp-chart .core-l.is-longer { font-size: 11px; }
 .dc-fp-chart .node .n { font: 600 16px var(--cc-sans); text-anchor: middle; dominant-baseline: central; font-variant-numeric: tabular-nums; }
 .dc-fp-chart .node .l { font: 600 16px var(--cc-sans); fill: var(--cc-ink); dominant-baseline: middle; }
 .dc-fp-chart .node.is-brand circle { fill: var(--cc-ink); }
@@ -865,6 +867,8 @@ button { font: inherit; color: inherit; }
 .dc-fp-table .num { text-align: right; } .dc-fp-table .num b { font-size: 15px; }
 .dc-fp-table .muted { color: var(--cc-muted); }
 .dc-fp-table tr.is-absent td:first-child { color: var(--cc-muted); font-weight: var(--cc-w-medium); }
+/* What was observed on the channel, under its name (kept from the scoring pass) */
+.dc-fp-table .dc-fp-ev { display: block; white-space: normal; margin: 2px 0 0 20px; font-size: var(--cc-fs-meta); font-weight: var(--cc-w-regular); color: var(--cc-muted); line-height: 1.4; }
 .dc-fp-key { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; vertical-align: -1px; }
 .dc-fp-key.is-brand { background: var(--cc-ink); }
 .dc-fp-key.is-market { border: 1.5px solid var(--cc-ink); }
@@ -918,6 +922,9 @@ button { font: inherit; color: inherit; }
 /* "Who drives it" is carried by the key dot; the column shows only when the table has the full width */
 .dc-fp-table th:nth-child(2), .dc-fp-table td:nth-child(2) { display: none; }
 @media (max-width: 1000px) and (min-width: 721px) { .dc-fp-table th:nth-child(2), .dc-fp-table td:nth-child(2) { display: table-cell; } }
+/* On a phone the channel names wrap, so the table fits its column (the
+   design export's own page runs 49px wide at 420px). */
+@media (max-width: 720px) { .dc-fp-table td:first-child { white-space: normal; } }
 
 /* Helpers (replace former inline styles) */
 .dc-fp-note.is-body { color: var(--cc-body); }
@@ -1106,11 +1113,7 @@ button { font: inherit; color: inherit; }
 .dc-finding { display: flex; gap: var(--cc-s-3); align-items: flex-start;
   padding-top: var(--cc-s-4); border-top: var(--cc-border); }
 .dc-finding .dc-fp-key { margin-top: 6px; flex: none; }
-.dc-finding .dc-rec-tags { margin-top: var(--cc-s-2); }
-
-/* Footprint legend lines, matching the corroboration strokes on the chart. */
-.dc-fp-line { display: inline-block; width: 20px; height: 0; border-top: 2px solid var(--cc-rust); }
-.dc-fp-line.is-partly { border-top-style: dashed; border-color: var(--cc-muted); }
+.dc-finding .dc-rec-tags { margin-top: var(--cc-s-2); justify-content: flex-start; }
 
 /* Sections sit on the page stack rather than each carrying an 80px margin;
    the export runs them 48px apart. */

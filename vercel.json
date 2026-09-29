@@ -6,9 +6,6 @@
     "api/claude.js": {
       "maxDuration": 300
     },
-    "api/search.js": {
-      "maxDuration": 120
-    },
     "api/pagespeed.js": {
       "maxDuration": 300
     },

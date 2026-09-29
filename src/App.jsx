@@ -9,9 +9,11 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.96.0';
+const APP_VERSION = '3.97.1';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
+import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
+import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -1198,29 +1200,6 @@ function useInView(threshold = 0.25) {
   return [ref, inView];
 }
 
-// Counts a number up once it scrolls into view, matching the headline score
-// at the top of the report. Uses requestAnimationFrame with the same
-// easeOutCubic as the other reveals rather than setInterval, so it stays in
-// step with the bars animating alongside it.
-function useCountUp(target, inView, duration = 1200) {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    const end = Number(target) || 0;
-    if (!inView) { setValue(0); return; }
-    if (typeof window === 'undefined' || !window.requestAnimationFrame) { setValue(end); return; }
-    let raf;
-    const start = performance.now();
-    const ease = (t) => 1 - Math.pow(1 - t, 3);
-    const tick = (now) => {
-      const t = Math.min((now - start) / duration, 1);
-      setValue(Math.round(end * ease(t)));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, inView, duration]);
-  return value;
-}
 
 // Ramps 0 to 1 once the element is in view.
 //
@@ -1392,30 +1371,6 @@ function CampaignCoherencePanel({ coherence, audience = 'internal', onRegenerate
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// BRAND FOOTPRINT — mosaic and ledger
-//
-// Palette is deliberately its own: warm paper, electric lime, near-black ink.
-// Intensity descends down the ranked rows so the eye reads the order without
-// needing the numbers.
-//
-// Note there is no reach column. Audience reach is not publicly observable and
-// inventing it would undermine everything else on the page. The ledger reports
-// SIGNALS instead: the count of distinct pieces of evidence actually found.
-// ─────────────────────────────────────────────────────────────
-// White inside the report, matching every other section. The empty-tile tone
-// steps to the page ground so the unfilled state still reads on white.
-const FP_PAPER = '#FBFAF7';
-const FP_INK   = '#15171A';
-const FP_LIME  = '#D9442A';
-const FP_EMPTY = '#DEDAD2';
-const FP_MUTED = '#5B6068';
-
-
-// ── Trust & credibility lens ─────────────────────────────────
-// A different read on scores already given. Every figure is computed in code
-// from fixed weights, so no model call and no added latency: the only thing
-// the scoring pass supplies is the findings list.
 // ── Sustainability narrative panel (framework 2.10) ──────────
 // One component for every place the thesis read appears: full report, client
 // link, shared report and teaser. Renders nothing when there is no read.
@@ -1505,475 +1460,230 @@ function ThesisPanel({ thesis, onRegenerate = null }) {
   );
 }
 
+// ── Trust & Credibility lens, report section 06 ─────────────
+// Renders everything after the section toggle, to the design export's DOM:
+// the intro, then one wrapper holding the reach row, the three lenses, the
+// Authenticity foundation on the dark panel, and what sits behind them.
+// Every column is a button.dc-weight; clicking one spotlights that attribute
+// across all five rows (data-spot on the wrapper, aria-pressed on the
+// matches), and clicking it again clears it. No motion.
+//
+// A different read on scores already given: every figure is computed in code
+// from fixed weights, so the only thing the scoring pass supplies is the
+// findings list. Shared by the full report, the client report (showFindings
+// off) and the teaser prospect view.
 function TrustLensPanel({ scores, findings = [], overall, showFindings = true }) {
-  const data = computeTrustLenses(scores, findings);
-  const [spotlight, setSpotlight] = useState(null);
-  const [ref, inView] = useInView(0.12);
-  if (!data) return null;
+  const [spot, setSpot] = useState(null);
+  const v = trustLensView(scores, findings, overall);
+  if (!v) return null;
 
-  // Inside the report the page ground is paper and blocks are white, matching
-  // every other section. These are deliberately not the standalone-page
-  // values (#FBFAF7 cards on #DEDAD2), which render as a grey slab here.
-  const INK = '#15171A', LIME = '#D9442A', CARD = '#FBFAF7', GROUND = '#FBFAF7';
-  const MUTED = '#5B6068', RULE = '#DEDAD2';
-
-  const toggle = (id) => setSpotlight(prev => (prev === id ? null : id));
-  const lit = (id) => spotlight === id;
-
-  // Reach columns: ink where an attribute carries every lens, --cc-faint
-  // (#8A8E95) for one to three. #C9C4BA was about 1.6:1 on the paper, too faint
-  // to read as a bar; #8A8E95 clears the 3:1 minimum for graphics. One tone
-  // for 1-3, since the height already carries the count.
-  const reachFill = (count, total) => (count === total ? INK : count === 0 ? RULE : '#8A8E95');
-
-  // Eight columns of bars, shared by the reach panel and every lens row.
-  const BarRow = ({ items, trackH = 64, dark = false, caption, rowInView = true }) => (
-    <div className="dc-lens-bars flex-1" style={{ display: 'flex', gap: 2, minWidth: 0 }}>
-      {items.map(it => (
-        <button key={it.id} onClick={() => toggle(it.id)} type="button"
-          style={{
-            flex: 1, minWidth: 0, background: lit(it.id) ? (dark ? '#2A2A26' : '#F3F1EC') : 'transparent',
-            border: 0, padding: '4px 2px', cursor: 'pointer', textAlign: 'center',
-          }}>
-          <div style={{ height: trackH, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-            {it.value ? (
-              <div style={{
-                width: '100%',
-                height: `${rowInView ? Math.max(it.pct, 4) : 0}%`,
-                background: it.fill,
-                transition: 'height 600ms cubic-bezier(0.22,1,0.36,1)',
-              }} />
-            ) : (
-              /* A weight of zero is a dashed baseline, not a sliver of colour:
-                 it carries no lens and should not look like a small one. */
-              <div style={{ width: '100%', height: 0, borderTop: `1px dashed ${dark ? '#6E6E68' : '#C9C4BA'}` }} />
-            )}
-          </div>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', marginTop: 8,
-            color: dark ? (it.value ? '#FBFAF7' : '#6E6E68') : (it.value ? INK : MUTED) }}>
-            {it.code}
-          </div>
-          <div style={{ fontSize: 10, marginTop: 2, color: dark ? '#B9BCC1' : (it.full ? INK : MUTED), fontWeight: it.full ? 600 : 400 }}>{it.label}</div>
+  const toggle = (code) => setSpot(prev => (prev === code ? null : code));
+  // Plain render functions, not components: a component declared in render
+  // remounts on every click, which drops keyboard focus from the column.
+  const weights = (columns) => (
+    <div className="dc-weights">
+      {columns.map(c => (
+        <button key={c.id} type="button" className={c.state ? `dc-weight ${c.state}` : 'dc-weight'}
+          aria-label={c.label} aria-pressed={spot === c.code} onClick={() => toggle(c.code)}>
+          <span className="dc-weight-col"><i style={{ height: c.height }}></i></span>
+          <span className="dc-weight-ab">{c.code}</span><span className="dc-weight-v">{c.value}</span>
         </button>
       ))}
-      {caption}
+    </div>
+  );
+  const lensGrid = (lens) => (
+    <div className="dc-lens-grid">
+      <div className="dc-lens-side">
+        <div className="dc-stat-n">{lens.score}</div>
+        <div className="dc-h is-card">{lens.name}</div>
+        <div className="dc-meta">{lens.def}</div>
+        <div className="dc-kicker">{lens.lead}</div>
+        <div className="dc-scale" role="img" aria-label={lens.scale.label}>
+          <div className="dc-scale-track">
+            {lens.scale.overallLeft !== null && <b style={{ left: lens.scale.overallLeft }}></b>}
+            <i style={{ left: lens.scale.scoreLeft }}></i>
+          </div>
+          <div className="dc-scale-ticks">{lens.scale.ticks.map((t, k) => <span key={k}>{t}</span>)}</div>
+          <div className="dc-meta">{lens.scale.meta}</div>
+        </div>
+      </div>
+      {weights(lens.columns)}
     </div>
   );
 
-  // The window holds whatever the scores actually are. Fixed at 30-50 it
-  // pegged every marker at the right edge for a strong brand.
-  const scoreSet = [...data.rows, data.foundation].map(r => r.score)
-    .concat(Number.isFinite(overall) ? [overall] : []);
-  let RLO = Math.max(0, Math.floor(Math.min(...scoreSet) / 5) * 5 - 5);
-  let RHI = Math.min(100, Math.ceil(Math.max(...scoreSet) / 5) * 5 + 5);
-  // Keep at least 20 points of range. Four tightly clustered lenses would
-  // otherwise produce a window a few points wide, where a single point of
-  // difference reads as an enormous gap.
-  if (RHI - RLO < 20) {
-    const mid = (RHI + RLO) / 2;
-    RLO = Math.max(0, Math.min(80, Math.round((mid - 10) / 5) * 5));
-    RHI = RLO + 20;
-  }
-  const RMID = Math.round((RLO + RHI) / 2);
-
-  // Ruler: a dot for the lens score, a lime tick for the compass overall.
-  const Ruler = ({ score, dark = false, rowInView = true }) => {
-    const at = (v) => Math.max(0, Math.min(100, ((v - RLO) / (RHI - RLO)) * 100));
-    return (
-      <div style={{ marginTop: 18, maxWidth: 320 }}>
-        <div style={{ position: 'relative', height: 20 }}>
-          <div style={{ position: 'absolute', left: 0, right: 0, top: 9, height: 2, background: dark ? '#3A3A36' : RULE }} />
-          {Number.isFinite(overall) && (
-            <div style={{ position: 'absolute', left: `${at(overall)}%`, top: 2, width: 2, height: 16, background: '#8A8E95' }} />
-          )}
-          <div style={{
-            position: 'absolute', left: `${rowInView ? at(score) : 0}%`, top: 3,
-            width: 14, height: 14, borderRadius: 0, background: dark ? '#FBFAF7' : INK,
-            transform: 'translateX(-50%)', transition: 'left 700ms cubic-bezier(0.22,1,0.36,1)',
-          }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginTop: 2,
-          color: dark ? '#7A7A74' : '#8A8E95' }}>
-          <span>{RLO}</span><span>{RMID}</span><span>{RHI}</span>
-        </div>
-        <div style={{ fontSize: 10, marginTop: 6, color: dark ? '#B9BCC1' : MUTED }}>
-          {RLO}&ndash;{RHI} scale · tick = Compass overall {overall}
-        </div>
-      </div>
-    );
-  };
-
-  const LensScore = ({ row, dark, rowInView }) => {
-    const shown = useCountUp(row.score, rowInView);
-    return (
-      <div style={{ fontSize: 60, fontWeight: 700, letterSpacing: '-.04em', lineHeight: .9,
-        color: dark ? '#F06A4E' : INK }}>{shown}</div>
-    );
-  };
-
-  const LensRow = ({ row, dark = false }) => {
-    // Per-row observer. Threshold 0.4 so the row is properly on screen before
-    // it starts, otherwise the count finishes while it is still half below
-    // the fold.
-    const [rowRef, rowInView] = useInView(0.4);
-    const items = row.contributions.map(c => ({
-      id: c.id, code: c.code, value: c.weight,
-      label: c.weight ? `${c.weight}%` : '0',
-      // Height reads against a 50 point ceiling, so a dominant weight is
-      // visibly taller rather than every bar filling its track.
-      pct: (c.weight / 50) * 100,
-      fill: c.weight === 0 ? (dark ? '#3A3A36' : RULE)
-        : c.id === row.contributions.reduce((m, x) => (x.weight > m.weight ? x : m), row.contributions[0]).id
-          ? LIME : (dark ? '#8A8A84' : INK),
-    }));
-    return (
-      <div ref={rowRef}
-        style={{ background: dark ? INK : CARD, color: dark ? '#FBFAF7' : INK, padding: '32px 40px', marginBottom: 2 }}>
-        {dark && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', color: LIME, marginBottom: 14 }}>FOUNDATION</div>}
-        <div className="dc-lens-row" style={{ display: 'flex', gap: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          <div style={{ width: 280, minWidth: 240, flex: '0 1 280px' }}>
-            <LensScore row={row} dark={dark} rowInView={rowInView} />
-            <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-.02em', marginTop: 10 }}>{row.name}</div>
-            <div style={{ fontSize: 13, color: dark ? '#B9BCC1' : MUTED, marginTop: 2 }}>{row.def}</div>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase',
-              color: dark ? '#B9BCC1' : MUTED, marginTop: 12 }}>
-              Led by {row.leadName}, {row.leadPct}%
-            </div>
-            {showFindings && row.findingsCount > 0 && (
-              <div style={{ fontSize: 11, color: dark ? '#B9BCC1' : MUTED, marginTop: 4 }}>
-                {row.findingsCount} finding{row.findingsCount === 1 ? '' : 's'} below bear on this
-              </div>
-            )}
-            <Ruler score={row.score} dark={dark} rowInView={rowInView} />
-          </div>
-          <BarRow items={items} dark={dark} rowInView={rowInView} />
-        </div>
-      </div>
-    );
-  };
-
-  const reachItems = data.reach.map(a => ({
-    id: a.id, code: a.code, value: a.count, label: `${a.count}/${a.total}`,
-    pct: (a.count / a.total) * 100, fill: reachFill(a.count, a.total),
-    full: a.count === a.total,
-  }));
-
   return (
-    <div ref={ref} className="dc-lens">
-      {/* Header */}
+    <>
       <div className="dc-lens-intro">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          <span style={{ width: 10, height: 10, background: LIME, display: 'inline-block' }} />
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase' }}>
-            Trust &amp; Credibility Lens
-          </span>
-        </div>
-        <h3 style={{ fontFamily: 'var(--cc-serif)', fontSize: 'clamp(28px,3.4vw,44px)', fontWeight: 400, letterSpacing: 'var(--cc-tracking-display)', lineHeight: .98 }}>
-          Trust, credibility, reputation, and authenticity
-        </h3>
-        <p style={{ fontSize: 14, color: MUTED, maxWidth: '78ch', marginTop: 14, lineHeight: 1.55 }}>
-          Each lens below reweights the same eight attribute scores already on this report. None is a new
-          measurement. Some attributes carry every lens; some carry none. Authenticity is set apart at the
-          base because the model treats it as the foundation the other three rest on, not a peer to compare
-          against them.
-        </p>
+        <div className="dc-kicker is-accent">Trust &amp; Credibility Lens</div>
+        <h2 className="dc-h">Trust, credibility, reputation, and authenticity</h2>
+        <p>Each lens below reweights the same eight attribute scores already on this report. None is a new measurement. Some attributes carry every lens; some carry none. Authenticity is set apart at the base because the model treats it as the foundation the other three rest on, not a peer to compare against them.</p>
       </div>
-
-      {/* Attribute reach */}
-      <div style={{  padding: '32px 40px', marginBottom: 2 }}>
-        <div className="dc-lens-row" style={{ display: 'flex', gap: 40, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          <div style={{ width: 280, minWidth: 240, flex: '0 1 280px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: MUTED }}>
-              Attribute reach
+      <div data-spot={spot || undefined}>
+        <div className="dc-lens dc-reach">
+          <div className="dc-lens-grid">
+            <div className="dc-lens-side">
+              <div className="dc-kicker">Attribute reach</div>
+              {v.reachNote && <p className="dc-strong">{v.reachNote}</p>}
+              <p className="dc-meta">How many of the four lenses each attribute carries. Click any column to spotlight it across the panel.</p>
             </div>
-            <p style={{ fontSize: 14, fontWeight: 600, marginTop: 8, lineHeight: 1.5 }}>{data.reachNote}</p>
-            <p style={{ fontSize: 12, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>
-              How many of the four lenses each attribute carries. Click any column to spotlight it across
-              the panel.
-            </p>
+            {weights(v.reach)}
           </div>
-          <BarRow items={reachItems} />
         </div>
-      </div>
-
-      {data.rows.map(row => <LensRow key={row.id} row={row} />)}
-
-      {/* Divider */}
-      <div style={{ background: GROUND, padding: '18px 0', textAlign: 'center', marginBottom: 2 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: MUTED }}>
-          Authenticity is the foundation the three above rest on
-        </span>
-      </div>
-
-      <LensRow row={data.foundation} dark />
-
-      {showFindings && findings.length === 0 && (
-        <div style={{  padding: '32px 40px', marginTop: 2 }}>
-          <h4 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-.025em' }}>What sits behind these scores</h4>
-          <p style={{ fontSize: 14, color: '#2E3238', marginTop: 10, maxWidth: '80ch', lineHeight: 1.6,
-            borderLeft: `6px solid ${LIME}`, paddingLeft: 18 }}>
-            These scores were produced before the supporting findings were captured. Regenerate the report
-            to list the publicly observable evidence behind each lens.
-          </p>
+        {v.rows.map(lens => (
+          <div key={lens.id} className="dc-lens">{lensGrid(lens)}</div>
+        ))}
+        <div className="dc-lens-divider"><span className="dc-kicker">Authenticity is the foundation the three above rest on</span></div>
+        <div className="dc-lens is-foundation dc-panel-dark">
+          <div className="dc-kicker">Foundation</div>
+          {lensGrid(v.foundation)}
         </div>
-      )}
-
-      {showFindings && findings.length > 0 && (
-        <>
-          {/* Heading sits in its own block above the cards, as in the design */}
-          {/* To the export: one block, the heading in the display serif, and
-              findings as a plain list with their lenses as pills. */}
-          <div className="dc-block">
+        {showFindings && (
+          <div className="dc-behind">
             <h3 className="dc-h is-card">What sits behind these scores</h3>
-            <p className="dc-body">
-              Publicly observable findings, tagged to the lenses they bear on. These explain the scores; they do not change them.
-            </p>
-            <div className="dc-findings-grid">
-              {findings.map((f, i) => (
-                <div key={i} className="dc-finding">
-                  <span className={`dc-fp-key ${f.supports ? 'is-brand' : 'is-market'}`} />
-                  <div style={{ minWidth: 0 }}>
-                    <p className="dc-body">{f.text}</p>
-                    <div className="dc-rec-tags">
-                      {(f.tags || []).map(t => <span key={t} className="dc-pill">{t}</span>)}
+            {v.findings.length === 0 ? (
+              <div className="dc-alert">
+                <strong>Findings not captured</strong>
+                <p>These scores were produced before the supporting findings were captured. Regenerate the report to list the publicly observable evidence behind each lens.</p>
+              </div>
+            ) : (
+              <>
+                <p className="dc-body">Publicly observable findings, tagged to the lenses they bear on. These explain the scores; they do not change them.</p>
+                <div className="dc-findings-grid">
+                  {v.findings.map((f, i) => (
+                    <div key={i} className="dc-finding">
+                      <span className={`dc-fp-key ${f.supports ? 'is-brand' : 'is-market'}`}></span>
+                      <div>
+                        <p className="dc-body">{f.text}</p>
+                        <div className="dc-rec-tags">
+                          {(f.tags || []).map(t => <span key={t} className="dc-pill">{t}</span>)}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+                <div className="dc-fp-legend">
+                  <span><span className="dc-fp-key is-brand"></span>Supports the score</span>
+                  <span><span className="dc-fp-key is-market"></span>Works against it</span>
+                </div>
+                <p className="dc-meta"><b>Weights are fixed in code, not judged by the model</b>, so the same attribute scores always produce the same lens scores and two assessors cannot disagree. They sum to 100 per lens and are shown openly above.</p>
+              </>
+            )}
           </div>
-          <div className="dc-fp-legend">
-            <span><span className="dc-fp-key is-brand" /> Supports the score</span>
-            <span><span className="dc-fp-key is-market" /> Works against it</span>
-          </div>
-          <p className="dc-meta" style={{ marginTop: 12, maxWidth: '90ch' }}>
-            <b>Weights are fixed in code, not judged by the model</b>, so the same attribute
-            scores always produce the same lens scores and two assessors cannot disagree. They
-            sum to 100 per lens and are shown openly above.
-          </p>
-        </>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
 
-// ── Presence map ─────────────────────────────────────────────
-// Brand at the centre, channels as nodes sized by the evidence found, and
-// links drawn where one channel demonstrably carries something from another.
+// ── Brand footprint, report section 04 ──────────────────────
+// Renders everything after the section toggle, to the design export's DOM:
+// the head with its two counts, the radial chart beside the channel table,
+// the legend and the scoring note. Geometry and copy come from
+// footprintView, so the chart and table cannot disagree. Shared by the full
+// report and the client report.
 //
-// The map answers the question the ledger could not: does this brand's
-// presence connect, or is it several unrelated appearances? An empty middle
-// is a finding, not a rendering failure.
+// Two things the export leaves out are kept, because they are the evidence
+// behind the scores: what was observed on each channel (a muted line under
+// its name) and what the model found connecting each linked pair.
 function FootprintMap({ footprint, brandName }) {
-  const summary = summariseFootprint(footprint);
-  const [ref, inView] = useInView(0.2);
-  if (!summary) return null;
-
-  const W = 940, H = 560, cx = W / 2, cy = H / 2 - 6;
-  const R = 186;
-  const rows = summary.rows;
-
-  // Fixed positions keep the map comparable between brands: a channel always
-  // sits in the same place, so two footprints can be read against each other.
-  const pos = {};
-  rows.forEach((r, i) => {
-    const a = (i / rows.length) * 2 * Math.PI - Math.PI / 2;
-    pos[r.id] = { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a };
-  });
-
-  const isBrandVoice = (id) => FOOTPRINT_VOICE.brand.includes(id);
-  // Radius scales linearly with presence level. Square root compressed the low
-  // end badly: a 1 rendered nearly as large as a 10, which is the opposite of
-  // what an ordinal scale should show.
-  const nodeR = (r) => r.level > 0
-    ? 12 + (r.level / FOOTPRINT_PRESENCE_MAX) * 27
-    : 11;
-
-  const links = Array.isArray(footprint.links) ? footprint.links.filter(l => pos[l.from] && pos[l.to]) : [];
-
-  // Wrap the brand name to fit the hub. Long names get more lines and a
-  // smaller face rather than overflowing the circle.
-  const hubLines = (() => {
-    const words = String(brandName || '').trim().split(/\s+/).filter(Boolean);
-    if (!words.length) return ['Brand'];
-    const maxChars = 15;
-    const lines = [];
-    let cur = '';
-    words.forEach(w => {
-      if (!cur) { cur = w; return; }
-      if ((cur + ' ' + w).length <= maxChars) cur += ' ' + w;
-      else { lines.push(cur); cur = w; }
-    });
-    if (cur) lines.push(cur);
-    return lines.slice(0, 4);
-  })();
-  const longest = Math.max(...hubLines.map(l => l.length));
-  const hubFont = hubLines.length >= 4 ? 10 : hubLines.length === 3 ? 11.5 : longest > 12 ? 12.5 : longest > 9 ? 14 : 16;
-
+  const v = footprintView(footprint, brandName);
+  if (!v) return null;
+  const c = v.corroboration;
   return (
-    <div ref={ref} style={{ backgroundColor: FP_PAPER, padding: '28px 28px 8px' }}>
-      {/* Masthead, carried over from the retired mosaic panel */}
-      {/* Head to the export: the statement in the display serif, with the two
-          counts beside it as serif numerals. */}
+    <>
       <div className="dc-fp-head">
         <h2 className="dc-h">Where the brand shows up.</h2>
         <div className="dc-fp-stats">
-          <div>
-            <span className="dc-kicker">Conscious channels</span>
-            <span className="dc-stat-n">{summary.channelsConscious}<small>of {summary.channelCount}</small></span>
-          </div>
-          <div>
-            <span className="dc-kicker">Present at all</span>
-            <span className="dc-stat-n">{summary.channelsPresent}<small>of {summary.channelCount}</small></span>
-          </div>
+          <div><span className="dc-kicker">Conscious channels</span><span className="dc-stat-n">{v.conscious}<small>of {v.total}</small></span></div>
+          <div><span className="dc-kicker">Present at all</span><span className="dc-stat-n">{v.present}<small>of {v.total}</small></span></div>
         </div>
       </div>
       <div className="dc-fp">
         <figure>
-      <svg viewBox={`0 0 ${W} ${H}`} className="dc-fpmap"
-        style={{ width: '100%', height: 'auto', display: 'block' }}>
-        {/* Spokes: presence. Faint where a channel has no evidence. */}
-        {rows.map((r) => {
-          const p = pos[r.id]; const has = r.level > 0;
-          return (
-            <line key={'s' + r.id} x1={cx} y1={cy} x2={p.x} y2={p.y}
-              stroke={has ? '#C9C6BE' : '#DEDAD2'} strokeWidth={has ? 1.5 : 1}
-              strokeDasharray={has ? '' : '3 4'}
-              style={{ opacity: inView ? 1 : 0, transition: 'opacity 500ms ease' }} />
-          );
-        })}
-
-        {/* Links: corroboration between channels, drawn as curves through
-            the middle so a connected footprint reads as a woven centre. */}
-        {links.map((l, i) => {
-          const a = pos[l.from], b = pos[l.to];
-          const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-          // Bow toward the hub but not into it: at 0.55 the curve collided with
-          // the centre node and read as a line passing behind it.
-          const qx = mx + (cx - mx) * 0.32, qy = my + (cy - my) * 0.32;
-          return (
-            <path key={'l' + i} d={`M${a.x},${a.y} Q${qx},${qy} ${b.x},${b.y}`}
-              fill="none" stroke={FP_LIME} strokeWidth={l.strength === 'strong' ? 4 : 2}
-              strokeDasharray={l.strength === 'strong' ? '' : '5 5'}
-              strokeLinecap="round"
-              style={{
-                opacity: inView ? 1 : 0,
-                transition: 'opacity 700ms ease',
-                transitionDelay: `${300 + i * 90}ms`,
-              }} />
-          );
-        })}
-
-        {/* Centre: the brand */}
-        <circle cx={cx} cy={cy} r={58} fill={FP_INK}
-          style={{ transform: inView ? 'scale(1)' : 'scale(0.6)', transformOrigin: `${cx}px ${cy}px`,
-            transition: 'transform 600ms cubic-bezier(0.22,1,0.36,1)' }} />
-        {/* The brand, not a score. A number here read as an overall rating
-            and competed with the channel levels around it. */}
-        {hubLines.map((line, i) => (
-          <text key={i} x={cx}
-            y={cy + (i - (hubLines.length - 1) / 2) * (hubFont + 3) + hubFont / 3}
-            textAnchor="middle"
-            style={{ fontSize: hubFont, fontWeight: 700, fill: FP_LIME, letterSpacing: '-.02em' }}>
-            {line}
-          </text>
-        ))}
-
-        {/* Channel nodes */}
-        {rows.map((r, i) => {
-          const p = pos[r.id]; const has = r.level > 0;
-          const rad = nodeR(r);
-          const brandVoice = isBrandVoice(r.id);
-          const outward = Math.cos(p.a) > 0.25 ? 'start' : Math.cos(p.a) < -0.25 ? 'end' : 'middle';
-          const lx = p.x + Math.cos(p.a) * (rad + 12);
-          const ly = p.y + Math.sin(p.a) * (rad + 12);
-          return (
-            <g key={r.id} style={{
-              opacity: inView ? 1 : 0,
-              transform: inView ? 'translateY(0)' : 'translateY(10px)',
-              transition: 'opacity 500ms ease, transform 500ms cubic-bezier(0.22,1,0.36,1)',
-              transitionDelay: `${120 + i * 60}ms`,
-            }}>
-              <circle cx={p.x} cy={p.y} r={rad}
-                fill={has ? (brandVoice ? FP_INK : FP_PAPER) : 'transparent'}
-                stroke={has ? FP_INK : '#C9C6BE'} strokeWidth={1.5}
-                strokeDasharray={has ? '' : '3 4'}>
-                {/* The evidence moved off the canvas; it lives here instead,
-                    alongside what the channel means. */}
-                <title>{`${r.name} — ${r.hint}\n\nLevel ${r.level} ${r.levelName}: ${getPresenceLevel(r.level).short}\n${has ? r.evidence : 'No evidence found'}`}</title>
-              </circle>
-              {has && (
-                <text x={p.x} y={p.y + 5} textAnchor="middle"
-                  style={{ fontSize: 14, fontWeight: 600, fill: brandVoice ? FP_PAPER : FP_INK }}>
-                  {r.level}
-                </text>
-              )}
-              <text x={lx} y={ly + 4} textAnchor={outward}
-                style={{ fontSize: 13, fontWeight: 700, fill: has ? FP_INK : '#A9A69E' }}>
-                {r.name}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+          <svg className="dc-fp-chart" viewBox={FP_VIEWBOX} role="img" aria-labelledby="fp-t">
+            <title id="fp-t">{v.title}</title>
+            <circle cx="340" cy="290" r="71.75" className="band" /><circle cx="340" cy="290" r="205" className="band" />
+            {FP_GROUPS.map(g => (
+              <React.Fragment key={g.label}>
+                <path d={g.d} className="group" />
+                <text className="group-l" x={g.x} y={g.y} textAnchor={g.anchor}>{g.label}</text>
+              </React.Fragment>
+            ))}
+            {v.nodes.map(n => (
+              <line key={n.id} x1={n.spoke.x1.toFixed(1)} y1={n.spoke.y1.toFixed(1)} x2={n.spoke.x2.toFixed(1)} y2={n.spoke.y2.toFixed(1)}
+                className={n.level ? 'spoke' : 'spoke is-absent'} />
+            ))}
+            {v.links.map(l => <path key={`${l.from}-${l.to}`} d={l.d} className={`link ${l.full ? 'is-full' : 'is-part'}`} />)}
+            <circle cx="340" cy="290" r="62" className="core" />
+            {v.core.map(line => (
+              <text key={line.text} x="340" y={line.y} className={line.size ? `core-l ${line.size}` : 'core-l'}>{line.text}</text>
+            ))}
+            {v.nodes.map(n => (
+              <g key={n.id} className={`node ${n.kind}`}>
+                <circle cx={n.cx.toFixed(1)} cy={n.cy.toFixed(1)} r={n.r.toFixed(1)} />
+                <text x={n.cx.toFixed(1)} y={n.cy.toFixed(1)} className="n">{n.level}</text>
+                <text x={n.label.x.toFixed(1)} y={n.label.y.toFixed(1)} textAnchor={n.label.anchor} className="l">{n.name}</text>
+              </g>
+            ))}
+          </svg>
         </figure>
-
-        {/* The channel table the export puts beside the chart: who drives each
-            channel, its presence as a ten-segment scale, the figure and the
-            level in words. */}
         <div className="dc-stack is-gap-5">
           <table className="dc-fp-table">
-            <thead>
-              <tr>
-                <th>Channel</th><th>Who drives it</th><th>Presence</th>
-                <th className="num">/10</th><th>Level</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Channel</th><th>Who drives it</th><th>Presence</th><th className="num">/10</th><th>Level</th></tr></thead>
             <tbody>
-              {[...rows].sort((a, b) => b.level - a.level).map(r => (
-                <tr key={r.id}>
+              {v.rows.map(r => (
+                <tr key={r.id} className={r.level ? undefined : 'is-absent'}>
                   <td>
-                    <span className={`dc-fp-key ${r.level > 0 ? (isBrandVoice(r.id) ? 'is-brand' : 'is-market') : 'is-absent'}`} />
-                    {r.name}
+                    <span className={`dc-fp-key ${r.kind}`}></span>{r.name}
+                    {r.evidence && <span className="dc-fp-ev">{r.evidence}</span>}
                   </td>
-                  <td className="muted">{isBrandVoice(r.id) ? 'Brand' : 'Market'}</td>
+                  <td className="muted">{r.driver}</td>
                   <td>
                     <span className="dc-fp-seg" role="img" aria-label={`${r.level} of 10`}>
-                      {Array.from({ length: 10 }, (_, k) => (
-                        <i key={k} className={`${k < r.level ? 'on' : ''}${k === 6 ? ' t' : ''}`} />
-                      ))}
+                      {r.segments.map((cls, k) => <i key={k} className={cls || undefined}></i>)}
                     </span>
                   </td>
                   <td className="num"><b>{r.level}</b></td>
-                  <td className="muted">{getPresenceLevel(r.level)?.name || '\u2014'}</td>
+                  <td className="muted">{r.band}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <div className="dc-stack is-gap-2">
+            <span className="dc-kicker">Corroborated between channels</span>
+            <p className="dc-fp-note is-body">
+              {c.empty ? c.empty : (
+                <>
+                  {c.full.length > 0 && (
+                    <>
+                      {c.full.map((pair, i) => (
+                        <React.Fragment key={pair}>
+                          {i > 0 && (i === c.full.length - 1 ? ' and ' : ', ')}<b>{pair}</b>
+                        </React.Fragment>
+                      ))}
+                      {' say the same thing.'}
+                    </>
+                  )}
+                  {c.partial.map(sentence => <React.Fragment key={sentence}>{' '}{sentence}</React.Fragment>)}
+                </>
+              )}
+            </p>
+            {v.linkNotes.length > 0 && (
+              <p className="dc-fp-note">What connects them: {v.linkNotes.map(n => n.replace(/[.\s]+$/, '')).join('; ')}.</p>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Legend in the design's terms: the keys match the nodes, and both
-          node size and the tick on the bar are explained. */}
       <div className="dc-fp-legend">
-        <span><span className="dc-fp-key is-brand" /> Brand controls</span>
-        <span><span className="dc-fp-key is-market" /> Market generates</span>
-        <span><span className="dc-fp-key is-absent" /> Absent</span>
-        <span><span className="dc-fp-line" /> Corroborated</span>
-        <span><span className="dc-fp-line is-partly" /> Partly corroborated</span>
-        <span className="dc-meta">Node size = presence level · tick on the bar = conscious threshold (7)</span>
+        <span><span className="dc-fp-key is-brand"></span>Brand controls</span>
+        <span><span className="dc-fp-key is-market"></span>Market generates</span>
+        <span><span className="dc-fp-key is-absent"></span>Absent</span>
+        <span><i className="ln"></i>Corroborated</span>
+        <span><i className="ln is-part"></i>Partly corroborated</span>
+        <span>Node size = presence level · tick on the bar = conscious threshold (7)</span>
       </div>
-
-      <p className="text-[11px]" style={{ color: FP_MUTED, maxWidth: '86ch', marginTop: -8, paddingBottom: 14 }}>
-        {FOOTPRINT_PRESENCE_DEFINITION} Hover a channel for what it covers and what was found.
-      </p>
-
-      <p className="text-[13px] font-medium" style={{ color: FP_INK, paddingBottom: 20, maxWidth: '78ch' }}>
-        {links.length === 0
-          ? `Nothing carries between channels. ${brandName} is present in ${summary.channelsPresent} of ${summary.channelCount}, but nothing in one is picked up in another.`
-          : `${links.length} connection${links.length === 1 ? '' : 's'} between channels: ${links.map(l => l.note).filter(Boolean).join('; ')}.`}
-      </p>
-    </div>
+      <p className="dc-fp-note">{FOOTPRINT_PRESENCE_DEFINITION}</p>
+    </>
   );
 }
 
@@ -9030,15 +8740,13 @@ ${content.slice(0, 8000)}`;
           scored before presence levels existed, rather than rendering an
           empty ring that would read as genuine absence. */}
       {hasFootprintData(scores?.footprint) && (
-        <div className="dc-reveal">
+        <section className="dc-section dc-reveal" id="footprint">
           <SectionHead label="Brand footprint" open={expandedSections.footprint}
-          onToggle={() => toggleSection('footprint')} />
+            onToggle={() => toggleSection('footprint')} />
           {expandedSections.footprint && (
-            <div className="animate-fade-in">
-              <FootprintMap footprint={scores.footprint} brandName={project.brandName} />
-            </div>
+            <FootprintMap footprint={scores.footprint} brandName={project.brandName} />
           )}
-        </div>
+        </section>
       )}
 
       {/* ── 05 Campaign coherence ─────────────────────────── */}
@@ -9054,16 +8762,14 @@ ${content.slice(0, 8000)}`;
         )}
       </section>
 
-      {/* Trust & Credibility Lens - Collapsible */}
-      <div className="dc-reveal">
+      {/* ── 06 Trust and credibility ──────────────────────── */}
+      <section className="dc-section dc-reveal" id="trust-lens">
         <SectionHead label="Trust and credibility" open={expandedSections.trust}
           onToggle={() => toggleSection('trust')} />
         {expandedSections.trust && (
-          <div className="animate-fade-in" style={{ marginTop: 32 }}>
-            <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={overall} />
-          </div>
+          <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={overall} />
         )}
-      </div>
+      </section>
 
       {/* Sustainability narrative (framework 2.10) - Collapsible */}
       <div className="dc-reveal" data-section="thesis">
@@ -13084,12 +12790,10 @@ function ClientReportView({ payload }) {
 
         {/* ── Brand footprint ─────────────────────────────────── */}
         {hasFootprintData(payload.footprint) && (
-          <div className="dc-reveal">
+          <section className="dc-section dc-reveal" id="footprint">
             <SectionHead label="Brand footprint" />
-            <div className="mb-6 overflow-hidden">
-              <FootprintMap footprint={payload.footprint} brandName={project.brandName} />
-            </div>
-          </div>
+            <FootprintMap footprint={payload.footprint} brandName={project.brandName} />
+          </section>
         )}
 
         {/* ── Campaign coherence ──────────────────────────────── */}
@@ -13101,12 +12805,10 @@ function ClientReportView({ payload }) {
         )}
 
         {/* ── Trust and credibility ───────────────────────────── */}
-        <div className="dc-reveal">
-        <SectionHead label="Trust and credibility" />
-        <div style={{ marginTop: 32, marginBottom: 8 }}>
+        <section className="dc-section dc-reveal" id="trust-lens">
+          <SectionHead label="Trust and credibility" />
           <TrustLensPanel scores={scores} overall={overall} showFindings={false} />
-        </div>
-        </div>
+        </section>
 
         {/* ── Sustainability narrative (framework 2.10) ───────── */}
         {scores?.sustainabilityNarrative && (
@@ -14429,7 +14131,8 @@ function TeaserClientView({ payload, chartRef = null, heroImage = null, baseline
         </div>
       </div>
 
-      <section style={{ marginTop: 40 }}>
+      {/* dc-section spaces the panel's intro and rows, as in the full report */}
+      <section className="dc-section" style={{ marginTop: 40 }}>
         <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={payload.overall} />
         {payload.lensEvidence && (
           <div className="dc-block" data-field="lens-evidence" style={{ marginTop: 2 }}>
