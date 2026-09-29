@@ -169,21 +169,24 @@ test('before scoring, the report step is a dc page with one clear action', async
   await m.unmount();
 });
 
-test('while scoring, the screen claims no percentage and no steps, and counts real time', async () => {
+test('while scoring, the screen takes the packet 18 layout but claims no passes, and counts real time', async () => {
   globalThis.fetch = () => new Promise(() => {});   // the scoring call never returns here
   const m = await mount(h(App.ReportPage, reportProps('sk-test')));
   const go = [...m.container.querySelectorAll('button')].find(b => b.textContent === 'Generate the report');
   await act(async () => { go.click(); });
   const page = m.container.querySelector('[data-screen="scoring"]');
-  assert.equal(page.querySelector('h1.dc-display').textContent, 'Scoring the compass');
-  const wait = page.querySelector('.dc-scoring-wait');
-  assert.equal(wait.getAttribute('role'), 'status');
-  assert.equal(wait.querySelector('.dc-bar').getAttribute('aria-hidden'), 'true', 'the estimated bar is not announced');
-  assert.match(wait.querySelector('.dc-elapsed').textContent, /^0:0\d elapsed$/);
+  const sc = page.querySelector('.dc-scoring');
+  assert.equal(sc.querySelector('.dc-page-head h1.dc-display').textContent, 'Reading the evidence.');
+  assert.equal(sc.querySelector('.dc-page-head .dc-kicker').textContent, 'Scoring · MKB');
+  const prog = sc.querySelector('.dc-scoring-progress');
+  assert.equal(prog.getAttribute('role'), 'status');
+  assert.match(prog.querySelector('.dc-scoring-count').textContent, /^0:0\d\s*elapsed$/, 'real elapsed time, not a pass count');
+  assert.equal(prog.querySelector('.dc-lens-bar').getAttribute('aria-hidden'), 'true', 'the estimated bar is not announced');
+  assert.equal(page.querySelector('.dc-passes'), null, 'no invented passes');
   const text = page.textContent;
-  assert.ok(!/% complete/.test(text), 'no invented percentage');
-  for (const step of ['Absorbing', 'Recommendations', 'Writing actions']) assert.ok(!text.includes(step), `no invented step: ${step}`);
-  assert.ok(text.includes('One pass scores all eight attributes'));
+  assert.ok(!/% complete|passes complete|of \d+ passes/.test(text), 'no invented count');
+  for (const step of ['Absorbing', 'Trust lens', '12 articles', 'You can leave this page']) assert.ok(!text.includes(step), `no invented claim: ${step}`);
+  assert.ok(text.includes('Leave this page open until it finishes'));
   await m.unmount();
 });
 

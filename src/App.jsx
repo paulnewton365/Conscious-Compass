@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.97.2';
+const APP_VERSION = '3.98.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
@@ -1472,7 +1472,8 @@ function ThesisPanel({ thesis, onRegenerate = null }) {
 // from fixed weights, so the only thing the scoring pass supplies is the
 // findings list. Shared by the full report, the client report (showFindings
 // off) and the teaser prospect view.
-function TrustLensPanel({ scores, findings = [], overall, showFindings = true }) {
+function TrustLensPanel({ scores, findings = [], overall, showFindings = true, variant = 'report', evidence = null }) {
+  const isTeaser = variant === 'teaser';
   const [spot, setSpot] = useState(null);
   const v = trustLensView(scores, findings, overall);
   if (!v) return null;
@@ -1516,7 +1517,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
       <div className="dc-lens-intro">
         <div className="dc-kicker is-accent">Trust &amp; Credibility Lens</div>
         <h2 className="dc-h">Trust, credibility, reputation, and authenticity</h2>
-        <p>Each lens below reweights the same eight attribute scores already on this report. None is a new measurement. Some attributes carry every lens; some carry none. Authenticity is set apart at the base because the model treats it as the foundation the other three rest on, not a peer to compare against them.</p>
+        <p>Each lens below reweights the same eight attribute scores already on this {isTeaser ? 'read' : 'report'}. None is a new measurement. Some attributes carry every lens; some carry none. Authenticity is set apart at the base because the model treats it as the foundation the other three rest on, not a peer to compare against them.</p>
       </div>
       <div data-spot={spot || undefined}>
         <div className="dc-lens dc-reach">
@@ -1548,6 +1549,17 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
             ) : (
               <>
                 <p className="dc-body">Publicly observable findings, tagged to the lenses they bear on. These explain the scores; they do not change them.</p>
+                {isTeaser ? (
+                  <ul className="dc-ev-list">
+                    {v.findings.map((f, i) => (
+                      <li key={i} className={f.supports ? 'is-pos' : 'is-neg'}>
+                        <span className="dc-ev-mark">{f.supports ? 'Supports' : 'Against'}</span>
+                        <p>{f.text}</p>
+                        <span className="dc-rec-tags">{(f.tags || []).map(t => <span key={t} className="dc-pill">{t.charAt(0).toUpperCase() + t.slice(1)}</span>)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (<>
                 <div className="dc-findings-grid">
                   {v.findings.map((f, i) => (
                     <div key={i} className="dc-finding">
@@ -1565,9 +1577,11 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
                   <span><span className="dc-fp-key is-brand"></span>Supports the score</span>
                   <span><span className="dc-fp-key is-market"></span>Works against it</span>
                 </div>
+                </>)}
                 <p className="dc-meta"><b>Weights are fixed in code, not judged by the model</b>, so the same attribute scores always produce the same lens scores and two assessors cannot disagree. They sum to 100 per lens and are shown openly above.</p>
               </>
             )}
+            {evidence}
           </div>
         )}
       </div>
@@ -6869,31 +6883,32 @@ Return the complete revised readout as prose. No preamble, no notes about what y
     ATTRIBUTES.some(attr => scores[attr.id]?.score !== undefined);
 
   // If no scores yet: the generate step, the scoring wait, or a failed run.
+  // Layout is the packet's screen 18. Its content is not: scoring is one model
+  // call with no progress signal, so the screen names no passes and counts
+  // none. It shows real elapsed time and a bar marked as an estimate.
   if (!hasValidScores) {
     return (
-      <div className="dc-wrap dc-page animate-fade-in" data-screen="scoring">
-        <div className="dc-page-head">
-          <div className="dc-kicker is-accent">Step 6 of 6 · Report</div>
-          <h1 className="dc-display">{isScoring ? 'Scoring the compass' : 'Generate the report'}</h1>
-          <p className="dc-standfirst">{project.brandName}</p>
-        </div>
+      <div className="dc-wrap dc-page is-form animate-fade-in" data-screen="scoring">
+        <div className="dc-scoring">
+          <div className="dc-page-head">
+            <div className="dc-kicker is-accent">{isScoring ? `Scoring · ${project.brandName}` : 'Step 6 of 6 · Report'}</div>
+            <h1 className="dc-display">{isScoring ? 'Reading the evidence.' : 'Generate the report'}</h1>
+            <p className="dc-standfirst">
+              {isScoring
+                ? 'The Compass is reading your four readouts together, scoring all eight attributes and writing the report in a single pass.'
+                : 'Scoring reads the four readouts together and produces the full report: the eight attribute scores, what drives each one, and the actions.'}
+            </p>
+          </div>
 
-        <section className="dc-scoring">
           {isScoring ? (
-            <div className="dc-scoring-wait" role="status" aria-live="polite">
+            <div className="dc-scoring-progress" role="status" aria-live="polite">
+              <div className="dc-scoring-count"><ElapsedTime since={scoringStartedAt} /></div>
               {/* An estimate, so it is hidden from assistive tech and carries no number. */}
-              <div className="dc-bar" aria-hidden="true"><i style={{ width: `${scoringProgress}%` }}></i></div>
-              <div className="dc-scoring-line">
-                <p className="dc-strong">One pass scores all eight attributes against your four readouts and writes the report.</p>
-                <ElapsedTime since={scoringStartedAt} />
-              </div>
-              <p className="dc-meta">Leave this page open until it finishes.</p>
+              <div className="dc-lens-bar is-overall" aria-hidden="true"><i style={{ width: `${scoringProgress}%` }}></i></div>
+              <p className="dc-meta">Leave this page open until it finishes. Closing or reloading it stops the scoring.</p>
             </div>
           ) : (
-            <div className="dc-scoring-ready">
-              <p className="dc-lead">Scoring reads the four readouts together and produces the full report: the eight attribute scores, what drives each one, and the actions.</p>
-              <div><button type="button" onClick={() => runScoring()} disabled={isScoring} className="btn-primary">Generate the report</button></div>
-            </div>
+            <div><button type="button" onClick={() => runScoring()} disabled={isScoring} className="btn-primary">Generate the report</button></div>
           )}
 
           {scoringError && (
@@ -6914,12 +6929,10 @@ Return the complete revised readout as prose. No preamble, no notes about what y
               </ul>
             </div>
           )}
-        </section>
 
-        <div>
-          <button type="button" onClick={onPrev} className="btn-secondary">
-            <ArrowLeft className="w-4 h-4" /> {isReadonly ? 'Back' : 'Back to earned media'}
-          </button>
+          <div>
+            <button type="button" onClick={onPrev} className="btn-secondary">{isReadonly ? '← Back' : '← Back to earned media'}</button>
+          </div>
         </div>
       </div>
     );
@@ -11432,7 +11445,7 @@ function ElapsedTime({ since }) {
   if (!since) return null;
   const secs = Math.max(0, Math.floor((now - since) / 1000));
   const text = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-  return <span className="dc-elapsed"><b>{text}</b> elapsed</span>;
+  return <><span className="dc-stat-n" data-field="elapsed">{text}</span><span className="dc-meta">elapsed</span></>;
 }
 
 // What a client link shows, in the order the client view renders it. The
@@ -13892,258 +13905,233 @@ async function teaserSearchCall(prompt, { searchUses = 5, maxTokens = 3000 } = {
   return data.content?.filter(b => b.type === 'text').map(b => b.text).join('\n') || data.text || '';
 }
 
-function ConfidencePill({ level }) {
-  const l = level || 'low';
-  return (
-    <span className="dc-meta" style={{
-      whiteSpace: 'nowrap',
-      background: l === 'high' ? '#15171A' : 'transparent',
-      color: l === 'high' ? '#FBFAF7' : l === 'low' ? '#8A8E95' : '#5B6068',
-      borderColor: l === 'high' ? '#15171A' : '#DEDAD2',
-      borderStyle: l === 'low' ? 'dashed' : 'solid',
-    }}>
-      {l} confidence
-    </span>
-  );
-}
 
-// The prospect-facing view. Renders ONLY from makeTeaserClientPayload output,
-// so context, evidence text and authorship cannot appear here.
-function TeaserClientView({ payload, chartRef = null, heroImage = null, baselineChip = null }) {
+// The prospect-facing read (packet screen 21). Renders ONLY from
+// makeTeaserClientPayload output, so context, evidence text and authorship
+// cannot appear here. The packet was drawn from a sample without an
+// opportunity, services, a sustainability read or a brand image; those are
+// kept, in the packet's vocabulary, whenever the payload carries them.
+function TeaserClientView({ payload, heroImage = null, baseline = null }) {
   if (!payload) return null;
   const { scores } = payload;
   const date = payload.scoredAt ? new Date(payload.scoredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  const band = getMaturityStage(payload.overall);
+  const bandKey = String(band?.name || '').toLowerCase().replace(/\s+/g, '-');
+  const pct = (v) => `${Math.max(0, Math.min(100, Number(v) || 0))}%`;
+  const num = (v) => (Number.isFinite(Number(v)) ? v : '—');
   const lensStats = [
     ['Credibility', payload.lensScores?.credibility],
     ['Trust', payload.lensScores?.trust],
     ['Reputation', payload.lensScores?.reputation],
     ['Authenticity', payload.lensScores?.authenticity],
   ];
+  const conf = (c) => (c ? `${c.charAt(0).toUpperCase()}${c.slice(1)} confidence` : null);
+
+  const lensEvidence = payload.lensEvidence && (
+    <div className="dc-lens-evidence" data-field="lens-evidence">
+      <span className="dc-kicker">What these four rest on</span>
+      <ul>
+        {[['credibility', 'Credibility'], ['trust', 'Trust'], ['reputation', 'Reputation'], ['authenticity', 'Authenticity']].map(([id, label]) => {
+          const e = payload.lensEvidence[id] || {};
+          const notes = [
+            e.gaps > 0 ? `${e.gaps} gap${e.gaps === 1 ? '' : 's'} in the public record` : null,
+            e.lowOnAbsenceAlone ? 'Scored down for what could not be verified, not for anything found' : null,
+          ].filter(Boolean).join(' · ');
+          return (
+            <li key={id}>
+              <b>{label}</b>
+              <span className={e.issues > 0 ? 'dc-ev-issue' : undefined}>{e.issues > 0 ? `${e.issues} issue${e.issues === 1 ? '' : 's'} observed${e.worst ? ` (worst: ${e.worst})` : ''}` : 'No issues observed'}</span>
+              <span className="dc-meta">{notes}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {payload.negativeTriggers?.length > 0 && (
+        <ul className="dc-ev-list" data-field="negative-triggers">
+          {payload.negativeTriggers.map((t, i) => (
+            <li key={i} className="is-neg">
+              <span className="dc-ev-mark">Against</span>
+              <p>{t.text}{t.source ? <span className="dc-meta"> · {t.source}</span> : null}</p>
+              <span className="dc-pill">{t.lens}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 
   return (
-    <div data-teaser-client-view="true">
-      {/* Masthead to screen A: the read beside the score. */}
-      <div className="dc-readhead">
-        <div className="dc-readhead-main">
+    <article className="dc-teaser" data-teaser-client-view="true">
+      <header className="dc-teaser-cover">
+        <div className="dc-stack is-gap-5">
           <div className="dc-kicker is-accent">Indicative Compass read{date ? ` \u00B7 ${date}` : ''}</div>
           <h1 className="dc-display is-hero">{payload.brandName}</h1>
-          {payload.headline && <p className="dc-lead">{payload.headline}</p>}
-          <div className="dc-meta">{payload.websiteUrl}</div>
+          {payload.headline && <p className="dc-tz-thesis">{payload.headline}</p>}
+          {payload.summary && <p className="dc-lead">{payload.summary}</p>}
+          {payload.opportunity && (
+            <div className="dc-tz-opportunity" data-field="opportunity">
+              <span className="dc-kicker">The opportunity</span>
+              <p>{payload.opportunity}</p>
+            </div>
+          )}
+          <p className="dc-meta">{payload.websiteUrl}</p>
         </div>
-
-        <div className="dc-readscore">
+        <div className="dc-teaser-score">
           <div className="dc-kicker">Compass score</div>
-          <div className="dc-readscore-n">
-            <span className="dc-stat-n is-l">{payload.overall}</span>
-            <span className="dc-readscore-of">/ 100</span>
-          </div>
-          <div className="dc-lens-bar is-overall"><i style={{ width: `${Math.max(0, Math.min(100, payload.overall))}%` }} /></div>
-          <div className="dc-readscore-chips">
-            <span className="dc-chip-outline">{payload.stage}</span>
-            {baselineChip && <span className="dc-meta">{baselineChip}</span>}
+          <div className="dc-score"><span className="dc-stat-n is-l">{payload.overall}</span><small>/ 100</small></div>
+          <div className="dc-lens-bar is-overall"><i style={{ width: pct(payload.overall) }}></i></div>
+          <div className="dc-teaser-band">
+            {band && <span className="dc-pill" data-band={bandKey}>{band.name}</span>}
+            {/* The average of full assessments in the sector, when there is one. The
+                internal panel carries the detail; the read shows only the figure. */}
+            {baseline && <span className="dc-meta" data-field="baseline-line">Sector average {baseline.avgScore}</span>}
           </div>
         </div>
-      </div>
+      </header>
+
+      {heroImage && <figure className="dc-tz-figure" data-field="hero"><img src={heroImage} alt="" /></figure>}
 
       {payload.thinRecord && (
-        <div className="dc-block" style={{ marginBottom: 2, borderLeft: '6px solid #D9442A' }}>
-          <div className="dc-kicker-sm" style={{ marginBottom: 6 }}>Limited evidence in this read</div>
-          <p className="text-sm text-[#2E3238]">Several scores rest on the limited evidence a quick read can reach. A full assessment would firm them up.</p>
+        <div className="dc-alert is-warn" role="note">
+          <strong>Limited evidence in this read</strong>
+          <p>Several scores rest on the limited evidence a quick read can reach. A full assessment would firm them up.</p>
         </div>
       )}
 
-      {/* Verdict beside the brand image. */}
-      <div className="bg-white" data-field="read-summary"
-        style={{ padding: '30px 34px', display: 'grid', gridTemplateColumns: heroImage ? 'minmax(0,1fr) 300px' : 'minmax(0,1fr)', gap: 36, alignItems: 'start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {payload.headline && <h2 style={{ margin: 0, fontSize: 21, fontWeight: 700, lineHeight: 1.35, letterSpacing: '-.01em', maxWidth: '34ch' }}>{payload.headline}</h2>}
-          {payload.summary && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#2E3238', maxWidth: '78ch' }}>{payload.summary}</p>}
-          {payload.opportunity && (
-            <div data-field="opportunity" style={{ borderLeft: '3px solid #D9442A', paddingLeft: 14 }}>
-              <div className="dc-kicker-sm" style={{ marginBottom: 5 }}>The opportunity</div>
-              <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: '#2E3238', maxWidth: '78ch' }}>{payload.opportunity}</p>
-            </div>
-          )}
-        </div>
-        {heroImage && <img src={heroImage} alt="" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }} />}
-      </div>
-
-      {/* Scores as one band: overall on ink, the four lenses beside it. */}
-      <div data-field="score-band" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1.1fr) repeat(4, minmax(140px,1fr))', borderTop: '1px solid #DEDAD2' }}>
-        <div className="bg-[#15171A]" style={{ padding: '20px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-            <span style={{ fontSize: 38, fontWeight: 800, lineHeight: 1, color: '#D9442A' }}>{payload.overall}</span>
-            <span style={{ fontSize: 15, fontWeight: 600, color: '#D9442A' }}>/100</span>
-          </div>
-          <div className="dc-kicker-sm" style={{ marginTop: 9, color: '#B9BCC1' }}>Overall · {payload.stage}</div>
-        </div>
+      <ul className="dc-teaser-lenses">
         {lensStats.map(([label, v]) => (
-          <div key={label} className="bg-white" style={{ padding: '20px 24px', borderLeft: '1px solid #DEDAD2' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-              <span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, color: scoreColor(v) }}>{Number.isFinite(Number(v)) ? v : '—'}</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#5B6068' }}>/100</span>
-            </div>
-            <div className="dc-kicker-sm" style={{ marginTop: 9 }}>{label}</div>
-          </div>
+          <li key={label}>
+            <span className="dc-kicker">{label}</span>
+            <span className="dc-stat-n">{num(v)}</span>
+            <div className="dc-lens-bar"><i style={{ width: pct(v) }}></i></div>
+          </li>
         ))}
-      </div>
+      </ul>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2 }}>
-        <div className="bg-white" ref={chartRef} style={{ flex: '1 1 340px', minWidth: 0, padding: 20, display: 'flex', justifyContent: 'center', borderTop: '1px solid #DEDAD2' }}>
-          <SpiderChart scores={scores} size={340} animate={false} />
+      <section className="dc-tz-sec">
+        <h2 className="dc-h">Eight attributes</h2>
+        <div className="dc-attr-grid">
+          {ATTRIBUTES.map(attr => {
+            const sc = scores[attr.id] || {};
+            return (
+              <article key={attr.id} className="dc-block dc-attr-card">
+                <header>
+                  <div className="dc-stat-n">{num(sc.score)}</div>
+                  <div><h3 className="dc-h is-card">{attr.name}</h3><div className="dc-meta">{attr.fullName}</div></div>
+                </header>
+                <div className="dc-lens-bar" aria-hidden="true"><i style={{ width: pct(sc.score) }}></i></div>
+                {sc.rationale && <p className="dc-attr-p">{sc.rationale}</p>}
+                {conf(sc.confidence) && <span className="dc-meta">{conf(sc.confidence)}</span>}
+              </article>
+            );
+          })}
         </div>
-        <div className="dc-stack" style={{ flex: '2 1 420px', minWidth: 0 }}>
-          {ATTRIBUTES.map(attr => (
-            <div key={attr.id} className="dc-block" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', padding: '14px 18px' }}>
-              <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1, minWidth: 44, color: scoreColor(scores[attr.id]?.score) }}>
-                {scores[attr.id]?.score}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontWeight: 700 }}>{attr.name}</span>
-                    <span className="text-xs text-[#5B6068]" style={{ marginLeft: 8 }}>{attr.fullName}</span>
-                  </div>
-                  <ConfidencePill level={scores[attr.id]?.confidence} />
-                </div>
-                {scores[attr.id]?.rationale && <p className="text-sm text-[#2E3238]" style={{ marginTop: 6, lineHeight: 1.5 }}>{scores[attr.id].rationale}</p>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      </section>
 
-      {/* dc-section spaces the panel's intro and rows, as in the full report */}
-      <section className="dc-section" style={{ marginTop: 40 }}>
-        <TrustLensPanel scores={scores} findings={scores.trustFindings || []} overall={payload.overall} />
-        {payload.lensEvidence && (
-          <div className="dc-block" data-field="lens-evidence" style={{ marginTop: 2 }}>
-            <div className="dc-kicker-sm" style={{ marginBottom: 10 }}>What these four rest on</div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {[['credibility', 'Credibility'], ['trust', 'Trust'], ['reputation', 'Reputation'], ['authenticity', 'Authenticity']].map(([id, label]) => {
-                const e = payload.lensEvidence[id] || {};
-                return (
-                  <div key={id} className="text-sm" style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                    <span className="font-semibold" style={{ minWidth: 104 }}>{label}</span>
-                    {e.issues > 0
-                      ? <span style={{ color: '#C23B22' }}>{e.issues} issue{e.issues === 1 ? '' : 's'} observed{e.worst ? ` (worst: ${e.worst})` : ''}</span>
-                      : <span style={{ color: '#2F6B55' }}>No issues observed</span>}
-                    {e.gaps > 0 && <span className="text-[#5B6068]">· {e.gaps} gap{e.gaps === 1 ? '' : 's'} in the public record</span>}
-                    {e.lowOnAbsenceAlone && <span className="text-[#5B6068]">· scored down for what could not be verified, not for anything found</span>}
-                  </div>
-                );
-              })}
-            </div>
-            {payload.negativeTriggers?.length > 0 && (
-              <div style={{ marginTop: 14, borderTop: '1px solid #DEDAD2', paddingTop: 12, display: 'grid', gap: 6 }}>
-                {payload.negativeTriggers.map((t, i) => (
-                  <div key={i} className="text-sm text-[#2E3238]">
-                    <span className="dc-meta" style={{ marginRight: 8, color: '#C23B22', borderColor: '#E9B9B9' }}>{t.lens}</span>
-                    {t.text}{t.source ? <span className="text-[#5B6068]"> · {t.source}</span> : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+      <section className="dc-tz-sec" id="trust-lens">
+        <TrustLensPanel variant="teaser" scores={scores} findings={scores.trustFindings || []} overall={payload.overall} evidence={lensEvidence} />
       </section>
 
       {payload.thesis && (
-        <section style={{ marginTop: 40 }}>
-          <div className="dc-kicker" style={{ marginBottom: 14 }}>{THESIS_NAME}</div>
+        <section className="dc-tz-sec" data-field="thesis">
+          <h2 className="dc-h">{THESIS_NAME}</h2>
           <ThesisPanel thesis={payload.thesis} />
         </section>
       )}
 
       {payload.services?.length > 0 && (
-        <section style={{ marginTop: 40 }} data-field="services">
-          <div className="dc-kicker" style={{ marginBottom: 6 }}>Where marketing would move this score</div>
-          <p className="text-sm text-[#5B6068]" style={{ marginBottom: 14, maxWidth: '72ch' }}>
-            The services that address what this read found. A full assessment sets the depth and the order.
-          </p>
-          <div className="dc-stack">
+        <section className="dc-tz-sec" data-field="services">
+          <h2 className="dc-h">Where marketing would move this score</h2>
+          <p className="dc-body">The services that address what this read found. A full assessment sets the depth and the order.</p>
+          <ol className="dc-teaser-findings">
             {payload.services.map((svc, i) => (
-              <div key={svc.title} className="dc-block" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                <span style={{ fontWeight: 700, color: '#5B6068', minWidth: 24 }}>{String(i + 1).padStart(2, '0')}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 700 }}>{svc.title}</span>
-                    {svc.attributes?.map(a => <span key={a} className="dc-meta">{a}</span>)}
-                    {svc.beyondCatalogue && (
-                      <span className="dc-meta" data-field="beyond-catalogue" style={{ color: '#8C5A0B', borderColor: '#E4C79A' }}
-                        title="Not one of the standing services: this read argued for it specifically">
-                        Beyond the catalogue
-                      </span>
-                    )}
-                  </div>
-                  {svc.why && <p className="text-sm text-[#2E3238]" style={{ marginTop: 6, lineHeight: 1.55 }}>{svc.why}</p>}
-                  {svc.impact && <p className="text-sm text-[#5B6068]" style={{ marginTop: 6, lineHeight: 1.55 }}>{svc.impact}</p>}
+              <li key={svc.title}>
+                <span className="dc-teaser-n">{String(i + 1).padStart(2, '0')}</span>
+                <div>
+                  <h2>{svc.title}</h2>
+                  {(svc.attributes?.length > 0 || svc.beyondCatalogue) && (
+                    <div className="dc-rec-tags">
+                      {svc.attributes?.map(a => <span key={a} className="dc-pill">{a}</span>)}
+                      {svc.beyondCatalogue && (
+                        <span className="dc-pill" data-field="beyond-catalogue" title="Not one of the standing services: this read argued for it specifically">Beyond the catalogue</span>
+                      )}
+                    </div>
+                  )}
+                  {svc.why && <p>{svc.why}</p>}
+                  {svc.impact && <p className="dc-meta">{svc.impact}</p>}
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
       )}
 
       {payload.fullAssessmentWouldResolve?.length > 0 && (
-        <section style={{ marginTop: 40 }}>
-          <div className="dc-kicker" style={{ marginBottom: 14 }}>What a full assessment would settle</div>
-          <div className="dc-stack">
+        <section className="dc-tz-sec">
+          <h2 className="dc-h">What a full assessment would settle</h2>
+          <ol className="dc-teaser-findings">
             {payload.fullAssessmentWouldResolve.map((q, i) => (
-              <div key={i} className="dc-block" style={{ display: 'flex', gap: 14 }}>
-                <span style={{ fontWeight: 700, color: '#5B6068' }}>{String(i + 1).padStart(2, '0')}</span>
-                <span>{q}</span>
-              </div>
+              <li key={i}><span className="dc-teaser-n">{String(i + 1).padStart(2, '0')}</span><div><h2>{q}</h2></div></li>
             ))}
-          </div>
+          </ol>
         </section>
       )}
 
-      <section style={{ marginTop: 40 }}>
-        <div className="dc-block text-sm text-[#5B6068]" style={{ lineHeight: 1.6 }}>
-          <div className="dc-kicker-sm" style={{ marginBottom: 6 }}>How this read was made</div>
-          An indicative read against the Conscious Compass framework v{payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the Compass rubric, judged on the evidence this read can reach: signals it could not see count neither for nor against. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.
-        </div>
-      </section>
-    </div>
+      <footer className="dc-method">
+        <span className="dc-kicker">How this read was made</span>
+        <p>An indicative read against the Conscious Compass framework v{payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the Compass rubric, judged on the evidence this read can reach: signals it could not see count neither for nor against. Confidence shows how much evidence sits behind each one. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.</p>
+      </footer>
+    </article>
   );
 }
 
 // One-page-plus PDF for the prospect, built from the client payload only.
+// Packet screen 20: the run as a numbered step list. Every status here is
+// real: each source reports its own result, and scoring reports when it starts
+// and ends. Sources run in parallel, so several can be current at once.
 function TeaserProgress({ statuses, scoring, elapsed }) {
+  const sources = [...TEASER_SOURCES, ...(statuses.sustainability ? [SUSTAINABILITY_SOURCE] : [])];
+  const cls = (st) => (st === 'ok' ? 'is-done' : st === 'failed' ? 'is-done is-failed' : st === 'running' ? 'is-current' : undefined);
+  const scoringState = scoring === 'ok' ? 'ok' : scoring === 'running' ? 'running' : 'pending';
+  const total = sources.length + 1;
+  const done = sources.filter(src => ['ok', 'failed'].includes(statuses[src.id])).length + (scoring === 'ok' ? 1 : 0);
   return (
-    <div className="dc-block" style={{ marginTop: 2 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div className="dc-kicker">Running teaser</div>
-        <div className="dc-kicker-sm">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</div>
+    <section className="dc-block dc-tz-run" aria-live="polite" data-field="teaser-run">
+      <div className="dc-block-head">
+        <div>
+          <div className="dc-block-t">Running teaser</div>
+          <div className="dc-block-d">Sources run in parallel. Expect two to three minutes. A failed source is recorded and the read carries on without it.</div>
+        </div>
+        <span className="dc-tz-timer">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>
       </div>
-      <div className="dc-stack">
-        {[...TEASER_SOURCES, ...(statuses.sustainability ? [SUSTAINABILITY_SOURCE] : [])].map(src => {
-          const st = statuses[src.id] || 'pending';
-          return (
-            <div key={src.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #DEDAD2' }}>
-              {st === 'running' && <Loader2 className="w-4 h-4 animate-spin" />}
-              {st === 'ok' && <Check className="w-4 h-4 text-[#2F6B55]" />}
-              {st === 'failed' && <X className="w-4 h-4 text-[#C23B22]" />}
-              {st === 'pending' && <span style={{ width: 16 }} />}
-              <span style={{ flex: 1, fontWeight: 600 }}>{src.label}</span>
-              <span className="dc-kicker-sm">{TEASER_STAGE_LABEL[st]}</span>
-            </div>
-          );
-        })}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
-          {scoring === 'running' ? <Loader2 className="w-4 h-4 animate-spin" /> : scoring === 'ok' ? <Check className="w-4 h-4 text-[#2F6B55]" /> : <span style={{ width: 16 }} />}
-          <span style={{ flex: 1, fontWeight: 600 }}>Scoring all eight attributes</span>
-          <span className="dc-kicker-sm">{scoring === 'running' ? 'Scoring' : scoring === 'ok' ? 'Done' : 'Waiting'}</span>
+      <div className="dc-scoring-progress">
+        <div className="dc-scoring-count"><span className="dc-stat-n">{done}</span><span className="dc-meta">of {total} steps complete</span></div>
+        <div className="dc-lens-bar is-overall" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label="Teaser progress">
+          <i style={{ width: `${Math.round((done / total) * 100)}%` }}></i>
         </div>
       </div>
-      <p className="text-xs text-[#5B6068]" style={{ marginTop: 10 }}>Sources run in parallel. Expect two to three minutes. A failed source is recorded and the read carries on without it.</p>
-    </div>
+      <ol className="dc-passes">
+        {sources.map((src, i) => {
+          const st = statuses[src.id] || 'pending';
+          return (
+            <li key={src.id} className={cls(st)} data-source={src.id}>
+              <span className="dc-pass-n">{i + 1}</span>
+              <div><b>{src.label}</b>{src.id === SUSTAINABILITY_SOURCE.id && <span>CSO campaigns only</span>}</div>
+              <em>{TEASER_STAGE_LABEL[st]}</em>
+            </li>
+          );
+        })}
+        <li className={cls(scoringState)} data-source="scoring">
+          <span className="dc-pass-n">{total}</span>
+          <div><b>Scoring all eight attributes</b></div>
+          <em>{scoring === 'running' ? 'Scoring' : scoring === 'ok' ? 'Done' : 'Waiting'}</em>
+        </li>
+      </ol>
+    </section>
   );
 }
 
 function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, onStage = () => {}, onHeroImage = () => {}, onStaleCheck = null, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
-  const chartRef = useRef(null);
   const heroRef = useRef(null);
   const payload = makeTeaserClientPayload(record);
   const [making, setMaking] = useState(null);      // 'card' | 'slide'
@@ -14190,166 +14178,169 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
     }
   };
 
+  const fmtDate = (d, withTime = true) => new Date(d).toLocaleString('en-US', withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' });
+  const campaign = campaigns.find(c => c.id === record.campaign_id);
+  const audienceMismatch = record.result && campaign?.cso_audience && record.result.audience !== 'cso';
+  // Only once there is a score to compare: before the first score there is
+  // nothing "scored without a stage" (v3.98.0).
+  const stagePending = record.result && record.stage && record.result.companyStage !== record.stage;
+  const sourceList = [...TEASER_SOURCES, ...(sources.sustainability ? [SUSTAINABILITY_SOURCE] : [])];
+  const back = (e) => { e.preventDefault(); if (!busy) onBack(); };
+
+  // Packet screen 21 (and 20 while running): toolbar, blocked notice, the
+  // internal panel, then the read.
   return (
     <div className="dc-wrap dc-page animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
-        <button onClick={onBack} className="btn-secondary flex items-center gap-2" disabled={busy}><ArrowLeft className="w-4 h-4" /> All teasers</button>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="dc-tz-toolbar">
+        <a className="dc-tz-back" href="#teaser" onClick={back} aria-disabled={busy || undefined}>← All teasers</a>
+        <div className="dc-head-actions">
           {payload && (
-            <button onClick={downloadPack} disabled={busy || !!making} data-field="download-pack"
-              title={scorecard.ready
-                ? 'A zip holding the read, the printed card and the pitch slide'
-                : 'A zip holding the read. Add a brand image to include the card and slide.'}
-              className="btn-secondary flex items-center gap-2">
-              {making === 'pack' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {scorecard.ready ? 'Download pack' : 'Download read'}
+            <button type="button" onClick={downloadPack} disabled={busy || !!making} data-field="download-pack" className="btn-secondary"
+              title={scorecard.ready ? 'A zip holding the read, the printed card and the pitch slide' : 'A zip holding the read. Add a brand image to include the card and slide.'}>
+              {making === 'pack' ? 'Preparing...' : scorecard.ready ? 'Download pack' : 'Download read'}
             </button>
           )}
-          <button onClick={onRescore} disabled={busy || !cov.canScore} className="btn-secondary flex items-center gap-2" title="Score the stored evidence again, without new searches"><RefreshCw className="w-4 h-4" /> {payload ? 'Rescore' : 'Score'}</button>
-          <button onClick={onRefresh} disabled={busy} className="btn-secondary flex items-center gap-2" title="Gather fresh evidence, then score it"><Search className="w-4 h-4" /> Refresh evidence</button>
-          <button onClick={onConvert} disabled={busy} className="btn-primary flex items-center gap-2"><ArrowRight className="w-4 h-4" /> Full assessment</button>
-          <button onClick={onDelete} disabled={busy} className="btn-secondary flex items-center gap-2" title="Delete teaser"><Trash2 className="w-4 h-4" /></button>
+          <button type="button" onClick={onRescore} disabled={busy || !cov.canScore} className="btn-secondary" title="Score the stored evidence again, without new searches">{payload ? 'Rescore' : 'Score'}</button>
+          <button type="button" onClick={onRefresh} disabled={busy} className="btn-secondary" title="Gather fresh evidence, then score it">Refresh evidence</button>
+          <button type="button" onClick={onConvert} disabled={busy} className="btn-primary">Full assessment</button>
+          <button type="button" onClick={onDelete} disabled={busy} className="dc-link-btn is-danger">Delete</button>
         </div>
       </div>
 
       {!scorecard.ready && (
-        <div className="dc-block text-sm" data-field="scorecard-blocked" style={{ marginBottom: 2, borderLeft: '4px solid #8C5A0B' }}>
-          <span className="font-semibold">Card and slide need {scorecard.missing.join(' and ')}.</span>{' '}
-          {scorecard.missing.includes('a brand image') && 'Upload one in the internal panel below. '}
-          {scorecard.missing.includes('a sector baseline') && 'The industry average on the card comes from full assessments in this sector; there are none to compare against yet. '}
-          {scorecard.missing.includes('a score') && 'Score the teaser first. '}
+        <div className="dc-alert is-warn" role="note" data-field="scorecard-blocked">
+          <strong>Card and slide need {scorecard.missing.length > 1 ? `${scorecard.missing.slice(0, -1).join(', ')} and ${scorecard.missing.at(-1)}` : scorecard.missing[0]}.</strong>
+          <p>
+            {scorecard.missing.includes('a score') && 'Score the teaser first. '}
+            {scorecard.missing.includes('a brand image') && 'Upload one in the internal panel below. '}
+            {scorecard.missing.includes('a sector baseline') && 'The industry average on the card comes from full assessments in this sector; there are none to compare against yet.'}
+          </p>
         </div>
       )}
 
       {/* Internal only. Never part of the client payload or the PDF. */}
-      <div className="dc-block" data-field="internal-panel"
-        style={{ marginBottom: 24, background: '#FBFAF7', border: '1px dashed #DEDAD2', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', borderBottom: '1px solid #DEDAD2', paddingBottom: 14 }}>
-          <div className="dc-kicker-sm">Internal · not shown to the prospect</div>
+      <section className="dc-internal" aria-label="Internal panel" data-field="internal-panel">
+        <header className="dc-internal-head">
+          <span className="dc-kicker">Internal · not shown to the prospect</span>
           {record.result && (
-            <div className="text-sm text-[#5B6068]" data-field="scored-with">
-              Scored {new Date(record.result.scoredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} · method v{record.result.teaserVersion || '1.0'}
-            </div>
+            <span className="dc-meta" data-field="scored-with">Scored {fmtDate(record.result.scoredAt)} · method v{record.result.teaserVersion || '1.0'}</span>
           )}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '132px minmax(0,1fr)', gap: '18px 20px', alignItems: 'start' }}>
-          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 7 }}>Campaign</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            <select value={record.campaign_id || ''} disabled={busy} data-field="move-campaign"
-              onChange={e => onMove(e.target.value)} className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm" style={{ width: 'max-content' }}>
+        </header>
+        <dl className="dc-internal-dl">
+          <dt>Campaign</dt>
+          <dd>
+            <select className="dc-select is-auto" value={record.campaign_id || ''} disabled={busy} data-field="move-campaign" aria-label="Campaign"
+              onChange={e => onMove(e.target.value)}>
               {!record.campaign_id && <option value="">Unassigned, choose a campaign</option>}
               {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <div className="text-sm text-[#5B6068]" style={{ lineHeight: 1.5 }}>
-              {String(record.business_model || '').toUpperCase()}{industryNameFull ? ` · ${industryNameFull}` : ''}{findStage(record.stage) ? ` · ${findStage(record.stage).name}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? new Date(record.evidence.gatheredAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'never'}{record.converted_at ? ` · converted to full assessment ${new Date(record.converted_at).toLocaleDateString('en-US')}` : ''}
-            </div>
-          </div>
+            <p className="dc-meta">
+              {String(record.business_model || '').toUpperCase()}{industryNameFull ? ` · ${industryNameFull}` : ''}{findStage(record.stage) ? ` · ${findStage(record.stage).name}` : ''} · run by {record.created_by_name || 'unknown'} · evidence gathered {record.evidence?.gatheredAt ? fmtDate(record.evidence.gatheredAt) : 'never'}{record.converted_at ? ` · converted to full assessment ${fmtDate(record.converted_at, false)}` : ''}
+            </p>
+          </dd>
 
-          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 7 }}>Company stage</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <select value={record.stage || ''} disabled={busy} data-field="set-stage"
-              onChange={e => onStage(e.target.value)} className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm" style={{ width: 'max-content' }}>
+          <dt>Company stage</dt>
+          <dd>
+            <select className="dc-select is-auto" value={record.stage || ''} disabled={busy} data-field="set-stage" aria-label="Company stage"
+              onChange={e => onStage(e.target.value)}>
               <option value="">Not set</option>
-              {STAGES.map(st => <option key={st.id} value={st.id}>{st.name} — {st.subtitle}</option>)}
+              {STAGES.map(st => <option key={st.id} value={st.id}>{st.name} · {st.subtitle}</option>)}
             </select>
-            <div className="text-sm text-[#5B6068]" style={{ lineHeight: 1.5 }}>
+            <p className="dc-meta">
               {record.stage
-                ? `${findStage(record.stage)?.indicator || ''} Rescore to apply it.`
+                ? `${findStage(record.stage)?.indicator || ''}${record.result ? ' Rescore to apply it.' : ''}`
                 : 'Not set, so this read expects everything the rubric asks for. Set the stage and rescore to judge it on what a company this size can fairly show.'}
-            </div>
-            {record.stage && record.result?.companyStage !== record.stage && (
-              <div className="text-sm" data-field="stage-pending" style={{ color: '#8C5A0B' }}>
-                Scored {record.result?.companyStage ? `at the ${findStage(record.result.companyStage)?.name || record.result.companyStage} stage` : 'without a stage'}. Rescore to use the current setting; it reuses the stored evidence.
-              </div>
+            </p>
+            {stagePending && (
+              <p className="dc-note is-warn" data-field="stage-pending">
+                Scored {record.result.companyStage ? `at the ${findStage(record.result.companyStage)?.name || record.result.companyStage} stage` : 'without a stage'}. Rescore to use the current setting; it reuses the stored evidence.
+              </p>
             )}
-          </div>
+          </dd>
 
-          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 5 }}>Evidence</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {[...TEASER_SOURCES, ...(sources.sustainability ? [SUSTAINABILITY_SOURCE] : [])].map(src => {
-              const ok = sources[src.id]?.status === 'ok';
-              return (
-                <span key={src.id} className="dc-meta" title={sources[src.id]?.error || ''}
-                  style={{ background: '#FBFAF7', color: ok ? '#2F6B55' : '#C23B22', borderColor: ok ? '#DEDAD2' : '#C23B22' }}>
-                  {src.label}: {ok ? (src.id === 'website' ? `${sources.website.pages.length} page${sources.website.pages.length === 1 ? '' : 's'}` : 'ok') : 'failed'}
-                </span>
-              );
-            })}
-          </div>
+          <dt>Evidence</dt>
+          <dd>
+            <ul className="dc-src-list">
+              {sourceList.map(src => {
+                const st = sources[src.id];
+                const ok = st?.status === 'ok';
+                return (
+                  <li key={src.id} className={ok ? 'dc-src is-ok' : 'dc-src is-failed'} title={st?.error || undefined}>
+                    <b>{src.label}</b>
+                    <span>{ok ? (src.id === 'website' ? `${st.pages.length} page${st.pages.length === 1 ? '' : 's'}` : 'ok') : 'failed'}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </dd>
 
-          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 2 }}>Baseline</div>
-          <div data-field="baseline" className="text-sm text-[#2E3238]" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-            {baselineError ? `Unavailable (${baselineError})`
-              : !baseline ? 'Loading'
-              : !baseline.available ? 'Unavailable, no comparable full assessments yet'
-              : <>
-                  <span style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, color: scoreColor(baseline.avgScore) }}>{baseline.avgScore}</span>
-                  <span>sector baseline, from full assessments</span>
-                  <span className="text-[#5B6068]">· {baseline.scope === 'industry' ? baseline.sectorName : baseline.basis}, {baseline.count} full assessment{baseline.count === 1 ? '' : 's'}</span>
-                  {baseline.difference !== null && <span style={{ borderLeft: '1px solid #DEDAD2', paddingLeft: 10 }}>this teaser <strong>{baseline.difference > 0 ? '+' : ''}{baseline.difference}</strong></span>}
-                </>}
-          </div>
+          <dt>Baseline</dt>
+          <dd data-field="baseline">
+            {baselineError ? <p>Unavailable ({baselineError})</p>
+              : !baseline ? <p>Loading...</p>
+              : !baseline.available ? <p>Unavailable. No comparable full assessments yet.</p>
+              : <p>
+                  <b>{baseline.avgScore}</b> sector baseline, from full assessments · {baseline.scope === 'industry' ? baseline.sectorName : baseline.basis}, {baseline.count} full assessment{baseline.count === 1 ? '' : 's'}
+                  {baseline.difference !== null && <> · this teaser <b>{baseline.difference > 0 ? '+' : ''}{baseline.difference}</b></>}
+                </p>}
+          </dd>
 
-          <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 9 }}>Brand image</div>
-          <div data-field="hero-image" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            {record.hero_image && <img src={record.hero_image} alt="" style={{ height: 44, width: 74, objectFit: 'cover', border: '1px solid #DEDAD2' }} />}
-            <input ref={heroRef} type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pickHero(f); }} />
-            <button onClick={() => heroRef.current?.click()} disabled={busy} className="btn-secondary text-xs py-2 px-4">
-              {record.hero_image ? 'Replace' : 'Upload'}
-            </button>
-            {record.hero_image
-              ? <button onClick={() => onHeroImage(null)} disabled={busy} className="btn-secondary text-xs py-2 px-4">Remove</button>
-              : <span className="text-sm text-[#5B6068]">None yet. Needed for the card and slide.</span>}
-          </div>
+          <dt>Brand image</dt>
+          <dd data-field="hero-image">
+            <div className="dc-inline">
+              {record.hero_image && <img src={record.hero_image} alt="" className="dc-tz-hero" />}
+              <input ref={heroRef} type="file" accept="image/*" hidden
+                onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pickHero(f); }} />
+              <button type="button" onClick={() => heroRef.current?.click()} disabled={busy} className="btn-secondary is-sm">{record.hero_image ? 'Replace' : 'Upload'}</button>
+              {record.hero_image
+                ? <button type="button" onClick={() => onHeroImage(null)} disabled={busy} className="dc-link-btn">Remove</button>
+                : <span className="dc-meta">None yet. Needed for the card and slide.</span>}
+            </div>
+          </dd>
 
           {record.context && <>
-            <div className="text-sm font-semibold text-[#2E3238]" style={{ paddingTop: 2 }}>Context</div>
-            <div className="text-sm text-[#2E3238]" style={{ lineHeight: 1.62, maxWidth: '74ch' }}>{record.context}</div>
+            <dt>Context</dt>
+            <dd><p>{record.context}</p></dd>
           </>}
-        </div>
+        </dl>
 
-        {(heroError || (record.result && !isCurrentMethod(record.result)) || (record.result && campaigns.find(c => c.id === record.campaign_id)?.cso_audience && record.result.audience !== 'cso') || record.result?.history?.length > 0) && (
-          <div className="text-sm" style={{ display: 'grid', gap: 6, borderTop: '1px solid #DEDAD2', paddingTop: 14 }}>
-            {heroError && <div style={{ color: '#8C5A0B' }}>{heroError}</div>}
+        {(heroError || (record.result && !isCurrentMethod(record.result)) || audienceMismatch || record.result?.history?.length > 0) && (
+          <footer className="dc-internal-foot">
+            {heroError && <p className="dc-note is-warn">{heroError}</p>}
             {record.result && !isCurrentMethod(record.result) && (
-              <div data-field="method-outdated" style={{ color: '#8C5A0B' }}>
-                <span className="font-semibold">Earlier scoring method (v{record.result.teaserVersion || '1.0'}).</span> Scored before calibration and with the campaign modifier. Rescore to apply the current method (v{TEASER_VERSION}); it reuses the stored evidence, no new searches.
-              </div>
+              <p className="dc-note is-warn" data-field="method-outdated">
+                <b>Earlier scoring method (v{record.result.teaserVersion || '1.0'}).</b> Scored before calibration and with the campaign modifier. Rescore to apply the current method (v{TEASER_VERSION}); it reuses the stored evidence, no new searches.
+              </p>
             )}
-            {record.result && campaigns.find(c => c.id === record.campaign_id)?.cso_audience && record.result.audience !== 'cso' && (
-              <div data-field="audience-mismatch" style={{ color: '#8C5A0B' }}>
-                <span className="font-semibold">Scored before this campaign was set to CSO audience.</span> Refresh evidence to add the sustainability scan and read.
-              </div>
+            {audienceMismatch && (
+              <p className="dc-note is-warn" data-field="audience-mismatch">
+                <b>Scored before this campaign was set to CSO audience.</b> Refresh evidence to add the sustainability scan and read.
+              </p>
             )}
             {record.result?.history?.length > 0 && (
-              <div className="text-[#5B6068]">Previous scores: {record.result.history.map(h => `${h.overall} (${new Date(h.scoredAt).toLocaleDateString('en-US')})`).join(', ')}</div>
+              <p className="dc-meta">Previous scores: {record.result.history.map(h => `${h.overall} (${fmtDate(h.scoredAt, false)})`).join(', ')}</p>
             )}
-          </div>
+          </footer>
         )}
 
         {record.result && isCurrentMethod(record.result) && ATTRIBUTES.some(a => record.result.scores?.[a.id]?.unobserved) && (
-          <details data-field="unobserved" style={{ borderTop: '1px solid #DEDAD2', paddingTop: 14 }}>
-            <summary className="text-sm font-semibold text-[#2E3238]" style={{ cursor: 'pointer' }}>Not observable in this read</summary>
-            <div className="text-sm text-[#2E3238]" style={{ display: 'grid', gap: 4, marginTop: 8 }}>
-              {ATTRIBUTES.filter(a => record.result.scores?.[a.id]?.unobserved).map(a => (
-                <div key={a.id}><span className="font-semibold">{a.name}:</span> {record.result.scores[a.id].unobserved}</div>
-              ))}
-            </div>
+          <details data-field="unobserved" className="dc-internal-foot">
+            <summary className="dc-strong">Not observable in this read</summary>
+            {ATTRIBUTES.filter(a => record.result.scores?.[a.id]?.unobserved).map(a => (
+              <p key={a.id} className="dc-note"><b>{a.name}:</b> {record.result.scores[a.id].unobserved}</p>
+            ))}
           </details>
         )}
-      </div>
+      </section>
 
-      {error && <div className="dc-block text-sm" style={{ marginBottom: 16, color: '#C23B22', borderLeft: '4px solid #C23B22' }}>{error}</div>}
+      {error && <div className="dc-alert is-error" role="alert">{error}</div>}
       {busy && progress}
 
       {payload ? (
-        <TeaserClientView payload={payload} chartRef={chartRef} heroImage={record.hero_image || null}
-        baselineChip={baseline?.available ? `Sector median ${baseline.avgScore}` : null} />
+        <TeaserClientView payload={payload} heroImage={record.hero_image || null}
+          baseline={baseline?.available ? baseline : null} />
       ) : !busy && (
-        <div className="dc-block text-[#2E3238]">Evidence is stored but this teaser has not been scored yet. {cov.canScore ? 'Use Score to run it.' : 'Too few sources returned evidence to score. Use Refresh evidence.'}</div>
+        <p className="dc-meta" data-field="not-scored">Evidence is stored but this teaser has not been scored yet. {cov.canScore ? 'Use Score to run it.' : 'Too few sources returned evidence to score. Use Refresh evidence.'}</p>
       )}
     </div>
   );
@@ -14677,186 +14668,200 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     .map(c => ({ campaign: c, teasers: byCampaign.get(c.id) }));
   const showUnassigned = unassigned.length > 0 && (filter === 'all' || filter === 'unassigned');
 
-  const inputCls = 'w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]';
+  const bandOf = (score) => getMaturityStage(score);
+  const bandId = (stage) => String(stage?.name || '').toLowerCase().replace(/\s+/g, '-');
 
-  const TeaserRow = ({ t }) => (
-    <button onClick={() => openRecord(t.id)} disabled={busy} className="dc-block text-left hover:bg-[#FBFAF7]"
-      style={{ display: 'flex', alignItems: 'center', gap: 18, width: '100%' }}>
-      <div style={{ fontSize: 28, fontWeight: 700, minWidth: 48, letterSpacing: '-.03em', color: t.result ? scoreColor(t.result.overall) : '#8A8E95' }}>
-        {t.result ? t.result.overall : '—'}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700 }}>{t.brand_name}</div>
-        <div className="text-xs text-[#5B6068] truncate">{t.website_url} · {t.created_by_name || 'unknown'} · {new Date(t.updated_at).toLocaleDateString('en-US')}</div>
-      </div>
-      {t.result && (
-        <div className="hidden md:flex" style={{ gap: 14 }}>
-          {[['CRD', t.result.lensScores?.credibility], ['TRS', t.result.lensScores?.trust], ['REP', t.result.lensScores?.reputation], ['AUT', t.result.lensScores?.authenticity]].map(([k, v]) => (
-            <div key={k} style={{ textAlign: 'center' }}>
-              <div style={{ fontWeight: 700, color: scoreColor(v) }}>{v}</div>
-              <div className="dc-kicker-sm">{k}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      {t.converted_at && <span className="dc-meta">Converted</span>}
-      {!t.result && <span className="dc-meta">Not scored</span>}
-      {t.result && !isCurrentMethod(t.result) && <span className="dc-meta" style={{ color: '#8C5A0B', borderColor: '#8C5A0B' }}>Earlier method</span>}
-    </button>
-  );
+  // Packet screen 19: one ruled row per teaser. A plain render function, not a
+  // component declared in render, so rows do not remount on every state change.
+  // The row is a link to #teaser (the page's own hash), so it can hold the
+  // lens list and opens the record in place.
+  const teaserRow = (t) => {
+    const r = t.result;
+    const stage = r ? bandOf(r.overall) : null;
+    const lenses = [['CRD', r?.lensScores?.credibility], ['TRS', r?.lensScores?.trust], ['REP', r?.lensScores?.reputation], ['AUT', r?.lensScores?.authenticity]];
+    const open = (e) => { e.preventDefault(); if (!busy) openRecord(t.id); };
+    return (
+      <li key={t.id}>
+        <a className={r ? 'dc-tz-row' : 'dc-tz-row is-unscored'} href="#teaser" onClick={open} aria-disabled={busy || undefined} data-teaser={t.id}>
+          <span className="dc-tz-score">
+            <span className="dc-stat-n">{r ? r.overall : '—'}</span>
+            {stage && <span className="dc-pill" data-band={bandId(stage)}>{stage.name}</span>}
+          </span>
+          <span className="dc-tz-who">
+            <b>{t.brand_name}</b>
+            <span className="dc-meta">{t.website_url} · {t.created_by_name || 'unknown'} · {new Date(t.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+          </span>
+          {r ? (
+            <dl className="dc-tz-lenses">
+              {lenses.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v ?? '—'}</dd></div>)}
+            </dl>
+          ) : <span className="dc-tz-lenses"></span>}
+          <span className="dc-tz-status">
+            {!r && <span className="dc-meta">Not scored</span>}
+            {r && t.converted_at && <span className="dc-meta">Converted</span>}
+            {r && !t.converted_at && !isCurrentMethod(r) && <span className="dc-meta">Earlier method</span>}
+          </span>
+        </a>
+      </li>
+    );
+  };
 
   return (
     <>
     {staleBanner}
     <div className="dc-wrap dc-page animate-fade-in">
-      <div className="dc-pagehead">
-        <div>
-          <h1 className="dc-h2">Teaser</h1>
-          <div className="dc-standfirst">Indicative Compass reads for new business</div>
-        </div>
+      <div className="dc-page-head">
+        <h1 className="dc-display">Teaser</h1>
+        <p className="dc-standfirst">Indicative Compass reads for new business.</p>
       </div>
 
-      <div className="dc-block">
-        <div className="dc-kicker" style={{ marginBottom: 16 }}>New teaser</div>
-        <div style={{ marginBottom: 16 }}>
-          <label className="block text-sm font-medium text-[#15171A] mb-2">Campaign *</label>
+      <section className="dc-block dc-tz-form">
+        <div className="dc-block-head"><div>
+          <div className="dc-block-t">New teaser</div>
+          <div className="dc-block-d">A single automated pass over public evidence. Takes two to three minutes.</div>
+        </div></div>
+
+        <div className="dc-field is-wide">
+          <label htmlFor="tz-campaign">Campaign <span className="dc-req">*</span></label>
           {newCampaign === null ? (
-            <select className={inputCls} value={form.campaignId} disabled={busy} data-field="campaign"
+            <select id="tz-campaign" className="dc-select" value={form.campaignId} disabled={busy} data-field="campaign"
               onChange={e => { if (e.target.value === '__new') { setNewCampaign(''); } else { setForm({ ...form, campaignId: e.target.value }); } }}>
               <option value="">Choose a campaign</option>
               {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               <option value="__new">+ New campaign</option>
             </select>
           ) : (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input className={inputCls} autoFocus value={newCampaign} data-field="new-campaign"
-                onChange={e => setNewCampaign(e.target.value)} placeholder="e.g., Climate Week 2026 outreach"
+            <div className="dc-inline">
+              <input id="tz-campaign" className="dc-input" autoFocus value={newCampaign} data-field="new-campaign"
+                onChange={e => setNewCampaign(e.target.value)} placeholder="e.g. Climate Week 2026 outreach"
                 onKeyDown={e => { if (e.key === 'Enter') addCampaign(); if (e.key === 'Escape') setNewCampaign(null); }} />
-              <label className="text-sm" style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+              <label className="dc-check-inline">
                 <input type="checkbox" checked={newCampaignCso} data-field="new-campaign-cso" onChange={e => setNewCampaignCso(e.target.checked)} /> CSO audience
               </label>
-              <button onClick={addCampaign} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>Create</button>
-              <button onClick={() => setNewCampaign(null)} className="btn-secondary">Cancel</button>
+              <button type="button" onClick={addCampaign} className="btn-primary">Create</button>
+              <button type="button" onClick={() => setNewCampaign(null)} className="btn-secondary">Cancel</button>
             </div>
           )}
           {newCampaign === null && campaigns.find(c => c.id === form.campaignId)?.cso_audience && (
-            <p className="text-xs text-[#5B6068] mt-1" data-field="cso-hint">CSO audience: adds a sustainability scan and the sustainability narrative read, written for impact leaders.</p>
+            <p className="dc-hint" data-field="cso-hint">CSO audience: adds a sustainability scan and the sustainability narrative read, written for impact leaders.</p>
           )}
         </div>
-        <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-          <div>
-            <label className="block text-sm font-medium text-[#15171A] mb-2">Brand name *</label>
-            <input className={inputCls} value={form.brandName} disabled={busy} data-field="brand" onChange={e => setForm({ ...form, brandName: e.target.value })} placeholder="e.g., Antenna Group" />
+
+        <div className="dc-form-grid">
+          <div className="dc-field">
+            <label htmlFor="tz-brand">Brand name <span className="dc-req">*</span></label>
+            <input id="tz-brand" className="dc-input" value={form.brandName} disabled={busy} data-field="brand" onChange={e => setForm({ ...form, brandName: e.target.value })} placeholder="e.g. Antenna Group" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-[#15171A] mb-2">Website URL *</label>
-            <input className={inputCls} value={form.websiteUrl} disabled={busy} data-field="url" onChange={e => setForm({ ...form, websiteUrl: e.target.value })} placeholder="https://www.example.com" />
+          <div className="dc-field">
+            <label htmlFor="tz-url">Website URL <span className="dc-req">*</span></label>
+            <input id="tz-url" className="dc-input" value={form.websiteUrl} disabled={busy} data-field="url" onChange={e => setForm({ ...form, websiteUrl: e.target.value })} placeholder="https://www.example.com" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-[#15171A] mb-2">Business model *</label>
-            <select className={inputCls} value={form.businessModel} disabled={busy} onChange={e => setForm({ ...form, businessModel: e.target.value })}>
+          <div className="dc-field">
+            <label htmlFor="tz-model">Business model <span className="dc-req">*</span></label>
+            <select id="tz-model" className="dc-select" value={form.businessModel} disabled={busy} onChange={e => setForm({ ...form, businessModel: e.target.value })}>
               {BUSINESS_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-[#15171A] mb-2">Sector *</label>
-            <select className={inputCls} value={form.industry} disabled={busy} data-field="industry" onChange={e => setForm({ ...form, industry: e.target.value })}>
+          <div className="dc-field">
+            <label htmlFor="tz-industry">Sector <span className="dc-req">*</span></label>
+            <select id="tz-industry" className="dc-select" value={form.industry} disabled={busy} data-field="industry" onChange={e => setForm({ ...form, industry: e.target.value })}>
               <option value="">Choose a sector</option>
               {INDUSTRIES.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
-            <p className="text-xs text-[#5B6068] mt-1">Sets the sector baseline, drawn from full assessments. Other compares against all full assessments.</p>
+            <p className="dc-hint">Sets the sector baseline, drawn from full assessments. Other compares against all full assessments.</p>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-[#15171A] mb-2">Company stage *</label>
-            <select className={inputCls} value={form.stage} disabled={busy} data-field="stage" onChange={e => setForm({ ...form, stage: e.target.value })}>
+          <div className="dc-field">
+            <label htmlFor="tz-stage">Company stage <span className="dc-req">*</span></label>
+            <select id="tz-stage" className="dc-select" value={form.stage} disabled={busy} data-field="stage" onChange={e => setForm({ ...form, stage: e.target.value })}>
               <option value="">Choose a stage</option>
               {STAGES.map(st => <option key={st.id} value={st.id}>{st.name} · {st.subtitle}</option>)}
             </select>
-            <p className="text-xs text-[#5B6068] mt-1">
+            <p className="dc-hint">
               {findStage(form.stage)?.indicator || 'Decides what evidence is fair to expect. A startup is not marked down for having no Glassdoor reviews or analyst coverage.'}
             </p>
           </div>
         </div>
-        <div style={{ marginTop: 16 }}>
-          <label className="block text-sm font-medium text-[#15171A] mb-2">Context</label>
-          <textarea className="w-full px-4 py-3 border border-[#DEDAD2] bg-white text-sm leading-relaxed resize-y" rows={4} disabled={busy}
+
+        <div className="dc-field is-wide">
+          <label htmlFor="tz-context">Context</label>
+          <textarea id="tz-context" className="dc-textarea" rows={4} disabled={busy}
             value={form.context} onChange={e => setForm({ ...form, context: e.target.value })}
             placeholder="What we know about the prospect: what they want to achieve, the brief, key competitors, live issues." />
-          <p className="text-xs text-[#5B6068] mt-1">Background only. It shapes how evidence is read, never counts as evidence, and never appears in the output.</p>
+          <p className="dc-hint">Background only. It shapes how evidence is read, never counts as evidence, and never appears in the output.</p>
         </div>
-        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={runNew} disabled={busy} className="btn-primary flex items-center gap-2">
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} Run teaser
-          </button>
-        </div>
-      </div>
 
-      {error && <div className="dc-block text-sm" style={{ marginTop: 2, color: '#C23B22', borderLeft: '4px solid #C23B22' }}>{error}</div>}
+        {error && <div className="dc-alert is-error" role="alert">{error}</div>}
+        <div className="dc-form-actions">
+          <button type="button" onClick={runNew} disabled={busy} aria-busy={busy || undefined} className="btn-primary">{busy ? 'Running...' : 'Run teaser'}</button>
+        </div>
+      </section>
+
       {busy && progress}
 
-      <section style={{ marginTop: 40 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
-          <div className="dc-kicker">Campaigns</div>
+      <div className="dc-stack is-gap-5">
+        <div className="dc-head-row is-baseline">
+          <h2 className="dc-h">Campaigns</h2>
           {campaigns.length > 0 && (
-            <select value={filter} onChange={e => setFilter(e.target.value)} className="px-3 py-2 border border-[#DEDAD2] bg-white text-sm" data-field="filter">
-              <option value="all">All campaigns</option>
-              {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              {unassigned.length > 0 && <option value="unassigned">Unassigned</option>}
-            </select>
+            <div className="dc-field is-inline">
+              <label htmlFor="tz-filter" className="dc-label">Show</label>
+              <select id="tz-filter" className="dc-select" value={filter} onChange={e => setFilter(e.target.value)} data-field="filter">
+                <option value="all">All campaigns</option>
+                {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {unassigned.length > 0 && <option value="unassigned">Unassigned</option>}
+              </select>
+            </div>
           )}
         </div>
+
         {listLoading ? <SkeletonRows count={3} /> : listError ? <LoadFailed message={listError} onRetry={load} /> : (campaigns.length === 0 && unassigned.length === 0) ? (
-          <div className="dc-block text-[#5B6068]">No campaigns yet. Create one when you run your first teaser.</div>
+          <p className="dc-meta">No campaigns yet. Create one when you run your first teaser.</p>
         ) : (
-          <div style={{ display: 'grid', gap: 28 }}>
+          <>
             {groups.map(({ campaign: c, teasers }) => {
               const sum = campaignSummary(buildCampaignRows(teasers));
+              const locked = busy || campaignBusy === c.id;
               return (
-                <div key={c.id} data-campaign={c.id}>
-                  <div className="bg-[#15171A] text-white" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 17 }}>{c.name}</div>
-                      <div className="dc-kicker-sm" style={{ color: '#B9BCC1', marginTop: 4 }}>
+                <section key={c.id} className="dc-camp" data-campaign={c.id}>
+                  <header className="dc-camp-head">
+                    <div className="dc-stack is-gap-1">
+                      <h3 className="dc-h is-card">{c.name}</h3>
+                      <span className="dc-meta">
                         {sum.brands} brand{sum.brands === 1 ? '' : 's'}{sum.averageOverall !== null ? ` · average ${sum.averageOverall}` : ''}{sum.scored < sum.brands ? ` · ${sum.brands - sum.scored} not scored` : ''}
-                      </div>
+                      </span>
                     </div>
-                    <button onClick={() => download(c)} disabled={busy || campaignBusy === c.id || teasers.length === 0}
-                      className="flex items-center gap-2 bg-[#D9442A] text-[#15171A] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] disabled:opacity-40">
-                      {campaignBusy === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download scores
-                    </button>
-                    <button onClick={() => toggleAudience(c)} disabled={busy || campaignBusy === c.id} data-field="cso-toggle"
-                      title="Teasers in CSO campaigns add a sustainability scan and the sustainability narrative read"
-                      className="px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em]"
-                      style={c.cso_audience ? { background: '#FBFAF7', color: '#15171A' } : { border: '1px solid #2E3238', color: '#FBFAF7' }}>
-                      CSO audience {c.cso_audience ? 'on' : 'off'}
-                    </button>
-                    <button onClick={() => rename(c)} disabled={busy || campaignBusy === c.id} title="Rename campaign" className="p-2 text-white hover:text-[#D9442A]"><Pencil className="w-4 h-4" /></button>
-                    <button onClick={() => removeCampaign(c, teasers.length)} disabled={busy || campaignBusy === c.id}
-                      title={teasers.length ? 'Only an empty campaign can be deleted' : 'Delete campaign'}
-                      className="p-2 text-white hover:text-[#D9442A]" style={{ opacity: teasers.length ? 0.35 : 1 }}><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                  <div className="dc-stack" style={{ marginTop: 2 }}>
-                    {teasers.length === 0
-                      ? <div className="dc-block text-[#5B6068] text-sm">No teasers in this campaign yet.</div>
-                      : [...teasers].sort((a, b) => (b.result?.overall ?? -1) - (a.result?.overall ?? -1)).map(t => <TeaserRow key={t.id} t={t} />)}
-                  </div>
-                </div>
+                    <div className="dc-camp-actions">
+                      <button type="button" className="dc-toggle" aria-pressed={!!c.cso_audience} onClick={() => toggleAudience(c)} disabled={locked} data-field="cso-toggle"
+                        title="Teasers in CSO campaigns add a sustainability scan and the sustainability narrative read">
+                        <span className="dc-toggle-box"></span>CSO audience
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={() => download(c)} disabled={locked || teasers.length === 0} aria-busy={campaignBusy === c.id || undefined}>
+                        {campaignBusy === c.id ? 'Preparing...' : 'Download scores'}
+                      </button>
+                      <button type="button" className="dc-link-btn" onClick={() => rename(c)} disabled={locked}>Rename</button>
+                      <button type="button" className="dc-link-btn" onClick={() => removeCampaign(c, teasers.length)} disabled={locked || teasers.length > 0}
+                        title={teasers.length ? 'Only an empty campaign can be deleted' : 'Delete campaign'}>Delete</button>
+                    </div>
+                  </header>
+                  {teasers.length === 0
+                    ? <p className="dc-meta dc-camp-empty">No teasers in this campaign yet.</p>
+                    : <ul className="dc-camp-list">{[...teasers].sort((x, y) => (y.result?.overall ?? -1) - (x.result?.overall ?? -1)).map(teaserRow)}</ul>}
+                </section>
               );
             })}
             {showUnassigned && (
-              <div data-campaign="unassigned">
-                <div className="bg-white" style={{ padding: '14px 18px', borderLeft: '6px solid #D9442A' }}>
-                  <div style={{ fontWeight: 700, fontSize: 17 }}>Unassigned</div>
-                  <div className="text-xs text-[#5B6068]" style={{ marginTop: 4 }}>Run before campaigns existed. Open each one and move it to a campaign.</div>
-                </div>
-                <div className="dc-stack" style={{ marginTop: 2 }}>
-                  {unassigned.map(t => <TeaserRow key={t.id} t={t} />)}
-                </div>
-              </div>
+              <section className="dc-camp" data-campaign="unassigned">
+                <header className="dc-camp-head">
+                  <div className="dc-stack is-gap-1">
+                    <h3 className="dc-h is-card">Unassigned</h3>
+                    <span className="dc-meta">Run before campaigns existed. Open each one and move it to a campaign.</span>
+                  </div>
+                </header>
+                <ul className="dc-camp-list">{unassigned.map(teaserRow)}</ul>
+              </section>
             )}
-          </div>
+          </>
         )}
-      </section>
+      </div>
     </div>
     </>
   );

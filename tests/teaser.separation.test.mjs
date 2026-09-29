@@ -610,7 +610,8 @@ test('the score adjustment panel spans the attribute grid', () => {
 
 test('the evidence panel is one block with findings as a list and lenses as pills', () => {
   const at = app.indexOf('className="dc-findings-grid"');
-  const ev = app.slice(at - 700, at + 900);
+  // v3.98.0: the teaser variant's list sits between the heading and the grid
+  const ev = app.slice(at - 2000, at + 900);
   assert.ok(ev.includes('<h3 className="dc-h is-card">'), 'the heading uses the system');
   assert.ok(ev.includes('className="dc-finding"'), 'findings are list items');
   assert.ok(ev.includes('<span key={t} className="dc-pill">{t}</span>'), 'lenses are pills');

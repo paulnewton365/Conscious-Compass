@@ -69,7 +69,7 @@ test('client view shows every attribute, all four lenses, the overall and confid
   for (const name of ['Awake', 'Aware', 'Reflective', 'Attentive', 'Cogent', 'Sentient', 'Visionary', 'Intentional']) assert.ok(html.includes(name), name);
   for (const lens of ['Credibility', 'Trust', 'Reputation', 'Authenticity']) assert.ok(html.includes(lens), lens);
   assert.ok(html.includes(`>${rec.result.overall}<`), 'overall shown');
-  assert.ok(html.includes('medium confidence'));
+  assert.ok(/medium confidence/i.test(html));
   assert.ok(html.includes('Indicative Compass read'));
   assert.ok(html.includes('What a full assessment would settle'));
   assert.ok(!html.includes('Limited evidence in this read'));
@@ -93,7 +93,7 @@ test('internal report: context and sources show internally, never inside the cli
   // Prove the check has teeth: the context really is on the page, just not in the client region.
   assert.ok(html.includes('SENTINEL_CONTEXT'), 'context visible to the admin in the internal strip');
   assert.ok(html.includes('not shown to the prospect'));
-  assert.ok(html.includes('Social: failed'));
+  assert.ok(/<b>Social<\/b><span>failed<\/span>/.test(html), 'the failed source is marked in the evidence list');
   assert.ok(html.includes('Previous scores: 11'));
 });
 
@@ -254,13 +254,13 @@ test('rescore and delete touch only the teaser table', async () => {
   installFetch(await scoringJson());
   const { container, root, props } = mountPage();
   await act(async () => { root.render(h(App.TeaserPage, props)); }); await act(flush);
-  await click([...container.querySelectorAll('button')].find(b => b.textContent.includes('Acme')));
+  await click([...container.querySelectorAll('button, a.dc-tz-row')].find(b => b.textContent.includes('Acme')));
   await act(flush);
   await click([...container.querySelectorAll('button')].find(b => b.textContent.trim() === 'Rescore'));
   for (let i = 0; i < 10; i++) await act(flush);
   const rescoreSave = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
   assert.equal(rescoreSave.result.history.at(-1).overall, rec.result.overall, 'previous teaser score kept in teaser history');
-  await click([...container.querySelectorAll('button')].find(b => b.title === 'Delete teaser'));
+  await click([...container.querySelectorAll('button')].find(b => b.textContent.trim() === 'Delete' && b.closest('.dc-tz-toolbar')));
   await act(flush);
   const names = stub.calls.map(c => c[0]);
   assert.ok(names.includes('deleteTeaser'));
@@ -278,7 +278,9 @@ async function mountWith({ campaigns = [], teasers = [] } = {}) {
   await act(async () => { m.root.render(h(App.TeaserPage, m.props)); }); await act(flush);
   return m;
 }
-const btn = (container, pred) => [...container.querySelectorAll('button')].find(pred);
+// v3.98.0: teaser rows and the back link are links (packet screens 19-21), so
+// the helper finds them alongside buttons.
+const btn = (container, pred) => [...container.querySelectorAll('button, a.dc-tz-row, a.dc-tz-back')].find(pred);
 
 test('a campaign can be created inline and is selected for the next teaser; duplicates are refused', async () => {
   const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'Climate Week' }] });
@@ -318,10 +320,13 @@ test('teasers are grouped by campaign with counts and averages; legacy teasers s
 test('a campaign with teasers cannot be deleted; an empty one can', async () => {
   const a = { ...(await makeRecord()), id: 'a', campaign_id: 'c-1' };
   const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'Full' }, { id: 'c-2', name: 'Empty' }], teasers: [a] });
-  const del = (id) => container.querySelector(`[data-campaign="${id}"]`).querySelector('button[title*="elete"], button[title*="empty"]');
+  const del = (id) => container.querySelector(`[data-campaign="${id}"]`).querySelectorAll('.dc-camp-actions button.dc-link-btn')[1];
+  // v3.98.0: a campaign with teasers shows Delete disabled, with the reason in its tooltip
+  assert.equal(del('c-1').disabled, true);
+  assert.equal(del('c-1').title, 'Only an empty campaign can be deleted');
   await click(del('c-1'));
   assert.equal(stub.calls.filter(c => c[0] === 'deleteCampaign').length, 0, 'never asked the database to delete a non-empty campaign');
-  assert.ok(container.textContent.includes('still has 1 teaser'));
+  assert.equal(del('c-2').disabled, false);
   await click(del('c-2'));
   assert.deepEqual(stub.calls.filter(c => c[0] === 'deleteCampaign').map(c => c[1]), ['c-2']);
   await act(async () => root.unmount());
@@ -669,7 +674,7 @@ test('a new campaign can be created for a CSO audience, and the switch on a camp
   assert.equal(stub.calls.find(c => c[0] === 'createCampaign')[1].cso_audience, true);
   assert.ok(container.querySelector('[data-field="cso-hint"]'), 'form says what CSO audience adds');
   const toggle = container.querySelector('[data-campaign="c-1"] [data-field="cso-toggle"]');
-  assert.ok(toggle.textContent.includes('off'));
+  assert.equal(toggle.getAttribute('aria-pressed'), 'false', 'the toggle states its setting');
   await click(toggle); await act(flush);
   assert.deepEqual(stub.calls.find(c => c[0] === 'setCampaignAudience').slice(1), ['c-1', true]);
   await act(async () => root.unmount());
@@ -876,30 +881,31 @@ test('the internal panel is a labelled grid: campaign, evidence, baseline, image
   }
   assert.ok(panel.querySelector('[data-field="move-campaign"]'), 'campaign still selectable');
   assert.ok(panel.querySelector('[data-field="scored-with"]').textContent.startsWith('Scored'), 'scored line in the header row');
-  assert.ok(panel.querySelectorAll('.dc-meta').length >= 5, 'one evidence chip per source');
+  assert.ok(panel.querySelectorAll('.dc-src').length >= 5, 'one evidence chip per source');
   assert.ok(panel.textContent.includes('SENTINEL_CONTEXT'), 'context shown to the admin');
   // and still never to the prospect
   assert.ok(!container.querySelector('[data-teaser-client-view]').innerHTML.includes('SENTINEL_CONTEXT'));
   await act(async () => root.unmount());
 });
 
-test('the read leads with the brand, then verdict beside the image, then one score band', async () => {
+test('the read leads with the brand, the thesis and the score, then the image and the four lenses (packet 21)', async () => {
   const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1', hero_image: 'data:image/jpeg;base64,AAAA' };
   stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
   const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
   await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
-  const view = container.querySelector('[data-teaser-client-view]');
-  assert.equal(view.querySelector('h1').textContent, 'Acme');
-  const summary = view.querySelector('[data-field="read-summary"]');
-  assert.ok(summary.querySelector('h2').textContent.length > 10, 'headline as generated');
-  assert.ok(summary.querySelector('img'), 'brand image sits beside the verdict');
-  const band = view.querySelector('[data-field="score-band"]');
-  assert.ok(band.textContent.includes(`${rec.result.overall}`) && band.textContent.includes('Overall'));
-  ['Credibility', 'Trust', 'Reputation', 'Authenticity'].forEach(l => assert.ok(band.textContent.includes(l), l));
-  assert.equal((band.textContent.match(/\/100/g) || []).length, 5, 'overall plus four lenses');
-  // the radar chart and everything under it are untouched
-  assert.ok(view.querySelector('svg'), 'radar chart still rendered');
+  const view = container.querySelector('article.dc-teaser[data-teaser-client-view]');
+  const cover = view.querySelector('.dc-teaser-cover');
+  assert.equal(cover.querySelector('h1.dc-display.is-hero').textContent, 'Acme');
+  assert.ok(cover.querySelector('.dc-tz-thesis').textContent.length > 10, 'the headline, once, as the thesis');
+  assert.equal(view.querySelectorAll('.dc-tz-thesis').length, 1, 'the headline is not repeated');
+  const score = cover.querySelector('.dc-teaser-score');
+  assert.ok(score.textContent.includes(`${rec.result.overall}`) && score.textContent.includes('/ 100'));
+  assert.ok(view.querySelector('[data-field="hero"] img'), 'the brand image is shown');
+  const lenses = [...view.querySelectorAll('.dc-teaser-lenses li')];
+  assert.deepEqual(lenses.map(l => l.querySelector('.dc-kicker').textContent), ['Credibility', 'Trust', 'Reputation', 'Authenticity']);
+  assert.equal(view.querySelectorAll('.dc-attr-grid .dc-attr-card').length, 8);
   ATTRS.forEach(name => assert.ok(view.textContent.includes(name), name));
+  assert.equal(view.querySelector('.dc-radar'), null, 'the radar chart is dropped, as agreed');
   await act(async () => root.unmount());
 });
 
@@ -908,9 +914,9 @@ test('without a brand image the read still balances, with no empty frame', async
   stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
   const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
   await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
-  const summary = container.querySelector('[data-field="read-summary"]');
-  assert.equal(summary.querySelector('img'), null, 'no placeholder frame');
-  assert.ok(summary.querySelector('h2'), 'verdict still shown');
+  const view = container.querySelector('[data-teaser-client-view]');
+  assert.equal(view.querySelector('[data-field="hero"]'), null, 'no placeholder frame');
+  assert.ok(view.querySelector('.dc-tz-thesis'), 'the verdict is still shown');
   await act(async () => root.unmount());
 });
 
@@ -991,7 +997,7 @@ test('the report says whether a low lens reflects a problem found or a gap in th
   const panel = container.querySelector('[data-field="lens-evidence"]');
   assert.ok(panel, 'the block is shown');
   assert.ok(panel.textContent.includes('1 issue observed (worst: high)'), 'an observed problem is named');
-  assert.ok(panel.textContent.includes('scored down for what could not be verified'), 'a gap-driven score is explained');
+  assert.ok(/scored down for what could not be verified/i.test(panel.textContent), 'a gap-driven score is explained');
   assert.ok(panel.textContent.includes('2 gaps in the public record'));
   assert.ok(panel.textContent.includes('No issues observed'), 'clean lenses say so');
   assert.ok(panel.textContent.includes('Regulator upheld a misleading claim') && panel.textContent.includes('ASA'));
@@ -1126,23 +1132,18 @@ test('Setup uses the three-column layout with a step rail, not the old stacked f
 
 // ── The read's masthead, to screen A (v3.69) ──
 
-test('the read leads with the headline beside the score, as the screen has it', async () => {
+test('the score block carries the band from the rubric and the sector average', async () => {
   const rec = { ...(await makeRecord()), id: 'a', brand_name: 'Acme', industry: 'energy', campaign_id: 'c-1' };
   stub.state.compassRows = [50, 55, 60, 65, 70].map((v, i) => fullRow(`F${i}`, 'energy', v));
   const { container, root } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [rec] });
   await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
-
-  const head = container.querySelector('.dc-readhead');
-  assert.ok(head, 'the two-column masthead');
-  assert.ok(head.querySelector('.dc-display.is-hero').textContent.includes('Acme'), 'brand in the hero serif');
-  assert.ok(head.querySelector('.dc-lead').textContent.length > 10, 'the headline reads as the lead');
-
-  const score = head.querySelector('.dc-readscore');
+  const score = container.querySelector('.dc-teaser-score');
   assert.ok(score.querySelector('.dc-stat-n.is-l'), 'the score uses the large serif numeral');
-  assert.ok(score.textContent.includes('/ 100'));
-  assert.ok(score.querySelector('.dc-lens-bar.is-overall'), 'the 6px overall bar');
-  assert.ok(score.querySelector('.dc-chip-outline').textContent.length > 2, 'the stage chip');
-  assert.match(score.textContent, /Sector median \d+/, 'the baseline sits beside the stage');
+  assert.ok(score.querySelector('.dc-lens-bar.is-overall'));
+  const { getMaturityStage } = await import('../src/data/rubric.js');
+  const pill = score.querySelector('.dc-pill[data-band]');
+  assert.equal(pill.textContent, getMaturityStage(rec.result.overall).name, 'the band is the rubric maturity stage');
+  assert.match(score.textContent, /Sector average \d+/, 'the baseline sits beside the band');
   await act(async () => root.unmount());
 });
 
