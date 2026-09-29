@@ -6,9 +6,10 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.103.0';
+const APP_VERSION = '3.104.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
+import { buildLiteSection, applyEarnedCreativeLift, parseActivations, validateOverride, ecoProfileFor, ecoFromReport, round1, ECO_CONFIG } from './lib/eco';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
 import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
@@ -1260,6 +1261,204 @@ function Reveal({ children, delay = 0, y = 16, threshold = 0.15, className = '',
       }}>
       {children}
     </div>
+  );
+}
+
+// ── Earned creative (ECO module, framework 2.11) ────────────
+// The client-facing text blocks, shared by the full report, the client view
+// and the Teaser read. HOWL appears with its wordmark and "by Antenna".
+function EcoBlocks({ blocks }) {
+  if (!blocks?.length) return null;
+  const paras = (t) => String(t || '').split(/\n\s*\n/).filter(Boolean);
+  return (
+    <div className="dc-eco" data-field="eco-blocks">
+      {blocks.map(b => {
+        if (b.id === 'headline') return <p key={b.id} className="dc-eco-verdict">{b.text}</p>;
+        if (b.id === 'next' || b.id === 'gate') return <p key={b.id} className="dc-eco-next">{b.text}</p>;
+        if (b.id === 'howl') {
+          return (
+            <section key={b.id} className="dc-eco-howl" data-howl={b.length}>
+              <div className="dc-eco-lockup"><img src="/howl-logo.svg" alt="HOWL" /><span>by Antenna</span></div>
+              {paras(b.text).map((t, i) => <p key={i}>{t}</p>)}
+            </section>
+          );
+        }
+        return (
+          <section key={b.id} className="dc-eco-block" data-block={b.id}>
+            {b.title && <div className="dc-kicker">{b.title}</div>}
+            {b.text && <p>{b.text}</p>}
+            {b.items && (
+              <ul>
+                {b.items.map((it, i) => (typeof it === 'string'
+                  ? <li key={i}>{it}</li>
+                  : <li key={i}>{it.text}{it.metric && <span className="dc-meta"> Track: {it.metric}.</span>}</li>))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+// The analyst panel: internal only, never in the client payload. Every input
+// the packet marks analyst-entered, plus the activations the scoring pass
+// found (the analyst can remove any, which recomputes the SENTIENT and
+// INTENTIONAL lift). Overrides are admin-only, need a reason, and store who
+// and when; G1 or G2 failing blocks any override to a Recommend.
+function EcoPanel({ eco, scores, setScores, isAdmin, userName, companyStage }) {
+  const state = scores.eco || {};
+  const set = (patch) => setScores(prev => ({ ...prev, eco: { ...(prev.eco || {}), ...patch } }));
+  const [ovr, setOvr] = useState({ outcome: '', ambitionLevel: '', reason: '' });
+  const [ovrMsg, setOvrMsg] = useState(null);
+  const r = eco.result;
+  const prof = eco.profile;
+  const G5 = ECO_CONFIG.gate.G5[prof];
+  const acts = parseActivations(scores.earnedCreative);
+  const toggleAct = (i) => setScores(prev => {
+    const list = parseActivations(prev.earnedCreative).map((a, k) => (k === i ? { ...a, removed: !a.removed } : a));
+    return applyEarnedCreativeLift({ ...prev, earnedCreative: { ...(prev.earnedCreative || {}), activations: list } }, prev.earnedCreative?.frameworkVersion || null);
+  });
+  const numField = (key, label, hint, step = '1') => (
+    <div className="dc-field">
+      <label htmlFor={`eco-${key}`}>{label}</label>
+      <input id={`eco-${key}`} className="dc-input" type="number" step={step} value={state[key] ?? ''} onChange={e => set({ [key]: e.target.value === '' ? null : e.target.value })} />
+      {hint && <p className="dc-hint">{hint}</p>}
+    </div>
+  );
+  const listField = (key, label, fields, extra = null) => {
+    const list = Array.isArray(state[key]) ? state[key] : [];
+    const upd = (i, f, v) => set({ [key]: list.map((x, k) => (k === i ? { ...x, [f]: v } : x)) });
+    return (
+      <div className="dc-field is-wide" data-field={`eco-${key}`}>
+        <span className="dc-label">{label}</span>
+        {list.map((it, i) => (
+          <div key={i} className="dc-eco-row">
+            {fields.map(([f, ph, type]) => (type === 'check'
+              ? <label key={f} className="dc-check-inline"><input type="checkbox" checked={!!it[f]} onChange={e => upd(i, f, e.target.checked)} /> {ph}</label>
+              : <input key={f} className="dc-input" placeholder={ph} aria-label={`${label} ${i + 1}: ${ph}`} value={it[f] || ''} onChange={e => upd(i, f, e.target.value)} />))}
+            <button type="button" className="dc-link-btn" onClick={() => set({ [key]: list.filter((_, k) => k !== i) })}>Remove</button>
+          </div>
+        ))}
+        <div className="dc-inline">
+          <button type="button" className="dc-link-btn" onClick={() => set({ [key]: [...list, {}], ...(extra || {}) })}>Add</button>
+        </div>
+      </div>
+    );
+  };
+  const applyOverride = () => {
+    const o = { outcome: ovr.outcome || undefined, ambitionLevel: ovr.ambitionLevel === '' ? undefined : (ovr.ambitionLevel === 'none' ? null : ovr.ambitionLevel), reason: ovr.reason.trim(), by: userName || 'Admin', at: new Date().toISOString() };
+    const v = validateOverride(o, r.gate);
+    if (!v.ok) { setOvrMsg(v.message); return; }
+    setOvrMsg(null); set({ override: o });
+  };
+  const crit = r.gate.criteria || {};
+  return (
+    <section className="dc-internal" aria-label="Earned creative inputs" data-field="eco-panel">
+      <header className="dc-internal-head">
+        <span className="dc-kicker">Internal · earned creative inputs</span>
+        <span className="dc-meta">
+          Need {round1(r.needRating)} ({r.needBand}){r.substanceFloorApplied ? ' · limited raw material' : ''} · gate {r.gate.result} · {r.outcome || 'awaiting inputs'}{r.ambitionLevel ? ` · ambition ${r.ambitionLevel}` : ''}
+        </span>
+      </header>
+      {r.analystReviewRequired && <div className="dc-alert is-warn" role="note">{r.gate.result === 'Pending' ? 'The gate needs the claims audit or REFLECTIVE, the verified truths and the readiness checklist before an outcome can be given. Nothing is shown to the client until then.' : ECO_CONFIG.copy.reviewNote}</div>}
+
+      <div className="dc-eco-panel">
+        <div className="dc-field">
+          <label htmlFor="eco-profile">Business profile</label>
+          <select id="eco-profile" className="dc-select" value={state.profile || ''} onChange={e => set({ profile: e.target.value || null })}>
+            <option value="">From the company stage ({ecoProfileFor(companyStage)})</option>
+            <option value="Standard">Standard</option>
+            <option value="Startup">Startup</option>
+          </select>
+        </div>
+
+        <fieldset className="dc-eco-set"><legend>Earned creative in use (from the scoring pass)</legend>
+          {acts.length === 0 ? <p className="dc-meta">None found. The SENTIENT and INTENTIONAL lift applies only with at least one confirmed activation.</p> : (
+            <ul className="dc-eco-acts">
+              {acts.map((a, i) => (
+                <li key={i} className={a.removed ? 'is-removed' : undefined}>
+                  <div><b>{a.name}</b>{a.what && <span> · {a.what}</span>}{a.evidence && <span className="dc-meta"> · {a.evidence}</span>}</div>
+                  <button type="button" className="dc-link-btn" onClick={() => toggleAct(i)}>{a.removed ? 'Restore' : 'Remove'}</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {acts.length > 0 && <p className="dc-hint">{acts.some(a => !a.removed) ? `Confirmed: +${ECO_CONFIG.usageLift.points} to SENTIENT and INTENTIONAL.` : 'All removed: no lift.'}</p>}
+        </fieldset>
+
+        <fieldset className="dc-eco-set"><legend>Evidence (leave blank if unknown)</legend>
+          {numField('announcementPct', 'E1 · % of coverage from brand announcements', 'Last 12 months.')}
+          {numField('sovVsLeaderPct', "E2 · Brand share of voice as % of the leader's", 'Against the top three competitors.')}
+          {numField('organicPct', 'E3 · % of mentions not prompted by brand posts', 'Leave blank for B2B brands with little social presence.')}
+          {numField('ideaStories', 'E5 · Idea-driven stories in priority outlets', 'Count, last 12 months. Leave blank with under 12 months of coverage.')}
+          {listField('e4Assets', 'E4 · Assets with no coverage in 24 months', [['name', 'Asset'], ['description', 'One-line description']])}
+          <label className="dc-check-inline"><input type="checkbox" checked={!!state.e4NoneFound} onChange={e => set({ e4NoneFound: e.target.checked })} /> Checked: no uncovered assets</label>
+        </fieldset>
+
+        <fieldset className="dc-eco-set"><legend>Context</legend>
+          {[['C1', 'Launch, repositioning or market entry within 12 months'], ['C2', 'Paid media budget constrained vs competitors'], ['C3', 'Perception lags a real change in the business'], ['C4', 'A live conversation the brand has expertise in'], ['C5', 'An existing credible partner or cause relationship']].map(([id, l]) => (
+            <label key={id} className="dc-check-inline"><input type="checkbox" checked={!!state.context?.[id]} onChange={e => set({ context: { ...(state.context || {}), [id]: e.target.checked } })} /> {id} · {l}</label>
+          ))}
+        </fieldset>
+
+        <fieldset className="dc-eco-set"><legend>Appropriateness gate</legend>
+          <p className="dc-meta">G1 {crit.G1?.result} · G2 {crit.G2?.result} · G3 {crit.G3?.result} · G4 {crit.G4?.result} · G5 {crit.G5?.result}</p>
+          {numField('claimsPct', 'G1 · % of central claims independently substantiated')}
+          <div className="dc-field is-wide"><label htmlFor="eco-uc">G1 · Claims that need stronger evidence</label>
+            <input id="eco-uc" className="dc-input" value={state.unsupportedClaims || ''} onChange={e => set({ unsupportedClaims: e.target.value })} placeholder="e.g. the net-zero-by-2030 claim" /></div>
+          {listField('flags', 'G2 · Red flags (controversy, lobbying contradiction, regulatory action)', [['label', 'Flag'], ['major', 'Major', 'check'], ['resolved', 'Resolved', 'check']])}
+          {numField('glassdoor', 'G2 · Glassdoor rating', 'Blank if there is no profile.', '0.1')}
+          <div className="dc-field"><label htmlFor="eco-cause">G3 · Cause territory</label>
+            <input id="eco-cause" className="dc-input" value={state.causeName || ''} onChange={e => set({ causeName: e.target.value })} placeholder="Blank if none" /></div>
+          <div className="dc-field"><label htmlFor="eco-link">G3 · Link to the business</label>
+            <select id="eco-link" className="dc-select" value={state.causeLink || 'adjacent'} onChange={e => set({ causeLink: e.target.value })}>
+              <option value="direct">Direct</option><option value="adjacent">Adjacent</option><option value="none">No credible link</option>
+            </select></div>
+          {listField('verifiedTruths', 'G4 · Verified truths (a journalist could confirm each independently)', [['name', 'Truth'], ['description', 'One-line description']], { truthsEntered: true })}
+          <label className="dc-check-inline"><input type="checkbox" checked={!!state.truthsEntered} onChange={e => set({ truthsEntered: e.target.checked })} /> G4 reviewed{Array.isArray(state.verifiedTruths) && state.verifiedTruths.length ? '' : ' (none found)'}</label>
+          <div className="dc-field is-wide"><span className="dc-label">G5 · Readiness checklist ({prof})</span>
+            {G5.items.map(i => (
+              <label key={i} className="dc-check-inline"><input type="checkbox" checked={!!state.checklist?.[i]}
+                onChange={e => set({ checklistEntered: true, checklist: { ...(state.checklist || {}), [i]: e.target.checked } })} /> {prof === 'Startup' && i === 'approval' ? ECO_CONFIG.startupApprovalLabel : ECO_CONFIG.checklistLabels[i]}</label>
+            ))}
+            {prof === 'Startup' && <label className="dc-check-inline"><input type="checkbox" checked={state.mediaTrained === true} onChange={e => set({ mediaTrained: e.target.checked })} /> Spokesperson media-trained</label>}
+          </div>
+        </fieldset>
+
+        <fieldset className="dc-eco-set"><legend>Report settings</legend>
+          <div className="dc-field"><label htmlFor="eco-opener">HOWL opener</label>
+            <select id="eco-opener" className="dc-select" value={state.openerOverride || ''} onChange={e => set({ openerOverride: e.target.value || null })}>
+              <option value="">Automatic ({r.howlIntro?.opener || 'none shown'})</option><option value="standard">Standard</option><option value="sustainability">Sustainability and purpose</option><option value="startup">Startup</option>
+            </select></div>
+          <div className="dc-field"><label htmlFor="eco-sh">Stakeholder language</label>
+            <input id="eco-sh" className="dc-input" value={state.stakeholder || ''} onChange={e => set({ stakeholder: e.target.value || null })} placeholder="e.g. regulators and utilities" /></div>
+        </fieldset>
+
+        {isAdmin && (
+          <fieldset className="dc-eco-set" data-field="eco-override"><legend>Override (admin)</legend>
+            {state.override ? (
+              <p className="dc-meta">Overridden by {state.override.by} on {new Date(state.override.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: {state.override.reason} <button type="button" className="dc-link-btn" onClick={() => set({ override: null })}>Clear</button></p>
+            ) : (
+              <>
+                <div className="dc-field"><label htmlFor="eco-oo">Outcome</label>
+                  <select id="eco-oo" className="dc-select" value={ovr.outcome} onChange={e => setOvr({ ...ovr, outcome: e.target.value })}>
+                    <option value="">No change</option>{Object.values(ECO_CONFIG.outcomes).map(o => <option key={o} value={o}>{o}</option>)}
+                  </select></div>
+                <div className="dc-field"><label htmlFor="eco-oa">Ambition</label>
+                  <select id="eco-oa" className="dc-select" value={ovr.ambitionLevel} onChange={e => setOvr({ ...ovr, ambitionLevel: e.target.value })}>
+                    <option value="">No change</option><option value="A">A · Evidence-led</option><option value="B">B · Partnered</option><option value="C">C · Bold</option><option value="none">None</option>
+                  </select></div>
+                <div className="dc-field is-wide"><label htmlFor="eco-or">Reason (required)</label>
+                  <input id="eco-or" className="dc-input" value={ovr.reason} onChange={e => setOvr({ ...ovr, reason: e.target.value })} /></div>
+                {ovrMsg && <p className="dc-error" role="alert">{ovrMsg}</p>}
+                <div><button type="button" className="btn-secondary" onClick={applyOverride} disabled={!ovr.outcome && !ovr.ambitionLevel}>Apply override</button></div>
+              </>
+            )}
+          </fieldset>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -5193,12 +5392,17 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                         {avg != null && (
                           <p className="dc-kicker-sm">Sector average {avg}</p>
                         )}
-                        <p className="dc-kicker-sm" style={{ marginTop: 4,
-                          visibility: showInternal && adj !== 0 ? 'visible' : 'hidden' }}>
-                          {adj !== 0
-                            ? `${sc.baseScore} base ${adj > 0 ? '+' : ''}${adj} campaign coherence`
-                            : 'placeholder'}
-                        </p>
+                        {(() => {
+                          const ec = sc.earnedCreativeLiftApplied || 0;
+                          const shown = showInternal && (adj !== 0 || ec !== 0);
+                          return (
+                            <p className="dc-kicker-sm" style={{ marginTop: 4, visibility: shown ? 'visible' : 'hidden' }}>
+                              {shown
+                                ? [`${sc.baseScore} base`, adj !== 0 ? `${adj > 0 ? '+' : ''}${adj} campaign coherence` : null, ec ? `+${ec} earned creative` : null].filter(Boolean).join(' ')
+                                : 'placeholder'}
+                            </p>
+                          );
+                        })()}
                       </div>
 
                       <p className="text-[13px] text-[#2E3238]" style={{ lineHeight: 1.55, marginTop: 12 }}>
@@ -5440,6 +5644,7 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
     thesis: true,
     attributes: true,
     recommendations: true,
+    eco: true,
     conclusions: true,
     justification: false,
     challenges: false,
@@ -5778,6 +5983,10 @@ SCORING NOTES:
 - Business model: ${project.businessModel.toUpperCase()}. ${project.businessModel === 'b2b' ? 'LinkedIn 3x. Trade press over mainstream. Long-form over short-form. Low TikTok weight.' : project.businessModel === 'b2c' ? 'All consumer social weighted. TikTok relevant if <40 audience. Consumer reviews critical. Mainstream media over trade press.' : 'Weight LinkedIn for B2B, consumer channels for B2C. Both trade and mainstream press matter.'}
 - Recency: weight last 3 months more heavily. Evidence tiers: major publications/verified data (strong), industry/social proof (moderate), self-reported/single instance (weak).
 
+EARNED CREATIVE IN USE (framework 2.11):
+
+List any earned creative activations this brand has run in the last 24 months, from the earned media and social evidence above. Earned creative is an idea designed to be talked about rather than paid to be seen: the brand DID something in the world (a visible action, an installation, a product intervention, a data release, a partnership) and journalists, creators or the public carried it. It is NOT a press release, a funding or hiring announcement, a paid ad, a sponsorship logo, or routine content. Include an activation only if the evidence shows both the act and third parties carrying it. Name what you can see; if there is none, return an empty list. Do not change any score because of this list: the framework applies its own adjustment in code.
+
 CAMPAIGN COHERENCE ASSESSMENT (v2.9):
 
 Look across ALL the evidence above together, website, social, paid media, hashtags, and earned media, and determine whether this brand's marketing is held together by a strategy and a creative idea, or whether it is isolated tactical activity.
@@ -5898,6 +6107,11 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
 ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "max 6 words, or 'No evidence found'", "sentiment": -100 to 100 or null }`).join(',\n')}
     }
   },
+  "earnedCreative": {
+    "activations": [
+      { "name": "Short name for the activation", "what": "What the brand did in the world, one line.", "evidence": "Who carried it and where: outlet, creator or platform, with month and year." }
+    ]
+  },
   "campaignCoherence": {
     "level": 0-5,
     "levelName": "Ad hoc|Themed|Packaged|Integrated|Platform|Consequential",
@@ -5950,7 +6164,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
               );
             }
             const level = parsed.campaignCoherence?.level;
-            const adjusted = applyCampaignModifiers(parsed, level);
+            // Campaign modifiers first, then the earned creative lift, which
+            // stacks on them (framework 2.11).
+            const adjusted = applyEarnedCreativeLift(applyCampaignModifiers(parsed, level), FRAMEWORK_VERSION);
             // Sustainability narrative read (framework 2.10). Parsed, never
             // guessed: missing means the report offers to regenerate.
             adjusted.sustainabilityNarrative = parseThesis(parsed.sustainabilityNarrative);
@@ -6216,6 +6432,9 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   }
   
   const stage = getMaturityStage(overall);
+  // Earned creative (ECO module): computed from the saved scores and the
+  // analyst's inputs on every render; never changes a score.
+  const eco = scores ? ecoFromReport(scores, { brand: project.brandName, companyStage: project.companyStage, stageName: stage?.name }) : null;
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
   const nextStage = MATURITY_STAGES.find(st => st.min > overall);
@@ -7357,6 +7576,7 @@ ${content.slice(0, 8000)}`;
     'Trust and credibility',
     'Sustainability narrative',
     'Benchmark comparison',
+    'Earned creative',
     'Recommendations',
     'Conclusions',
     'Score justification',
@@ -7532,6 +7752,19 @@ ${content.slice(0, 8000)}`;
           benchmarkRadarRef={benchmarkRadarRef} spreadRef={spreadRef} spreadIn={spreadIn}
           open={expandedSections.benchmark} />
       </div>
+
+      {/* Earned creative (ECO module v1.0) */}
+      {eco && (
+        <section className="dc-section dc-reveal" id="earned-creative">
+          <SectionHeading order={sectionOrder} label="Earned creative" open={expandedSections.eco} onToggle={() => toggleSection('eco')} />
+          {expandedSections.eco && (
+            <>
+              <EcoPanel eco={eco} scores={scores} setScores={setScores} isAdmin={!!profile?.is_admin} userName={profile?.full_name || profile?.email} companyStage={project.companyStage} />
+              {eco.blocks.length ? <EcoBlocks blocks={eco.blocks} /> : <p className="dc-meta">The client-facing section appears once the gate inputs are in.</p>}
+            </>
+          )}
+        </section>
+      )}
 
       {/* Recommendations - Collapsible */}
       <div className="dc-reveal dc-keep-white">
@@ -10107,7 +10340,7 @@ function ElapsedTime({ since }) {
 const CLIENT_REPORT_SECTIONS = [
   'results at a glance', 'brand maturity', 'attribute analysis', 'brand footprint',
   'campaign coherence', 'trust and credibility', 'the sustainability narrative',
-  'the benchmark comparison', 'the conclusions',
+  'earned creative', 'the benchmark comparison', 'the conclusions',
 ];
 const CLIENT_REPORT_SECTIONS_TEXT = `${CLIENT_REPORT_SECTIONS.slice(0, -1).join(', ')} and ${CLIENT_REPORT_SECTIONS.at(-1)}`;
 
@@ -10979,6 +11212,15 @@ function makeClientPayload({ project, scores, benchmark, assessorNote = null }) 
         }
       : null,
     footprint: scores?.footprint || null,
+    // Earned creative: the client-facing text blocks only. The analyst's
+    // inputs, overrides and review notes never leave the report, and nothing
+    // is sent until the gate has its inputs.
+    eco: (() => {
+      if (!scores) return null;
+      const ov = Math.round(ATTRIBUTES.reduce((t, a) => t + (scores?.[a.id]?.score || 0), 0) / ATTRIBUTES.length);
+      const { result, blocks } = ecoFromReport(scores, { brand: project.brandName, companyStage: project.companyStage, stageName: getMaturityStage(ov)?.name });
+      return result.outcome && blocks.length ? { blocks } : null;
+    })(),
     conclusion: String(scores?.conclusion || scores?.justification || '').replace(/[\u2014\u2013]/g, '-'),
     generatedAt: new Date().toISOString(),
   };
@@ -11166,6 +11408,7 @@ function ClientReportView({ payload }) {
     ...(campaignStage ? ['Campaign coherence'] : []),
     'Trust and credibility',
     ...(scores?.sustainabilityNarrative ? ['Sustainability narrative'] : []),
+    ...(payload.eco?.blocks?.length ? ['Earned creative'] : []),
     ...(benchmark ? ['Benchmark comparison'] : []),
     ...(payload.conclusion ? ['Conclusions'] : []),
   ];
@@ -11312,6 +11555,13 @@ function ClientReportView({ payload }) {
         )}
 
         {/* ── Benchmark comparison ────────────────────────────── */}
+        {payload.eco?.blocks?.length > 0 && (
+          <section className="dc-section dc-reveal" id="earned-creative">
+            <SectionHeading order={clientSections} label="Earned creative" />
+            <EcoBlocks blocks={payload.eco.blocks} />
+          </section>
+        )}
+
         {benchmark && benchmarkAvg && (
           <div className="dc-reveal">
             <SectionHeading order={clientSections} label="Benchmark comparison" />
@@ -12490,6 +12740,20 @@ function TeaserClientView({ payload, heroImage = null, baseline = null }) {
           </ol>
         </section>
       )}
+
+      {/* Earned creative, lite (ECO 5.11): verdict, what it is, HOWL with the
+          standard opener. Attribute scores only, so the gate waits for the
+          full assessment. */}
+      {(() => {
+        const attrs = Object.fromEntries(ATTRIBUTES.map(a => [a.id, scores[a.id]?.score]));
+        if (ATTRIBUTES.some(a => !Number.isFinite(Number(attrs[a.id])))) return null;
+        return (
+          <section className="dc-tz-sec" data-field="eco-lite">
+            <h2 className="dc-h">Earned creative</h2>
+            <EcoBlocks blocks={buildLiteSection(attrs).blocks} />
+          </section>
+        );
+      })()}
 
       {payload.fullAssessmentWouldResolve?.length > 0 && (
         <section className="dc-tz-sec">

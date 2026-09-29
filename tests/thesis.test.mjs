@@ -80,8 +80,8 @@ const orig = (id) => {
   return JSON.parse(src)[id];
 };
 
-test('framework is 2.10 and stays on benchmark major version 2', () => {
-  assert.equal(FRAMEWORK_VERSION, '2.10');
+test('framework is 2.11 and stays on benchmark major version 2', () => {
+  assert.equal(FRAMEWORK_VERSION, '2.11');   // 2.11: earned creative lift
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.match(app, /const BENCHMARK_RUBRIC_MAJOR = '2';/);
   assert.equal(FRAMEWORK_VERSION.split('.')[0], '2', 'existing 2.x full assessments stay comparable');
