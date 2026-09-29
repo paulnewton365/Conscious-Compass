@@ -9,8 +9,9 @@ import { jsPDF } from 'jspdf';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = '3.94.0';
+const APP_VERSION = '3.96.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
+import { campaignCoherenceView } from './lib/campaignCoherence';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { 
@@ -1320,48 +1321,74 @@ function Reveal({ children, delay = 0, y = 16, threshold = 0.15, className = '',
   );
 }
 
-// Campaign coherence ladder. Five rungs; level 0 is the absence of a campaign,
-// not a rung. Rungs fill left to right on scroll, staggered. Shared by the
-// report, the shared report and the client report so all three behave alike.
-function CampaignLadder({ level }) {
-  const [ref, inView] = useInView(0.4);
-  const lvl = Number.isFinite(Number(level)) ? Number(level) : 0;
-
-  return (
-    <div ref={ref}>
-      <div className="flex gap-1 mb-1">
-        {CAMPAIGN_LADDER.filter(l => l.level > 0).map((l, i) => (
-          <div key={l.level} className="flex-1 text-center">
-            <div className="h-1.5 mb-1 bg-[#FBFAF7] overflow-hidden">
-              <div
-                className="h-full bg-[#D9442A] origin-left"
-                style={{
-                  transform: `scaleX(${inView && lvl >= l.level ? 1 : 0})`,
-                  transition: 'transform 520ms cubic-bezier(0.22, 1, 0.36, 1)',
-                  transitionDelay: `${i * 110}ms`,
-                }}
-              />
-            </div>
-            <div
-              className={`text-[9px] leading-tight ${l.level === lvl ? 'text-[#15171A] font-semibold' : 'text-[#999]'}`}
-              style={{
-                opacity: inView ? 1 : 0,
-                transition: 'opacity 400ms ease',
-                transitionDelay: `${i * 110 + 120}ms`,
-              }}
-            >
-              {l.name}
-            </div>
-          </div>
-        ))}
+// Campaign coherence, report section 05. Renders everything after the section
+// toggle, to the design export's DOM: level and verdict, the five-step scale,
+// the notes, and the campaigns found. Shared literally by the internal report,
+// the client report and the legacy shared view, so the three cannot drift.
+// Returns the pieces as siblings so .dc-section spaces them.
+//
+// audience="client" drops the campaign list and the confidence note. Neither
+// travels in the client payload, and this keeps the view honest about that.
+function CampaignCoherencePanel({ coherence, audience = 'internal', onRegenerate = null }) {
+  const client = audience === 'client';
+  const v = campaignCoherenceView(coherence, { showCampaigns: !client, showConfidence: !client });
+  if (!v) {
+    return (
+      <div className="dc-alert" data-cc-panel="missing">
+        <strong>Not scored yet</strong>
+        These scores were produced before campaign coherence existed, or the scoring pass did not return it.
+        {onRegenerate && <>{' '}Regenerate the report to score campaign coherence and apply the framework {FRAMEWORK_VERSION} adjustment.</>}
+        {onRegenerate && <button type="button" onClick={onRegenerate} className="btn-secondary">Regenerate report</button>}
       </div>
-      {lvl === 0 && (
-        <p className="text-[10px] text-[#C23B22] font-semibold mb-2">
-          No campaign detected. The brand sits below the first rung.
-        </p>
+    );
+  }
+  return (
+    <>
+      <div className="dc-cc">
+        <div className="dc-cc-level">
+          <span className="dc-kicker">{v.kicker}</span>
+          <div className="dc-cc-name">{v.name}</div>
+          <p className="dc-cc-def">{v.definition}</p>
+        </div>
+        {v.verdict && <p className="dc-cc-verdict">{v.verdict}</p>}
+      </div>
+      <ol className="dc-cc-scale" aria-label={v.scaleLabel}>
+        {v.scale.map(s => (
+          <li key={s.n} className={s.state ? `is-${s.state}` : undefined}
+            aria-current={s.state === 'current' ? 'step' : undefined}>
+            <i></i><span>{s.n}</span><b>{s.name}</b>
+          </li>
+        ))}
+      </ol>
+      {v.notes.length > 0 && (
+        <div className="dc-cc-notes">
+          {v.notes.map(n => (
+            <div key={n.label}><span className="dc-kicker">{n.label}</span><p>{n.text}</p></div>
+          ))}
+        </div>
       )}
-      <div className="mb-3" />
-    </div>
+      {v.campaigns && (
+        <div className="dc-stack is-gap-4">
+          <div className="dc-cc-head"><h3 className="dc-h is-card">Campaigns found</h3><span className="dc-meta">{v.countLabel}</span></div>
+          {v.campaigns.length ? (
+            <div className="dc-cc-campaigns">
+              {v.campaigns.map((c, i) => (
+                <article key={i} className="dc-block dc-cc-card">
+                  <h4 className="dc-cc-title">{c.title}</h4>
+                  {c.channels.length > 0 && (
+                    <div className="dc-cc-tags">{c.channels.map((ch, j) => <span key={j} className="dc-pill">{ch}</span>)}</div>
+                  )}
+                  {c.idea && <p className="dc-cc-idea"><span className="dc-kicker">Idea</span>{c.idea}</p>}
+                  {c.evidence && <p className="dc-cc-evidence">{c.evidence}</p>}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="dc-meta">No campaigns found in the sources reviewed.</p>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1493,10 +1520,11 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const toggle = (id) => setSpotlight(prev => (prev === id ? null : id));
   const lit = (id) => spotlight === id;
 
-  // Reach columns: ink where an attribute carries every lens, #C9C4BA
-  // otherwise. The count is written under each column, so the reading never
-  // depends on the shade.
-  const reachFill = (count, total) => (count === total ? INK : count === 0 ? RULE : '#C9C4BA');
+  // Reach columns: ink where an attribute carries every lens, --cc-faint
+  // (#8A8E95) for one to three. #C9C4BA was about 1.6:1 on the paper, too faint
+  // to read as a bar; #8A8E95 clears the 3:1 minimum for graphics. One tone
+  // for 1-3, since the height already carries the count.
+  const reachFill = (count, total) => (count === total ? INK : count === 0 ? RULE : '#8A8E95');
 
   // Eight columns of bars, shared by the reach panel and every lens row.
   const BarRow = ({ items, trackH = 64, dark = false, caption, rowInView = true }) => (
@@ -1522,10 +1550,10 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
             )}
           </div>
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', marginTop: 8,
-            color: dark ? (it.value ? '#FBFAF7' : '#6E6E68') : (it.value ? INK : '#8A8E95') }}>
+            color: dark ? (it.value ? '#FBFAF7' : '#6E6E68') : (it.value ? INK : MUTED) }}>
             {it.code}
           </div>
-          <div style={{ fontSize: 10, marginTop: 2, color: dark ? '#B9BCC1' : MUTED }}>{it.label}</div>
+          <div style={{ fontSize: 10, marginTop: 2, color: dark ? '#B9BCC1' : (it.full ? INK : MUTED), fontWeight: it.full ? 600 : 400 }}>{it.label}</div>
         </button>
       ))}
       {caption}
@@ -1627,6 +1655,7 @@ function TrustLensPanel({ scores, findings = [], overall, showFindings = true })
   const reachItems = data.reach.map(a => ({
     id: a.id, code: a.code, value: a.count, label: `${a.count}/${a.total}`,
     pct: (a.count / a.total) * 100, fill: reachFill(a.count, a.total),
+    full: a.count === a.total,
   }));
 
   return (
@@ -9012,90 +9041,18 @@ ${content.slice(0, 8000)}`;
         </div>
       )}
 
-      {/* Campaign Coherence - Collapsible */}
-      {!campaignStage && (
-        <div className="dc-reveal">
-          <SectionHead label="Campaign coherence" />
-          <div className="card border-l-4 border-[#D9442A]">
-            <p className="text-sm text-[#2E3238] leading-relaxed">
-              These scores were produced before campaign coherence existed, or the scoring pass did not return it.
-              Regenerate the report to score campaign coherence and apply the framework {FRAMEWORK_VERSION} adjustment.
-            </p>
-            <button
-              onClick={() => { setScores(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className="btn-secondary text-xs py-1.5 px-3 mt-3 flex items-center gap-1.5"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Regenerate Report
-            </button>
-          </div>
-        </div>
-      )}
-      {campaignStage && (
-        <div className="dc-reveal">
+      {/* ── 05 Campaign coherence ─────────────────────────── */}
+      {/* Unscored, the section is the alert alone and has no toggle. */}
+      <section className="dc-section dc-reveal" id="campaign-coherence">
+        {campaignStage ? (
           <SectionHead label="Campaign coherence" open={expandedSections.campaign}
-          onToggle={() => toggleSection('campaign')} />
-          {expandedSections.campaign && (
-            <div className="animate-fade-in space-y-3">
-              <div className="card">
-                <div className="flex flex-wrap items-start gap-4 mb-4">
-                  <div className="text-center flex-shrink-0">
-                    <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#15171A]">
-                      {campaignStage.level === 0 ? '—' : campaignStage.level}
-                    </div>
-                    <div className="text-[10px] text-[#5B6068] mt-1">{campaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-lg font-bold text-[#15171A]">{campaignStage.name}</div>
-                    <p className="text-sm text-[#5B6068] leading-relaxed mb-2">{campaignStage.summary}</p>
-                    {campaign.verdict && (
-                      <p className="text-sm text-[#15171A] font-medium leading-relaxed">{campaign.verdict}</p>
-                    )}
-                  </div>
-                </div>
-
-                <CampaignLadder level={campaignStage.level} />
-
-                <p className="text-xs text-[#2E3238] leading-relaxed">{campaignStage.description}</p>
-
-                {campaign.rationale && (
-                  <p className="text-xs text-[#2E3238] mt-2 leading-relaxed">
-                    <span className="font-semibold">Why this level:</span> {campaign.rationale}
-                  </p>
-                )}
-                {campaign.toNextLevel && (
-                  <p className="text-xs text-[#2E3238] mt-2 leading-relaxed">
-                    <span className="font-semibold">To reach level {Math.min(5, campaignStage.level + 1)}:</span> {campaign.toNextLevel}
-                  </p>
-                )}
-                {campaign.confidence && (
-                  <p className="text-[10px] text-[#999] mt-2 uppercase tracking-wide">Confidence: {campaign.confidence}</p>
-                )}
-              </div>
-
-              {/* Detected campaigns */}
-              {Array.isArray(campaign.campaigns) && campaign.campaigns.length > 0 && (
-                <div className="grid md:grid-cols-2 gap-3">
-                  {campaign.campaigns.map((c, i) => (
-                    <div key={i} className="card">
-                      <h4 className="font-semibold text-[#15171A] text-sm mb-1">{c.name}</h4>
-                      {Array.isArray(c.channels) && c.channels.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {c.channels.map((ch, j) => (
-                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-[#DEDAD2] text-[#2E3238]">{ch}</span>
-                          ))}
-                        </div>
-                      )}
-                      {c.idea && <p className="text-xs text-[#2E3238] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
-                      {c.evidence && <p className="text-xs text-[#5B6068] leading-relaxed">{c.evidence}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-            </div>
-          )}
-        </div>
-      )}
+            onToggle={() => toggleSection('campaign')} />
+        ) : <SectionHead label="Campaign coherence" />}
+        {(!campaignStage || expandedSections.campaign) && (
+          <CampaignCoherencePanel coherence={campaign}
+            onRegenerate={() => { setScores(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
+        )}
+      </section>
 
       {/* Trust & Credibility Lens - Collapsible */}
       <div className="dc-reveal">
@@ -13073,7 +13030,7 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Upper panel ─────────────────────────────────────── */}
-        <section className="dc-reveal dc-keep-white">
+        <section className="dc-read-sec dc-reveal">
           <SectionHead label="Results at a glance" />
           <ReportGlanceSection project={project} scores={scores} overall={overall}
             stage={stage} sortedAttrs={sortedAttrs} />
@@ -13090,7 +13047,7 @@ function ClientReportView({ payload }) {
         {/* ── Maturity ────────────────────────────────────────── */}
         <div className="dc-reveal">
         <SectionHead label="Brand maturity" />
-        <div className="bg-white mb-6" style={{ padding: '52px 32px 32px' }}>
+        <div>
           <div className="relative">
             <div className="absolute flex flex-col items-center gap-1"
               style={{ left: `${overall}%`, top: -30, transform: 'translateX(-50%)' }}>
@@ -13116,7 +13073,7 @@ function ClientReportView({ payload }) {
         </div>
 
         {/* ── Attribute analysis ─────────────────────────────── */}
-        <div className="dc-reveal dc-keep-white">
+        <div className="dc-read-sec dc-reveal">
           <SectionHead label="Attribute analysis" />
           {/* showInternal false hides the campaign adjustment, the improve
               line and the service mapping. Same component, same formatting. */}
@@ -13137,43 +13094,10 @@ function ClientReportView({ payload }) {
 
         {/* ── Campaign coherence ──────────────────────────────── */}
         {campaignStage && (
-          <div className="dc-reveal">
+          <section className="dc-section dc-reveal" id="campaign-coherence">
             <SectionHead label="Campaign coherence" />
-            <div className="bg-white" style={{ padding: 24 }}>
-              <div className="flex flex-wrap items-start gap-4 mb-4">
-                <div className="text-center flex-shrink-0">
-                  <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#15171A]">
-                    {campaignStage.level === 0 ? '—' : campaignStage.level}
-                  </div>
-                  <div className="text-[10px] text-[#5B6068] mt-1">
-                    {campaignStage.level === 0 ? 'no tier' : 'of 5'}
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-lg font-bold text-[#15171A]">{campaignStage.name}</div>
-                  <p className="text-sm text-[#5B6068] leading-relaxed mb-2">{campaignStage.summary}</p>
-                  {campaign.verdict && (
-                    <p className="text-sm text-[#15171A] font-medium leading-relaxed">{campaign.verdict}</p>
-                  )}
-                </div>
-              </div>
-
-              <CampaignLadder level={campaignStage.level} />
-
-              <p className="text-xs text-[#2E3238] leading-relaxed">{campaignStage.description}</p>
-              {campaign.rationale && (
-                <p className="text-xs text-[#2E3238] mt-2 leading-relaxed">
-                  <span className="font-semibold">Why this level: </span>{campaign.rationale}
-                </p>
-              )}
-              {campaign.toNextLevel && (
-                <p className="text-xs text-[#2E3238] mt-2 leading-relaxed">
-                  <span className="font-semibold">To reach level {Math.min(5, campaignStage.level + 1)}: </span>
-                  {campaign.toNextLevel}
-                </p>
-              )}
-            </div>
-          </div>
+            <CampaignCoherencePanel coherence={campaign} audience="client" />
+          </section>
         )}
 
         {/* ── Trust and credibility ───────────────────────────── */}
@@ -13208,7 +13132,7 @@ function ClientReportView({ payload }) {
         {payload.conclusion && (
           <div className="dc-reveal">
             <SectionHead label="Conclusions" />
-            <div className="bg-white" style={{ padding: 24 }}>
+            <div className="dc-block">
               <p className="text-[15px] text-[#2E3238]" style={{ lineHeight: 1.6, maxWidth: '72ch' }}>{payload.conclusion}</p>
             </div>
           </div>
@@ -13579,40 +13503,13 @@ function SharedReportView({ report, onClose }) {
           </>
         )}
 
-        {/* Campaign Coherence */}
+        {/* Campaign Coherence: the same panel as the full report */}
         {sharedCampaignStage && (
           <>
             <h3 className="text-xl font-semibold text-[#15171A] mt-8 mb-4">CAMPAIGN COHERENCE</h3>
-            <div className="card mb-8">
-              <div className="flex flex-wrap items-start gap-4 mb-4">
-                <div className="text-center flex-shrink-0">
-                  <div className="w-16 h-16 flex items-center justify-center text-white text-2xl font-bold bg-[#15171A]">
-                    {sharedCampaignStage.level === 0 ? '—' : sharedCampaignStage.level}
-                  </div>
-                  <div className="text-[10px] text-[#5B6068] mt-1">{sharedCampaignStage.level === 0 ? 'no tier' : 'of 5'}</div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-lg font-bold text-[#15171A]">{sharedCampaignStage.name}</div>
-                  <p className="text-sm text-[#5B6068] leading-relaxed mb-2">{sharedCampaignStage.summary}</p>
-                  {sharedCampaign.verdict && <p className="text-sm text-[#15171A] font-medium leading-relaxed">{sharedCampaign.verdict}</p>}
-                </div>
-              </div>
-              <CampaignLadder level={sharedCampaignStage.level} />
-              <p className="text-xs text-[#2E3238] leading-relaxed">{sharedCampaignStage.description}</p>
-              {sharedCampaign.rationale && <p className="text-xs text-[#2E3238] mt-2 leading-relaxed"><span className="font-semibold">Why this level:</span> {sharedCampaign.rationale}</p>}
-              {sharedCampaign.toNextLevel && <p className="text-xs text-[#2E3238] mt-2 leading-relaxed"><span className="font-semibold">To reach level {Math.min(5, sharedCampaignStage.level + 1)}:</span> {sharedCampaign.toNextLevel}</p>}
-              {Array.isArray(sharedCampaign.campaigns) && sharedCampaign.campaigns.length > 0 && (
-                <div className="grid md:grid-cols-2 gap-3 mt-4">
-                  {sharedCampaign.campaigns.map((c, i) => (
-                    <div key={i} className="bg-[#FBFAF7] p-3">
-                      <h4 className="font-semibold text-[#15171A] text-sm mb-1">{c.name}</h4>
-                      {c.idea && <p className="text-xs text-[#2E3238] leading-relaxed mb-1"><span className="font-semibold">Idea:</span> {c.idea}</p>}
-                      {c.evidence && <p className="text-xs text-[#5B6068] leading-relaxed">{c.evidence}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <section className="dc-section mb-8" id="campaign-coherence">
+              <CampaignCoherencePanel coherence={sharedCampaign} />
+            </section>
           </>
         )}
 

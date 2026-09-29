@@ -654,7 +654,7 @@ test('sections sit on the page stack, not on 80px margins of their own', () => {
 
 test('lens reach columns read by count, not by shade', () => {
   const lens = app.slice(app.indexOf('function TrustLensPanel'), app.indexOf('function TrustLensPanel') + 2000);
-  assert.ok(lens.includes("count === total ? INK : count === 0 ? RULE : '#C9C4BA'"), 'ink at full reach, muted otherwise');
+  assert.ok(lens.includes("count === total ? INK : count === 0 ? RULE : '#8A8E95'"), 'ink at full reach, --cc-faint otherwise (v3.96: #C9C4BA was 1.6:1)');
   assert.ok(!lens.includes('count >= total - 1 ? INK'), 'the four-step colour scale is gone');
 });
 
