@@ -511,3 +511,12 @@ test('clicking the brand name or the row opens its details; clicks inside the pa
   assert.ok(row().querySelector('.dc-result-detail'), 'the Details button still works, once, without the row toggling it back');
   await act(async () => root.unmount());
 });
+
+test('the Teaser read has more air between and within sections (v3.109.2)', () => {
+  const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  const at = css.indexOf('/* More air in the Teaser read (v3.109.2)');
+  const block = css.slice(at, at + 800);
+  assert.ok(block.includes('.dc-teaser { gap: var(--cc-s-24); }'));
+  assert.ok(block.includes('.dc-tz-sec { gap: var(--cc-s-8); padding-top: var(--cc-s-12); }'));
+  assert.ok(at > css.indexOf('.dc-tz-sec { display: flex;'), 'after the base rule, so it wins');
+});

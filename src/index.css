@@ -1274,6 +1274,16 @@ button { font: inherit; color: inherit; }
 .dc-tz-thesis { margin: 0; font: var(--cc-w-regular) var(--cc-fs-card)/1.3 var(--cc-serif); color: var(--cc-ink); max-width: 30ch; }
 .dc-tz-sec { display: flex; flex-direction: column; gap: var(--cc-s-6); padding-top: var(--cc-s-10); border-top: var(--cc-border); }
 .dc-tz-sec > .dc-h { margin: 0; }
+/* More air in the Teaser read (v3.109.2): 96px between sections (was 64),
+   48px from the rule to the heading (was 40) and 32px under each heading and
+   between blocks (was 24), which is the full report's heading-to-content
+   rhythm. On a phone: 64px between sections, 40px from the rule. */
+.dc-teaser { gap: var(--cc-s-24); }
+.dc-tz-sec { gap: var(--cc-s-8); padding-top: var(--cc-s-12); }
+@media (max-width: 720px) {
+  .dc-teaser { gap: var(--cc-s-16); }
+  .dc-tz-sec { padding-top: var(--cc-s-10); gap: var(--cc-s-6); }
+}
 .dc-attr-p { margin: 0; font-size: var(--cc-fs-ui); line-height: 1.5; color: var(--cc-body); }
 .dc-ev-list { list-style: none; margin: 0; padding: 0; border-top: var(--cc-border); }
 .dc-ev-list li { display: grid; grid-template-columns: 80px minmax(0,1fr) auto; gap: var(--cc-s-4); align-items: center; padding: var(--cc-s-3) 0; border-bottom: var(--cc-border); }
