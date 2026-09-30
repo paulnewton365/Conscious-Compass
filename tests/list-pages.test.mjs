@@ -483,5 +483,20 @@ test('sustainability principles: Breaking through is counted, styled and set at 
   const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   assert.ok(css.includes('.dc-status-chip.is-evident, .dc-status-chip.is-breaking {'));
   assert.ok(css.includes('.dc-principles-strip i.is-evident, .dc-principles-strip i.is-breaking {'));
-  assert.ok(/\.dc-principle h3 \{[^}]*var\(--cc-fs-lead\)/.test(css) && /\.dc-principle p \{[^}]*var\(--cc-fs-body\)/.test(css));
+  // v3.110.2: names in the serif at 22px, like the report's other list headings
+  assert.ok(/\.dc-principle h3 \{[^}]*22px\/1\.25 var\(--cc-serif\)/.test(css) && /\.dc-principle p \{[^}]*var\(--cc-fs-body\)/.test(css));
+});
+
+test('type sweep: the three reports stay on one scale (v3.110.2)', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  const card = src.slice(src.indexOf('{sc.findings || sc.summary || attr.description}') - 200, src.indexOf('{sc.findings || sc.summary || attr.description}'));
+  assert.ok(card.includes('className="dc-attr-body"'), 'attribute card prose uses the body class, not old 13px text');
+  assert.ok(css.includes('.dc-attr-body, .dc-attr-p { margin: 0; font-size: var(--cc-fs-body);'), 'card prose at body size in all three reports');
+  assert.ok(/\.dc-kicker-sm \{ font-size: var\(--cc-fs-meta\)/.test(css), 'notes like "Sector average" at the note size');
+  assert.ok(css.includes('.dc-eco-verdict { font: var(--cc-w-regular) var(--cc-fs-card)/1.3 var(--cc-serif);'), 'every section opening line at one size');
+  assert.ok(/\.dc-maturity-marker span \{[^}]*var\(--cc-w-semi\)/.test(css), 'one bold weight');
+  const client = src.slice(src.indexOf('function ClientReportView('), src.indexOf('function ClientReportView(') + 30000);
+  assert.ok(client.includes('<div className="dc-maturity" aria-label='), 'the client maturity scale is the full report\'s');
+  assert.ok(!src.includes('function PositionBands('), 'the older strip is gone');
 });

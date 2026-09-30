@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.110.1';
+const APP_VERSION = '3.110.2';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
 import { startScrollMotion, retagSections, revealAll, motionAllowed } from './lib/scrollMotion';
@@ -1208,28 +1208,6 @@ function useReveal(threshold = 0.25, duration = 900) {
   return [ref, progress, inView];
 }
 
-// Maturity band strip, shared by Brand maturity and Overall position.
-// Segments grow from the left on scroll, staggered across the bands.
-function PositionBands({ stageName }) {
-  const [ref, inView] = useInView(0.3);
-  return (
-    <div ref={ref} className="grid gap-[2px]"
-      style={{ gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), height: 14 }}>
-      {MATURITY_STAGES.map((st, i) => (
-        <div key={st.id} style={{ background: '#FBFAF7', overflow: 'hidden' }}>
-          <div data-motion-bar="" style={{
-            height: '100%',
-            background: st.name === stageName ? '#D9442A' : '#DEDAD2',
-            transform: `scaleX(${inView ? 1 : 0})`,
-            transformOrigin: 'left',
-            transition: 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)',
-            transitionDelay: `${i * 80}ms`,
-          }} />
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // Stat block from the assessment pages in the design: a large figure with a
 // muted suffix over a tracked label, on white, separated by 2px of ground.
@@ -1878,8 +1856,8 @@ function BenchmarkPositionBar({ benchmark, brandName }) {
       <div className="relative" style={{ height: refsCollide ? 104 : 86 }}>
         {/* Brand pill, above the track */}
         <div className="absolute z-20" style={{ left: `${brand}%`, top: 0, transform: pillTransform }}>
-          <div className="px-2 py-0.5 text-white text-[11px] font-bold whitespace-nowrap"
-            style={{ backgroundColor: getMaturityStage(brand).color }}>
+          <div className="px-2 py-0.5 text-white whitespace-nowrap"
+            style={{ backgroundColor: getMaturityStage(brand).color, fontSize: 12, fontWeight: 600 }}>
             {brandName} {brand}
           </div>
         </div>
@@ -5272,22 +5250,22 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                         })()}
                       </div>
 
-                      <p className="text-[13px] text-[#2E3238]" style={{ lineHeight: 1.55, marginTop: 12 }}>
+                      <p className="dc-attr-body" style={{ marginTop: 12 }}>
                         {sc.findings || sc.summary || attr.description}
                       </p>
                       {sc.impact && (
-                        <p className="text-[13px]" style={{ lineHeight: 1.55, marginTop: 10 }}>
-                          <b className="font-bold">What&rsquo;s driving it:</b> {String(sc.impact).replace(/^What'?s driving it:?\s*/i, '')}
+                        <p className="dc-attr-body" style={{ marginTop: 10 }}>
+                          <b>What&rsquo;s driving it:</b> {String(sc.impact).replace(/^What'?s driving it:?\s*/i, '')}
                         </p>
                       )}
                       {showInternal && sc.actions && (
-                        <p className="text-[13px]"
-                          style={{ lineHeight: 1.55, marginTop: 14, borderLeft: '4px solid #D9442A', paddingLeft: 12 }}>
-                          <b className="font-bold">To improve:</b> {String(sc.actions).replace(/^To improve( the score)?:?\s*/i, '')}
+                        <p className="dc-attr-body"
+                          style={{ marginTop: 14, borderLeft: '4px solid #D9442A', paddingLeft: 12 }}>
+                          <b>To improve:</b> {String(sc.actions).replace(/^To improve( the score)?:?\s*/i, '')}
                         </p>
                       )}
                       {showInternal && sc.opportunity && (
-                        <p className="text-[12px] svc-link" style={{ marginTop: 12 }}>{sc.opportunity}</p>
+                        <p className="dc-meta svc-link" style={{ marginTop: 12 }}>{sc.opportunity}</p>
                       )}
                     </article>
                   );
@@ -5316,16 +5294,16 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                         return (
                           <div key={attr.id} className="flex items-center justify-between"
                             style={{ padding: '9px 0', borderBottom: '1px solid #DEDAD2' }}>
-                            <span className="text-[13px] font-bold truncate">{attr.name}</span>
+                            <span className="truncate" style={{ fontSize: 'var(--cc-fs-ui)', fontWeight: 600 }}>{attr.name}</span>
                             <span className="dc-adj-row grid items-baseline flex-shrink-0 tabular-nums"
                               style={{ gridTemplateColumns: '34px 30px 34px', gap: 10, textAlign: 'right' }}>
                               <span className="text-[12px] text-[#5B6068]">
                                 {scores[attr.id]?.baseScore ?? scores[attr.id]?.score}
                               </span>
-                              <span className="text-[12px] font-bold" style={{ color: adj > 0 ? SCORE_GREEN : SCORE_RED }}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: adj > 0 ? SCORE_GREEN : SCORE_RED }}>
                                 {adj > 0 ? '+' : ''}{adj}
                               </span>
-                              <span className="text-[15px] font-bold" style={{ color: scoreColor(scores[attr.id]?.score) }}>
+                              <span style={{ fontSize: 15, fontWeight: 600, color: scoreColor(scores[attr.id]?.score) }}>
                                 {scores[attr.id]?.score}
                               </span>
                             </span>
@@ -7595,7 +7573,7 @@ ${content.slice(0, 8000)}`;
         <div className="dc-reveal">
           <SectionHeading order={sectionOrder} label="Benchmark comparison" />
           <div className="card border-l-4 border-[#D9442A]">
-            <p className="text-sm text-[#2E3238] leading-relaxed">{benchmarkUnavailableReason}</p>
+            <p className="dc-body">{benchmarkUnavailableReason}</p>
           </div>
         </div>
       )}
@@ -11374,27 +11352,23 @@ function ClientReportView({ payload }) {
         {/* ── Maturity ────────────────────────────────────────── */}
         <div className="dc-reveal">
         <SectionHeading order={clientSections} label="Brand maturity" />
-        <div>
-          <div className="relative">
-            <div className="absolute flex flex-col items-center gap-1"
-              style={{ left: `${overall}%`, top: -30, transform: 'translateX(-50%)' }}>
-              <div className="text-[11px] font-bold" style={{ letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{overall}</div>
-              <div style={{ width: 2, height: 12, background: '#15171A' }} />
-            </div>
-            <PositionBands stageName={stage.name} />
-            <div className="dc-maturity-labels grid gap-[2px]" style={{
-              gridTemplateColumns: MATURITY_STAGES.map(st => `${st.max - st.min + 1}fr`).join(' '), marginTop: 10 }}>
-              {MATURITY_STAGES.map(st => (
-                <div key={st.id} className="text-[11px] flex justify-between gap-2"
-                  style={{ fontWeight: st.name === stage.name ? 700 : 600,
-                    color: st.name === stage.name ? '#15171A' : '#5B6068' }}>
-                  <span>{st.name}</span>
-                  <span className="dc-band-range" style={{ color: '#8A8E95', fontWeight: 600 }}>
-                    {st.min}&ndash;{st.max}
-                  </span>
-                </div>
-              ))}
-            </div>
+        {/* The full report's maturity scale (v3.110.2), replacing an older build
+            with hard-coded 11px bold type. Same marker, track and labels. */}
+        <div className="dc-maturity" aria-label={`Maturity: ${stage.name}, score ${overall}`}>
+          <div className="dc-maturity-marker">
+            <span style={{ left: `${Math.max(0, Math.min(100, overall))}%` }}>{overall}</span>
+          </div>
+          <div className="dc-maturity-track" aria-hidden="true">
+            {MATURITY_STAGES.map(st => (
+              <i key={st.id} className={st.name === stage.name ? 'is-current' : ''} />
+            ))}
+          </div>
+          <div className="dc-maturity-labels">
+            {MATURITY_STAGES.map(st => (
+              <div key={st.id} className={st.name === stage.name ? 'is-current' : ''}>
+                <span>{st.name}</span><span>{st.min}\u2013{st.max}</span>
+              </div>
+            ))}
           </div>
         </div>
         </div>

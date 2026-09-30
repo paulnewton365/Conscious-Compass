@@ -107,7 +107,7 @@ body { background: var(--cc-paper); color: var(--cc-ink);
   letter-spacing: var(--cc-tracking-label); text-transform: uppercase;
   color: var(--cc-muted); }
 .dc-kicker.is-accent { color: var(--cc-rust-text); }
-.dc-kicker-sm { /* retire: use .dc-kicker */ }
+.dc-kicker-sm { font-size: var(--cc-fs-meta); line-height: 1.4; color: var(--cc-muted); }   /* v3.110.2: was emptied, so notes rendered at body size */
 .dc-display { font: var(--cc-w-regular) var(--cc-fs-title)/var(--cc-lh-display)
   var(--cc-serif); letter-spacing: var(--cc-tracking-display);
   text-wrap: balance; }
@@ -605,7 +605,7 @@ a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
 .dc-cover-thesis { font: var(--cc-w-regular) var(--cc-fs-section)/1.2 var(--cc-serif); max-width: 22ch; }
 .dc-cover-r { display: flex; flex-direction: column; gap: var(--cc-s-4); }
 .dc-intro { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: var(--cc-s-10); padding: var(--cc-s-10) 0; }
-.dc-intro p { font-size: 17px; line-height: 1.6; color: var(--cc-body); max-width: 64ch; }
+.dc-intro p { font-size: var(--cc-fs-lead); line-height: 1.55; color: var(--cc-body); max-width: 64ch; }
 .dc-read-sec { display: flex; flex-direction: column; gap: var(--cc-s-8); padding-top: var(--cc-s-16); }
 .dc-read-h { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: var(--cc-s-10); align-items: baseline; border-top: var(--cc-border-strong); padding-top: var(--cc-s-5); }
 .dc-read-h .dc-sec-n { font-size: var(--cc-fs-label); }
@@ -697,7 +697,7 @@ button { font: inherit; color: inherit; }
 .dc-maturity { display: flex; flex-direction: column; gap: 8px; }
 .dc-maturity-marker { position: relative; height: 28px; }
 .dc-maturity-marker span { position: absolute; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px;
-  font-size: var(--cc-fs-ui); font-weight: var(--cc-w-bold); }
+  font-size: var(--cc-fs-ui); font-weight: var(--cc-w-semi); }
 .dc-maturity-marker span::after { content: ""; width: 2px; height: 10px; background: var(--cc-ink); }
 .dc-maturity-track, .dc-maturity-labels { display: grid; gap: 2px; grid-template-columns: 26fr 14fr 16fr 14fr 15fr 16fr; }
 .dc-maturity-track { height: var(--cc-bar-overall); }
@@ -745,7 +745,7 @@ button { font: inherit; color: inherit; }
 .dc-cc-card { display: flex; flex-direction: column; gap: var(--cc-s-3); }
 .dc-cc-title { margin: 0; font: var(--cc-w-regular) 22px/1.2 var(--cc-serif); color: var(--cc-ink); }
 .dc-cc-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.dc-cc-idea { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 15px; line-height: 1.45; font-weight: var(--cc-w-medium); color: var(--cc-ink); }
+.dc-cc-idea { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--cc-fs-body); line-height: 1.5; font-weight: var(--cc-w-regular); color: var(--cc-ink); }
 .dc-cc-evidence { margin: 0; font-size: var(--cc-fs-ui); line-height: 1.55; color: var(--cc-body); }
 @media (max-width: 1000px) {
   .dc-cc { grid-template-columns: 1fr; gap: var(--cc-s-5); }
@@ -908,8 +908,8 @@ button { font: inherit; color: inherit; }
 .dc-principles-strip i.is-buried { background: transparent; border: 1px dashed var(--cc-faint); height: 6px; }
 .dc-principles { list-style: none; padding: 0; margin: 0; border-top: var(--cc-border-strong); }
 .dc-principle { display: grid; grid-template-columns: 150px minmax(0,1fr); gap: var(--cc-s-6); padding: var(--cc-s-5) 0; border-bottom: var(--cc-border); align-items: baseline; }
-/* v3.110.1: names at the lead size and reasons at body size, as elsewhere in the report (were 15px and 13.5px) */
-.dc-principle h3 { margin: 0; font-size: var(--cc-fs-lead); line-height: 1.3; font-weight: var(--cc-w-semi); color: var(--cc-ink); }
+/* v3.110.2: names in the serif at 22px, like the report's other list headings (campaign names, ladder steps); reasons at body size */
+.dc-principle h3 { margin: 0; font: var(--cc-w-regular) 22px/1.25 var(--cc-serif); color: var(--cc-ink); }
 .dc-principle p { margin: 6px 0 0; font-size: var(--cc-fs-body); line-height: 1.55; color: var(--cc-body); max-width: 72ch; }
 .dc-status-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: var(--cc-r-1); font: var(--cc-w-semi) 12px/1 var(--cc-sans); }
 .dc-status-chip.is-evident, .dc-status-chip.is-breaking { background: var(--cc-pos); color: var(--cc-paper); }
@@ -1416,7 +1416,7 @@ button { font: inherit; color: inherit; }
    and HOWL under an ink rule with its wordmark. The analyst panel reuses the
    dashed internal panel. */
 .dc-eco { display: flex; flex-direction: column; gap: var(--cc-s-6); max-width: 820px; }
-.dc-eco-verdict { font: var(--cc-w-regular) 28px/1.25 var(--cc-serif); color: var(--cc-ink); margin: 0; }
+.dc-eco-verdict { font: var(--cc-w-regular) var(--cc-fs-card)/1.3 var(--cc-serif); color: var(--cc-ink); margin: 0; }
 .dc-eco-block { display: flex; flex-direction: column; gap: var(--cc-s-2); }
 .dc-eco-block p, .dc-eco-howl p { margin: 0; font-size: var(--cc-fs-body); line-height: var(--cc-lh-body); color: var(--cc-body); max-width: 68ch; }
 .dc-eco-block ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--cc-s-2); }
@@ -1432,7 +1432,7 @@ button { font: inherit; color: inherit; }
 .dc-eco-n { font: var(--cc-w-regular) 28px/1 var(--cc-serif); color: var(--cc-faint); }
 .dc-eco-step-head { display: flex; align-items: baseline; gap: var(--cc-s-3); flex-wrap: wrap; }
 .dc-eco-step-head b { font: var(--cc-w-regular) 22px/1.2 var(--cc-serif); color: var(--cc-muted); }
-.dc-eco-badge { font-size: 11px; font-weight: var(--cc-w-bold); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-ink); border: var(--cc-border-strong); border-radius: var(--cc-r-1); padding: 2px 8px; }
+.dc-eco-badge { font-size: 11px; font-weight: var(--cc-w-semi); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-ink); border: var(--cc-border-strong); border-radius: var(--cc-r-1); padding: 2px 8px; }
 .dc-eco-ladder p { margin: 4px 0 0; font-size: var(--cc-fs-ui); line-height: 1.5; color: var(--cc-muted); max-width: 70ch; }
 .dc-eco-ladder .dc-eco-example { color: var(--cc-muted); font-style: italic; }
 .dc-eco-ladder .dc-eco-unlock { color: var(--cc-ink); font-weight: var(--cc-w-semi); }
@@ -1463,7 +1463,7 @@ button { font: inherit; color: inherit; }
 .dc-bm-scale-track .avg { top: 0; width: 1px; height: 18px; background: var(--cc-ink); }
 .dc-bm-scale-track .avg span { position: absolute; top: 22px; left: 0; transform: translateX(-50%); white-space: nowrap; font-size: var(--cc-fs-meta); color: var(--cc-muted); font-style: normal; }
 .dc-bm-scale-track .subj { top: 2px; width: 12px; height: 12px; margin-left: -6px; background: var(--cc-rust); transform: rotate(45deg); }
-.dc-bm-scale-track .subj-l { position: absolute; top: -24px; transform: translateX(-50%); white-space: nowrap; font: var(--cc-w-bold) var(--cc-fs-ui)/1 var(--cc-sans); color: var(--cc-ink); }
+.dc-bm-scale-track .subj-l { position: absolute; top: -24px; transform: translateX(-50%); white-space: nowrap; font: var(--cc-w-semi) var(--cc-fs-ui)/1 var(--cc-sans); color: var(--cc-ink); }
 .dc-bm-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--cc-faint); }
 .dc-bm-axis.is-rows { margin-left: calc(110px + var(--cc-s-4)); margin-right: calc(96px + var(--cc-s-4) * 2); }
 .dc-bm-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: var(--cc-s-6); border-top: var(--cc-border-strong); padding-top: var(--cc-s-5); }
@@ -1543,6 +1543,12 @@ button { font: inherit; color: inherit; }
   .dc-motion [data-reveal]:not(.is-revealed) .avg { opacity: 1 !important; }
 }
 @media (prefers-reduced-motion: reduce) { [data-motion-bar] { transform: none !important; transition: none !important; } }
+
+/* ---------- Type consistency across the three reports (v3.110.2) ----------
+   Prose in attribute cards at body size, like every other section; one bold
+   weight (semibold) for emphasis in running text. */
+.dc-attr-body, .dc-attr-p { margin: 0; font-size: var(--cc-fs-body); line-height: 1.55; color: var(--cc-body); }
+.dc-page :is(p, li, .dc-alert) > :is(b, strong), .dc-teaser :is(p, li, .dc-alert) > :is(b, strong) { font-weight: var(--cc-w-semi); }
 
 /* ---------- Dialogs (v3.97.2) ----------
    One component for every modal. No design packet yet: built from the tokens,
