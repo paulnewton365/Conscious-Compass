@@ -286,13 +286,13 @@ function reportRoot(doc, tops) {
   return root;
 }
 
-test('motion: sections are tagged draw or fade; campaign coherence and trust only fade', async () => {
+test('motion: sections are tagged draw or fade; campaign coherence only fades (v3.111.0: the trust lens draws its scale markers)', async () => {
   const sm = await import('../src/lib/scrollMotion.js');
   const { win, doc, observed } = motionWindow();
   const root = reportRoot(doc, [0, 900, 1400, 1900, 2400]);
   sm.startScrollMotion(root, win);
   const kind = (id) => doc.getElementById(id).getAttribute('data-reveal');
-  assert.deepEqual(['glance', 'footprint', 'campaign-coherence', 'trust-lens', 'benchmark'].map(kind), ['draw', 'draw', 'fade', 'fade', 'draw']);
+  assert.deepEqual(['glance', 'footprint', 'campaign-coherence', 'trust-lens', 'benchmark'].map(kind), ['draw', 'draw', 'fade', 'draw', 'draw']);
   assert.ok(root.classList.contains('dc-motion'));
   assert.ok(doc.getElementById('glance').classList.contains('is-revealed'), 'on screen at load: shown at once, no flash');
   assert.ok(!doc.getElementById('benchmark').classList.contains('is-revealed'), 'below the fold waits');
@@ -499,4 +499,53 @@ test('type sweep: the three reports stay on one scale (v3.110.2)', () => {
   const client = src.slice(src.indexOf('function ClientReportView('), src.indexOf('function ClientReportView(') + 30000);
   assert.ok(client.includes('<div className="dc-maturity" aria-label='), 'the client maturity scale is the full report\'s');
   assert.ok(!src.includes('function PositionBands('), 'the older strip is gone');
+});
+
+// ── Scores count up, markers slide (v3.111.0) ────────────────
+
+test('motion: scores count up from 0 to their value, once, and finishing jumps straight to it', async () => {
+  const sm = await import('../src/lib/scrollMotion.js');
+  const { win, doc, observed } = motionWindow();
+  const root = reportRoot(doc, [0, 900, 1400, 1900, 2400]);
+  const bm = doc.getElementById('benchmark');
+  bm.innerHTML = '<div class="dc-stat-n">59</div><span class="dc-bm-v">42</span><span class="dc-stat-n">17th</span>';
+  sm.startScrollMotion(root, win);
+  assert.equal(bm.querySelector('.dc-stat-n').textContent, '59', 'untouched until it is drawn: print and export see the value');
+  const o = observed.find(x => x.el.id === 'benchmark');
+  o.obs.cb([{ isIntersecting: true, target: o.el }]);
+  assert.ok(bm.classList.contains('is-drawn'));
+  assert.equal(bm.querySelector('.dc-stat-n').textContent, '0', 'counting starts from 0');
+  assert.equal(bm.querySelector('.dc-stat-n').getAttribute('aria-label'), '59', 'screen readers get the value, not the count');
+  assert.equal(bm.querySelectorAll('.dc-stat-n')[1].textContent, '17th', 'only plain scores count, not ranks');
+  await new Promise(r => setTimeout(r, 1100));
+  assert.equal(bm.querySelector('.dc-stat-n').textContent, '59');
+  assert.equal(bm.querySelector('.dc-bm-v').textContent, '42');
+  assert.equal(bm.querySelector('.dc-stat-n').hasAttribute('aria-label'), false);
+});
+
+test('motion: printing or exporting mid-count shows the final values', async () => {
+  const sm = await import('../src/lib/scrollMotion.js');
+  const { win, doc, observed } = motionWindow();
+  const root = reportRoot(doc, [0, 900, 1400, 1900, 2400]);
+  const bm = doc.getElementById('benchmark');
+  bm.innerHTML = '<div class="dc-stat-n">59</div>';
+  sm.startScrollMotion(root, win);
+  const o = observed.find(x => x.el.id === 'benchmark');
+  o.obs.cb([{ isIntersecting: true, target: o.el }]);
+  await new Promise(r => setTimeout(r, 120));
+  assert.notEqual(bm.querySelector('.dc-stat-n').textContent, '59', 'mid-count');
+  sm.revealAll(doc);
+  await new Promise(r => setTimeout(r, 60));
+  assert.equal(bm.querySelector('.dc-stat-n').textContent, '59', 'and it stays at the final value');
+  assert.ok(root.classList.contains('dc-motion-done'));
+});
+
+test('motion: every scale marker slides from 0; setup holds transitions off', () => {
+  const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  for (const sel of ['.dc-bm-track .subj', '.dc-bm-scale-track .subj', '.dc-maturity-marker span', '.dc-scale-track > i']) {
+    assert.ok(css.includes(`:not(.is-drawn) ${sel}`), `${sel} starts at 0`);
+  }
+  assert.ok(css.includes('.dc-motion.dc-motion-init [data-reveal], .dc-motion.dc-motion-init [data-reveal] * { transition: none !important; }'));
+  const src = readFileSync(new URL('../src/lib/scrollMotion.js', import.meta.url), 'utf8');
+  assert.ok(src.includes("win.addEventListener?.('beforeprint', onPrint);"), 'printing finishes everything first');
 });

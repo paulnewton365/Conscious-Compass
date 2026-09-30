@@ -1494,53 +1494,68 @@ button { font: inherit; color: inherit; }
 }
 
 
-/* ---------- Scroll motion, three reports (v3.108.0) ----------
-   Sections fade up once as they enter; "draw" sections also grow their data.
-   Campaign coherence and the trust lens are "fade" only. Markers only fade,
-   because their transforms position them. See src/lib/scrollMotion.js. */
+/* ---------- Scroll motion, three reports (v3.108.0, v3.111.0) ----------
+   Sections fade up once as they enter (is-revealed). Their data draws on
+   is-drawn: bars and bands grow, markers slide from the left end of their
+   scale to their place, radar shapes grow, scores count up (in script).
+   Sections on screen at load show at once and still draw. Campaign coherence
+   only fades. Markers slide by their left position; their transforms place
+   them, so those are left alone. See src/lib/scrollMotion.js. */
 .dc-motion [data-reveal] { transition: opacity .45s ease-out, transform .45s cubic-bezier(.22, 1, .36, 1); }
 .dc-motion [data-reveal]:not(.is-revealed) { opacity: 0; transform: translateY(12px); }
 
+/* Finished at once for print and export: running slides stop in place */
+.dc-motion-done [data-reveal], .dc-motion-done [data-reveal] * { transition: none !important; }
+/* Held still while the report sets up, so nothing on screen fades or jumps */
+.dc-motion.dc-motion-init [data-reveal], .dc-motion.dc-motion-init [data-reveal] * { transition: none !important; }
+
+/* Bars and bands grow */
 .dc-motion [data-reveal="draw"] .dc-lens-bar > i,
 .dc-motion [data-reveal="draw"] .dc-bm-track .range,
 .dc-motion [data-reveal="draw"] .dc-bm-scale-track .range,
-.dc-motion [data-reveal="draw"] .dc-fp-seg i.on { transform-origin: left center; transition: transform .7s cubic-bezier(.22, 1, .36, 1) .15s; }
-.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-lens-bar > i,
-.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-track .range,
-.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-scale-track .range,
-.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-fp-seg i.on { transform: scaleX(0); }
+.dc-motion [data-reveal="draw"] .dc-fp-seg i.on { transform-origin: left center; transition: transform .8s cubic-bezier(.22, 1, .36, 1) .1s; }
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-lens-bar > i,
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-bm-track .range,
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-bm-scale-track .range,
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-fp-seg i.on { transform: scaleX(0); }
 
+/* Markers slide from 0 to their place */
 .dc-motion [data-reveal="draw"] .dc-bm-track .subj, .dc-motion [data-reveal="draw"] .dc-bm-track .avg,
 .dc-motion [data-reveal="draw"] .dc-bm-scale-track .subj, .dc-motion [data-reveal="draw"] .dc-bm-scale-track .subj-l,
-.dc-motion [data-reveal="draw"] .dc-bm-scale-track .avg { transition: opacity .35s ease-out .65s; }
-.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-track .subj, .dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-track .avg,
-.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-scale-track .subj, .dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-scale-track .subj-l,
-.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-bm-scale-track .avg { opacity: 0; }
+.dc-motion [data-reveal="draw"] .dc-bm-scale-track .avg,
+.dc-motion [data-reveal="draw"] .dc-maturity-marker span,
+.dc-motion [data-reveal="draw"] .dc-scale-track > i { transition: left .9s cubic-bezier(.22, 1, .36, 1) .15s, opacity .3s ease-out .15s; }
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-bm-track .subj, .dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-bm-track .avg,
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-bm-scale-track .subj, .dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-bm-scale-track .subj-l,
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-bm-scale-track .avg,
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-maturity-marker span,
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-scale-track > i { left: 0% !important; }
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-bm-scale-track .avg > span { opacity: 0; }
 
+/* Radar shapes grow from the centre */
 .dc-motion [data-reveal="draw"] .dc-radar .s-subject,
 .dc-motion [data-reveal="draw"] .dc-radar .s-bench { transform-box: fill-box; transform-origin: center; transition: transform .8s cubic-bezier(.22, 1, .36, 1) .2s; }
-.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-radar .s-subject,
-.dc-motion [data-reveal="draw"]:not(.is-revealed) .dc-radar .s-bench { transform: scale(0); }
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-radar .s-subject,
+.dc-motion [data-reveal="draw"]:not(.is-drawn) .dc-radar .s-bench { transform: scale(0); }
 
 /* A light stagger down rows and across cards */
-.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(2) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(2) .dc-lens-bar > i { transition-delay: .19s; }
-.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(3) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(3) .dc-lens-bar > i { transition-delay: .23s; }
-.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(4) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(4) .dc-lens-bar > i { transition-delay: .27s; }
-.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(5) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(5) .dc-lens-bar > i { transition-delay: .31s; }
-.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(6) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(6) .dc-lens-bar > i { transition-delay: .35s; }
-.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(7) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(7) .dc-lens-bar > i { transition-delay: .39s; }
-.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(8) .range, .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(8) .dc-lens-bar > i { transition-delay: .43s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(2) :is(.range, .subj, .avg), .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(2) .dc-lens-bar > i { transition-delay: .19s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(3) :is(.range, .subj, .avg), .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(3) .dc-lens-bar > i { transition-delay: .23s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(4) :is(.range, .subj, .avg), .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(4) .dc-lens-bar > i { transition-delay: .27s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(5) :is(.range, .subj, .avg), .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(5) .dc-lens-bar > i { transition-delay: .31s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(6) :is(.range, .subj, .avg), .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(6) .dc-lens-bar > i { transition-delay: .35s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(7) :is(.range, .subj, .avg), .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(7) .dc-lens-bar > i { transition-delay: .39s; }
+.dc-motion [data-reveal="draw"] .dc-bm-row:nth-child(8) :is(.range, .subj, .avg), .dc-motion [data-reveal="draw"] .dc-attr-card:nth-child(8) .dc-lens-bar > i { transition-delay: .43s; }
 
 /* Printing and reduced motion always see the finished state */
 @media print, (prefers-reduced-motion: reduce) {
   .dc-motion [data-reveal], .dc-motion [data-reveal] * { transition: none !important; }
   .dc-motion [data-reveal]:not(.is-revealed) { opacity: 1 !important; transform: none !important; }
-  .dc-motion [data-reveal]:not(.is-revealed) .dc-lens-bar > i,
-  .dc-motion [data-reveal]:not(.is-revealed) .range,
-  .dc-motion [data-reveal]:not(.is-revealed) .dc-fp-seg i.on,
-  .dc-motion [data-reveal]:not(.is-revealed) .dc-radar polygon { transform: none !important; }
-  .dc-motion [data-reveal]:not(.is-revealed) .subj, .dc-motion [data-reveal]:not(.is-revealed) .subj-l,
-  .dc-motion [data-reveal]:not(.is-revealed) .avg { opacity: 1 !important; }
+  .dc-motion [data-reveal]:not(.is-drawn) .dc-lens-bar > i,
+  .dc-motion [data-reveal]:not(.is-drawn) .range,
+  .dc-motion [data-reveal]:not(.is-drawn) .dc-fp-seg i.on,
+  .dc-motion [data-reveal]:not(.is-drawn) .dc-radar polygon { transform: none !important; }
+  /* Markers: printing runs revealAll first (beforeprint), which switches motion off, so their inline positions apply. */
 }
 @media (prefers-reduced-motion: reduce) { [data-motion-bar] { transform: none !important; transition: none !important; } }
 
