@@ -549,3 +549,46 @@ test('motion: every scale marker slides from 0; setup holds transitions off', ()
   const src = readFileSync(new URL('../src/lib/scrollMotion.js', import.meta.url), 'utf8');
   assert.ok(src.includes("win.addEventListener?.('beforeprint', onPrint);"), 'printing finishes everything first');
 });
+
+test('Food & Beverage is an industry, beside Retail (v3.111.1)', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const list = src.slice(src.indexOf('const INDUSTRIES = ['), src.indexOf('];', src.indexOf('const INDUSTRIES = [')));
+  assert.ok(list.includes("{ id: 'food', name: 'Food & Beverage' }"));
+  assert.ok(list.indexOf("id: 'food'") > list.indexOf("id: 'retail'") && list.indexOf("id: 'food'") < list.indexOf("id: 'media'"));
+  assert.equal((list.match(/id: 'food'/g) || []).length, 1);
+});
+
+// ── The summary names the right strengths (v3.111.2) ─────────
+
+const SEPA = { AWAKE: 48, AWARE: 42, REFLECTIVE: 38, ATTENTIVE: 35, COGENT: 45, SENTIENT: 29, VISIONARY: 62, INTENTIONAL: 54 };
+
+test('summary picks: strengths are the two highest, growth the two lowest', async () => {
+  const { ATTRIBUTES } = await import('../src/data/rubric.js');
+  const sorted = ATTRIBUTES.map(a => ({ ...a, score: SEPA[a.id] })).sort((a, b) => a.score - b.score);
+  assert.deepEqual(App.summaryPicks(sorted), { strengths: ['Visionary', 'Intentional'], growth: ['Sentient', 'Attentive'] });
+});
+
+test('the full report and the client report both say it the right way round', async () => {
+  const { ATTRIBUTES } = await import('../src/data/rubric.js');
+  const scores = Object.fromEntries(ATTRIBUTES.map(a => [a.id, { score: SEPA[a.id], findings: 'f', impact: 'i' }]));
+  const project = { brandName: 'Smart Electric Power Alliance', websiteUrl: 'https://sepapower.org', industry: 'energy', businessModel: 'b2b', date: '2026-09-28' };
+  window.scrollTo = () => {};
+  globalThis.fetch = window.fetch = () => new Promise(() => {});
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.ReportPage, { project, setProject() {}, scores, setScores() {}, assessments: {}, setAssessments() {}, apiKey: 'PROXY', onSave() {}, onPrev() {}, profile: { is_admin: true }, compassResults: [] })); });
+  const want = 'Smart Electric Power Alliance demonstrates strength in Visionary and Intentional, with opportunities to grow in Sentient and Attentive.';
+  const norm = (t) => t.replace(/\s+/g, ' ').trim();
+  assert.ok(norm(container.textContent).includes(want), 'full report');
+  await act(async () => root.unmount());
+  const payload = App.makeClientPayload({ project, scores, benchmark: null });
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.ClientReportView, { payload }))).window.document;
+  assert.ok(norm(doc.body.textContent).includes(want), 'client report');
+});
+
+test('every summary sentence (screen, plain text, Word) takes its picks from one place', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(!/demonstrates strength in \$\{sortedAttrs\.slice/.test(src), 'plain text');
+  assert.ok(!/text: sortedAttrs\.slice\(-?\d/.test(src), 'Word export');
+  assert.ok(src.includes('const { strengths, growth } = summaryPicks(sortedAttrs);'), 'screen and client link');
+});
