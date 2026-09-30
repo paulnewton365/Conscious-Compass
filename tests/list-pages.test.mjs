@@ -473,3 +473,15 @@ test('the Teaser read has more air between and within sections (v3.109.2)', () =
   assert.ok(block.includes('.dc-tz-sec { gap: var(--cc-s-8); padding-top: var(--cc-s-12); }'));
   assert.ok(at > css.indexOf('.dc-tz-sec { display: flex;'), 'after the base rule, so it wins');
 });
+
+test('sustainability principles: Breaking through is counted, styled and set at the report sizes (v3.110.1)', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes("<span><b>{count('breaking')}</b>breaking through</span>"));
+  assert.ok(!src.includes("count('evident')"), 'the level that never occurs is no longer counted');
+  const thesis = readFileSync(new URL('../src/data/thesis.js', import.meta.url), 'utf8');
+  assert.ok(thesis.includes("{ id: 'breaking', label: 'Breaking through' }"), 'the data calls it breaking');
+  const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  assert.ok(css.includes('.dc-status-chip.is-evident, .dc-status-chip.is-breaking {'));
+  assert.ok(css.includes('.dc-principles-strip i.is-evident, .dc-principles-strip i.is-breaking {'));
+  assert.ok(/\.dc-principle h3 \{[^}]*var\(--cc-fs-lead\)/.test(css) && /\.dc-principle p \{[^}]*var\(--cc-fs-body\)/.test(css));
+});

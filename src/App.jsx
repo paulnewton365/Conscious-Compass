@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.110.0';
+const APP_VERSION = '3.110.1';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
 import { startScrollMotion, retagSections, revealAll, motionAllowed } from './lib/scrollMotion';
@@ -1461,7 +1461,9 @@ function ThesisPanel({ thesis, onRegenerate = null }) {
               <span className="dc-principles-strip" aria-hidden="true">
                 {levels.map((l, k) => <i key={k} className={`is-${l}`} />)}
               </span>
-              <span><b>{count('evident')}</b>evident</span>
+              {/* The data's top level is "breaking" (Breaking through); the tally
+                  counted "evident", which never occurs, so it always read 0 (v3.110.1). */}
+              <span><b>{count('breaking')}</b>breaking through</span>
               <span><b>{count('surfacing')}</b>surfacing</span>
               <span><b>{count('buried')}</b>buried</span>
             </div>
