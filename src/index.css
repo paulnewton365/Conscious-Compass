@@ -1406,10 +1406,11 @@ button { font: inherit; color: inherit; }
 .dc-np { gap: var(--cc-s-12); padding-top: var(--cc-s-8); }
 .dc-np-tools { display: flex; justify-content: space-between; align-items: center; gap: var(--cc-s-4); flex-wrap: wrap; }
 .dc-np-mast { text-align: center; border-top: 4px solid var(--cc-ink); padding-top: var(--cc-s-5); }
-.dc-np-tagline { font: italic var(--cc-w-regular) 17px/1.4 var(--cc-serif); color: var(--cc-muted); }
-.dc-np-title { font: var(--cc-w-regular) clamp(56px, 10vw, 128px)/.95 var(--cc-serif); letter-spacing: -.025em; color: var(--cc-ink); padding: var(--cc-s-3) 0 var(--cc-s-5); }
+.dc-np-tagline { font: var(--cc-w-regular) 17px/1.4 'Inter', var(--cc-sans);   /* Inter Regular (v4.1.4) */ color: var(--cc-muted); }
+/* Inter Bold (v4.1.3), loaded in index.html; Hanken Grotesk Bold if it cannot load. */
+.dc-np-title { font: var(--cc-w-bold) clamp(52px, 9.5vw, 120px)/1.05 'Inter', var(--cc-sans); letter-spacing: -.035em; color: var(--cc-ink); padding: var(--cc-s-3) 0 var(--cc-s-5); }
 .dc-np-dateline { display: flex; justify-content: space-between; gap: var(--cc-s-4); flex-wrap: wrap; padding: 10px 0; border-top: var(--cc-border-strong); border-bottom: 3px double var(--cc-ink);
-  font: var(--cc-w-semi) var(--cc-fs-label)/1.3 var(--cc-sans); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-ink); }
+  font: var(--cc-w-regular) var(--cc-fs-label)/1.3 'Inter', var(--cc-sans); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-ink); }   /* Inter Regular (v4.1.4) */
 .dc-np-h { font-family: var(--cc-serif); font-weight: var(--cc-w-regular); color: var(--cc-ink); letter-spacing: var(--cc-tracking-display); text-wrap: balance; }
 .dc-np-h.is-lead { font-size: clamp(34px, 4.4vw, 56px); line-height: 1.04; }
 .dc-np-h.is-card { font-size: var(--cc-fs-card); line-height: 1.15; }
