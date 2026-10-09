@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { attributesMentioned } from './data/attributeGlossary.js';
-import { ecStatusNote } from './lib/ecStatus.js';
+import { ecStatusNote, nextIssueAt } from './lib/newsletter.js';
 import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '4.1.8';
+const APP_VERSION = '4.2.1';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -2460,7 +2460,7 @@ function WelcomePage({ onStart, draft = null, onResume = () => {}, onDiscard = (
       <section className="dc-hero">
         <div>
           <div className="dc-kicker is-accent">The Conscious Compass</div>
-          <h1 className="dc-display is-hero">Consequential brands are conscious brands</h1>
+          <h1 className="dc-display is-hero is-inter">Consequential brands are conscious brands</h1>
           <p className="dc-lead">
             They don't just show up, they stand out. They don't follow trends; they shape narratives.
             The Conscious Compass explores your brand's impact across eight essential attributes.
@@ -11912,7 +11912,24 @@ const NEWSLETTER_EC_COPY = {
   link: 'https://www.howlagency.com/',
   linkLabel: 'howlagency.com',
 };
-const publicNewsletterUrl = () => `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}`;
+const publicNewsletterUrl = (issueId = null) => `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}${issueId ? `?issue=${issueId}` : ''}`;
+// An archived edition named in the address (?issue=36), or null (v4.2.0).
+const issueFromUrl = () => { try { const v = new URLSearchParams(window.location.search).get('issue'); return /^\d{1,9}$/.test(v || '') ? Number(v) : null; } catch { return null; } };
+// The archive list is open (?view=archive) (v4.2.1).
+const archiveFromUrl = () => { try { return new URLSearchParams(window.location.search).get('view') === 'archive'; } catch { return false; } };
+
+// One past edition in the archive: its lead image, or the house image that
+// edition carried, then the date and the lead headline (v4.2.1).
+function ArchiveThumb({ image, issueNumber }) {
+  const house = NEWSLETTER_HOUSE_IMAGES[houseImageIndex(issueNumber)];
+  const src = image || house.src;
+  const [failed, setFailed] = useState(null);
+  return (
+    <span className={`dc-np-arch-img${image ? '' : ' is-house'}`} aria-hidden="true">
+      {failed !== src && <img src={src} alt="" loading="lazy" style={image ? undefined : { objectPosition: `${house.focus[0]}% ${house.focus[1]}%` }} onError={() => setFailed(src)} />}
+    </span>
+  );
+}
 
 function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   // Fixed for the page's life; read through a ref by the loader.
@@ -11923,21 +11940,61 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   const [error, setError]           = useState(null);
   const [refreshedAt, setRefreshedAt] = useState(null);
   const [exportingDocx, setExportingDocx] = useState(false);
+  // Past issues (v4.2.0): the edition being read (null is the current issue)
+  // and the list of archived editions.
+  const [issueId, setIssueId] = useState(() => issueFromUrl());
+  const [pastIssues, setPastIssues] = useState(null);   // null until first loaded
+  const [showArchive, setShowArchive] = useState(() => archiveFromUrl());
 
   // ── Data loading ────────────────────────────────────────────────
-  const loadNewsletter = async () => {
+  const apiUrl = (extra = {}) => {
+    const q = new URLSearchParams({ ...(publicRef.current ? { public: '1' } : {}), ...extra }).toString();
+    return `/api/stay-conscious-newsletter${q ? `?${q}` : ''}`;
+  };
+  const loadNewsletter = async (id = issueId) => {
     setLoading(true); setError(null);
     try {
-      const res  = await fetch(publicRef.current ? '/api/stay-conscious-newsletter?public=1' : '/api/stay-conscious-newsletter');
+      const res  = await fetch(apiUrl(id ? { issue: String(id) } : {}));
       const data = await res.json();
       if (data.newsletter) {
         setNewsletter(data.newsletter);
         setRefreshedAt(data.refreshedAt ? new Date(data.refreshedAt) : null);
       } else {
+        setNewsletter(null);
         setError(data.error || 'No issue yet. Check back after Sunday night.');
       }
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
+  };
+  const loadPastIssues = async () => {
+    try {
+      const data = await (await fetch(apiUrl({ archive: 'list' }))).json();
+      const list = Array.isArray(data.issues) ? data.issues : [];
+      // Newest first, by when each edition was published.
+      setPastIssues([...list].sort((x, y) => String(y.refreshedAt || '').localeCompare(String(x.refreshedAt || ''))));
+    } catch { setPastIssues([]); }
+  };
+  // The public page keeps where the reader is in its address, so Back works
+  // and any view can be shared.
+  const pushView = (id, archive) => {
+    if (!publicRef.current) return;
+    const q = archive ? '?view=archive' : id ? `?issue=${id}` : '';
+    try { window.history.pushState({}, '', `${NEWSLETTER_PUBLIC_PATH}${q}`); } catch { /* history blocked */ }
+  };
+  const openArchive = () => {
+    setShowArchive(true);
+    pushView(null, true);
+    if (pastIssues === null) loadPastIssues();
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* no scroll */ }
+  };
+  // Opens an archived edition, or the current issue with null. The public
+  // page keeps the edition in its address, so it can be shared and reloaded.
+  const openIssue = (id) => {
+    setShowArchive(false);
+    setIssueId(id);
+    pushView(id, false);
+    loadNewsletter(id);
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* no scroll */ }
   };
 
   const forceRefresh = async () => {
@@ -11945,22 +12002,34 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     try {
       const res  = await fetch('/api/refresh-stay-conscious-newsletter', { method: 'POST' });
       const data = await res.json();
-      if (data.success) { await loadNewsletter(); }
+      if (data.success) { setIssueId(null); await loadNewsletter(null); }
       else { throw new Error(data.error || 'Refresh failed'); }
     } catch (e) { setError(`Refresh failed: ${e.message}`); }
     finally { setRefreshing(false); }
   };
 
-  useEffect(() => { loadNewsletter(); }, []);
+  // The effects below run once; they reach the loaders through a ref.
+  const loadersRef = useRef(null);
+  loadersRef.current = { loadNewsletter, loadPastIssues };
+  useEffect(() => {
+    loadersRef.current.loadNewsletter();
+    if (archiveFromUrl()) loadersRef.current.loadPastIssues();   // the archive loads only when opened
+  }, []);
+  // Back and forward move between editions on the public page.
+  useEffect(() => {
+    if (!publicRef.current) return undefined;
+    const onPop = () => {
+      const archive = archiveFromUrl();
+      setShowArchive(archive);
+      if (archive) { loadersRef.current.loadPastIssues(); return; }
+      const id = issueFromUrl(); setIssueId(id); loadersRef.current.loadNewsletter(id);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   // ── Helpers ─────────────────────────────────────────────────────
-  const nextSunday = () => {
-    const d = new Date();
-    const daysUntil = (7 - d.getDay()) % 7 || 7;
-    d.setDate(d.getDate() + daysUntil);
-    d.setHours(23, 30, 0, 0);
-    return d;
-  };
+  const nextSunday = () => nextIssueAt();
 
   const fmtDate = (d) => d
     ? d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }) +
@@ -12170,7 +12239,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   // no per-issue permalinks yet. The label says so for 2 seconds.
   const [linkCopied, setLinkCopied] = useState(false);
   const shareLink = async () => {
-    const url = publicNewsletterUrl();
+    const url = showArchive ? `${publicNewsletterUrl()}?view=archive` : publicNewsletterUrl(issueId);
     try { await navigator.clipboard.writeText(url); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); } catch { /* clipboard blocked */ }
   };
   const confirmRefresh = () => {
@@ -12223,10 +12292,11 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
           ? <a href="https://antennagroup.com" className="dc-np-brand"><img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" style={{ filter: 'brightness(0)' }} /></a>
           : <button className="btn-secondary" type="button" onClick={onBack}>Back</button>}
         <div className="dc-head-actions">
-          {ns && !publicView && <button className="btn-primary" type="button" onClick={handleExportDocx} disabled={exportingDocx} aria-busy={exportingDocx || undefined}>{exportingDocx ? 'Preparing…' : 'DOCX'}</button>}
-          {ns && !publicView && <button className="btn-secondary" type="button" onClick={handleCopyText}>Copy</button>}
+          {ns && !publicView && !showArchive && <button className="btn-primary" type="button" onClick={handleExportDocx} disabled={exportingDocx} aria-busy={exportingDocx || undefined}>{exportingDocx ? 'Preparing…' : 'DOCX'}</button>}
+          {ns && !publicView && !showArchive && <button className="btn-secondary" type="button" onClick={handleCopyText}>Copy</button>}
+          <button className="btn-secondary" type="button" aria-pressed={showArchive} onClick={() => (showArchive ? openIssue(issueId) : openArchive())}>{showArchive ? 'Back to issue' : 'Archive'}</button>
           <button className="btn-secondary" type="button" title="Copy the public link to this issue. Anyone can open it without signing in." aria-live="polite" onClick={shareLink}>{linkCopied ? 'Link copied' : 'Share link'}</button>
-          {isAdmin && !publicView && (
+          {isAdmin && !publicView && !issueId && !showArchive && (
             <button className="btn-secondary" type="button" title="Force refresh for all users" onClick={confirmRefresh} disabled={refreshing || loading} aria-busy={refreshing || undefined}>
               {refreshing ? 'Refreshing…' : 'Force refresh'}
             </button>
@@ -12238,15 +12308,50 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         <p className="dc-np-tagline">{publicView ? "Brand intelligence from Antenna Group. What's shifting, why it matters." : "Brand intelligence for assessors. What's shifting, why it matters."}</p>
         <h1 className="dc-np-title">Stay Conscious</h1>
         <div className="dc-np-dateline">
-          {ns && <span>Issue <span data-value="issue">{ns.issueNumber}</span></span>}
-          {refreshedAt && <span>Updated {when(refreshedAt)}</span>}
-          <span>Next update {when(nextSunday())}</span>
+          {showArchive && <span>Archive</span>}
+          {ns && !showArchive && <span>Issue <span data-value="issue">{ns.issueNumber}</span></span>}
+          {refreshedAt && !showArchive && <span>{issueId ? 'Published' : 'Updated'} {when(refreshedAt)}</span>}
+          {!issueId && <span>Next update {when(nextSunday())}</span>}
         </div>
       </header>
 
-      {(loading || refreshing) && <SkeletonRows count={6} />}
+      {showArchive && (
+        <section className="dc-np-arch" aria-label="Past issues" data-field="archive">
+          {pastIssues === null && <SkeletonRows count={4} />}
+          {pastIssues?.length === 0 && (
+            <div className="dc-alert"><strong>No past issues yet</strong><p>Each Sunday, the week's issue is saved here before the next one is published.</p></div>
+          )}
+          {pastIssues?.length > 0 && (
+            <ul className="dc-np-arch-list">
+              {pastIssues.map(p => (
+                <li key={p.id}>
+                  <button type="button" className="dc-np-arch-row" onClick={() => openIssue(p.id)}>
+                    <ArchiveThumb image={p.image} issueNumber={p.issueNumber} />
+                    <span className="dc-np-arch-text">
+                      <span className="dc-np-arch-date">{p.refreshedAt ? new Date(p.refreshedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : p.weekOf}{p.issueNumber ? ` \u00b7 Issue ${p.issueNumber}` : ''}</span>
+                      <span className="dc-np-arch-h">{p.headline || 'Stay Conscious'}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
-      {error && !loading && !refreshing && (
+      {!showArchive && issueId && ns && !loading && (
+        <div className="dc-np-archived" role="status">
+          <span>You are reading a past issue{ns.weekOf ? `, from the week of ${ns.weekOf}` : ''}.</span>
+          <span className="dc-np-archived-actions">
+            <button type="button" className="btn-secondary btn-sm" onClick={openArchive}>Archive</button>
+            <button type="button" className="btn-secondary btn-sm" onClick={() => openIssue(null)}>Read the latest issue</button>
+          </span>
+        </div>
+      )}
+
+      {!showArchive && (loading || refreshing) && <SkeletonRows count={6} />}
+
+      {!showArchive && error && !loading && !refreshing && (
         <div className="dc-alert is-error" role="alert">
           <strong>The issue did not load</strong>
           <p>{error}</p>
@@ -12254,14 +12359,14 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </div>
       )}
 
-      {!ns && !loading && !refreshing && !error && (
+      {!showArchive && !ns && !loading && !refreshing && !error && (
         <div className="dc-alert">
           <strong>No issue yet</strong>
           <p>The first issue appears after the weekly refresh on Sunday night.{isAdmin ? ' Force refresh generates it now.' : ''}</p>
         </div>
       )}
 
-      {ns && !loading && !refreshing && (
+      {!showArchive && ns && !loading && !refreshing && (
         <>
           <section className="dc-np-front">
             <article className="dc-np-lead">

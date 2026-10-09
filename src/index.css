@@ -112,6 +112,9 @@ body { background: var(--cc-paper); color: var(--cc-ink);
   var(--cc-serif); letter-spacing: var(--cc-tracking-display);
   text-wrap: balance; }
 .dc-display.is-hero { font-size: var(--cc-fs-hero); }
+/* The home page headline in Inter Bold (v4.1.9), like the newsletter. A step
+   smaller than the serif hero, since bold sets heavier and wider. */
+.dc-display.is-inter { font-family: 'Inter', var(--cc-sans); font-weight: var(--cc-w-bold); font-size: calc(var(--cc-fs-hero) * .9); line-height: 1.05; letter-spacing: -.03em; font-variant-numeric: normal; }
 .dc-h { font: var(--cc-w-regular) var(--cc-fs-section)/var(--cc-lh-heading)
   var(--cc-serif); }
 .dc-h.is-card { font-size: var(--cc-fs-card); }
@@ -1449,7 +1452,8 @@ button { font: inherit; color: inherit; }
 .dc-np-gloss dt { font-weight: 600; font-size: var(--cc-fs-ui); color: var(--cc-ink); }
 .dc-np-gloss dd { margin: 0; font-size: var(--cc-fs-ui); line-height: 1.45; color: var(--cc-body); }
 @media (max-width: 560px) { .dc-np-gloss-grid { grid-template-columns: minmax(0, 1fr); } }
-/* Phone masthead (v4.1.7): the logo and Share link stay on one row; the title
+/* Phone masthead (v4.1.7; line height opened from .95 to 1.1 in v4.1.9 so the
+   "y" no longer meets the dot of the "i" below it): the logo and Share link stay on one row; the title
    stacks on two lines, sized so "Conscious" (4.83em wide at this tracking)
    fills the width, about 40% larger than on one line; the tagline and dateline
    step down so the title leads. */
@@ -1457,7 +1461,7 @@ button { font: inherit; color: inherit; }
   .dc-np-tools.is-public { flex-wrap: nowrap; }
   .dc-np-tools.is-public .dc-head-actions { width: auto; flex: none; }
   .dc-np-brand img { height: 28px; }
-  .dc-np-title { font-size: min(calc((100vw - 2 * var(--cc-gutter)) / 4.95), 96px); line-height: .95; letter-spacing: -.04em; padding: var(--cc-s-2) 0 var(--cc-s-4); }
+  .dc-np-title { font-size: min(calc((100vw - 2 * var(--cc-gutter)) / 4.95), 96px); line-height: 1.1; letter-spacing: -.04em; padding: var(--cc-s-2) 0 var(--cc-s-4); }
   .dc-np-tagline { font-size: 13.5px; }
   .dc-np-dateline { font-size: 10px; letter-spacing: .06em; gap: 4px 14px; padding: 8px 0; }
 }
@@ -1481,6 +1485,28 @@ button { font: inherit; color: inherit; }
 .dc-np-opp:first-child { padding-top: 0; }
 .dc-np-opp .dc-np-text { font-size: 16px; }
 .dc-np-ord { font: var(--cc-w-regular) var(--cc-fs-num-m)/.9 var(--cc-serif); color: var(--cc-rust); flex: none; min-width: 1ch; }
+/* Archive (v4.2.0, v4.2.1): one row per past edition, newest first, with its
+   lead image (or that edition's house image), the date and the headline. And
+   a line that says when a past edition is being read. */
+.dc-np-archived { display: flex; justify-content: space-between; align-items: center; gap: var(--cc-s-4); flex-wrap: wrap; padding: var(--cc-s-3) var(--cc-s-4); border: var(--cc-border); border-radius: var(--cc-r-1); font: var(--cc-w-regular) var(--cc-fs-ui)/1.4 'Inter', var(--cc-sans); color: var(--cc-body); }
+.dc-np-archived-actions { display: flex; gap: var(--cc-s-2); flex-wrap: wrap; }
+.dc-np-arch-list { list-style: none; padding: 0; margin: 0; }
+.dc-np-arch-list li { border-bottom: var(--cc-border); }
+.dc-np-arch-list li:first-child .dc-np-arch-row { padding-top: 0; }
+.dc-np-arch-row { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: var(--cc-s-8); align-items: center; width: 100%; padding: var(--cc-s-6) 0; background: none; border: 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.dc-np-arch-img { display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--cc-r-1); background: var(--cc-track); }
+.dc-np-arch-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dc-np-arch-img.is-house img { filter: grayscale(1); }
+.dc-np-arch-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dc-np-arch-date { font: var(--cc-w-regular) var(--cc-fs-label)/1.3 'Inter', var(--cc-sans); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-muted); font-variant-numeric: normal; }
+.dc-np-arch-h { font: var(--cc-w-bold) 26px/1.2 'Inter', var(--cc-sans); letter-spacing: -.02em; color: var(--cc-ink); text-wrap: balance; font-variant-numeric: normal; }
+.dc-np-arch-row:hover .dc-np-arch-h, .dc-np-arch-row:focus-visible .dc-np-arch-h { color: var(--cc-rust-text); }
+.dc-np-arch-row:focus-visible { outline: 2px solid var(--cc-ink); outline-offset: 4px; }
+@media (max-width: 560px) {
+  .dc-np-arch-row { grid-template-columns: 112px minmax(0, 1fr); gap: var(--cc-s-4); padding: var(--cc-s-4) 0; }
+  .dc-np-arch-h { font-size: 17px; }
+  .dc-np-arch-date { font-size: 10px; }
+}
 .dc-np-foot { text-align: center; border-top: var(--cc-border); padding-top: var(--cc-s-4); }
 @media (max-width: 1000px) {
   .dc-np-front { grid-template-columns: 1fr; gap: var(--cc-s-10); }

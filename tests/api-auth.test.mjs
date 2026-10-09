@@ -460,9 +460,71 @@ test('v4.1.2: a paused search is resumed, the reason for a short section is save
   assert.deepEqual(Object.keys(issue.earnedCreative), ['items']);
   assert.ok(!('verified' in issue.earnedCreative.items[0]));
 
-  const { ecStatusNote } = await import('../src/lib/ecStatus.js');
+  const { ecStatusNote } = await import('../src/lib/newsletter.js');
   assert.equal(ecStatusNote(out), null, 'three fresh: no note');
   assert.match(ecStatusNote(failed), /no section this issue \(2 searches, 0 candidates, 0 passed the article check; search request failed \(429\)\)/);
   assert.match(ecStatusNote(carried), /examples from issue 34 are shown again/);
   assert.equal(ecStatusNote({ items: [] }), null, 'older issues have no status');
+});
+
+test('v4.2.0: the Sunday run keeps the issue it replaces; past issues can be listed and read, publicly through the same filter', async () => {
+  const mod = await import('../api/refresh-stay-conscious-newsletter.js');
+  const calls = [];
+  const fetchImpl = async (url, init) => { calls.push({ url, init }); return { ok: true }; };
+  const row = { newsletter: { issueNumber: 37, weekOf: 'October 9, 2026' }, refreshed_at: '2026-10-09T18:45:00Z' };
+  assert.equal(await mod.archiveIssue(row, { supabaseUrl: 'https://db', supabaseKey: 'k', fetchImpl }), true);
+  assert.ok(calls[0].url.endsWith('/rest/v1/stay_conscious_newsletter_archive?on_conflict=refreshed_at'));
+  assert.match(calls[0].init.headers.Prefer, /resolution=ignore-duplicates/, 'a retried run never copies twice');
+  assert.deepEqual(JSON.parse(calls[0].init.body), { issue_number: 37, newsletter: row.newsletter, refreshed_at: row.refreshed_at });
+  assert.equal(await mod.archiveIssue(null, { supabaseUrl: 'https://db', supabaseKey: 'k', fetchImpl }), null, 'nothing live: nothing kept');
+  assert.equal(await mod.archiveIssue(row, { supabaseUrl: 'https://db', supabaseKey: 'k', fetchImpl: async () => { throw new Error('down'); } }), false, 'a failed copy never throws');
+
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes('if (caller.cron) archived = await archiveIssue(prevRow'), 'only the scheduled run archives');
+  assert.ok(src.indexOf('archiveIssue(prevRow') < src.indexOf('// Upsert into Supabase (single row, id=1)'), 'archived before it is overwritten');
+
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  assert.equal(pub.archiveId({ query: { issue: '12' } }), 12);
+  assert.equal(pub.archiveId({ query: { issue: '12; drop table' } }), null, 'only a plain number reaches the query');
+  assert.equal(pub.wantsArchiveList({ query: { archive: 'list' } }), true);
+  assert.deepEqual(pub.archiveListRow({ id: 3, issue_number: 37, refreshed_at: 'x', week_of: 'October 9, 2026', headline: 'SENTIENT lags' }),
+    { id: 3, issueNumber: 37, weekOf: 'October 9, 2026', refreshedAt: 'x', headline: 'Sentient lags', image: null });
+
+  // A public request for a past issue reads the archive and still goes through publicIssue().
+  const seen = [];
+  globalThis.fetch = async (url) => {
+    seen.push(String(url));
+    if (String(url).includes('compass_results')) return { ok: true, json: async () => [{ brand_name: 'Acme' }] };
+    return { ok: true, json: async () => [{ newsletter: { issueNumber: 30, storyOpportunities: [{ headline: 'internal' }], landscapeAnalysis: { summary: 'Acme leads.\n\nBrands lag.' } }, refreshed_at: 'x' }] };
+  };
+  process.env.SUPABASE_URL = 'https://db'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'k';
+  const res = mockRes();
+  await pub.default({ method: 'GET', query: { public: '1', issue: '3' }, headers: {} }, res);
+  assert.equal(res.code, 200);
+  assert.ok(seen.some(u => u.includes('stay_conscious_newsletter_archive?') && u.includes('id=eq.3')));
+  assert.equal(res.body.newsletter.issueNumber, 30);
+  assert.ok(!('storyOpportunities' in res.body.newsletter), 'internal sections stay out');
+  assert.equal(res.body.newsletter.landscapeAnalysis.summary, 'Brands lag.', 'brand names stay out');
+  assert.equal(res.body.archived, true);
+
+  const { nextIssueAt } = await import('../src/lib/newsletter.js');
+  assert.equal(nextIssueAt(new Date('2026-10-09T22:41:00Z')).toISOString(), '2026-10-11T23:30:00.000Z', 'Friday: this Sunday, 23:30 UTC');
+  assert.equal(nextIssueAt(new Date('2026-10-11T23:45:00Z')).toISOString(), '2026-10-18T23:30:00.000Z', 'just after the run: next week');
+
+  const sql = readFileSync(new URL('../docs/SUPABASE_SETUP.sql', import.meta.url), 'utf8');
+  assert.ok(sql.includes('create table if not exists public.stay_conscious_newsletter_archive') && sql.includes('refreshed_at timestamptz not null unique'));
+  assert.ok(sql.includes('alter table public.stay_conscious_newsletter_archive enable row level security;'));
+});
+
+test('v4.2.1: one Archive button opens past issues newest first, each with its lead image or house image, date and headline', async () => {
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  assert.equal(pub.archiveListRow({ id: 1, image: 'https://cdn/x.jpg' }).image, 'https://cdn/x.jpg');
+  assert.equal(pub.archiveListRow({ id: 1, image: 'javascript:alert(1)' }).image, null, 'https only');
+  const src = readFileSync(new URL('stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes('image:newsletter->leadStory->image->>src'));
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes("{showArchive ? 'Back to issue' : 'Archive'}"), 'one button at the top');
+  assert.ok(app.includes("localeCompare(String(x.refreshedAt || ''))"), 'newest first by publish date');
+  assert.ok(app.includes('<ArchiveThumb image={p.image} issueNumber={p.issueNumber} />'));
+  assert.ok(!app.includes('data-field="past-issues"'), 'the list at the foot of the issue is gone');
 });

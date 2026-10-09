@@ -259,9 +259,26 @@ export function withCarryOver(fresh, previous, previousIssue = null, now = Date.
   return { ...fresh, items: kept, foundAt, carriedFrom: previous?.carriedFrom || previousIssue || null };
 }
 
+// Copies the live issue to the archive. Returns true, false (failed) or null
+// (nothing live). Keyed on refreshed_at, so a retried Sunday run is a no-op.
+export async function archiveIssue(row, { supabaseUrl, supabaseKey, fetchImpl = fetch }) {
+  if (!row?.newsletter || !row?.refreshed_at) return null;
+  try {
+    const r = await fetchImpl(`${supabaseUrl}/rest/v1/stay_conscious_newsletter_archive?on_conflict=refreshed_at`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, Prefer: 'resolution=ignore-duplicates,return=minimal' },
+      body: JSON.stringify({ issue_number: Number(row.newsletter.issueNumber) || null, newsletter: row.newsletter, refreshed_at: row.refreshed_at }),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
 export default async function handler(req, res) {
   // Callers must be signed in (v3.100.1); see api/_auth.js.
-  if (!(await requireUser(req, res, { admin: true, allowCron: true }))) return;   // admins or the scheduled run only (v3.124.2)
+  const caller = await requireUser(req, res, { admin: true, allowCron: true });   // admins or the scheduled run only (v3.124.2)
+  if (!caller) return;
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -380,6 +397,13 @@ export default async function handler(req, res) {
       earnedCreative: withCarryOver(await fetchEarnedCreative(anthropicKey), prevRow?.newsletter?.earnedCreative, prevRow?.newsletter?.issueNumber || null),
     };
 
+    // The Sunday run keeps the issue it replaces (v4.2.0): whatever was live
+    // at the end of the week, including any Force refresh, is copied to the
+    // archive first. Force refreshes archive nothing. A failed copy never
+    // stops the new issue, and the same issue is never copied twice.
+    let archived = null;
+    if (caller.cron) archived = await archiveIssue(prevRow, { supabaseUrl, supabaseKey });
+
     // Upsert into Supabase (single row, id=1)
     const upsertRes = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter`, {
       method: 'POST',
@@ -404,6 +428,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       issueNumber,
+      ...(caller.cron ? { archived } : {}),
       refreshedAt: new Date().toISOString(),
     });
 

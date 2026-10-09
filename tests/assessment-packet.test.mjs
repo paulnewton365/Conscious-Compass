@@ -362,15 +362,15 @@ test('the newsletter Word export uses the newspaper system and embeds the fonts'
 test('the public issue renders without the internal tools or story opportunities', async () => {
   const issue = ISSUE(5);
   delete issue.storyOpportunities;   // the server never sends them publicly
-  let asked = null;
-  globalThis.fetch = window.fetch = async (url) => { asked = String(url); return { ok: true, json: async () => ({ newsletter: issue, refreshedAt: '2026-09-27T19:30:00Z', public: true }) }; };
+  const asked = [];
+  globalThis.fetch = window.fetch = async (url) => { asked.push(String(url)); return { ok: true, json: async () => ({ newsletter: issue, refreshedAt: '2026-09-27T19:30:00Z', public: true, issues: [] }) }; };
   const container = document.createElement('div'); document.body.appendChild(container);
   const root = client.createRoot(container);
   await act(async () => { root.render(h(App.StayConsciousPage, { onBack() {}, isAdmin: true, publicView: true })); });
   for (let i = 0; i < 5; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
-  assert.equal(asked, '/api/stay-conscious-newsletter?public=1');
+  assert.deepEqual(asked, ['/api/stay-conscious-newsletter?public=1'], 'the issue only; the archive loads when opened (v4.2.1)');
   const labels = [...container.querySelectorAll('button')].map(b => b.textContent);
-  assert.deepEqual(labels, ['Share link'], 'no Back, DOCX, Copy or Force refresh, even for an admin');
+  assert.deepEqual(labels, ['Archive', 'Share link'], 'no Back, DOCX, Copy or Force refresh, even for an admin; Archive and Share only (v4.2.1)');
   assert.ok(container.querySelector('.dc-np-brand img'), 'the Antenna mark instead');
   assert.ok(container.textContent.includes('Brand intelligence from Antenna Group'));
   assert.ok(container.querySelector('.dc-np-lead') && container.querySelector('[data-value="average"]'));

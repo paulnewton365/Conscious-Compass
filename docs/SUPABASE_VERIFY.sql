@@ -10,6 +10,7 @@ required_tables (t) as (values
   ('profiles'), ('compass_results'), ('saved_assessments'), ('client_reports'),
   ('stay_conscious_cache'), ('landscape_analysis_cache'),
   ('insights_analysis_cache'), ('stay_conscious_newsletter'),
+  ('stay_conscious_newsletter_archive'),
   ('teaser_assessments'), ('teaser_campaigns')
 ),
 required_columns (t, c) as (values
@@ -24,6 +25,7 @@ required_columns (t, c) as (values
   ('landscape_analysis_cache','analysis'),
   ('insights_analysis_cache','stories'),
   ('stay_conscious_newsletter','newsletter'),
+  ('stay_conscious_newsletter_archive','newsletter'), ('stay_conscious_newsletter_archive','issue_number'),
   ('teaser_assessments','evidence'), ('teaser_assessments','result'),
   ('teaser_assessments','context'), ('teaser_assessments','converted_at'),
   ('teaser_assessments','campaign_id'), ('teaser_campaigns','name'),

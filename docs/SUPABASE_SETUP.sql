@@ -260,6 +260,17 @@ create table if not exists public.stay_conscious_newsletter (
   refreshed_at timestamptz not null
 );
 
+-- Past issues (v4.2.0): before each Sunday refresh, the issue that was live is
+-- copied here. One row per edition; refreshed_at is unique, so a retried run
+-- never copies the same issue twice.
+create table if not exists public.stay_conscious_newsletter_archive (
+  id           bigint generated always as identity primary key,
+  issue_number integer,
+  newsletter   jsonb not null,
+  refreshed_at timestamptz not null unique,
+  archived_at  timestamptz not null default now()
+);
+
 
 -- ═══════════════════════════════════════════════════════════════
 -- 6. ROW LEVEL SECURITY
@@ -273,6 +284,7 @@ alter table public.stay_conscious_cache      enable row level security;
 alter table public.landscape_analysis_cache  enable row level security;
 alter table public.insights_analysis_cache   enable row level security;
 alter table public.stay_conscious_newsletter enable row level security;
+alter table public.stay_conscious_newsletter_archive enable row level security;
 alter table public.teaser_assessments        enable row level security;
 alter table public.teaser_campaigns          enable row level security;
 
@@ -456,7 +468,8 @@ declare t text;
 begin
   foreach t in array array[
     'stay_conscious_cache', 'landscape_analysis_cache',
-    'insights_analysis_cache', 'stay_conscious_newsletter'
+    'insights_analysis_cache', 'stay_conscious_newsletter',
+    'stay_conscious_newsletter_archive'
   ] loop
     execute format('drop policy if exists %I on public.%I', t || '_read', t);
     execute format(
