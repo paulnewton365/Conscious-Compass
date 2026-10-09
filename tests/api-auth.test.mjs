@@ -417,7 +417,7 @@ test('v4.1.0: the public landscape explains the attributes it names, in title ca
   assert.equal(out.leadStory.whyItMatters, 'Reflective matters');
 
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  assert.ok(app.includes('publicView && landscapeTerms.length > 0') && app.includes('The attributes in this piece'), 'the key shows on the public page only');
+  assert.ok(app.includes('publicView && la?.summary && landscapeTerms.length > 0') && app.includes("{landscapeKey('is-beside')}") && app.includes("{landscapeKey('is-stacked')}"), 'the key shows on the public page only, under the photo or after the text when stacked');
   assert.ok(app.includes("publicView ? 'Why it matters for brands' : 'Why it matters for assessment'"));
   assert.ok(app.includes("'Average Conscious Compass score out of 100'"));
 });

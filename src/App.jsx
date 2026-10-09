@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '4.1.0';
+const APP_VERSION = '4.1.1';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12198,6 +12198,20 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   const landscapeTerms = attributesMentioned(la?.headline, la?.summary, la?.insights);
   // Public readers are not assessors (v4.1.0).
   const whyLabel = publicView ? 'Why it matters for brands' : 'Why it matters for assessment';
+  // The attributes the landscape names, for readers new to the Compass
+  // (v4.1.0). Side by side it sits under the photo, not in the rail (v4.1.1):
+  // in the rail it made the rail taller and the photo grew to match. Stacked
+  // on a narrow screen, it follows the landscape text it explains instead.
+  const landscapeKey = (where) => (publicView && la?.summary && landscapeTerms.length > 0 ? (
+    <dl className={`dc-np-gloss ${where}`} aria-label="The attributes in this piece">
+      <div className="dc-kicker">The attributes in this piece</div>
+      <div className="dc-np-gloss-grid">
+        {landscapeTerms.map(a => (
+          <div key={a.id} className="dc-np-gloss-row"><dt>{a.name}</dt><dd>{a.plain.charAt(0).toUpperCase() + a.plain.slice(1)}.</dd></div>
+        ))}
+      </div>
+    </dl>
+  ) : null);
 
   // Packet 13 (09b): the issue as a newspaper. No cards, fills or shadows;
   // rules do the structure. Categories are plain text.
@@ -12269,6 +12283,10 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                   the lead column down to the foot of the rail when the story
                   brings no image of its own. */}
               {!ns.leadStory?.image?.src && <NewsletterHouseImage issueNumber={ns.issueNumber} />}
+              {/* The attributes the landscape names, for readers new to the
+                  Compass (v4.1.0). Under the photo, not in the rail (v4.1.1):
+                  in the rail it made the rail taller, and the photo grew to match. */}
+              {landscapeKey('is-beside')}
             </article>
             {la?.summary && (
               <aside className="dc-np-rail" aria-labelledby="landscape-h">
@@ -12287,16 +12305,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                 {la.headline && <h2 className="dc-np-h is-card" id="landscape-h">{la.headline}</h2>}
                 {paras(la.summary).map((t, i) => <p key={i} className="dc-np-text">{t}</p>)}
                 {paras(la.insights).map((t, i) => <p key={`i${i}`} className="dc-np-text">{t}</p>)}
-                {/* For readers new to the Compass (v4.1.0): what each attribute
-                    named above means, in the order the text names them. */}
-                {publicView && landscapeTerms.length > 0 && (
-                  <dl className="dc-np-gloss" aria-label="The attributes in this piece">
-                    <div className="dc-kicker">The attributes in this piece</div>
-                    {landscapeTerms.map(a => (
-                      <div key={a.id} className="dc-np-gloss-row"><dt>{a.name}</dt><dd>{a.plain.charAt(0).toUpperCase() + a.plain.slice(1)}.</dd></div>
-                    ))}
-                  </dl>
-                )}
+                {landscapeKey('is-stacked')}
               </aside>
             )}
           </section>
