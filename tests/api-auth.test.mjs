@@ -343,3 +343,54 @@ test('v4.0.1: an example is kept only if its article names the brand and the wor
   assert.equal(mod.wholeSentences('Short enough.', 40), 'Short enough.');
   assert.ok(mod.EARNED_CREATIVE_PROMPT.includes('Never use a link about a different campaign by the same brand.'));
 });
+
+test('v4.0.2: six candidates over three months, a top-up search for new brands, and a gentler headline check', async () => {
+  const mod = await import('../api/refresh-stay-conscious-newsletter.js');
+  assert.ok(mod.EARNED_CREATIVE_PROMPT.startsWith('Find 6 recent examples'));
+  assert.ok(mod.EARNED_CREATIVE_PROMPT.includes('go back up to three months'));
+  assert.ok(mod.EARNED_CREATIVE_PROMPT.includes('Never use a link about a different campaign by the same brand.'));
+  assert.ok(mod.earnedCreativePrompt({ exclude: ['Nike', 'Lego'] }).includes('already covered: Nike, Lego.'));
+
+  // Blocked page: one word of the work in the headline, or in the link's slug, is enough.
+  const blocked = { fetchImpl: async () => ({ ok: false }) };
+  const item = { brand: 'The Ordinary', title: 'The Markup Marche', url: 'https://www.inc.com/x/free-bus', searchTitle: "The Ordinary's latest marketing stunt" };
+  assert.equal(await mod.verifyExample({ ...item, searchTitle: 'The Ordinary opens a Marche in Soho' }, blocked), true, 'headline names part of the work');
+  assert.equal(await mod.verifyExample({ ...item, url: 'https://www.adweek.com/brand/the-ordinary-markup-marche/' }, blocked), true, 'slug names the work');
+  assert.equal(await mod.verifyExample(item, blocked), false, 'brand alone is still not enough');
+  // A readable article still has to name most of the work.
+  const page = (t) => async () => ({ ok: true, text: async () => `<html><body>${'filler '.repeat(120)}${t}</body></html>` });
+  assert.equal(await mod.verifyExample({ brand: 'Lego', title: 'Rebuild the Reef Tour', url: 'https://x.com/a' }, { fetchImpl: page('Lego opened a reef shop.') }), false);
+
+  // Two rounds: the second excludes brands already tried and tops up to three, newest first.
+  const prompts = [];
+  const reply = (examples) => ({ ok: true, json: async () => ({ content: [
+    { type: 'web_search_tool_result', content: examples.map(e => ({ type: 'web_search_result', url: e.url, title: e.title })) },
+    { type: 'text', text: JSON.stringify({ examples }) },
+  ] }) });
+  const ex = (brand, published) => ({ brand, title: `${brand} work`, what: 'They did a thing.', url: `https://adweek.com/${brand.toLowerCase()}`, published });
+  const rounds = [
+    [ex('A', '2026-09-01'), ex('B', '2026-10-01'), ex('C', '2026-08-01')],
+    [ex('A', '2026-09-01'), ex('D', '2026-07-15'), ex('E', '')],
+  ];
+  const fetchImpl = async (_u, init) => { prompts.push(JSON.parse(init.body).messages[0].content); return reply(rounds[prompts.length - 1]); };
+  const pass = new Set(['A', 'D', 'E']);
+  const out = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async (e) => pass.has(e.brand) });
+  assert.equal(prompts.length, 2, 'a second search ran because only one passed');
+  assert.ok(prompts[1].includes('already covered: a, b, c'), 'the top-up skips brands already tried');
+  assert.deepEqual(out.items.map(i => i.brand), ['A', 'D', 'E'], 'three kept, most recent first, undated last');
+  assert.ok(!('searchTitle' in out.items[0]));
+
+  // Three pass in the first round: no second search.
+  prompts.length = 0;
+  const one = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async () => true });
+  assert.equal(prompts.length, 1);
+  assert.deepEqual(one.items.map(i => i.brand), ['B', 'A', 'C']);
+  // Nothing found at all: the section is left out.
+  assert.equal(await mod.fetchEarnedCreative('k', { fetchImpl: async () => ({ ok: false }) }), null);
+
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const issue = pub.publicIssue({ earnedCreative: { items: [{ brand: 'A', what: 'x', url: 'https://a.com', published: '2026-09-01' }, { brand: 'B', what: 'x', url: 'https://b.com', published: '<b>' }] } }, []);
+  assert.deepEqual(issue.earnedCreative.items.map(i => i.published), ['2026-09-01', ''], 'only a plain date goes out publicly');
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('ecMonth(e.published)'), 'the newsletter shows the month');
+});

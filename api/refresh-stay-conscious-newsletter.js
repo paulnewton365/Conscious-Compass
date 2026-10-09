@@ -24,18 +24,26 @@ const latestPerBrand = (rows) => {
 // search itself returned: the model cannot invent a source, because an item
 // whose link is not among the search results is dropped. Fewer real examples
 // beat a full section of unverifiable ones.
-export const EARNED_CREATIVE_PROMPT = `Find three recent examples of earned creative that are catching headlines now, from the last 60 days if possible. Earned creative is an idea designed to be talked about rather than paid to be seen: a brand DID something in the world (a stunt, an installation, a product intervention, a data release, a public act, a partnership) and journalists, creators or the public carried it. Not paid ads, not sponsorships, not press releases on their own.
+// v4.0.2: six candidates over the last three months, because each must pass
+// the article check and three asked-for examples were leaving one standing.
+// A top-up search names the brands already tried so it finds new ones.
+export function earnedCreativePrompt({ count = 6, exclude = [] } = {}) {
+  const skip = exclude.length ? `\n\nDo not include work by these brands, already covered: ${exclude.join(', ')}.` : '';
+  return `Find ${count} recent examples of earned creative that are catching headlines. Prefer work from the last 30 days; if there is not enough, go back up to three months, but nothing older. Earned creative is an idea designed to be talked about rather than paid to be seen: a brand DID something in the world (a stunt, an installation, a product intervention, a data release, a public act, a partnership) and journalists, creators or the public carried it. Not paid ads, not sponsorships, not press releases on their own.
 
-Prefer work by brands with a purpose, climate, energy, health or social angle, but any strong example will do. Search the trade and business press (for example Adweek, Ad Age, The Drum, Campaign, Fast Company, Marketing Week, Business Insider).
+Prefer work by brands with a purpose, climate, energy, health or social angle, but any strong example will do. Search the trade and business press (for example Adweek, Ad Age, The Drum, Campaign, Fast Company, Marketing Week, Business Insider, Muse by Clio, LBBOnline). One example per brand.${skip}
 
 For each example, use only facts from the pages your searches returned. The link must be the article you read about it.
 
-Return JSON only, no prose before or after:
-{"examples":[{"brand":"The brand behind the work","agency":"The agency, or empty if none is named","title":"Name of the work, or a plain description","what":"What they did. Two short sentences, under 45 words.","coverage":"What coverage it generated: who carried it and how widely, from the article. One sentence, under 30 words.","outlet":"The publication of the link","url":"https://..."}]}
+Return JSON only, no prose before or after, most recent first:
+{"examples":[{"brand":"The brand behind the work","agency":"The agency, or empty if none is named","title":"Name of the work, or a plain description","what":"What they did. Two short sentences, under 45 words.","coverage":"What coverage it generated: who carried it and how widely, from the article. One sentence, under 30 words.","outlet":"The publication of the link","published":"YYYY-MM-DD the article was published, or empty if unknown","url":"https://..."}]}
 
 The url must be the article about THIS piece of work: a page that names the brand and the work itself. Never use a link about a different campaign by the same brand. If you cannot find such an article for an example, leave that example out.
 
 US English. No em dashes or en dashes.`;
+}
+export const EARNED_CREATIVE_PROMPT = earnedCreativePrompt();
+export const EARNED_CREATIVE_TARGET = 3;
 
 const normUrl = (u) => {
   try {
@@ -78,13 +86,16 @@ export function wholeSentences(v, n) {
 // about another campaign by the same brand names the brand but not the work.
 const fold = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'your', 'their', 'campaign', 'stunt', 'brand']);
-export function namesTheWork(text, { brand, title }) {
+export function namesTheWork(text, { brand, title }, { loose = false } = {}) {
   const t = fold(text);
   const b = fold(brand).replace(/^the\s+/, '').trim();
   if (!b || !t.includes(b)) return false;
   const terms = [...new Set(fold(title).split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !STOP.has(w)))];
   if (!terms.length) return true;
   const hits = terms.filter(w => t.includes(w)).length;
+  // A headline is short, so one word of the work's name is enough (v4.0.2);
+  // a full article still has to name most of it.
+  if (loose) return hits >= 1;
   return terms.length <= 2 ? hits === terms.length : hits >= Math.ceil((terms.length * 2) / 3);
 }
 
@@ -102,10 +113,13 @@ export async function verifyExample(item, { fetchImpl = fetch, timeoutMs = 8000 
       if (text.length > 500) return namesTheWork(text, item);
     }
   } catch { /* fall back to the search headline */ }
-  return namesTheWork(item.searchTitle || '', item);
+  // The headline plus the link's own words: slugs usually name the work.
+  let slug = '';
+  try { slug = decodeURIComponent(new URL(item.url).pathname).replace(/[-_/.]+/g, ' '); } catch { /* no slug */ }
+  return namesTheWork(`${item.searchTitle || ''} ${slug}`, item, { loose: true });
 }
 
-export function earnedCreativeFromResponse(data) {
+export function earnedCreativeFromResponse(data, { max = 8 } = {}) {
   const content = Array.isArray(data?.content) ? data.content : [];
   // Joined as written: with search on, citations split the reply into text
   // blocks, sometimes mid-string, and an added newline breaks the JSON.
@@ -120,34 +134,55 @@ export function earnedCreativeFromResponse(data) {
     .map(e => ({
       brand: cleanText(e?.brand, 80), agency: cleanText(e?.agency, 80), title: cleanText(e?.title, 140),
       what: wholeSentences(e?.what, 420), coverage: wholeSentences(e?.coverage, 300), outlet: cleanText(e?.outlet, 80),
+      published: /^\d{4}-\d{2}-\d{2}$/.test(String(e?.published || '').trim()) ? String(e.published).trim() : '',
       url: String(e?.url || '').trim(),
       searchTitle: results.get(normUrl(e?.url)) || '',
     }))
     .filter(e => e.brand && e.what && e.url.startsWith('https://') && results.has(normUrl(e.url)))
     .filter(e => { const k = e.brand.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
-    .slice(0, 3);
+    .slice(0, max);
 }
 
-async function fetchEarnedCreative(anthropicKey) {
+// Most recent first; undated examples keep their place after the dated ones.
+export const byRecency = (items) => items
+  .map((e, i) => ({ e, i }))
+  .sort((a, b) => (b.e.published || '').localeCompare(a.e.published || '') || a.i - b.i)
+  .map(({ e }) => e);
+
+async function searchEarnedCreative(anthropicKey, exclude, fetchImpl) {
+  const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6', max_tokens: 5000, temperature: 0,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 10 }],
+      messages: [{ role: 'user', content: earnedCreativePrompt({ exclude }) }],
+    }),
+  });
+  if (!r.ok) return [];
+  return earnedCreativeFromResponse(await r.json());
+}
+
+// Up to two searches: the second runs only if fewer than three examples pass
+// the article check, and skips every brand already tried (v4.0.2).
+export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, verify = verifyExample, rounds = 2, budgetMs = 120000 } = {}) {
+  const started = Date.now();
+  const kept = [];
+  const tried = new Set();
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6', max_tokens: 3000, temperature: 0,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }],
-        messages: [{ role: 'user', content: EARNED_CREATIVE_PROMPT }],
-      }),
-    });
-    if (!r.ok) return null;
-    const candidates = earnedCreativeFromResponse(await r.json());
-    // Each link is opened and must name the brand and the work (v4.0.1).
-    const checks = await Promise.all(candidates.map(e => verifyExample(e)));
-    const items = candidates.filter((_, i) => checks[i]).map(({ searchTitle: _t, ...e }) => e);
-    return items.length ? { items, generatedAt: new Date().toISOString() } : null;
-  } catch {
-    return null;   // the issue still goes out without the section
-  }
+    for (let round = 0; round < rounds && kept.length < EARNED_CREATIVE_TARGET; round++) {
+      if (round > 0 && Date.now() - started > budgetMs) break;   // leave time for the rest of the issue
+      const candidates = (await searchEarnedCreative(anthropicKey, [...tried], fetchImpl))
+        .filter(e => !tried.has(e.brand.toLowerCase()));
+      if (!candidates.length) break;
+      candidates.forEach(e => tried.add(e.brand.toLowerCase()));
+      // Each link is opened and must name the brand and the work (v4.0.1).
+      const checks = await Promise.all(candidates.map(e => Promise.resolve(verify(e)).catch(() => false)));
+      candidates.forEach((e, i) => { if (checks[i]) kept.push(e); });
+    }
+  } catch { /* keep whatever passed; the issue still goes out */ }
+  const items = byRecency(kept).slice(0, EARNED_CREATIVE_TARGET).map((e) => { const out = { ...e }; delete out.searchTitle; return out; });
+  return items.length ? { items, generatedAt: new Date().toISOString() } : null;
 }
 
 export default async function handler(req, res) {

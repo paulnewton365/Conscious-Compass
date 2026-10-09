@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '4.0.1';
+const APP_VERSION = '4.0.2';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -15,6 +15,14 @@ const OUTCOME_HOLD_MS = 1400;
 // left out of the build ZIPs, so it never counts against the upload limit.
 // Each edition takes the next image, by issue number, wrapping after the last.
 // focus is the subject's position in the image, in %, for object-position.
+// The month an earned creative example was published, e.g. "Aug 2026" (v4.0.2):
+// examples can now reach back three months, so readers see how fresh each is.
+const ecMonth = (d) => {
+  const m = /^(\d{4})-(\d{2})-\d{2}$/.exec(String(d || ''));
+  if (!m || +m[2] < 1 || +m[2] > 12) return '';
+  return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m[2] - 1]} ${m[1]}`;
+};
+
 const NEWSLETTER_HOUSE_IMAGES = [
   { src: '/newsletter/house-1.jpg', focus: [50, 36] },
   { src: '/newsletter/house-2.jpg', focus: [34, 51] },
@@ -12310,7 +12318,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                     <h3 className="dc-np-h is-item">{e.title || e.brand}</h3>
                     <p className="dc-np-text">{e.what}</p>
                     {e.coverage && <div className="dc-np-why is-sm"><div className="dc-kicker">Coverage</div><p>{e.coverage}</p></div>}
-                    <a className="dc-np-source" href={e.url} target="_blank" rel="noopener noreferrer">Read it{e.outlet ? ` in ${e.outlet}` : ''} {'\u2197'}</a>
+                    <a className="dc-np-source" href={e.url} target="_blank" rel="noopener noreferrer">Read it{e.outlet ? ` in ${e.outlet}` : ''}{ecMonth(e.published) ? `, ${ecMonth(e.published)}` : ''} {'\u2197'}</a>
                   </article>
                 ))}
               </div>
