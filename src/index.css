@@ -1429,6 +1429,12 @@ button { font: inherit; color: inherit; }
 .dc-np-why { display: flex; flex-direction: column; gap: 6px; border-top: var(--cc-border-strong); padding-top: var(--cc-s-3); }
 .dc-np-why p { font-size: var(--cc-fs-body); line-height: 1.5; color: var(--cc-body); }
 .dc-np-why.is-sm { border-top: var(--cc-border); margin-top: auto; }
+/* The attributes in this piece (v4.1.0): a quiet key under the landscape text. */
+.dc-np-gloss { display: flex; flex-direction: column; gap: 8px; margin: var(--cc-s-3) 0 0; border-top: var(--cc-border); padding-top: var(--cc-s-3); }
+.dc-np-gloss-row { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.dc-np-gloss dt { font-weight: 600; font-size: var(--cc-fs-ui); color: var(--cc-ink); }
+.dc-np-gloss dd { margin: 0; font-size: var(--cc-fs-ui); line-height: 1.45; color: var(--cc-body); }
+@media (max-width: 480px) { .dc-np-gloss-row { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
 .dc-np-why.is-sm p { font-size: var(--cc-fs-ui); color: var(--cc-muted); }
 .dc-np-figure { display: flex; flex-direction: column; gap: 4px; padding: var(--cc-s-2) 0 var(--cc-s-4); border-bottom: var(--cc-border); }
 .dc-np-num { font: var(--cc-w-regular) var(--cc-fs-num-l)/.9 var(--cc-serif); color: var(--cc-ink); letter-spacing: -.03em; }

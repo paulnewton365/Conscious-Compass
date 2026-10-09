@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
+import { attributesMentioned } from './data/attributeGlossary.js';
 import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '4.0.2';
+const APP_VERSION = '4.1.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12194,6 +12195,9 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   };
   const ns = newsletter;
   const la = ns?.landscapeAnalysis;
+  const landscapeTerms = attributesMentioned(la?.headline, la?.summary, la?.insights);
+  // Public readers are not assessors (v4.1.0).
+  const whyLabel = publicView ? 'Why it matters for brands' : 'Why it matters for assessment';
 
   // Packet 13 (09b): the issue as a newspaper. No cards, fills or shadows;
   // rules do the structure. Categories are plain text.
@@ -12257,7 +12261,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
               <div className="dc-np-text is-cols">{paras(ns.leadStory?.insight).map((t, i) => <p key={i}>{t}</p>)}</div>
               {ns.leadStory?.whyItMatters && (
                 <aside className="dc-np-why">
-                  <div className="dc-kicker">Why it matters for assessment</div>
+                  <div className="dc-kicker">{whyLabel}</div>
                   <p>{ns.leadStory.whyItMatters}</p>
                 </aside>
               )}
@@ -12274,7 +12278,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                   <div className="dc-np-figure">
                     {Number.isFinite(la.averageScore) && <span className="dc-np-num" data-value="average">{la.averageScore}</span>}
                     <span className="dc-meta">
-                      {Number.isFinite(la.averageScore) && 'Average score out of 100'}
+                      {Number.isFinite(la.averageScore) && (publicView ? 'Average Conscious Compass score out of 100' : 'Average score out of 100')}
                       {Number.isFinite(la.averageScore) && la.brandCount && ' · '}
                       {la.brandCount && <>Based on <span data-value="brands">{la.brandCount}</span> brands across <span data-value="sectors">{la.sectorCount}</span> sectors</>}
                     </span>
@@ -12283,6 +12287,16 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                 {la.headline && <h2 className="dc-np-h is-card" id="landscape-h">{la.headline}</h2>}
                 {paras(la.summary).map((t, i) => <p key={i} className="dc-np-text">{t}</p>)}
                 {paras(la.insights).map((t, i) => <p key={`i${i}`} className="dc-np-text">{t}</p>)}
+                {/* For readers new to the Compass (v4.1.0): what each attribute
+                    named above means, in the order the text names them. */}
+                {publicView && landscapeTerms.length > 0 && (
+                  <dl className="dc-np-gloss" aria-label="The attributes in this piece">
+                    <div className="dc-kicker">The attributes in this piece</div>
+                    {landscapeTerms.map(a => (
+                      <div key={a.id} className="dc-np-gloss-row"><dt>{a.name}</dt><dd>{a.plain.charAt(0).toUpperCase() + a.plain.slice(1)}.</dd></div>
+                    ))}
+                  </dl>
+                )}
               </aside>
             )}
           </section>
@@ -12298,7 +12312,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                       <h3 className="dc-np-h is-item">{item.headline}</h3>
                       {paras(item.insight).map((t, k) => <p key={k} className="dc-np-text">{t}</p>)}
                       {item.whyItMatters && (
-                        <div className="dc-np-why is-sm"><div className="dc-kicker">Why it matters for assessment</div><p>{item.whyItMatters}</p></div>
+                        <div className="dc-np-why is-sm"><div className="dc-kicker">{whyLabel}</div><p>{item.whyItMatters}</p></div>
                       )}
                     </article>
                   ))}

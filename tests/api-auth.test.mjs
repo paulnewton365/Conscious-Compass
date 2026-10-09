@@ -394,3 +394,30 @@ test('v4.0.2: six candidates over three months, a top-up search for new brands, 
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes('ecMonth(e.published)'), 'the newsletter shows the month');
 });
+
+test('v4.1.0: the public landscape explains the attributes it names, in title case, for readers new to the Compass', async () => {
+  const g = await import('../src/data/attributeGlossary.js');
+  assert.equal(g.ATTRIBUTE_GLOSSARY.length, 8);
+  assert.ok(g.ATTRIBUTE_GLOSSARY.every(a => !/[—–]/.test(a.plain)), 'no em dashes');
+  assert.deepEqual(g.attributesMentioned('SENTIENT averages 42, below Attentive.', 'Brands are aware of it. AWAKE lags.').map(a => a.id), ['SENTIENT', 'ATTENTIVE', 'AWAKE'], 'first-mention order; "aware" as a word is not Aware');
+  assert.equal(g.titleCaseAttributes('ATTENTIVE, VISIONARY and INTENTIONAL lead; SENTIENTS stays.'), 'Attentive, Visionary and Intentional lead; SENTIENTS stays.');
+
+  const mod = await import('../api/refresh-stay-conscious-newsletter.js');
+  const p = mod.landscapePrompt('ANALYSIS TEXT');
+  assert.ok(p.includes('Readers are marketers and business leaders who have never seen the Conscious Compass'));
+  assert.ok(p.includes('explain it in a few plain words in the same sentence'));
+  assert.ok(p.includes('Never name an individual brand or company'));
+  assert.ok(g.ATTRIBUTE_GLOSSARY.every(a => p.includes(`- ${a.name}: ${a.plain}`)), 'the prompt carries every meaning');
+  assert.ok(p.endsWith('ANALYSIS TEXT'));
+
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const out = pub.publicIssue({ leadStory: { headline: 'x', insight: 'For AWAKE assessments', whyItMatters: 'REFLECTIVE matters' }, landscapeAnalysis: { headline: 'SENTIENT lags', summary: 'ATTENTIVE leads.\n\nAcme Corp lags on AWAKE.' } }, ['Acme Corp']);
+  assert.equal(out.landscapeAnalysis.headline, 'Sentient lags');
+  assert.equal(out.landscapeAnalysis.summary, 'Attentive leads.', 'title case, and brand paragraphs still dropped');
+  assert.equal(out.leadStory.whyItMatters, 'Reflective matters');
+
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('publicView && landscapeTerms.length > 0') && app.includes('The attributes in this piece'), 'the key shows on the public page only');
+  assert.ok(app.includes("publicView ? 'Why it matters for brands' : 'Why it matters for assessment'"));
+  assert.ok(app.includes("'Average Conscious Compass score out of 100'"));
+});

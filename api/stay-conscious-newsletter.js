@@ -9,8 +9,10 @@
 // Landscape text that names an assessed brand is dropped as well.
 
 import { requireUser } from './_auth.js';
+import { titleCaseAttributes } from '../src/data/attributeGlossary.js';
 
-const str = (v, n = 4000) => (typeof v === 'string' ? v.slice(0, n) : '');
+// Attribute codes read as names publicly: SENTIENT becomes Sentient (v4.1.0).
+const str = (v, n = 4000) => (typeof v === 'string' ? titleCaseAttributes(v.slice(0, n)) : '');
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

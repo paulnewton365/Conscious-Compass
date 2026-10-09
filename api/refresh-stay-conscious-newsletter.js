@@ -5,6 +5,7 @@
 // Also accepts POST for admin force refresh.
 
 import { requireUser } from './_auth.js';
+import { glossaryForPrompt, titleCaseAttributes } from '../src/data/attributeGlossary.js';
 // Each brand's latest save only (v3.109.0): every save is kept as a row for
 // history, but a brand must count once in portfolio figures.
 const latestPerBrand = (rows) => {
@@ -17,6 +18,31 @@ const latestPerBrand = (rows) => {
   });
   return [...m.values()];
 };
+
+// ── Landscape insights, for any reader (v4.1.0) ────────────────
+// The issue is public, so the landscape text is written for someone who has
+// never seen the Compass: each attribute is explained in plain words where it
+// is first named, and no brand is named (a paragraph naming an assessed brand
+// is dropped from the public issue, which used to leave half a story).
+export function landscapePrompt(analysis) {
+  return `You are writing the landscape section of Stay Conscious, Antenna Group's public brand newsletter. Readers are marketers and business leaders who have never seen the Conscious Compass. Read this analysis and do two things:
+
+1. Write a single headline (max 10 words) capturing the most striking finding. Output it on one line starting with exactly "HEADLINE: "
+
+2. Rewrite the analysis as exactly two short paragraphs separated by a blank line:
+   - Paragraph 1: the big picture. What the scores say about how brands across sectors are showing up, and the pattern that is emerging. Say once, plainly, that the Conscious Compass scores brands out of 100 on eight attributes from what is publicly visible about them.
+   - Paragraph 2: the attributes. Which are strongest and weakest, where sectors differ most, and what that means for a brand. Name no more than three attributes.
+
+Every time you name an attribute for the first time, explain it in a few plain words in the same sentence, for example "Sentient, how much a brand moves people, averages 42". Write attribute names in title case (Sentient, not SENTIENT). Use only these meanings:
+${glossaryForPrompt()}
+
+Never name an individual brand or company; sectors are fine. Every figure must come from the analysis. Keep the two paragraphs consistent with each other and with the headline, and use one term for each idea throughout (say "score" every time, never "rating" or "grade").
+
+Use plain prose. No bullet points. No headers. No em dashes. Max 230 words across both paragraphs. Short sentences, plain words, lead with the point. No jargon such as "signals", "infrastructure" or "touchpoints" without saying what it means. No throat-clearing, no rule-of-three lists, no "not just X but Y", no motivational closers. US English.
+
+ANALYSIS:
+${analysis}`;
+}
 
 // ── Earned creative in the news (v3.124.0) ─────────────────────
 // Recent earned creative work by other brands or agencies that is catching
@@ -261,18 +287,7 @@ export default async function handler(req, res) {
     let landscapeForNewsletter = null;
     if (landscapeAnalysis?.summary) {
       const combinedText = [landscapeAnalysis.summary, landscapeAnalysis.insights].filter(Boolean).join('\n\n');
-      const headlinePrompt = `You are a brand strategist. Read this landscape analysis and do two things:
-
-1. Write a single punchy headline (max 10 words) capturing the single most striking insight. Output it on one line starting with exactly "HEADLINE: "
-
-2. Rewrite the analysis as exactly two short paragraphs separated by a blank line:
-   - Paragraph 1: The big-picture industry trend — what the data says about how brands across sectors are behaving and what pattern is emerging
-   - Paragraph 2: The conscious brand attributes story — which attributes are strongest, weakest, most polarising, and what that means
-
-Use plain prose. No bullet points. No headers. No em dashes. Max 200 words total across both paragraphs. Short sentences, plain words, lead with the point. No throat-clearing, no rule-of-three lists, no "not just X but Y", no motivational closers.
-
-ANALYSIS:
-${combinedText}`;
+      const headlinePrompt = landscapePrompt(combinedText);
 
       const hlRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -293,8 +308,8 @@ ${combinedText}`;
       }
 
       landscapeForNewsletter = {
-        headline,
-        summary: twoParaSummary,
+        headline: titleCaseAttributes(headline),
+        summary: titleCaseAttributes(twoParaSummary),
         brandCount: landscapeAnalysis.brandCount || null,
         sectorCount: landscapeAnalysis.sectorCount || null,
         averageScore: Number.isFinite(landscapeAnalysis.averageScore) ? landscapeAnalysis.averageScore : await portfolioAverage(),
