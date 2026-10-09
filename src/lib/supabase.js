@@ -160,6 +160,11 @@ export const saveAssessment = async (assessment, { id = null } = {}) => {
     .insert(assessmentData)
     .select()
     .single();
+  // A database still carrying the old one-record-per-brand rule refuses a
+  // second record for the same brand. Say exactly what fixes it (v4.0).
+  if (error && (error.code === '23505' || /saved_assessments_brand_name_key/.test(error.message || ''))) {
+    return { data: null, error: { ...error, message: `This brand already has a saved assessment, and the database still allows only one per brand. Run this once in the Supabase SQL editor, then save again: drop index if exists public.saved_assessments_brand_name_key; Nothing was lost: the report is still open and its draft is kept.` } };
+  }
   return { data, error };
 };
 

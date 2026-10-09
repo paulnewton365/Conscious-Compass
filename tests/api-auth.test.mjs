@@ -309,3 +309,24 @@ test('the weekly refreshes: a signed-in non-admin gets 403 and nothing runs; the
   assert.deepEqual(ok, { cron: true }, 'the Sunday schedule needs no admin');
   delete process.env.CRON_SECRET;
 });
+
+test('v4.0 sweep: citations that split the JSON mid-string still parse; two-letter brand names are caught publicly', async () => {
+  const mod = await import('../api/refresh-stay-conscious-newsletter.js');
+  const url = 'https://www.adweek.com/brand/real-one';
+  const data = { content: [
+    { type: 'web_search_tool_result', content: [{ type: 'web_search_result', url }] },
+    { type: 'text', text: '{"examples":[{"brand":"Real One","what":"They planted ' },
+    { type: 'text', text: 'a forest', citations: [{ url }] },
+    { type: 'text', text: ' overnight.","url":"' + url + '"}]}' },
+  ] };
+  const items = mod.earnedCreativeFromResponse(data);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].what, 'They planted a forest overnight.');
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const out = pub.publicIssue({ landscapeAnalysis: { summary: 'BP leads the sector.\n\nMost brands lag.', insights: '' } }, ['BP']);
+  assert.equal(out.landscapeAnalysis.summary, 'Most brands lag.');
+  const sb = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
+  assert.ok(sb.includes("error.code === '23505'") && sb.includes('drop index if exists public.saved_assessments_brand_name_key'), 'the old one-per-brand rule is named, with its fix');
+  const setup = readFileSync(new URL('../docs/SUPABASE_SETUP.sql', import.meta.url), 'utf8');
+  assert.ok(setup.includes('drop index if exists public.saved_assessments_brand_name_key;') && !/create unique index if not exists saved_assessments_brand_name_key/.test(setup));
+});

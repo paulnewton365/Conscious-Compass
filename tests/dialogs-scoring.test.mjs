@@ -250,6 +250,8 @@ test('end to end: streamed passes move the roll call, two that agree finish earl
   assert.equal(saves.length, 1, 'saved once, as soon as it was scored (v3.118.0)');
   assert.equal(saves[0].newRun, true);
   assert.equal(saves[0].scoresOverride.AWAKE.score, 51, 'the scores just set, not stale state');
+  assert.equal(saves[0].assessmentsOverride, READOUTS, 'the readouts it scored go with the save (v4.0)');
+  assert.equal(saves[0].projectPatch, null, 'no challenge, no patch');
   await m.unmount();
 });
 

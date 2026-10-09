@@ -16,7 +16,7 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export function publicIssue(newsletter, brandNames = []) {
   if (!newsletter || typeof newsletter !== 'object') return null;
-  const names = [...new Set(brandNames.map(n => String(n || '').trim()).filter(n => n.length >= 3))];
+  const names = [...new Set(brandNames.map(n => String(n || '').trim()).filter(n => n.length >= 2))];   // BP, GE, 3M count too
   const named = names.length ? new RegExp(`(^|[^\\p{L}\\p{N}])(${names.map(escapeRe).join('|')})(?=$|[^\\p{L}\\p{N}])`, 'iu') : null;
   const mentions = (t) => !!(named && named.test(t));
   const keepParas = (t) => str(t).split(/\n\s*\n/).filter(p => p.trim() && !mentions(p)).join('\n\n');
@@ -55,17 +55,29 @@ async function sendPublicIssue(req, res) {
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: 'Server environment variables not configured' });
   const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
   try {
-    const [issueRes, namesRes] = await Promise.all([
+    // Every assessed brand name, page by page: one request stops at the
+    // server's row cap, and an unchecked name could slip through.
+    const allNames = async () => {
+      const out = [];
+      for (let from = 0; from < 100000; from += 1000) {
+        const r = await fetch(`${supabaseUrl}/rest/v1/compass_results?select=brand_name&order=id`, { headers: { ...headers, Range: `${from}-${from + 999}` } });
+        if (!r.ok) return null;
+        const page = await r.json();
+        out.push(...page.map(x => x.brand_name));
+        if (page.length < 1000) return out;
+      }
+      return out;
+    };
+    const [issueRes, names] = await Promise.all([
       fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?select=newsletter,refreshed_at&order=refreshed_at.desc&limit=1`, { headers }),
-      fetch(`${supabaseUrl}/rest/v1/compass_results?select=brand_name`, { headers }),
+      allNames(),
     ]);
     // Without the brand list the landscape text cannot be checked, so none is sent.
-    if (!issueRes.ok || !namesRes.ok) return res.status(502).json({ error: 'The issue could not be loaded.' });
+    if (!issueRes.ok || !names) return res.status(502).json({ error: 'The issue could not be loaded.' });
     const rows = await issueRes.json();
-    const names = (await namesRes.json()).map(r => r.brand_name);
     res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
     return res.status(200).json({ newsletter: publicIssue(rows?.[0]?.newsletter, names), refreshedAt: rows?.[0]?.refreshed_at || null, public: true });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: 'The issue could not be loaded.' });
   }
 }

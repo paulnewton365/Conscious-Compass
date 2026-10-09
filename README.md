@@ -1,12 +1,76 @@
 # Conscious Compass
 
-**Brand Consciousness Assessment Framework v2.9** by Antenna Group
+**Brand Consciousness Assessment Framework v2.13** by Antenna Group
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-3.124.2-blue)
-![Rubric](https://img.shields.io/badge/rubric-v2.9-green)
+![Version](https://img.shields.io/badge/version-4.0.0-blue)
+![Framework](https://img.shields.io/badge/framework-v2.13-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
+
+---
+
+## What's New in 4.0
+
+Everything since the look and feel redesign, by area.
+
+**Look and feel**
+- A new design system across the whole app: Newsreader and Hanken Grotesk, ink and rust on paper, rules in place of boxes
+- Every page rebuilt to the design packets: assessment steps, scoring, report, client view, Saved, Results, teasers, dialogs and newsletter
+- One shared set of report sections for the internal report, the client view and the teaser read
+- Consistent type sizes across all three reports
+- Scroll motion in the reports: sections fade up, charts draw in, scores count up, markers slide into place
+- Phone-ready layouts throughout, with no sideways scrolling
+- Accessible dialogs: focus kept inside, Escape to close, labelled fields
+
+**Scoring and measurement**
+- Consistent scoring: every score is the median of three independent passes
+- Early finish when the first two passes agree
+- Live scoring progress, with real stages, pass tracks and an attribute roll call
+- Admin consistency check: five passes side by side, with spread per attribute
+- Pass timing recorded for every scoring run
+- Sector lens in full scoring for real estate, health and energy brands
+- Healthcare & Life Sciences sector profile
+- Food & Beverage industry
+- Campaign coherence ladder, applied to scores in code
+- Brand footprint presence map across eight channels
+- Trust and credibility lens: credibility, trust, reputation and authenticity
+- Sustainability narrative: six principles rated against Antenna's thesis
+- Earned creative in use lifts Sentient and Intentional
+
+**Reports and exports**
+- Overall score at the centre of the radar
+- Benchmark comparison with sector rank, percentile and range
+- How earned creative could help: brand-specific opportunities for every brand, with HOWL
+- Word report restyled after the teaser read, with fonts embedded and no forced page breaks
+- Assessment Pack: the Word report, a printed 5x7 card and a slide in one download
+- Brand image upload for the pack
+- Teaser Pack: the teaser read, card and slide in one download
+- Password-protected client links, encrypted in the browser
+- Challenge a report with new evidence, with a full history kept
+- Language controls that change wording, never scores
+
+**Saving, history and benchmarks**
+- Reports save automatically as soon as they are scored
+- Saved page: one row per brand, with earlier assessments on click
+- Results page: one row per brand, with the history of every save
+- Benchmarks count each brand's latest assessment only
+- Draft notice to resume an unsaved assessment
+- Save and exit returns you to the step you left
+
+**Stay Conscious newsletter**
+- Redesigned as a newspaper
+- Public newsletter that anyone can read without signing in
+- Earned creative in the news: sourced examples, with coverage and links
+- A new lead image each edition
+- Portfolio average and landscape insights from live data
+- Word export and copy text
+
+**Security and reliability**
+- Every server endpoint checks who is calling
+- Weekly refreshes limited to admins and the schedule
+- Internal fields never reach client links or share links
+- Faster loading, with export libraries loaded only when needed
 
 ---
 
@@ -59,9 +123,9 @@ Press coverage, podcast appearances, keynotes, awards — last 3 months.
 Two of these carry the most diagnostic weight. The **announcement-driven versus third-party** split separates coverage the brand caused from coverage it earned; a brand whose coverage collapses between announcements has media relations, not media standing. **Credibility built** is judged separately from visibility, because a brand can be highly visible and hold no credibility at all.
 
 ### 6. Report Generation
-Twelve numbered sections: results at a glance, brand maturity, attribute analysis, brand footprint, campaign coherence, trust and credibility, benchmark comparison, recommendations, conclusions, score justification, what we evaluated, and assessment readouts. A thirteenth, **challenge history**, appears at position 11 only when the report has been challenged. Exports as DOCX or copied text.
+Scoring runs three passes at once and keeps the median of each attribute (stopping early when the first two agree), with live progress on screen. The report saves itself as soon as it is scored. Numbered sections: results at a glance, brand maturity, attribute analysis, brand footprint, campaign coherence, trust and credibility, the sustainability narrative, benchmark comparison, how earned creative could help, recommendations, conclusions, score justification, what we evaluated and assessment readouts. **Challenge history** appears only when the report has been challenged. Exports as a Word file, or as the **Assessment Pack**: the Word report, a 5x7 card and a slide.
 
-The client-facing report carries the same treatment as the internal one but omits recommendations, services, score justification, readouts and the campaign score adjustment.
+The client-facing report carries the same treatment as the internal one but omits recommendations, services, score justification, readouts, the campaign score adjustment and anything internal to earned creative.
 
 ---
 
@@ -84,7 +148,7 @@ Challenges persist on the assessment and are carried into every subsequent resco
 |-------|---------------|
 | Report masthead | A lime **Rescored after challenge** marker with the count. Clicking it jumps to the history |
 | Report section 11 | **Challenge history** — who, when, the full submitted text, readouts revised, overall before and after, per-attribute deltas |
-| DOCX and Copy Full Report | The same history, internal exports only |
+| Word export | The same history, internal export only |
 | Saved Assessments and Compass Results | A **Challenged** badge per row, with net delta on the results ledger |
 
 Portfolio-level, `compass_results` stores a summary inside the `scores` blob: `{ count, netDelta, lastAt }`, plus the same for `campaignLevel` and `footprintLevels`. The submitted text is deliberately excluded — it is often client-confidential and has no place in a results table. Challenge count and net delta are also columns in the CSV export, which is where a calibration question ("do challenges systematically raise scores?") would start once enough assessments carry the data.
@@ -105,7 +169,7 @@ The pre-language original is preserved for **Revert language**, and running the 
 ### Campaign Coherence
 Judges whether marketing is held together by a strategy and a creative idea, or is isolated tactical activity. Six levels, 0 (Ad hoc) to 5 (Consequential), where level 0 is the absence of a campaign rather than a rung on the ladder.
 
-The model scores the eight attributes on their merits and reports campaign coherence separately; the modifier is then applied **in code**, so the adjustment is deterministic and auditable. COGENT and SENTIENT take the primary adjustment, AWAKE, AWARE, REFLECTIVE and INTENTIONAL a smaller one. The report shows base score, adjustment and final score openly.
+The model scores the eight attributes on their merits and reports campaign coherence separately; the modifier is then applied **in code**, so the adjustment is deterministic and auditable. COGENT and SENTIENT take the primary adjustment, AWAKE, AWARE, REFLECTIVE and INTENTIONAL a smaller one. The internal report shows base score, adjustment and final score openly; the client view and the Word export never do.
 
 ### Brand Footprint
 Where the brand shows up, across eight fixed channels: earned, social, third-party discussion, owned, AI/LLM answers, paid, podcasts/video and analyst coverage. Descriptive only — it never adjusts attribute scores.
@@ -519,6 +583,19 @@ Evidence is gathered automatically and in parallel: website pages, a social scan
 **Stage and sector calibration (v3.56, method 2.4).** Two rubric assumptions were breaking smaller and non-cleantech brands. Company stage is now a required field on the teaser, using Antenna's six-stage framework (`src/data/stages.js`): Startup, Scaleup, Market Leader, Multinational, Conglomerate, Global Brand. Each stage names what a company at it would not yet have (Glassdoor, employee advocacy, analyst recognition, Wikipedia, share of voice, impact reporting, candour about litigation), which then counts neither for nor against, and what to judge instead (founder visibility, named early customers, a findable entity, candour about what is unproven). Stage also steers which services are worth naming. Sector profiles (`src/data/sectorProfiles.js`) give Real Estate & Construction and Energy & Utilities their own audiences, proof, channels, weak indicators and tone; other sectors get guidance to read their own conventions rather than borrowing cleantech's. Both change interpretation only: attribute weights and the overall calculation are untouched, so baselines stay comparable. The export separates Maturity (the band the score falls into) from Stage (where the company is in its evolution).
 
 **The old stylesheet removed (v3.77).** The app had been carrying its entire pre-restyle stylesheet underneath the design system: 653 lines defining 52 of the same classes, including every button, and setting properties the new rules never reset. That is where the stray button colours, the header underlines and the alignment came from. It is gone; eight rules the system does not cover were carried forward. Nineteen of my own earlier patches were also removed, since they predated the system and were overriding it. The header is rebuilt to the export: a 64px shell, the `.dc-wordmark`, a text nav marked with `aria-current` rather than a class, and a Menu button below 900px.
+
+**Conscious Compass 4.0 (v4.0.0).** The release that rounds off the redesign. The list of what changed since the redesign is under What's New in 4.0 at the top of this file. A final QA sweep, with an independent review of the newest work, fixed these before release:
+- **Saving reads the latest state.** A save started by a long scoring run or a challenge used the report as it was when the run began. A challenge rescore therefore wrote the pre-challenge readouts and left out the new challenge. Saving now reads the current report, and a challenge passes its revised readouts and its entry explicitly.
+- **Record ids are handled safely.** A new scoring run whose Results insert fails no longer reuses the last run's history entry. Ids are only applied to the report they belong to, so opening another report mid-save cannot pick up the wrong one. An imported file always becomes a new record, and a failed import says so.
+- **Several assessments per brand need one database change.** The setup script had a unique rule allowing one saved assessment per brand, which would refuse a new assessment of a saved brand. The app now explains this and gives the fix if it happens, and `SUPABASE_SETUP.sql` and `SUPABASE_VERIFY.sql` are updated. Run once in the Supabase SQL editor: `drop index if exists public.saved_assessments_brand_name_key;`
+- **The Saved page counts brands, not records.** For example, "6 brands · 10 assessments". A filter that only an older record matches now says so rather than showing a blank list.
+- **Share links carry no confidential text.** They no longer include challenge text or the assessor's context.
+- **The earned creative examples parse reliably.** Web search can split the model's reply mid-sentence at a citation, which broke the examples; the parts are now joined as written.
+- **The public newsletter checks two-letter brand names** such as BP or GE, and reads the full list of assessed brands, page by page.
+- **The client report fits a phone.** A long brand name on the cover, such as "International", pushed the page sideways on a phone. The cover type now scales with the screen and long words wrap.
+- **Copy cleaned up.** Em dashes are gone from the Setup stage options, four error messages, the Landscape tab and the Word challenge history. The Landscape legend now says rust, the color it actually draws, instead of yellow.
+
+The sweep also rendered every main page at phone, tablet and desktop width with no sideways overflow, and scanned the rendered pages for escape codes and em dashes. 434 tests pass.
 
 **Only admins can force a refresh (v3.124.2).** The Force refresh buttons were already shown to admins only, but the four weekly jobs behind them (the newsletter, the news items, the landscape analysis and the insights) accepted any signed-in user, so anyone could regenerate the issue for everyone by calling them directly. They now require an admin. The Sunday schedule still runs them, through the cron secret.
 

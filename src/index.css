@@ -633,8 +633,12 @@ a { color: var(--cc-rust-text); } a:hover { color: var(--cc-ink); }
   .dc-saved-row { grid-template-columns: minmax(0,1fr) 56px; }
   .dc-saved-actions { grid-column: 1 / -1; }
   .dc-table .hide-sm { display: none; }
-  .dc-cover-brand { font-size: 72px; }
+  /* v4.0: scales with the screen, and a long word wraps rather than
+     pushing the page sideways ("International" at 72px is wider than a phone). */
+  .dc-cover-brand { font-size: clamp(40px, 12vw, 72px); overflow-wrap: break-word; hyphens: auto; }
 }
+/* The client report can shrink inside the page's flex column (v4.0). */
+.dc-read, .dc-cover > * { min-width: 0; }
 
 /* Helpers (replace former inline styles) */
 .dc-head-row.is-baseline { align-items: baseline; }

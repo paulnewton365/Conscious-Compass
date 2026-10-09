@@ -59,7 +59,9 @@ const cleanText = (v, n) => String(v ?? '').replace(/\s*[—–]\s*/g, ', ').rep
 
 export function earnedCreativeFromResponse(data) {
   const content = Array.isArray(data?.content) ? data.content : [];
-  const text = content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+  // Joined as written: with search on, citations split the reply into text
+  // blocks, sometimes mid-string, and an added newline breaks the JSON.
+  const text = content.filter(b => b.type === 'text').map(b => b.text).join('');
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) return [];
   let parsed;

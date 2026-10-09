@@ -119,14 +119,15 @@ select
 
 union all
 
--- 9. Duplicate brand names would break saveAssessment's .single() lookup
+-- 9. v4.0: a brand may have several saved assessments, so the old
+-- one-per-brand unique index must be gone, or new assessments of a saved
+-- brand cannot be saved.
 select
-  '9. integrity', 'saved_assessments brand_name',
-  case when (select count(*) from (
-         select brand_name from public.saved_assessments
-         group by brand_name having count(*) > 1) d) = 0
+  '9. integrity', 'saved_assessments allows several per brand',
+  case when not exists (select 1 from pg_indexes where schemaname = 'public'
+         and indexname = 'saved_assessments_brand_name_key')
        then 'PASS'
-       else 'DUPLICATES — saving will fail for those brands, see query below' end
+       else 'FAIL: run drop index if exists public.saved_assessments_brand_name_key;' end
 
 union all
 
@@ -173,10 +174,8 @@ select
 order by 1, 2;
 
 
--- ── If check 9 fails, list the offenders ──────────────────────
--- select brand_name, count(*), min(created_at) as oldest, max(created_at) as newest
---   from public.saved_assessments
---  group by brand_name having count(*) > 1;
+-- ── If check 9 fails, run this once ─────────────────────────────
+-- drop index if exists public.saved_assessments_brand_name_key;
 
 -- ── Confirm the cron cache tables are actually being populated ──
 -- A NULL refreshed_at means the weekly job has not run yet or is failing.

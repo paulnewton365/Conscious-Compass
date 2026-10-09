@@ -126,7 +126,7 @@ test('Results: non-admins see no manual entry and no delete', () => {
 
 test('Saved: the count sits above the list, and dates read in US English', () => {
   const doc = savedDoc();
-  assert.equal(doc.querySelector('.dc-head-row.is-baseline .dc-count').textContent, '2 assessments');
+  assert.equal(doc.querySelector('.dc-head-row.is-baseline .dc-count').textContent, '2 brands', 'brand rows, not records (v4.0)');
   const meta = doc.querySelector('.dc-listrow-m').textContent;
   assert.ok(meta.includes('saved Aug 31, 2026'), meta);
   assert.ok(!doc.body.textContent.includes('assessments saved'), 'the trailing count is gone');
@@ -382,7 +382,7 @@ test('Save shows Saving, ignores a second click, then shows Saved', async () => 
 
 test('the save handler: one at a time, results failures surfaced, a refresh hiccup is not a failed save', () => {
   const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  const at = src.indexOf('  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false, projectPatch = null } = {}) => {');
+  const at = src.indexOf('  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false, projectPatch = null, assessmentsOverride = null } = {}) => {');
   assert.ok(at > 0);
   const fn = src.slice(at - 200, src.indexOf('\n  };\n', at));
   assert.ok(fn.includes('if (savingRef.current) return false;') && fn.includes('savingRef.current = false;'), 'one save at a time, released in finally');
@@ -896,7 +896,10 @@ test('saving goes by record id, and every scoring run is saved as it finishes (v
   assert.ok(!save.includes(".eq('brand_name'"), 'no longer matched by brand name');
   assert.ok(save.includes(".eq('id', id)") && save.includes('.insert(assessmentData)'));
   const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  assert.ok(src.includes('const autoSaved = await onSave({ quiet: true, scoresOverride: finalScores, newRun: true });'), 'saved on generation');
+  assert.ok(src.includes('const autoSaved = await onSave({ quiet: true, scoresOverride: finalScores, newRun: true,'), 'saved on generation');
+  assert.ok(src.includes('assessmentsOverride: scoringInputs, projectPatch: challengeContext ? { challenges } : null });'), 'a challenge saves its revised readouts and its entry (v4.0)');
+  assert.ok(src.includes('const latest = latestRef.current;'), 'saving reads the latest state, not a stale render');
+  assert.ok(src.includes('if (newRun) resultId = null;'), 'a failed history insert never reuses the last run');
   assert.ok(src.includes('}, { id: project.savedId || null });'), 'a rescore updates its own record; a new assessment has no id');
   assert.ok(src.includes("setProject({ ...data.project, savedId: data.id || data.project?.savedId || null });"), 'a loaded report remembers its record');
   assert.ok(src.includes('if (newRun) delete projectToSave.resultId;'), 'one Results history entry per scoring run');
@@ -934,7 +937,7 @@ test('the full report: Word export without forced page breaks, in the teaser rea
   const payload = App.makeClientPayload({ project: { brandName: 'Acme', industry: 'energy', heroImage: 'data:image/jpeg;base64,SENTINEL_IMG', savedId: 'SENTINEL_ID' }, scores: { headline: 'H', consistencyCheck: { at: 'SENTINEL_CHECK' } }, benchmark: null });
   const json = JSON.stringify(payload);
   ['SENTINEL_IMG', 'SENTINEL_ID', 'SENTINEL_CHECK'].forEach(t => assert.ok(!json.includes(t), t));
-  assert.ok(src.includes('const { heroImage: _img, savedId: _sid, resultId: _rid, ...shareProject } = assessment.project || {};'), 'the share link drops them too');
+  assert.ok(src.includes('const { heroImage: _img, savedId: _sid, resultId: _rid, challenges: _ch, assessorContext: _ac, ...shareProject } = assessment.project || {};'), 'the share link drops them too, and challenge text (v4.0)');
 });
 
 test('the score adjustment is internal only: never in the Word file or a client view (v3.120.0)', () => {
@@ -953,6 +956,17 @@ test('Compare: the page head is one row of text buttons, as on Results and Saved
   assert.deepEqual([...actions.querySelectorAll('button')].map(b => b.textContent), ['Share link', 'Export comparison']);
   assert.equal(actions.querySelectorAll('svg').length, 0, 'text buttons, no icons');
   assert.equal(doc.querySelector('.dc-btns'), null, 'the unstyled class is gone');
+});
+
+test('Saved (v4.0): the count is by brand, and a filter that only an older record matches says so rather than going blank', () => {
+  const row = (id, brand, at, score) => ({ id, project: { brandName: brand, industry: 'energy' }, assessments: {}, savedAt: at, updatedAt: at,
+    scores: Object.fromEntries(['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL'].map(k => [k, { score }])) });
+  const rows = [row('a1', 'Alpha', '2026-01-01T12:00:00Z', 20), row('a2', 'Alpha', '2026-09-01T12:00:00Z', 60), row('b1', 'Beta', '2026-05-01T12:00:00Z', 60)];
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.SavedAssessmentsPage, { assessments: rows, onLoad() {}, onDelete() {}, onImport() {}, onExport() {}, onShare() {}, onRescore() {}, profile: { is_admin: true }, onRetry() {} }))).window.document;
+  assert.equal(doc.querySelector('.dc-count').textContent, '2 brands \u00b7 3 assessments');
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const page = src.slice(src.indexOf('function SavedAssessmentsPage('), src.indexOf('\nfunction ', src.indexOf('function SavedAssessmentsPage(') + 10));
+  assert.ok(page.includes('{groups.length === 0 ? ('), 'the empty state follows the rows shown');
 });
 
 test('Check consistency is for admins only', async () => {

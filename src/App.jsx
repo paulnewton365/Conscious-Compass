@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.124.2';
+const APP_VERSION = '4.0.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -907,7 +907,7 @@ IMPORTANT FORMATTING RULES:
       meta.usage = out.usage || null;
       meta.stopReason = out.stopReason;
       if (isJson && out.stopReason === 'max_tokens') {
-        throw new Error('Response was cut short — increase max tokens or reduce prompt size.');
+        throw new Error('Response was cut short. Increase max tokens or reduce prompt size.');
       }
       return out.text;
     }
@@ -917,7 +917,7 @@ IMPORTANT FORMATTING RULES:
     if (meta) { meta.usage = data.usage || null; meta.stopReason = stopReason; }
     result = data.content[0].text;
     if (isJson && stopReason === 'max_tokens') {
-      throw new Error('Response was cut short — increase max tokens or reduce prompt size.');
+      throw new Error('Response was cut short. Increase max tokens or reduce prompt size.');
     }
   }
   
@@ -2770,7 +2770,7 @@ function SetupPage({ project, setProject, onNext, onBack }) {
             data-field="company-stage"
             className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7]">
             <option value="">Not set</option>
-            {STAGES.map((st) => <option key={st.id} value={st.id}>{st.name} — {st.subtitle}</option>)}
+            {STAGES.map((st) => <option key={st.id} value={st.id}>{st.name}: {st.subtitle}</option>)}
           </select>
           <p className="text-xs text-[#5B6068] mt-1">
             {findStage(project.companyStage)?.indicator
@@ -4728,9 +4728,9 @@ ${reputationFlags}` : ''}`;
       const data = await response.json();
       const result = (data.content?.filter(b => b.type === 'text').map(b => b.text).join('\n')) || data.text || '';
       if (result) setter(`${prefix} ${result}`);
-      else setError(`${key} returned nothing — try again or paste manually.`);
+      else setError(`${key} returned nothing. Try again or paste manually.`);
     } catch {
-      setError(`${key} fetch failed — try again or paste manually.`);
+      setError(`${key} fetch failed. Try again or paste manually.`);
     } finally {
       setFetching(f => ({ ...f, [key]: false }));
     }
@@ -6199,7 +6199,8 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             // run adds one Results history entry. Failures say so and the Save
             // button stays available to retry.
             setSaveState('saving');
-            const autoSaved = await onSave({ quiet: true, scoresOverride: finalScores, newRun: true });
+            const autoSaved = await onSave({ quiet: true, scoresOverride: finalScores, newRun: true,
+              assessmentsOverride: scoringInputs, projectPatch: challengeContext ? { challenges } : null });
             setSaveState(autoSaved ? 'saved' : 'idle');
             if (autoSaved) setTimeout(() => setSaveState(st => (st === 'saved' ? 'idle' : st)), 4000);
             // The report opens at the top, where the overall score counts up
@@ -7343,7 +7344,7 @@ ${content.slice(0, 8000)}`;
                 ].filter(([, v]) => v && v.trim());
                 return [
                   new Paragraph({ spacing: { before: 200, after: 60 }, children: [
-                    new TextRun({ text: `Challenge ${i + 1}${c.author ? ` — ${clean(c.author)}` : ''}${when ? `, ${when}` : ''}`, bold: true, size: 22, font: SANS })]}),
+                    new TextRun({ text: `Challenge ${i + 1}${c.author ? `, ${clean(c.author)}` : ''}${when ? `, ${when}` : ''}`, bold: true, size: 22, font: SANS })]}),
                   body(`Overall score ${c.beforeOverall} to ${c.afterOverall}${delta === 0 ? ' (no change)' : ` (${delta > 0 ? '+' : ''}${delta})`}.${moved.length ? ` Attributes moved: ${moved.join('; ')}.` : ' No individual attribute changed.'}${c.sectionsRevised?.length ? ` Readouts revised: ${c.sectionsRevised.join(', ')}.` : ''}`, 60),
                   ...fields.flatMap(([label, v]) => [
                     new Paragraph({ spacing: { before: 100, after: 40 }, children: [
@@ -8638,7 +8639,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
         setLandscapeAI(data.analysis);
         setLandscapeAIRefreshedAt(data.refreshedAt ? new Date(data.refreshedAt) : null);
       } else {
-        setLandscapeAIError(data.error || 'No analysis available yet — check back after the first weekly refresh, or ask an admin to force one.');
+        setLandscapeAIError(data.error || 'No analysis available yet. Check back after the first weekly refresh, or ask an admin to force one.');
       }
     } catch (e) {
       setLandscapeAIError(e.message || 'Failed to load analysis.');
@@ -8743,7 +8744,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
         <div className="mb-5">
           <div className="dc-kicker">Consciousness Landscape</div>
           <p className="text-xs text-[#5B6068] mt-1">
-            Each sector's average brand consciousness — hover a sector to isolate. Dashed yellow = cross-sector mean.
+            Each sector's average brand consciousness. Hover a sector to isolate it. The dashed rust outline is the cross-sector mean.
           </p>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] gap-8 items-start">
@@ -8950,7 +8951,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
         <div className="mb-5">
           <h3 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em' }}>Attribute landscape</h3>
           <p className="text-xs text-[#5B6068] mt-1">
-            Where each sector scores on every attribute — see the legend below to read the chart.
+            Where each sector scores on every attribute. The legend below explains how to read the chart.
           </p>
         </div>
 
@@ -9067,17 +9068,17 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               <div className="flex flex-col gap-2 justify-center text-xs text-[#5B6068]">
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-0.5 w-3 h-3 bg-[#D9442A] ring-2 ring-white" style={{ minWidth: 12 }} />
-                  <span><strong className="text-[#15171A]">Colored dots</strong> — each dot is one sector's average score for this attribute. Hover the octagon or cards above to match colors to sectors.</span>
+                  <span><strong className="text-[#15171A]">Colored dots</strong>: each dot is one sector's average score for this attribute. Hover the octagon or cards above to match colors to sectors.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
                     <div className="w-0.5 h-4 bg-[#5B6068] mx-auto" />
                   </div>
-                  <span><strong className="text-[#15171A]">Yellow line</strong> — the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
+                  <span><strong className="text-[#15171A]">Rust line</strong>: the overall mean score across all sectors for that attribute. The number on the right is this value.</span>
                 </div>
                 <div className="flex items-start gap-2">
                 <div className="flex-shrink-0 mt-1.5 w-7 h-2" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
-                  <span><strong className="text-[#15171A]">Light red band</strong> — spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
+                  <span><strong className="text-[#15171A]">Light red band</strong>: spans from the lowest to highest sector score, showing how spread out performance is across sectors.</span>
                 </div>
               </div>
             </div>
@@ -9219,17 +9220,17 @@ function LandscapeView({ results, industries, isAdmin = false }) {
               <div className="flex flex-col gap-2 justify-center text-xs text-[#5B6068]">
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-0.5 w-2.5 h-2.5 bg-[#D9442A] ring-2 ring-white" style={{ minWidth: 10 }} />
-                  <span><strong className="text-[#15171A]">Colored dots</strong> — each dot is one attribute score for that sector. Hover to see the attribute name and score.</span>
+                  <span><strong className="text-[#15171A]">Colored dots</strong>: each dot is one attribute score for that sector. Hover to see the attribute name and score.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1" style={{ width: 12 }}>
                     <div className="w-0.5 h-4 mx-auto" style={{ backgroundColor: '#DEDAD2' }} />
                   </div>
-                  <span><strong className="text-[#15171A]">Colored line</strong> — the sector's overall average score across all eight attributes. The number on the right is this value.</span>
+                  <span><strong className="text-[#15171A]">Colored line</strong>: the sector's overall average score across all eight attributes. The number on the right is this value.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-1.5 w-7 h-2" style={{ minWidth: 28, backgroundColor: 'rgba(229,57,53,0.18)' }} />
-                  <span><strong className="text-[#15171A]">Light band</strong> — spans from the lowest to highest attribute score for that sector, showing how consistent or varied the sector is.</span>
+                  <span><strong className="text-[#15171A]">Light band</strong>: spans from the lowest to highest attribute score for that sector, showing how consistent or varied the sector is.</span>
                 </div>
               </div>
             </div>
@@ -10613,13 +10614,19 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
           </div>
 
           <div className="dc-head-row is-baseline">
-            <span className="dc-count">{hasFilters ? `${filtered.length} of ${assessments.length} assessments` : `${assessments.length} assessment${assessments.length === 1 ? '' : 's'}`}</span>
+            <span className="dc-count">{(() => {
+              // Brand rows, not records: a brand assessed twice is one row (v4.0).
+              const brands = byBrand.size;
+              const records = assessments.length;
+              const tail = records > brands ? ` \u00b7 ${records} assessments` : '';
+              return hasFilters ? `${groups.length} of ${brands} brand${brands === 1 ? '' : 's'}` : `${brands} brand${brands === 1 ? '' : 's'}${tail}`;
+            })()}</span>
             {hasFilters
               ? <button type="button" className="dc-link-btn" onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); }}>Clear filters</button>
               : !isReadonly && <span className="dc-meta">Share copies a link others can view. Export downloads a JSON backup.</span>}
           </div>
 
-          {filtered.length === 0 ? (
+          {groups.length === 0 ? (
             <div className="dc-alert"><strong>No matching assessments</strong><p>Try adjusting your search or filters.</p></div>
           ) : (
             <div className="space-y-2">
@@ -13946,18 +13953,22 @@ function AppContent() {
   // One save at a time (v3.108.1): a second click while a save is running
   // used to start another, and every save adds a results row.
   const savingRef = useRef(false);
-  // The saving code below declares its own `scores` and `project`; these are the state values.
-  const scoresState = scores;
-  const projectState = project;
+  // Saving reads the latest state through refs (v4.0), not the render a
+  // callback was created in: a save started by a long scoring run or a
+  // challenge otherwise wrote the readouts and ids from before it began.
+  const latestRef = useRef({ project, assessments, scores });
+  useEffect(() => { latestRef.current = { ...latestRef.current, project, assessments, scores }; });
   // v3.118.0: saves by record id. project.savedId is the saved assessment this
   // report belongs to; project.resultId is the Results history entry for the
   // current scoring run. newRun (a fresh scoring run) starts a new history
   // entry; any other save updates the current one. scoresOverride lets the
   // report save scores it has only just set, before state has caught up.
-  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false, projectPatch = null } = {}) => {
-    const scores = scoresOverride || scoresState;
-    // A change just made in the report (the pack image, say), before state catches up.
-    const project = projectPatch ? { ...projectState, ...projectPatch } : projectState;
+  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false, projectPatch = null, assessmentsOverride = null } = {}) => {
+    const latest = latestRef.current;
+    const scores = scoresOverride || latest.scores;
+    const assessments = assessmentsOverride || latest.assessments;
+    // A change just made (the pack image, a challenge), before state catches up.
+    const project = projectPatch ? { ...latest.project, ...projectPatch } : latest.project;
     if (!project.brandName) {
       alert('Please enter a brand name before saving.');
       return false;
@@ -14011,6 +14022,9 @@ function AppContent() {
       if (saveError) throw saveError;
       const savedId = savedRow?.id || project.savedId || null;
       let resultId = projectToSave.resultId || null;
+      // A new scoring run whose Results insert fails must not keep the last
+      // run's entry, or the next save would overwrite that history.
+      if (newRun) resultId = null;
 
       // Also save to compass results (summary only)
       if (scores) {
@@ -14082,8 +14096,11 @@ function AppContent() {
 
       // Keep the ids, and the frozen benchmark, on the report in memory, and in
       // the saved record so a reload saves to the same places.
-      const ids = { savedId, ...(resultId ? { resultId } : {}) };
-      setProject(prev => ({ ...prev, ...(benchmarkSnapshot ? { benchmarkSnapshot } : {}), ...ids }));
+      const ids = { savedId, resultId: resultId || null };
+      // Only onto the same report: if another was opened mid-save, leave it be.
+      const same = (p) => String(p?.brandName || '') === String(project.brandName || '') && (!p?.savedId || p.savedId === savedId);
+      if (same(latestRef.current.project)) latestRef.current = { ...latestRef.current, project: { ...latestRef.current.project, ...ids } };
+      setProject(prev => (same(prev) ? { ...prev, ...(benchmarkSnapshot ? { benchmarkSnapshot } : {}), ...ids } : prev));
       if (savedId && (savedId !== projectToSave.savedId || resultId !== projectToSave.resultId)) {
         await saveAssessment({ project: { ...projectToSave, ...ids }, assessments: assessmentsToSave, scores }, { id: savedId });
       }
@@ -14178,12 +14195,14 @@ function AppContent() {
       return;
     }
     
-    await saveAssessment({
-      project: data.project,
+    // An import is a new record: ids from the file's source are dropped (v4.0).
+    const { savedId: _s, resultId: _r, ...importedProject } = data.project;
+    const { error } = await saveAssessment({
+      project: importedProject,
       assessments: data.assessments,
       scores: data.scores,
     });
-    
+    if (error) { alert(`Import failed: ${error.message || 'unknown error'}`); return; }
     await loadDataFromSupabase();
     alert(`Assessment for "${data.project.brandName}" imported successfully!`);
   };
@@ -14196,8 +14215,9 @@ function AppContent() {
     // Include essential assessment summary data (excluding large images)
     // The pack image, record ids and the consistency check stay out of the
     // link: internal, and the image alone would swamp the URL (v3.119.0).
-    const { heroImage: _img, savedId: _sid, resultId: _rid, ...shareProject } = assessment.project || {};
-    const { consistencyCheck: _cc, ...shareScores } = assessment.scores || {};
+    // Challenge text and the assessor's context are confidential too (v4.0).
+    const { heroImage: _img, savedId: _sid, resultId: _rid, challenges: _ch, assessorContext: _ac, ...shareProject } = assessment.project || {};
+    const { consistencyCheck: _cc, challenges: _sch, ...shareScores } = assessment.scores || {};
     const shareData = {
       project: shareProject,
       scores: shareScores,

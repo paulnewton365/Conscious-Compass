@@ -104,11 +104,12 @@ create table if not exists public.saved_assessments (
   updated_at  timestamptz default now()
 );
 
--- saveAssessment looks up an existing row by brand name with .single(), which
--- errors if two rows share a name. This index makes that guarantee real
--- rather than assumed. If it fails, you have duplicates: find them with the
--- query in SUPABASE_VERIFY.sql and delete the older ones first.
-create unique index if not exists saved_assessments_brand_name_key
+-- v4.0: saving goes by record id, and a brand may have several saved
+-- assessments (the Saved page shows the latest, with the rest as history).
+-- The old one-record-per-brand unique index is dropped; a plain index keeps
+-- brand lookups fast.
+drop index if exists public.saved_assessments_brand_name_key;
+create index if not exists saved_assessments_brand_name_idx
   on public.saved_assessments (brand_name);
 
 
