@@ -386,7 +386,7 @@ test('v4.0.2: six candidates over three months, a top-up search for new brands, 
   assert.equal(prompts.length, 1);
   assert.deepEqual(one.items.map(i => i.brand), ['B', 'A', 'C']);
   // Nothing found at all: the section is left out.
-  assert.equal(await mod.fetchEarnedCreative('k', { fetchImpl: async () => ({ ok: false }) }), null);
+  assert.deepEqual((await mod.fetchEarnedCreative('k', { fetchImpl: async () => ({ ok: false }) })).items, []);
 
   const pub = await import('../api/stay-conscious-newsletter.js');
   const issue = pub.publicIssue({ earnedCreative: { items: [{ brand: 'A', what: 'x', url: 'https://a.com', published: '2026-09-01' }, { brand: 'B', what: 'x', url: 'https://b.com', published: '<b>' }] } }, []);
@@ -420,4 +420,49 @@ test('v4.1.0: the public landscape explains the attributes it names, in title ca
   assert.ok(app.includes('publicView && la?.summary && landscapeTerms.length > 0') && app.includes("{landscapeKey('is-beside')}") && app.includes("{landscapeKey('is-stacked')}"), 'the key shows on the public page only, under the photo or after the text when stacked');
   assert.ok(app.includes("publicView ? 'Why it matters for brands' : 'Why it matters for assessment'"));
   assert.ok(app.includes("'Average Conscious Compass score out of 100'"));
+});
+
+test('v4.1.2: a paused search is resumed, the reason for a short section is saved, and checked examples carry over', async () => {
+  const mod = await import('../api/refresh-stay-conscious-newsletter.js');
+  const url = (b) => `https://adweek.com/${b.toLowerCase()}`;
+  const ex = (brand) => ({ brand, title: `${brand} work`, what: 'They did a thing.', url: url(brand) });
+  // The first reply pauses after searching, with no answer; the resumed turn answers.
+  const bodies = [];
+  const replies = [
+    { stop_reason: 'pause_turn', content: [{ type: 'text', text: 'Searching {first} ' }, { type: 'web_search_tool_result', content: ['A', 'B', 'C'].map(b => ({ type: 'web_search_result', url: url(b) })) }] },
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ examples: [ex('A'), ex('B'), ex('C')] }) }] },
+  ];
+  const fetchImpl = async (_u, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, json: async () => replies[bodies.length - 1] }; };
+  const out = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async () => true });
+  assert.equal(bodies.length, 2, 'the paused turn was resumed');
+  assert.equal(bodies[1].messages[1].role, 'assistant', 'resumed with the paused content');
+  assert.deepEqual(out.items.map(i => i.brand), ['A', 'B', 'C'], 'links from the paused turn count as searched');
+  assert.ok(out.items.every(i => i.verified === true));
+  assert.deepEqual(out.status, { searches: 1, candidates: 3, passed: 3, reasons: [] });
+
+  // A failed request: no items, and the reason is saved.
+  const failed = await mod.fetchEarnedCreative('k', { fetchImpl: async () => ({ ok: false, status: 429 }) });
+  assert.deepEqual(failed.items, []);
+  assert.ok(failed.status.reasons.includes('search request failed (429)'));
+
+  // Nothing new: last issue's checked examples stay up for four weeks, never unchecked ones.
+  const now = Date.parse('2026-10-09T12:00:00Z');
+  const prev = { items: [{ ...ex('A'), verified: true }, { ...ex('Old'), url: url('old') }], generatedAt: '2026-10-04T23:30:00Z' };
+  const carried = mod.withCarryOver(failed, prev, 34, now);
+  assert.deepEqual(carried.items.map(i => i.brand), ['A']);
+  assert.equal(carried.carriedFrom, 34);
+  assert.equal(mod.withCarryOver(failed, { ...prev, generatedAt: '2026-08-01T00:00:00Z' }, 34, now), failed, 'too old: not carried');
+  assert.equal(mod.withCarryOver(out, prev, 34, now), out, 'fresh examples win');
+
+  // The status never reaches the public issue.
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const issue = pub.publicIssue({ earnedCreative: carried }, []);
+  assert.deepEqual(Object.keys(issue.earnedCreative), ['items']);
+  assert.ok(!('verified' in issue.earnedCreative.items[0]));
+
+  const { ecStatusNote } = await import('../src/lib/ecStatus.js');
+  assert.equal(ecStatusNote(out), null, 'three fresh: no note');
+  assert.match(ecStatusNote(failed), /no section this issue \(2 searches, 0 candidates, 0 passed the article check; search request failed \(429\)\)/);
+  assert.match(ecStatusNote(carried), /examples from issue 34 are shown again/);
+  assert.equal(ecStatusNote({ items: [] }), null, 'older issues have no status');
 });

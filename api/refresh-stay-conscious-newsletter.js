@@ -150,7 +150,12 @@ export function earnedCreativeFromResponse(data, { max = 8 } = {}) {
   // Joined as written: with search on, citations split the reply into text
   // blocks, sometimes mid-string, and an added newline breaks the JSON.
   const text = content.filter(b => b.type === 'text').map(b => b.text).join('');
-  const match = text.match(/\{[\s\S]*\}/);
+  // The answer is the last {"examples": ...} object; anything the model wrote
+  // between searches comes before it (v4.1.2).
+  const starts = [...text.matchAll(/\{\s*"examples"/g)];
+  const from = starts.length ? starts[starts.length - 1].index : text.indexOf('{');
+  const to = text.lastIndexOf('}');
+  const match = from >= 0 && to > from ? [text.slice(from, to + 1)] : null;
   if (!match) return [];
   let parsed;
   try { parsed = JSON.parse(match[0]); } catch { return []; }
@@ -175,40 +180,83 @@ export const byRecency = (items) => items
   .sort((a, b) => (b.e.published || '').localeCompare(a.e.published || '') || a.i - b.i)
   .map(({ e }) => e);
 
-async function searchEarnedCreative(anthropicKey, exclude, fetchImpl) {
-  const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6', max_tokens: 5000, temperature: 0,
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 10 }],
-      messages: [{ role: 'user', content: earnedCreativePrompt({ exclude }) }],
-    }),
-  });
-  if (!r.ok) return [];
-  return earnedCreativeFromResponse(await r.json());
+// One search. With many searches the API can pause the turn (stop_reason
+// "pause_turn") before the model has written its answer; the turn is then
+// resumed, up to three times, instead of being read as "nothing found"
+// (v4.1.2: this emptied the section for several issues). Returns the
+// candidates and, when there are none, why.
+async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline = Infinity) {
+  const prompt = earnedCreativePrompt({ exclude });
+  let content = [];
+  let stop = '';
+  for (let turn = 0; turn < 4; turn++) {
+    const messages = [{ role: 'user', content: prompt }];
+    if (content.length) messages.push({ role: 'assistant', content });
+    const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', max_tokens: 6000, temperature: 0,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
+        messages,
+      }),
+    });
+    if (!r.ok) return { candidates: [], reason: `search request failed (${r.status})` };
+    const data = await r.json();
+    content = content.concat(Array.isArray(data?.content) ? data.content : []);
+    stop = data?.stop_reason || '';
+    if (stop !== 'pause_turn' || Date.now() > deadline) break;   // never resume past the deadline: the job has five minutes in all
+  }
+  const candidates = earnedCreativeFromResponse({ content });
+  if (candidates.length) return { candidates };
+  return { candidates: [], reason: stop === 'max_tokens' ? 'the answer ran out of room' : stop === 'pause_turn' ? 'the search did not finish' : 'no usable examples in the answer' };
 }
 
-// Up to two searches: the second runs only if fewer than three examples pass
-// the article check, and skips every brand already tried (v4.0.2).
-export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, verify = verifyExample, rounds = 2, budgetMs = 120000 } = {}) {
+// Up to two searches: the second runs if fewer than three examples pass (or
+// the first failed, which retries it)
+// the article check, and skips every brand already tried (v4.0.2). Always
+// returns a result with a status, which stays internal (the public issue
+// carries only the items), so an empty section can be explained (v4.1.2).
+export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, verify = verifyExample, rounds = 2, budgetMs = 120000, deadlineMs = 200000 } = {}) {
   const started = Date.now();
+  const deadline = started + deadlineMs;
   const kept = [];
   const tried = new Set();
+  const status = { searches: 0, candidates: 0, passed: 0, reasons: [] };
   try {
     for (let round = 0; round < rounds && kept.length < EARNED_CREATIVE_TARGET; round++) {
       if (round > 0 && Date.now() - started > budgetMs) break;   // leave time for the rest of the issue
-      const candidates = (await searchEarnedCreative(anthropicKey, [...tried], fetchImpl))
-        .filter(e => !tried.has(e.brand.toLowerCase()));
-      if (!candidates.length) break;
+      status.searches += 1;
+      const found = await searchEarnedCreative(anthropicKey, [...tried], fetchImpl, deadline);
+      if (found.reason) status.reasons.push(found.reason);
+      const candidates = found.candidates.filter(e => !tried.has(e.brand.toLowerCase()));
+      if (!candidates.length) continue;
       candidates.forEach(e => tried.add(e.brand.toLowerCase()));
+      status.candidates += candidates.length;
       // Each link is opened and must name the brand and the work (v4.0.1).
       const checks = await Promise.all(candidates.map(e => Promise.resolve(verify(e)).catch(() => false)));
       candidates.forEach((e, i) => { if (checks[i]) kept.push(e); });
     }
-  } catch { /* keep whatever passed; the issue still goes out */ }
-  const items = byRecency(kept).slice(0, EARNED_CREATIVE_TARGET).map((e) => { const out = { ...e }; delete out.searchTitle; return out; });
-  return items.length ? { items, generatedAt: new Date().toISOString() } : null;
+  } catch (err) {
+    status.reasons.push(`error: ${String(err?.message || err).slice(0, 120)}`);
+  }
+  status.passed = kept.length;
+  if (status.candidates && !kept.length) status.reasons.push('no example passed the article check');
+  const items = byRecency(kept).slice(0, EARNED_CREATIVE_TARGET).map((e) => { const out = { ...e, verified: true }; delete out.searchTitle; return out; });
+  return { items, generatedAt: new Date().toISOString(), status };
+}
+
+// When a run finds nothing, the last issue's checked examples stay up rather
+// than the section vanishing; they are marked as carried over (v4.1.2).
+// Only examples that passed the article check are carried.
+// Carried examples are dropped once they were found more than four weeks ago.
+export function withCarryOver(fresh, previous, previousIssue = null, now = Date.now()) {
+  if (fresh?.items?.length) return fresh;
+  const kept = (previous?.items || []).filter(e => e && e.verified === true && typeof e.url === 'string');
+  const foundAt = previous?.foundAt || previous?.generatedAt || '';
+  const age = now - Date.parse(foundAt);
+  if (!kept.length || !(age <= 28 * 24 * 3600 * 1000)) return fresh;
+  return { ...fresh, items: kept, foundAt, carriedFrom: previous?.carriedFrom || previousIssue || null };
 }
 
 export default async function handler(req, res) {
@@ -329,7 +377,7 @@ export default async function handler(req, res) {
       landscapeAnalysis: landscapeForNewsletter,
       storyOpportunities: storyOpportunities || null,
       // Earned creative in the news (v3.124.0); null when none could be sourced.
-      earnedCreative: await fetchEarnedCreative(anthropicKey),
+      earnedCreative: withCarryOver(await fetchEarnedCreative(anthropicKey), prevRow?.newsletter?.earnedCreative, prevRow?.newsletter?.issueNumber || null),
     };
 
     // Upsert into Supabase (single row, id=1)

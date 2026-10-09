@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { attributesMentioned } from './data/attributeGlossary.js';
+import { ecStatusNote } from './lib/ecStatus.js';
 import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '4.1.1';
+const APP_VERSION = '4.1.2';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12350,6 +12351,12 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                 <p className="dc-np-text">{NEWSLETTER_EC_COPY.offer} <a href={NEWSLETTER_EC_COPY.link} target="_blank" rel="noopener noreferrer">{NEWSLETTER_EC_COPY.linkLabel}</a></p>
               </div>
             </section>
+          )}
+
+          {/* For admins only (v4.1.2): why the earned creative section is short,
+              carried over or missing, from the status the refresh saved. */}
+          {isAdmin && !publicView && ecStatusNote(ns.earnedCreative) && (
+            <p className="dc-meta" data-field="earned-creative-status">{ecStatusNote(ns.earnedCreative)}</p>
           )}
 
           {!publicView && ns.storyOpportunities?.length > 0 && (
