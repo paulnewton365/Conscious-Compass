@@ -30,6 +30,14 @@ export function publicIssue(newsletter, brandNames = []) {
     weekOf: str(newsletter.weekOf, 60),
     leadStory: item(newsletter.leadStory),
     intelligenceItems: Array.isArray(newsletter.intelligenceItems) ? newsletter.intelligenceItems.map(item).filter(Boolean) : [],
+    // Earned creative in the news (v3.124.0): other brands' public work, with
+    // its source link. Only https links, and only the listed fields.
+    earnedCreative: Array.isArray(newsletter.earnedCreative?.items) ? {
+      items: newsletter.earnedCreative.items
+        .filter(e => e && typeof e.url === 'string' && /^https:\/\//.test(e.url))
+        .map(e => ({ brand: str(e.brand, 80), agency: str(e.agency, 80), title: str(e.title, 140), what: str(e.what, 400), coverage: str(e.coverage, 300), outlet: str(e.outlet, 80), url: e.url.slice(0, 600) }))
+        .slice(0, 3),
+    } : null,
     landscapeAnalysis: la && typeof la === 'object' ? {
       brandCount: num(la.brandCount), sectorCount: num(la.sectorCount), averageScore: num(la.averageScore),
       headline: mentions(str(la.headline)) ? '' : str(la.headline, 300),

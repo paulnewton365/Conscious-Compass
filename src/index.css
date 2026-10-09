@@ -1059,6 +1059,13 @@ button { font: inherit; color: inherit; }
 .dc-listrow > *:last-child { justify-self: end; }
 .dc-listrow-t { font: var(--cc-w-semi) var(--cc-fs-lead)/1.25 var(--cc-sans); color: var(--cc-ink); }
 .dc-listrow-m { font-size: var(--cc-fs-meta); color: var(--cc-muted); margin-top: 2px; }
+/* Newsletter: earned creative in the news (v3.124.0) */
+.dc-np-ec-lead { max-width: 72ch; margin-bottom: var(--cc-s-6); }
+.dc-np-source { margin-top: auto; padding-top: var(--cc-s-3); font: var(--cc-w-semi) var(--cc-fs-ui)/1.3 var(--cc-sans); color: var(--cc-rust-text); text-decoration: underline; text-underline-offset: 3px; }
+.dc-np-ec-offer { display: flex; align-items: center; gap: var(--cc-s-5); margin-top: var(--cc-s-8); padding-top: var(--cc-s-5); border-top: var(--cc-border-strong); }
+.dc-np-ec-offer .dc-np-text { margin: 0; max-width: 72ch; }
+.dc-np-ec-offer a { color: var(--cc-rust-text); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 720px) { .dc-np-ec-offer { flex-direction: column; align-items: flex-start; } }
 /* Public newsletter: the Antenna mark in place of Back (v3.120.0) */
 .dc-np-brand { display: inline-flex; align-items: center; height: 40px; }
 .dc-np-brand img { height: 22px; width: auto; display: block; }

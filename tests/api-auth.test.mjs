@@ -260,3 +260,32 @@ test('the public newsletter issue: no sign-in, allowlisted sections only, no sto
   await mod.default({ method: 'GET', query: { public: '1' }, headers: {} }, res2);
   assert.equal(res2.statusCode, 502, 'without the brand list the issue is withheld, not sent unchecked');
 });
+
+test('earned creative in the news: only examples whose link the web search returned, cleaned, at most three (v3.124.0)', async () => {
+  const mod = await import('../api/refresh-stay-conscious-newsletter.js');
+  const ex = (brand, url, extra = {}) => ({ brand, agency: 'Agency', title: `${brand} work`, what: 'They did a thing — publicly.', coverage: 'Carried by the trade press.', outlet: 'Adweek', url, ...extra });
+  const data = { content: [
+    { type: 'server_tool_use', name: 'web_search' },
+    { type: 'web_search_tool_result', content: [
+      { type: 'web_search_result', url: 'https://www.adweek.com/brand/real-one/?utm_source=feed' },
+      { type: 'web_search_result', url: 'https://www.thedrum.com/news/real-two' },
+      { type: 'web_search_result', url: 'http://insecure.example.com/real-three' },
+    ] },
+    { type: 'text', text: 'Here you go: ' + JSON.stringify({ examples: [
+      ex('Real One', 'https://adweek.com/brand/real-one'),
+      ex('Invented', 'https://made-up.example.com/never-searched'),
+      ex('Real Two', 'https://www.thedrum.com/news/real-two#top'),
+      ex('Insecure', 'http://insecure.example.com/real-three'),
+      ex('Real One', 'https://adweek.com/brand/real-one'),
+      ex('', 'https://www.thedrum.com/news/real-two'),
+    ] }) },
+  ] };
+  const items = mod.earnedCreativeFromResponse(data);
+  assert.deepEqual(items.map(i => i.brand), ['Real One', 'Real Two'], 'invented, non-https, duplicate and unnamed examples are dropped');
+  assert.equal(items[0].what, 'They did a thing, publicly.', 'no em dashes');
+  assert.deepEqual(mod.earnedCreativeFromResponse({ content: [{ type: 'text', text: 'no json' }] }), []);
+  assert.ok(mod.EARNED_CREATIVE_PROMPT.includes('use only facts from the pages your searches returned'));
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const out = pub.publicIssue({ issueNumber: 1, earnedCreative: { items: [...items, { brand: 'Bad', url: 'javascript:alert(1)' }], generatedAt: 'x' } }, []);
+  assert.deepEqual(out.earnedCreative.items.map(i => i.brand), ['Real One', 'Real Two'], 'the public issue carries the section, https links only');
+});

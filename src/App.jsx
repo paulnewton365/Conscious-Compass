@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.123.0';
+const APP_VERSION = '3.124.1';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -11885,6 +11885,16 @@ Each item:
 // The public issue (v3.120.0) is this page with publicView: no sign-in, no
 // tools beyond Share link, and only what the server's publicIssue() sends.
 const NEWSLETTER_PUBLIC_PATH = '/newsletter';
+
+// Earned creative in the news (v3.124.0). The framing is fixed copy; the
+// examples come from the weekly job, each with a link its search returned.
+const NEWSLETTER_EC_COPY = {
+  title: 'Earned creative in the news',
+  reminder: 'Earned creative is an idea designed to be talked about rather than paid to be seen. Instead of announcing something, a brand does something in the world, and journalists, creators and communities carry it for them. Here is who is getting it right.',
+  offer: 'Antenna Group creates work like this through HOWL, our earned creative studio. Talk to us about what it could look like for your brand.',
+  link: 'https://www.howlagency.com/',
+  linkLabel: 'howlagency.com',
+};
 const publicNewsletterUrl = () => `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}`;
 
 function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
@@ -11982,6 +11992,13 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       }
       lines.push(divider, '');
     }
+    if (ns.earnedCreative?.items?.length) {
+      lines.push(NEWSLETTER_EC_COPY.title.toUpperCase(), '', NEWSLETTER_EC_COPY.reminder, '');
+      ns.earnedCreative.items.forEach(e => {
+        lines.push(`${[e.brand, e.agency].filter(Boolean).join(' / ')}: ${e.title || e.brand}`, e.what, e.coverage ? `Coverage: ${e.coverage}` : '', `${e.outlet || 'Source'}: ${e.url}`, '');
+      });
+      lines.push(NEWSLETTER_EC_COPY.offer, NEWSLETTER_EC_COPY.link, '', divider, '');
+    }
     if (ns.storyOpportunities?.length) {
       lines.push('STORY OPPORTUNITIES', '');
       ns.storyOpportunities.forEach((s, i) => {
@@ -12015,7 +12032,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     if (!newsletter) return;
     setExportingDocx(true);
     try {
-      const { Document, Packer, Paragraph, TextRun, BorderStyle, AlignmentType, Footer: DocxFooter } = await import('docx');   // on demand
+      const { Document, Packer, Paragraph, TextRun, BorderStyle, AlignmentType, Footer: DocxFooter, ExternalHyperlink } = await import('docx');   // on demand
       const ns = newsletter;
       const SANS = 'Hanken Grotesk', SERIF = 'Newsreader';
       const INK = '15171A', BODY = '2E3238', MUTED = '5B6068', RUST = 'C23B22', RULE = 'DEDAD2';
@@ -12080,6 +12097,24 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                 ...article(item.insight, 21),
                 ...why(item.whyItMatters),
               ]),
+            ] : []),
+
+            // Earned creative in the news (v3.124.0)
+            ...(ns.earnedCreative?.items?.length ? [
+              sechead(NEWSLETTER_EC_COPY.title),
+              ...article(NEWSLETTER_EC_COPY.reminder, 22, 200),
+              ...ns.earnedCreative.items.flatMap((e, i) => [
+                ...(i > 0 ? [itemRule()] : []),
+                kicker([e.brand, e.agency].filter(Boolean).join(' \u00b7 ')),
+                serif(e.title || e.brand, 34, 120),
+                ...article(e.what, 21),
+                ...why(e.coverage ? `Coverage: ${e.coverage}` : ''),
+                new Paragraph({ spacing: { after: 160 }, children: [new ExternalHyperlink({ link: e.url, children: [run(`Read it${e.outlet ? ` in ${e.outlet}` : ''}`, { size: 18, color: RUST, underline: {} })] })] }),
+              ]),
+              new Paragraph({ spacing: { before: 200, after: 160 }, children: [
+                run(`${NEWSLETTER_EC_COPY.offer} `, { size: 20 }),
+                new ExternalHyperlink({ link: NEWSLETTER_EC_COPY.link, children: [run(NEWSLETTER_EC_COPY.linkLabel, { size: 20, color: RUST, underline: {} })] }),
+              ] }),
             ] : []),
 
             // Story opportunities
@@ -12254,6 +12289,28 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                   ))}
                 </div>
               ))}
+            </section>
+          )}
+
+          {ns.earnedCreative?.items?.length > 0 && (
+            <section className="dc-np-sec" aria-labelledby="ec-h" data-field="earned-creative-news">
+              <h2 className="dc-np-sechead" id="ec-h">{NEWSLETTER_EC_COPY.title}</h2>
+              <p className="dc-np-text dc-np-ec-lead">{NEWSLETTER_EC_COPY.reminder}</p>
+              <div className={`dc-np-grid ${ns.earnedCreative.items.length === 3 ? 'is-3' : 'is-2'}`}>
+                {ns.earnedCreative.items.map((e, i) => (
+                  <article key={i} className="dc-np-item">
+                    <div className="dc-kicker" data-value="brand">{[e.brand, e.agency].filter(Boolean).join(' \u00b7 ')}</div>
+                    <h3 className="dc-np-h is-item">{e.title || e.brand}</h3>
+                    <p className="dc-np-text">{e.what}</p>
+                    {e.coverage && <div className="dc-np-why is-sm"><div className="dc-kicker">Coverage</div><p>{e.coverage}</p></div>}
+                    <a className="dc-np-source" href={e.url} target="_blank" rel="noopener noreferrer">Read it{e.outlet ? ` in ${e.outlet}` : ''} {'\u2197'}</a>
+                  </article>
+                ))}
+              </div>
+              <div className="dc-np-ec-offer">
+                <div className="dc-eco-lockup"><img src="/howl-logo.svg" alt="HOWL" /><span>by Antenna</span></div>
+                <p className="dc-np-text">{NEWSLETTER_EC_COPY.offer} <a href={NEWSLETTER_EC_COPY.link} target="_blank" rel="noopener noreferrer">{NEWSLETTER_EC_COPY.linkLabel}</a></p>
+              </div>
             </section>
           )}
 

@@ -18,6 +18,84 @@ const latestPerBrand = (rows) => {
   return [...m.values()];
 };
 
+// ── Earned creative in the news (v3.124.0) ─────────────────────
+// Recent earned creative work by other brands or agencies that is catching
+// headlines, found by web search. Every example must carry a link that the
+// search itself returned: the model cannot invent a source, because an item
+// whose link is not among the search results is dropped. Fewer real examples
+// beat a full section of unverifiable ones.
+export const EARNED_CREATIVE_PROMPT = `Find three recent examples of earned creative that are catching headlines now, from the last 60 days if possible. Earned creative is an idea designed to be talked about rather than paid to be seen: a brand DID something in the world (a stunt, an installation, a product intervention, a data release, a public act, a partnership) and journalists, creators or the public carried it. Not paid ads, not sponsorships, not press releases on their own.
+
+Prefer work by brands with a purpose, climate, energy, health or social angle, but any strong example will do. Search the trade and business press (for example Adweek, Ad Age, The Drum, Campaign, Fast Company, Marketing Week, Business Insider).
+
+For each example, use only facts from the pages your searches returned. The link must be the article you read about it.
+
+Return JSON only, no prose before or after:
+{"examples":[{"brand":"The brand behind the work","agency":"The agency, or empty if none is named","title":"Name of the work, or a plain description","what":"What they did, in one or two sentences.","coverage":"What coverage it generated: who carried it and how widely, from the article. One sentence.","outlet":"The publication of the link","url":"https://..."}]}
+
+US English. No em dashes or en dashes.`;
+
+const normUrl = (u) => {
+  try {
+    const x = new URL(String(u).trim());
+    if (x.protocol !== 'https:' && x.protocol !== 'http:') return null;
+    [...x.searchParams.keys()].filter(k => /^utm_|^ref$|^fbclid$|^gclid$/i.test(k)).forEach(k => x.searchParams.delete(k));
+    x.hash = '';
+    return `${x.protocol}//${x.host.replace(/^www\./, '')}${x.pathname.replace(/\/+$/, '')}${x.search}`.toLowerCase();
+  } catch { return null; }
+};
+
+// The links the web search actually returned, from result blocks and citations.
+export function searchedUrls(content = []) {
+  const urls = new Set();
+  (content || []).forEach(b => {
+    if (b?.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach(r => { const n = normUrl(r?.url); if (n) urls.add(n); });
+    if (b?.type === 'text' && Array.isArray(b.citations)) b.citations.forEach(c => { const n = normUrl(c?.url); if (n) urls.add(n); });
+  });
+  return urls;
+}
+
+const cleanText = (v, n) => String(v ?? '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim().slice(0, n);
+
+export function earnedCreativeFromResponse(data) {
+  const content = Array.isArray(data?.content) ? data.content : [];
+  const text = content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return [];
+  let parsed;
+  try { parsed = JSON.parse(match[0]); } catch { return []; }
+  const allowed = searchedUrls(content);
+  const seen = new Set();
+  return (Array.isArray(parsed?.examples) ? parsed.examples : [])
+    .map(e => ({
+      brand: cleanText(e?.brand, 80), agency: cleanText(e?.agency, 80), title: cleanText(e?.title, 140),
+      what: cleanText(e?.what, 400), coverage: cleanText(e?.coverage, 300), outlet: cleanText(e?.outlet, 80),
+      url: String(e?.url || '').trim(),
+    }))
+    .filter(e => e.brand && e.what && e.url.startsWith('https://') && allowed.has(normUrl(e.url)))
+    .filter(e => { const k = e.brand.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 3);
+}
+
+async function fetchEarnedCreative(anthropicKey) {
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', max_tokens: 3000, temperature: 0,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }],
+        messages: [{ role: 'user', content: EARNED_CREATIVE_PROMPT }],
+      }),
+    });
+    if (!r.ok) return null;
+    const items = earnedCreativeFromResponse(await r.json());
+    return items.length ? { items, generatedAt: new Date().toISOString() } : null;
+  } catch {
+    return null;   // the issue still goes out without the section
+  }
+}
+
 export default async function handler(req, res) {
   // Callers must be signed in (v3.100.1); see api/_auth.js.
   if (!(await requireUser(req, res, { allowCron: true }))) return;
@@ -146,6 +224,8 @@ ${combinedText}`;
       intelligenceItems: supportingItems,
       landscapeAnalysis: landscapeForNewsletter,
       storyOpportunities: storyOpportunities || null,
+      // Earned creative in the news (v3.124.0); null when none could be sourced.
+      earnedCreative: await fetchEarnedCreative(anthropicKey),
     };
 
     // Upsert into Supabase (single row, id=1)

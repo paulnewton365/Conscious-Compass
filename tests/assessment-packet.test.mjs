@@ -376,3 +376,37 @@ test('the public issue renders without the internal tools or story opportunities
   assert.ok(container.querySelector('.dc-np-lead') && container.querySelector('[data-value="average"]'));
   await act(async () => root.unmount());
 });
+
+test('earned creative in the news: the reminder, sourced examples with links and coverage, then the Antenna offer with HOWL (v3.124.0)', async () => {
+  const issue = ISSUE(3);
+  issue.earnedCreative = { items: [
+    { brand: 'Real One', agency: 'Agency A', title: 'The Big Act', what: 'They did a thing.', coverage: 'Covered by 40 outlets.', outlet: 'Adweek', url: 'https://www.adweek.com/brand/real-one' },
+    { brand: 'Real Two', agency: '', title: '', what: 'Another thing.', coverage: '', outlet: '', url: 'https://www.thedrum.com/news/real-two' },
+  ] };
+  for (const publicView of [false, true]) {
+    globalThis.fetch = window.fetch = async () => ({ ok: true, json: async () => ({ newsletter: issue, refreshedAt: '2026-09-27T19:30:00Z' }) });
+    const container = document.createElement('div'); document.body.appendChild(container);
+    const root = client.createRoot(container);
+    await act(async () => { root.render(h(App.StayConsciousPage, { onBack() {}, isAdmin: false, publicView })); });
+    for (let i = 0; i < 5; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    const sec = container.querySelector('[data-field="earned-creative-news"]');
+    assert.ok(sec, `shown (public ${publicView})`);
+    assert.equal(sec.querySelector('h2').textContent, 'Earned creative in the news');
+    assert.ok(sec.querySelector('.dc-np-ec-lead').textContent.startsWith('Earned creative is an idea designed to be talked about'), 'leads with the reminder');
+    const items = sec.querySelectorAll('.dc-np-item');
+    assert.equal(items.length, 2);
+    assert.equal(items[0].querySelector('[data-value="brand"]').textContent, 'Real One \u00b7 Agency A');
+    const a = items[0].querySelector('a.dc-np-source');
+    assert.equal(a.getAttribute('href'), 'https://www.adweek.com/brand/real-one');
+    assert.equal(a.getAttribute('rel'), 'noopener noreferrer');
+    assert.ok(a.textContent.includes('Read it in Adweek'));
+    assert.ok(items[0].textContent.includes('Covered by 40 outlets.'));
+    assert.equal(items[1].querySelector('h3').textContent, 'Real Two', 'no title falls back to the brand');
+    const offer = sec.querySelector('.dc-np-ec-offer');
+    assert.ok(offer.textContent.includes('Antenna Group creates work like this through HOWL'));
+    assert.equal(offer.querySelector('img').getAttribute('src'), '/howl-logo.svg');
+    assert.equal(offer.querySelector('a').getAttribute('href'), 'https://www.howlagency.com/', 'the HOWL site (v3.124.1)');
+    assert.equal(offer.querySelector('a').textContent, 'howlagency.com');
+    await act(async () => root.unmount());
+  }
+});
