@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, model, max_tokens, temperature, system, prompt, useWebSearch, searchUses } = req.body;
+    const { messages, model, max_tokens, temperature, system, prompt, useWebSearch, searchUses, stream } = req.body;
 
     // Support simple prompt syntax (converts to messages format)
     const finalMessages = messages || [{ role: 'user', content: prompt }];
@@ -31,6 +31,10 @@ export default async function handler(req, res) {
       messages: finalMessages,
       ...(system && { system }),
     };
+    // Streaming (v3.114.0): the answer is passed through as it is written, so
+    // the scoring screen can show real progress. Not used with web search.
+    const streaming = !!stream && !useWebSearch;
+    if (streaming) requestBody.stream = true;
 
     // Add web search tool if requested
     if (useWebSearch) {
@@ -60,6 +64,20 @@ export default async function handler(req, res) {
       return res.status(response.status).json({ 
         error: error.error?.message || `API error: ${response.status}` 
       });
+    }
+
+    if (streaming) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+      const reader = response.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(Buffer.from(value));
+      }
+      return res.end();
     }
 
     const data = await response.json();

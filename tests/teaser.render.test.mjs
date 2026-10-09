@@ -742,7 +742,7 @@ test('Card and Slide are offered only when there is a score, an image and a base
   await click(btn(container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
   const pack = () => container.querySelector('[data-field="download-pack"]');
   assert.equal(pack().disabled, false, 'the read can always be downloaded');
-  assert.equal(pack().textContent.trim(), 'Download read', 'without an image it is the read alone');
+  assert.equal(pack().textContent.trim(), 'Download Teaser Pack', 'one name, with or without an image');
   assert.match(pack().title, /Add a brand image/);
   assert.match(container.querySelector('[data-field="hero-image"]').textContent, /none yet/i);
 
@@ -750,7 +750,7 @@ test('Card and Slide are offered only when there is a score, an image and a base
   stub.state.teasers[0] = { ...rec, hero_image: 'data:image/jpeg;base64,AAAA' };
   const { container: c2, root: r2 } = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [stub.state.teasers[0]] });
   await click(btn(c2, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
-  assert.equal(c2.querySelector('[data-field="download-pack"]').textContent.trim(), 'Download pack', 'with an image the pack holds all three');
+  assert.equal(c2.querySelector('[data-field="download-pack"]').textContent.trim(), 'Download Teaser Pack', 'with an image the pack holds all three');
   assert.ok(c2.querySelector('[data-field="hero-image"] img'), 'thumbnail shown');
   void root;
   await act(async () => r2.unmount());
@@ -765,7 +765,7 @@ test('removing the brand image saves null and disables the scorecard buttons aga
   for (let i = 0; i < 5; i++) await act(flush);
   const saved = stub.calls.filter(c => c[0] === 'saveTeaser').at(-1)[1];
   assert.equal(saved.hero_image, null);
-  assert.equal(container.querySelector('[data-field="download-pack"]').textContent.trim(), 'Download read');
+  assert.equal(container.querySelector('[data-field="download-pack"]').textContent.trim(), 'Download Teaser Pack');
   await act(async () => root.unmount());
 });
 
@@ -792,7 +792,7 @@ test('when a scorecard cannot be made, the report says why on the page, not just
   m = await mountWith({ campaigns: [{ id: 'c-1', name: 'One' }], teasers: [{ ...rec, hero_image: 'data:image/jpeg;base64,AAAA' }] });
   await click(btn(m.container, b => b.textContent.includes('Acme') && !b.textContent.includes('All teasers'))); await act(flush);
   assert.equal(m.container.querySelector('[data-field="scorecard-blocked"]'), null);
-  assert.equal(m.container.querySelector('[data-field="download-pack"]').textContent.trim(), 'Download pack');
+  assert.equal(m.container.querySelector('[data-field="download-pack"]').textContent.trim(), 'Download Teaser Pack');
   await act(async () => m.root.unmount());
 });
 

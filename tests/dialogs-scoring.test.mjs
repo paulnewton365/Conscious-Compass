@@ -169,30 +169,89 @@ test('before scoring, the report step is a dc page with one clear action', async
   await m.unmount();
 });
 
-test('while scoring, the screen takes the packet 18 layout but claims no passes, and counts real time', async () => {
+test('while scoring, the screen shows real elapsed time, the packet 18 stage list, three pass tracks and what is going in', async () => {
   globalThis.fetch = () => new Promise(() => {});   // the scoring call never returns here
   const m = await mount(h(App.ReportPage, reportProps('sk-test')));
   const go = [...m.container.querySelectorAll('button')].find(b => b.textContent === 'Generate the report');
   await act(async () => { go.click(); });
+  await act(async () => { await new Promise(r => setTimeout(r, 450)); });   // one live tick
   const page = m.container.querySelector('[data-screen="scoring"]');
   const sc = page.querySelector('.dc-scoring');
   assert.equal(sc.querySelector('.dc-page-head h1.dc-display').textContent, 'Reading the evidence.');
   assert.equal(sc.querySelector('.dc-page-head .dc-kicker').textContent, 'Scoring · MKB');
   const prog = sc.querySelector('.dc-scoring-progress');
   assert.equal(prog.getAttribute('role'), 'status');
-  assert.match(prog.querySelector('.dc-scoring-count').textContent, /^0:0\d\s*elapsed$/, 'real elapsed time, not a pass count');
-  assert.equal(prog.querySelector('.dc-lens-bar').getAttribute('aria-hidden'), 'true', 'the estimated bar is not announced');
-  assert.equal(page.querySelector('.dc-passes'), null, 'no invented passes');
+  assert.match(prog.querySelector('.dc-scoring-count').textContent, /^0:0\d\s*elapsed$/, 'real elapsed time');
+  assert.equal(prog.querySelector('.dc-lens-bar').getAttribute('aria-hidden'), 'true');
+  const stages = [...page.querySelectorAll('.dc-passes > li')].map(li => li.querySelector('b').textContent);
+  assert.deepEqual(stages, ['Trust lens', 'Six principles', 'Footprint', 'Campaign coherence', 'Eight attributes', 'Earned creative']);
+  assert.equal(page.querySelectorAll('.dc-scoring-tracks > li').length, 3, 'one track per pass');
+  assert.equal(page.querySelectorAll('.dc-rollcall > li').length, 8, 'the roll call names all eight');
+  assert.equal(page.querySelectorAll('.dc-rollcall li.is-scored').length, 0, 'nothing is marked scored before a pass reaches it');
+  const going = [...page.querySelectorAll('.dc-scoring-inputs > li b')].map(b => b.textContent);
+  assert.deepEqual(going, ['Website', 'Social', 'AI reputation', 'Earned media']);
   const text = page.textContent;
-  assert.ok(!/% complete|passes complete|of \d+ passes/.test(text), 'no invented count');
-  for (const step of ['Absorbing', 'Trust lens', '12 articles', 'You can leave this page']) assert.ok(!text.includes(step), `no invented claim: ${step}`);
+  assert.ok(!/% complete/.test(text), 'no percentage');
+  for (const claim of ['Absorbing', '12 articles', 'You can leave this page']) assert.ok(!text.includes(claim), `no invented claim: ${claim}`);
   assert.ok(text.includes('Leave this page open until it finishes'));
   await m.unmount();
 });
 
-test('the invented stage labels are gone from the code', () => {
+test('end to end: streamed passes move the roll call, two that agree finish early, and the report gets their median', async () => {
+  const ids = ['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL'];
+  let call = 0;
+  const gates = [];
+  globalThis.fetch = window.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    if (!String(url).includes('/api/claude') || !body.stream) return new Promise(() => {});   // stories, other calls
+    const n = call++;
+    const answer = JSON.stringify({ headline: 'H', campaignCoherence: { level: 2 }, earnedCreative: { activations: [] },
+      ...Object.fromEntries(ids.map(id => [id, { score: 50 + n, findings: 'f', impact: 'i', actions: 'a' }])) });
+    const half = answer.indexOf('"COGENT"');
+    let release;
+    const gate = new Promise(r => { release = r; });
+    gates.push(release);
+    const enc = new TextEncoder();
+    const ev = (o) => enc.encode(`event: ${o.type}\ndata: ${JSON.stringify(o)}\n\n`);
+    const stream = new ReadableStream({
+      async start(ctl) {
+        ctl.enqueue(ev({ type: 'message_start', message: { usage: { input_tokens: 9000 } } }));
+        ctl.enqueue(ev({ type: 'content_block_delta', delta: { type: 'text_delta', text: answer.slice(0, half) } }));
+        if (n === 2) return;   // the third pass stalls halfway and never finishes
+        await gate;
+        ctl.enqueue(ev({ type: 'content_block_delta', delta: { type: 'text_delta', text: answer.slice(half) } }));
+        ctl.enqueue(ev({ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5000 } }));
+        ctl.close();
+      },
+    });
+    return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+  };
+  let saved = null;
+  const props = { ...reportProps('sk-test'), setScores: (v) => { saved = typeof v === 'function' ? v(saved) : v; } };
+  const m = await mount(h(App.ReportPage, props));
+  const go = [...m.container.querySelectorAll('button')].find(b => b.textContent === 'Generate the report');
+  await act(async () => { go.click(); });
+  await act(async () => { await new Promise(r => setTimeout(r, 500)); });
+  const page = () => m.container.querySelector('[data-screen="scoring"]');
+  const partial = [...page().querySelectorAll('.dc-rollcall li.is-scored')].map(li => li.dataset.attr);
+  assert.deepEqual(partial, ['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE'], 'halfway: the first four reached by every pass');
+  assert.equal(page().querySelector('[data-stage="attributes"]').className, 'is-current');
+  assert.ok(!page().textContent.match(/\b5[0-2]\b/), 'no score is shown while waiting');
+  await act(async () => { gates.forEach(g => g()); await new Promise(r => setTimeout(r, 500)); });
+  assert.equal(page().querySelector('.dc-scoring-tracks li[data-pass="3"] .dc-meta').textContent, 'Not needed');
+  assert.match(page().querySelector('[data-field="scoring-stage"]').textContent, /first two passes agreed/);
+  await act(async () => { await new Promise(r => setTimeout(r, 1500)); });
+  assert.ok(saved, 'the report was set');
+  assert.equal(saved.AWAKE.score, 51, 'median of 50 and 51, rounded');
+  assert.equal(saved.consensus.early, true);
+  assert.deepEqual(saved.consensus.timing.passes.map(p => p.status), ['used', 'used', 'skipped']);
+  assert.equal(saved.consensus.timing.passes[0].outputTokens, 5000);
+  await m.unmount();
+});
+
+test('the invented stage labels are gone from the code, and the clock-driven trickle with them', () => {
   const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  for (const gone of ['const stageFor', 'setScoringStage', 'Absorbing website data', '% complete']) assert.ok(!src.includes(gone), gone);
+  for (const gone of ['const stageFor', 'setScoringStage', 'Absorbing website data', '% complete', 'prog + (95 - prog) * 0.045']) assert.ok(!src.includes(gone), gone);
 });
 
 // ── Stylesheet ───────────────────────────────────────────────

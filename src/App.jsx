@@ -6,13 +6,19 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.113.0';
+const APP_VERSION = '3.116.0';
+// How long the waiting screen shows how the passes ended before the report
+// replaces it (v3.114.0).
+const OUTCOME_HOLD_MS = 1400;
+// The newsletter's house image for the lead column (v3.116.0).
+const NEWSLETTER_LEAD_FILL = '/newsletter/lead-fill.jpg';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
-import { SCORING_RUNS, SPREAD_FLAG, gatherRuns, combineRuns, consistencyStats, timingSummary } from './lib/consensus';
+import { SCORING_RUNS, SPREAD_FLAG, gatherRuns, combineRuns, consistencyStats, timingSummary, createStreamParser, readPassProgress, overallProgress, stageStates, outcomeLine, evidenceRecap, ATTRIBUTE_IDS, SCORING_STAGES } from './lib/consensus';
+const SCORING_STAGES_BY_ID = Object.fromEntries(SCORING_STAGES.map(st => [st.id, st]));
 import { startScrollMotion, retagSections, revealAll, motionAllowed } from './lib/scrollMotion';
 import { benchmarkView, benchmarkPosition, latestPerBrand, resultHistory, resultBrandKey } from './lib/benchmarkView';
-import { buildLiteSection, applyEarnedCreativeLift, ecoFromReport, parseObservedEvidence } from './lib/eco';
+import { buildTeaserEco, applyEarnedCreativeLift, buildEcoSection, clientEcoSection, parseOpportunity, ECO_COPY } from './lib/eco';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
 import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
@@ -843,12 +849,35 @@ IMPORTANT FORMATTING RULES:
         model: 'claude-sonnet-4-6',
         max_tokens: maxTokens,
         temperature,
-        messages: [{ role: 'user', content }]
+        messages: [{ role: 'user', content }],
+        // A caller that wants live progress passes meta.onText (v3.114.0).
+        ...(meta?.onText ? { stream: true } : {})
       })
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error || `API error: ${response.status}`);
+    }
+    // Streamed answer: read it as it arrives. If the proxy answered with plain
+    // JSON instead (an older deploy), fall through to the usual path.
+    if (meta?.onText && (response.headers?.get?.('content-type') || '').includes('text/event-stream') && response.body?.getReader) {
+      const parser = createStreamParser(meta.onText);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parser.feed(decoder.decode(value, { stream: true }));
+      }
+      parser.feed(decoder.decode());
+      const out = parser.result();
+      if (out.error) throw new Error(out.error);
+      meta.usage = out.usage || null;
+      meta.stopReason = out.stopReason;
+      if (isJson && out.stopReason === 'max_tokens') {
+        throw new Error('Response was cut short — increase max tokens or reduce prompt size.');
+      }
+      return out.text;
     }
     const data = await response.json();
     const stopReason = data.stop_reason;
@@ -1242,68 +1271,44 @@ function FieldSection({ label, children, tight = false }) {
 }
 
 
-// ── Earned creative (ECO module, framework 2.11) ────────────
-// The client-facing text blocks, shared by the full report, the client view
-// and the Teaser read. HOWL appears with its wordmark and "by Antenna".
-function EcoBlocks({ blocks }) {
-  if (!blocks?.length) return null;
-  const paras = (t) => String(t || '').split(/\n\s*\n/).filter(Boolean);
+// ── How earned creative could help (ECO v2.0, v3.115.0) ─────
+// One component for the full report, the client view and the Teaser read.
+// HOWL always closes it, with its logo and "by Antenna". `internal` adds the
+// things to sort out first and the scores-only note; `compact` is the Teaser
+// read, which names the attribute each opportunity would lift and no more.
+function EcoSection({ section, internal = false, compact = false }) {
+  if (!section) return null;
+  const opps = section.opportunities || [];
   return (
-    <div className="dc-eco" data-field="eco-blocks">
-      {blocks.map(b => {
-        if (b.id === 'headline') return <p key={b.id} className="dc-eco-verdict">{b.text}</p>;
-        if (b.id === 'size') {
-          return (
-            <section key={b.id} className="dc-eco-block dc-eco-size" data-size={b.size}>
-              <div className="dc-kicker">{b.title}</div>
-              <p>{b.text}</p>
-            </section>
-          );
-        }
-        if (b.id === 'ladder') {
-          return (
-            <section key={b.id} className="dc-eco-block" data-block="ladder">
-              <div className="dc-kicker">{b.title}</div>
-              <ol className="dc-eco-ladder" aria-label={b.ready ? `Earned creative ladder: ready now at ${b.steps.find(s => s.state === 'ready')?.name}` : 'Earned creative ladder'}>
-                {b.steps.map(st => (
-                  <li key={st.id} className={`is-${st.state}`} aria-current={st.state === 'ready' ? 'step' : undefined}>
-                    <span className="dc-eco-n">{st.n}</span>
-                    <div>
-                      <div className="dc-eco-step-head"><b>{st.name}</b>{st.label && <span className="dc-eco-badge">{st.label}</span>}</div>
-                      <p className="dc-eco-meaning">{st.meaning}</p>
-                      <p className="dc-eco-example">{st.example}</p>
-                      {st.unlock && <p className="dc-eco-unlock">{st.unlock}</p>}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              {b.note && <p className="dc-eco-note">{b.note}</p>}
-            </section>
-          );
-        }
-        if (b.id === 'next' || b.id === 'gate') return <p key={b.id} className="dc-eco-next">{b.text}</p>;
-        if (b.id === 'howl') {
-          return (
-            <section key={b.id} className="dc-eco-howl" data-howl={b.length}>
-              <div className="dc-eco-lockup"><img src="/howl-logo.svg" alt="HOWL" /><span>by Antenna</span></div>
-              {paras(b.text).map((t, i) => <p key={i}>{t}</p>)}
-            </section>
-          );
-        }
-        return (
-          <section key={b.id} className="dc-eco-block" data-block={b.id}>
-            {b.title && <div className="dc-kicker">{b.title}</div>}
-            {b.text && <p>{b.text}</p>}
-            {b.items && (
-              <ul>
-                {b.items.map((it, i) => (typeof it === 'string'
-                  ? <li key={i}>{it}</li>
-                  : <li key={i}>{it.text}{it.metric && <span className="dc-meta"> Track: {it.metric}.</span>}</li>))}
-              </ul>
-            )}
-          </section>
-        );
-      })}
+    <div className="dc-eco" data-field="eco" data-source={section.source || undefined}>
+      {section.opening && <p className="dc-eco-verdict">{section.opening}</p>}
+      {opps.length > 0 && (
+        <ol className={`dc-eco-opps${compact ? ' is-compact' : ''}`}>
+          {opps.map(o => (
+            <li key={o.attribute} data-attr={o.attribute}>
+              <div className="dc-eco-opp-head">
+                <span className="dc-kicker is-accent">Lifts {o.name}</span>
+                {Number.isFinite(Number(o.score)) && <span className="dc-meta">Now {o.score}</span>}
+              </div>
+              {!compact && o.truth && <p className="dc-eco-truth"><b>Built on</b> {o.truth}</p>}
+              {!compact && o.idea && <p className="dc-eco-idea">{o.idea}</p>}
+              {o.change && <p className="dc-eco-change">{o.change}</p>}
+            </li>
+          ))}
+        </ol>
+      )}
+      {internal && section.sortFirst?.length > 0 && (
+        <section className="dc-eco-block" data-block="sort-first">
+          <div className="dc-kicker">Sort out first · internal</div>
+          <ul>{section.sortFirst.map((t, i) => <li key={i}>{t}</li>)}</ul>
+        </section>
+      )}
+      {internal && section.source === 'scores' && <p className="dc-meta" data-field="eco-rescore">{ECO_COPY.scoresOnly}</p>}
+      <section className="dc-eco-howl">
+        <div className="dc-eco-lockup"><img src={section.howl?.logo || '/howl-logo.svg'} alt="HOWL" /><span>by Antenna</span></div>
+        <p>{section.howl?.opener || ECO_COPY.howlOpener}</p>
+        {!compact && <p>{section.howl?.body || ECO_COPY.howlBody}</p>}
+      </section>
     </div>
   );
 }
@@ -5462,6 +5467,8 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
   const [isScoring, setIsScoring] = useState(false);
   const [scoringError, setScoringError] = useState(null);
   const [scoringProgress, setScoringProgress] = useState(0);
+  // Live state of the streamed passes, for the waiting screen (v3.114.0).
+  const [scoringLive, setScoringLive] = useState(null);
   // When the scoring call started. The only honest progress signal: the call
   // itself reports nothing until it returns.
   const [scoringStartedAt, setScoringStartedAt] = useState(null);
@@ -5683,20 +5690,23 @@ ${JSON.stringify(extractLanguageText(source), null, 2)}`;
       setIsScoring(true);
       setScoringError(null);
       setScoringProgress(0);
+      setScoringLive(null);
       setScoringStartedAt(Date.now());
     }
 
-    // The real work is a single long model call with no mid-call signal, so
-    // true progress cannot be measured. The bar trickles toward a 95% ceiling
-    // so it keeps moving, and snaps to 100% on completion. Because it is an
-    // estimate, the screen shows no percentage and names no steps (v3.97.2):
-    // it shows the real elapsed time instead.
-    let prog = 0;
+    // Live progress (v3.114.0). The passes stream, so each one's answer so far
+    // is kept here and read on a short tick: which section it is writing and
+    // which attributes it has scored. The bar follows the pass that sets the
+    // pace (see pacingIndex). Nothing on the waiting screen shows a score.
+    const live = Array.from({ length: consistencyCheck || SCORING_RUNS }, () => ({ status: 'running', text: '' }));
+    const readLive = () => live.map(p => (p.status === 'done'
+      ? { status: 'done', progress: 1, section: null, group: null, scored: [...ATTRIBUTE_IDS], doneGroups: [] }
+      : { status: p.status, ...readPassProgress(p.text) }));
     const progressInterval = consistencyCheck ? null : setInterval(() => {
-      prog = prog + (95 - prog) * 0.045;
-      if (prog > 94.5) prog = 94.5;
-      setScoringProgress(Math.round(prog));
-    }, 350);
+      const passes = readLive();
+      setScoringLive(prev => ({ ...(prev || {}), passes }));
+      setScoringProgress(Math.round(overallProgress(passes) * 100));
+    }, 400);
 
     try {
     // Helper: truncate long text to keep prompt lean. Returns '' for empty so template literals don't render "null".
@@ -5840,10 +5850,13 @@ EARNED CREATIVE IN USE (framework 2.11):
 
 List any earned creative activations this brand has run in the last 24 months, from the earned media and social evidence above. Earned creative is an idea designed to be talked about rather than paid to be seen: the brand DID something in the world (a visible action, an installation, a product intervention, a data release, a partnership) and journalists, creators or the public carried it. It is NOT a press release, a funding or hiring announcement, a paid ad, a sponsorship logo, or routine content. Include an activation only if the evidence shows both the act and third parties carrying it. Name what you can see; if there is none, return an empty list. Do not change any score because of this list: the framework applies its own adjustment in code.
 
-EARNED CREATIVE EVIDENCE (v3.110.0): record, from the evidence above only, the raw material an earned creative idea could rest on and anything that would make attention risky. Record only what is observed, each with where it was seen; never infer or assume. Leave a list empty rather than guess.
-- verifiedTruths: specific, checkable material a journalist could confirm independently: a named data set or research, a patent, a live program or pilot, a named partnership, a measurable result. Not claims, slogans or values.
-- redFlags: controversy, regulatory or legal action, a lobbying or conduct record that contradicts the brand's message, or a pattern of serious complaints. "major" is true for anything current and material; "resolved" is true only where the evidence shows it was resolved.
-- causeTerritory: a cause or issue the brand visibly engages with, if any, and how directly it links to what the business does ("direct", "adjacent" or "none"). Null if there is none.
+HOW EARNED CREATIVE COULD HELP (v3.115.0): after scoring the attributes, write "earnedCreativeOpportunity" last. It shows how earned creative could help this brand, not whether the brand is ready for it. Every brand gets it.
+- opening: one sentence on what earned creative would do for this brand specifically. Name the brand.
+- opportunities: two or three, each aimed at one of the brand's weaker attributes among AWAKE, SENTIENT, AWARE, VISIONARY and COGENT, using the scores you just gave. One per attribute.
+  - truth: a real, checkable thing about this brand from the evidence above that the idea would build on (a data set, a program, a result, a person, a place, a stance), with where it was seen. Never invent one. If the evidence has none for this attribute, leave it empty.
+  - idea: an idea starter: a direction for earned creative the brand could take, not a finished campaign. Something the brand would DO that people would talk about.
+  - change: what it would change for the brand, in plain words.
+- sortFirst: anything in the evidence that would draw scrutiny if the brand courted attention (controversy, legal or regulatory action, a record that contradicts its message), each with what to fix first. Observed only, each naming its source. Empty if there is none. This stays internal.
 
 CAMPAIGN COHERENCE ASSESSMENT (v2.9):
 
@@ -5965,11 +5978,6 @@ Return valid JSON only — no prose before or after. For every attribute, "findi
 ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "max 6 words, or 'No evidence found'", "sentiment": -100 to 100 or null }`).join(',\n')}
     }
   },
-  "earnedCreativeEvidence": {
-    "verifiedTruths": [ { "name": "Short name", "description": "What it is, one line.", "source": "Where it was seen" } ],
-    "redFlags": [ { "label": "What it is, one line.", "major": false, "resolved": false, "source": "Where it was seen" } ],
-    "causeTerritory": { "name": "The cause", "link": "direct|adjacent|none" }
-  },
   "earnedCreative": {
     "activations": [
       { "name": "Short name for the activation", "what": "What the brand did in the world, one line.", "evidence": "Who carried it and where: outlet, creator or platform, with month and year." }
@@ -5993,7 +6001,14 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
   "COGENT":     { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
   "SENTIENT":   { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
   "VISIONARY":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
-  "INTENTIONAL":{ "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." }
+  "INTENTIONAL":{ "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
+  "earnedCreativeOpportunity": {
+    "opening": "One sentence on what earned creative would do for this brand. Max 25 words.",
+    "opportunities": [
+      { "attribute": "AWAKE|SENTIENT|AWARE|VISIONARY|COGENT", "truth": "The brand truth it builds on, from the evidence, with its source. One line, or empty.", "idea": "An idea starter, not a finished campaign. Under 30 words.", "change": "What it would change for the brand. Under 20 words." }
+    ],
+    "sortFirst": ["A real risk from the evidence and what to fix first, naming its source. One line."]
+  }
 }`;
 
       // Framework 2.12 (v3.112.0): the pass runs SCORING_RUNS times in parallel
@@ -6006,8 +6021,13 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
       // call), the third is not waited for and the two are combined. The
       // consistency check always waits for all five. Every pass is timed.
       const runsWanted = consistencyCheck || SCORING_RUNS;
-      const startPass = () => { const meta = {}; return callClaude(prompt, apiKey, null, [], 0, true, 12000, meta).then(text => ({ text, usage: meta.usage })); };
-      const gathered = await gatherRuns(Array.from({ length: runsWanted }, () => startPass), { earlyFinish: !consistencyCheck });
+      const startPass = (i) => {
+        const meta = consistencyCheck ? {} : { onText: (text) => { live[i].text = text; } };
+        return callClaude(prompt, apiKey, null, [], 0, true, 12000, meta).then(
+          text => { live[i].status = 'done'; return { text, usage: meta.usage }; },
+          err => { live[i].status = 'failed'; throw err; });
+      };
+      const gathered = await gatherRuns(Array.from({ length: runsWanted }, (_, i) => () => startPass(i)), { earlyFinish: !consistencyCheck });
       const runs = gathered.runs;
       const timing = { early: gathered.early, wallMs: gathered.wallMs, passes: gathered.timings };
       if (consistencyCheck) {
@@ -6022,6 +6042,10 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
       const result = JSON.stringify(combined);
       clearInterval(progressInterval);
       setScoringProgress(100);
+      // Say how the passes ended, briefly, before the report replaces this screen.
+      gathered.timings.forEach((t, i) => { if (t.status === 'skipped') live[i].status = 'skipped'; });
+      setScoringLive({ passes: readLive(), outcome: outcomeLine(gathered) });
+      await new Promise(r => setTimeout(r, OUTCOME_HOLD_MS));
       const match = result.match(/\{[\s\S]*\}/);
       if (match) {
         try {
@@ -6053,8 +6077,10 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             // Campaign modifiers first, then the earned creative lift, which
             // stacks on them (framework 2.11).
             const adjusted = applyEarnedCreativeLift(applyCampaignModifiers(parsed, level), FRAMEWORK_VERSION);
-            // Observed earned creative evidence, cleaned; the report reads only this (v3.110.0).
-            adjusted.earnedCreativeEvidence = parseObservedEvidence(parsed.earnedCreativeEvidence) || { verifiedTruths: [], redFlags: [], causeTerritory: null };
+            // How earned creative could help, cleaned (v3.115.0). Null when the
+            // pass wrote nothing usable: the section then builds from the scores.
+            adjusted.earnedCreativeOpportunity = parseOpportunity(parsed.earnedCreativeOpportunity);
+            delete adjusted.earnedCreativeEvidence;
             // Sustainability narrative read (framework 2.10). Parsed, never
             // guessed: missing means the report offers to regenerate.
             adjusted.sustainabilityNarrative = parseThesis(parsed.sustainabilityNarrative);
@@ -6103,6 +6129,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             } else {
               setScores(adjusted);
             }
+            // The report opens at the top, where the overall score counts up
+            // and the chart draws in: the reveal after the wait (v3.114.0).
+            if (!challengeContext) { try { window.scrollTo({ top: 0 }); } catch { /* not available */ } }
           } else {
             setScoringError('AI response was missing score data. Please try again.');
             console.error('Parsed but missing scores:', parsed);
@@ -6241,6 +6270,12 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   // call with no progress signal, so the screen names no passes and counts
   // none. It shows real elapsed time and a bar marked as an estimate.
   if (!hasValidScores) {
+    // What the score will be read against, from the same benchmark the report
+    // uses. Only shown when there is a comparable group to name.
+    const waitBench = isScoring ? buildBenchmarkSnapshot(compassResults, { industry: project.industry, industryName: INDUSTRIES.find(i => i.id === project.industry)?.name, brandName: project.brandName, totalScore: 0, scores: {} }) : null;
+    const sectorLine = waitBench && !waitBench.unavailable
+      ? `${waitBench.scope === 'industry' ? waitBench.cohortLabel : 'All assessed brands'} average ${waitBench.avgScore} across ${waitBench.count} full assessment${waitBench.count === 1 ? '' : 's'}${waitBench.scope === 'industry' ? '' : `, as fewer than ${waitBench.minN} sit in this sector`}.`
+      : null;
     return (
       <div className="dc-wrap dc-page is-form" data-screen="scoring">
         <div className="dc-scoring">
@@ -6249,18 +6284,14 @@ Return the complete revised readout as prose. No preamble, no notes about what y
             <h1 className="dc-display">{isScoring ? 'Reading the evidence.' : 'Generate the report'}</h1>
             <p className="dc-standfirst">
               {isScoring
-                ? 'The Compass is reading your four readouts together and scoring all eight attributes in three passes at once. If the first two agree it stops there; if not, it keeps the middle score of the three.'
+                ? 'The Compass reads your four readouts together and scores all eight attributes in three passes at once. If the first two agree it stops there; if not, it keeps the middle score of the three.'
                 : 'Scoring reads the four readouts together and produces the full report: the eight attribute scores, what drives each one, and the actions.'}
             </p>
           </div>
 
           {isScoring ? (
-            <div className="dc-scoring-progress" role="status" aria-live="polite">
-              <div className="dc-scoring-count"><ElapsedTime since={scoringStartedAt} /></div>
-              {/* An estimate, so it is hidden from assistive tech and carries no number. */}
-              <div className="dc-lens-bar is-overall" aria-hidden="true"><i style={{ width: `${scoringProgress}%` }}></i></div>
-              <p className="dc-meta">Leave this page open until it finishes. Closing or reloading it stops the scoring.</p>
-            </div>
+            <ScoringLive live={scoringLive} progress={scoringProgress} startedAt={scoringStartedAt}
+              recap={evidenceRecap(assessments, project)} sector={sectorLine} />
           ) : (
             <div><button type="button" onClick={() => runScoring()} disabled={isScoring} className="btn-primary">Generate the report</button></div>
           )}
@@ -6323,7 +6354,7 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   const stage = getMaturityStage(overall);
   // Earned creative (ECO module): computed from the saved scores and the
   // analyst's inputs on every render; never changes a score.
-  const eco = scores ? ecoFromReport(scores, { brand: project.brandName, companyStage: project.companyStage, stageName: stage?.name }) : null;
+  const eco = scores ? buildEcoSection(scores, { brand: project.brandName }) : null;
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'Other';
 
   const nextStage = MATURITY_STAGES.find(st => st.min > overall);
@@ -7463,7 +7494,7 @@ ${content.slice(0, 8000)}`;
     'Trust and credibility',
     'Sustainability narrative',
     'Benchmark comparison',
-    'Earned creative opportunity',
+    'How earned creative could help',
     'Recommendations',
     'Conclusions',
     'Score justification',
@@ -7685,15 +7716,12 @@ ${content.slice(0, 8000)}`;
         </Dialog>
       )}
 
-      {/* Earned creative (ECO module v1.0) */}
+      {/* How earned creative could help (ECO v2.0, v3.115.0): every brand.
+          A report scored before v3.115.0 gets the version built from scores. */}
       {eco && (
         <section className="dc-section dc-reveal" id="earned-creative">
-          <SectionHeading order={sectionOrder} label="Earned creative opportunity" open={expandedSections.eco} onToggle={() => toggleSection('eco')} />
-          {/* Recommendations only, from observed evidence: no inputs (v3.110.0).
-              A report scored before the evidence was recorded needs a rescore. */}
-          {expandedSections.eco && (eco.blocks.length
-            ? <EcoBlocks blocks={eco.blocks} />
-            : <p className="dc-meta" data-field="eco-rescore">Rescore this report to generate its earned creative opportunity.</p>)}
+          <SectionHeading order={sectionOrder} label="How earned creative could help" open={expandedSections.eco} onToggle={() => toggleSection('eco')} />
+          {expandedSections.eco && <EcoSection section={eco} internal />}
         </section>
       )}
 
@@ -10284,6 +10312,86 @@ function AssessmentStatusIndicator({ assessments }) {
 }
 
 // Real elapsed time since a start timestamp, ticking once a second.
+// The scoring wait (v3.114.0): real progress from the streamed passes. The
+// stage list keeps the packet 18 layout, now driven by what the model is
+// actually writing. Pass tracks show the three passes; the roll call shows
+// which attributes each has reached. No score appears until the report.
+function ScoringLive({ live, progress = 0, startedAt, recap = [], sector = null }) {
+  const passes = live?.passes || [];
+  const stages = stageStates(passes);
+  const current = stages.find(st => st.state === 'current');
+  const allDone = passes.length > 0 && passes.every(p => p.status !== 'running');
+  const passWord = (p) => p.status === 'done' ? 'Done' : p.status === 'skipped' ? 'Not needed' : p.status === 'failed' ? 'Did not return'
+    : p.group === 'attributes' && p.section ? `Scoring ${ATTRIBUTES.find(a => a.id === p.section)?.name || p.section}`
+      : (SCORING_STAGES_BY_ID[p.group]?.doing || 'Reading the evidence');
+  const live3 = passes.filter(p => p.status !== 'failed' && p.status !== 'skipped');
+  return (
+    <>
+      <div className="dc-scoring-progress" role="status" aria-live="polite">
+        <div className="dc-scoring-count"><ElapsedTime since={startedAt} /></div>
+        <div className="dc-lens-bar is-overall" aria-hidden="true"><i style={{ width: `${progress}%` }}></i></div>
+        <p className="dc-meta" data-field="scoring-stage">{live?.outcome || (allDone ? 'Combining the passes' : current ? current.doing : 'Starting the passes')}</p>
+        <p className="dc-meta">Leave this page open until it finishes. Closing or reloading it stops the scoring.</p>
+      </div>
+
+      {passes.length > 0 && (
+        <ol className="dc-scoring-tracks" aria-label="Scoring passes">
+          {passes.map((p, i) => (
+            <li key={i} className={`is-${p.status}`} data-pass={i + 1}>
+              <span className="dc-kicker">Pass {i + 1}</span>
+              <span className="dc-scoring-track" aria-hidden="true"><i style={{ width: `${Math.round((p.status === 'done' ? 1 : p.progress || 0) * 100)}%` }}></i></span>
+              <span className="dc-meta">{passWord(p)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <ol className="dc-passes">
+        {stages.map((st, i) => (
+          <li key={st.id} className={st.state === 'done' ? 'is-done' : st.state === 'current' ? 'is-current' : ''} aria-current={st.state === 'current' ? 'step' : undefined} data-stage={st.id}>
+            <span className="dc-pass-n">{i + 1}</span>
+            <div>
+              <b>{st.name}</b>
+              <span>{st.detail}</span>
+              {st.id === 'attributes' && passes.length > 0 && (
+                <ul className="dc-rollcall" aria-label="Attributes reached by each pass">
+                  {ATTRIBUTES.map(a => {
+                    const n = live3.filter(p => (p.scored || []).includes(a.id)).length;
+                    return (
+                      <li key={a.id} className={n >= Math.min(2, live3.length || 1) ? 'is-scored' : n ? 'is-partial' : ''} data-attr={a.id}>
+                        <span>{a.name}</span>
+                        <span className="dc-rollcall-pips" aria-label={`${n} of ${live3.length} passes`}>
+                          {live3.map((p, j) => <i key={j} className={j < n ? 'is-on' : ''}></i>)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            <em>{st.state === 'done' ? 'Done' : st.state === 'current' ? 'Writing' : 'Waiting'}</em>
+          </li>
+        ))}
+      </ol>
+
+      {recap.length > 0 && (
+        <div className="dc-scoring-going-in">
+          <div className="dc-kicker">Going in</div>
+          <ul className="dc-scoring-inputs">
+            {recap.map((r, i) => (
+              <li key={r.name} className={r.missing ? 'is-missing' : ''}>
+                <span className="dc-pass-n">{i + 1}</span>
+                <div><b>{r.name}</b><span>{r.detail}</span></div>
+              </li>
+            ))}
+          </ul>
+          {sector && <p className="dc-meta" data-field="scoring-sector">{sector}</p>}
+        </div>
+      )}
+    </>
+  );
+}
+
 function ElapsedTime({ since }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -10302,7 +10410,7 @@ function ElapsedTime({ since }) {
 const CLIENT_REPORT_SECTIONS = [
   'results at a glance', 'brand maturity', 'attribute analysis', 'brand footprint',
   'campaign coherence', 'trust and credibility', 'the sustainability narrative',
-  'the earned creative opportunity', 'the benchmark comparison', 'the conclusions',
+  'how earned creative could help', 'the benchmark comparison', 'the conclusions',
 ];
 const CLIENT_REPORT_SECTIONS_TEXT = `${CLIENT_REPORT_SECTIONS.slice(0, -1).join(', ')} and ${CLIENT_REPORT_SECTIONS.at(-1)}`;
 
@@ -11177,15 +11285,9 @@ function makeClientPayload({ project, scores, benchmark, assessorNote = null }) 
         }
       : null,
     footprint: scores?.footprint || null,
-    // Earned creative: the client-facing text blocks only. The analyst's
-    // inputs, overrides and review notes never leave the report, and nothing
-    // is sent until the gate has its inputs.
-    eco: (() => {
-      if (!scores) return null;
-      const ov = Math.round(ATTRIBUTES.reduce((t, a) => t + (scores?.[a.id]?.score || 0), 0) / ATTRIBUTES.length);
-      const { result, blocks } = ecoFromReport(scores, { brand: project.brandName, companyStage: project.companyStage, stageName: getMaturityStage(ov)?.name });
-      return result.outcome && blocks.length ? { blocks } : null;
-    })(),
+    // How earned creative could help: the opening, the opportunities and
+    // HOWL. The things to sort out first stay internal (v3.115.0).
+    eco: scores ? clientEcoSection(scores, project.brandName) : null,
     conclusion: String(scores?.conclusion || scores?.justification || '').replace(/[\u2014\u2013]/g, '-'),
     generatedAt: new Date().toISOString(),
   };
@@ -11373,7 +11475,7 @@ function ClientReportView({ payload }) {
     ...(campaignStage ? ['Campaign coherence'] : []),
     'Trust and credibility',
     ...(scores?.sustainabilityNarrative ? ['Sustainability narrative'] : []),
-    ...(payload.eco?.blocks?.length ? ['Earned creative opportunity'] : []),
+    ...(payload.eco?.opportunities?.length ? ['How earned creative could help'] : []),
     ...(benchmark ? ['Benchmark comparison'] : []),
     ...(payload.conclusion ? ['Conclusions'] : []),
   ];
@@ -11516,10 +11618,10 @@ function ClientReportView({ payload }) {
         )}
 
         {/* ── Benchmark comparison ────────────────────────────── */}
-        {payload.eco?.blocks?.length > 0 && (
+        {payload.eco?.opportunities?.length > 0 && (
           <section className="dc-section dc-reveal" id="earned-creative">
-            <SectionHeading order={clientSections} label="Earned creative opportunity" />
-            <EcoBlocks blocks={payload.eco.blocks} />
+            <SectionHeading order={clientSections} label="How earned creative could help" />
+            <EcoSection section={payload.eco} />
           </section>
         )}
 
@@ -12406,6 +12508,13 @@ function StayConsciousPage({ onBack, isAdmin }) {
                   <p>{ns.leadStory.whyItMatters}</p>
                 </aside>
               )}
+              {/* House image (v3.116.0): fills the lead column down to the foot
+                  of the rail when the story brings no image of its own. */}
+              {!ns.leadStory?.image?.src && (
+                <figure className="dc-np-fig is-fill" data-field="lead-fill" aria-hidden="true">
+                  <img src={NEWSLETTER_LEAD_FILL} alt="" loading="lazy" />
+                </figure>
+              )}
             </article>
             {la?.summary && (
               <aside className="dc-np-rail" aria-labelledby="landscape-h">
@@ -12701,16 +12810,16 @@ function TeaserClientView({ payload, heroImage = null, baseline = null }) {
         </section>
       )}
 
-      {/* Earned creative, lite (ECO 5.11): verdict, what it is, HOWL with the
-          standard opener. Attribute scores only, so the gate waits for the
-          full assessment. */}
+      {/* How earned creative could help, from the teaser scores: the opening
+          and the attribute each opportunity would lift, then HOWL (v3.115.0). */}
       {(() => {
         const attrs = Object.fromEntries(ATTRIBUTES.map(a => [a.id, scores[a.id]?.score]));
-        if (ATTRIBUTES.some(a => !Number.isFinite(Number(attrs[a.id])))) return null;
+        const section = buildTeaserEco(attrs, payload.brandName);
+        if (!section) return null;
         return (
           <section className="dc-tz-sec" data-field="eco-lite">
-            <h2 className="dc-h">Earned creative opportunity</h2>
-            <EcoBlocks blocks={buildLiteSection(attrs, payload.brandName).blocks} />
+            <h2 className="dc-h">How earned creative could help</h2>
+            <EcoSection section={section} compact />
           </section>
         );
       })()}
@@ -12846,7 +12955,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
           {payload && (
             <button type="button" onClick={downloadPack} disabled={busy || !!making} data-field="download-pack" className="btn-secondary"
               title={scorecard.ready ? 'A zip holding the read, the printed card and the pitch slide' : 'A zip holding the read. Add a brand image to include the card and slide.'}>
-              {making === 'pack' ? 'Preparing...' : scorecard.ready ? 'Download pack' : 'Download read'}
+              {making === 'pack' ? 'Preparing...' : 'Download Teaser Pack'}
             </button>
           )}
           <button type="button" onClick={onRescore} disabled={busy || !cov.canScore} className="btn-secondary" title="Score the stored evidence again, without new searches">{payload ? 'Rescore' : 'Score'}</button>

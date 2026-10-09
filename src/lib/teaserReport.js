@@ -12,6 +12,10 @@
 
 import { ATTRIBUTES } from '../data/rubric.js';
 
+// Visible space between an evidence item and the rule after it, and the rule
+// and the next item, on page 4.
+const EVIDENCE_GAP = 12;
+
 export const PAGE = { w: 816, h: 1056, padX: 60, padTop: 52, padBottom: 40 };
 
 const C = {
@@ -324,7 +328,7 @@ function pageEvidence(d, data) {
   let y = a.top + 28;
   eyebrow(d, 'Trust, credibility, reputation and authenticity', a.left, y + 10);
   d.text('The evidence', a.left, y + 52, { family: 'display', size: 40, color: C.ink });
-  y += 74;
+  y += 84;
 
   const colW = (a.width - 28) / 2;
   const supporting = data.evidence.filter(e => e.polarity === '+');
@@ -346,8 +350,11 @@ function pageEvidence(d, data) {
           d.paragraph(meta, x, cy + 4, colW, { family: 'ui', size: 10.5, color: C.muted, lineHeight: 1.4 });
           cy += mh + 4;
         }
-        cy += 10;
-        if (i < items.length - 1) { d.rule(x, cy, colW); cy += 10; }
+        // y is a baseline, so the next claim needs its cap height clear of
+        // the rule as well as the gap. Equal visible space either side of
+        // the rule (v3.115.0: the rule sat on the next claim's letters).
+        cy += 2;
+        if (i < items.length - 1) { d.rule(x, cy, colW); cy += EVIDENCE_GAP + Math.round(13.5 * 0.75); }
       });
       deepest = Math.max(deepest, cy);
     });

@@ -138,34 +138,44 @@ test('Saved: read-only users get no import or client links', () => {
   assert.equal(doc.querySelector('.dc-head-actions'), null);
 });
 
-// ── Earned creative on the report: recommendations only (v3.110.0) ──
+// ── How earned creative could help (ECO v2.0, v3.115.0) ──
 
-const ecoScores = (evidence, extra = {}) => ({
+const ecoScores = (extra = {}) => ({
   AWAKE: { score: 38 }, SENTIENT: { score: 42 }, AWARE: { score: 45 }, VISIONARY: { score: 70 }, COGENT: { score: 60 },
-  ATTENTIVE: { score: 60 }, INTENTIONAL: { score: 62 }, REFLECTIVE: { score: 40 }, earnedCreativeEvidence: evidence, ...extra });
-const G1_FAIL = { verifiedTruths: [{ name: 'Grid pilot data set', description: 'Published 2025', source: 'Utility Dive' }, { name: 'Patent US1234567', description: 'Storage control', source: 'USPTO' }], redFlags: [], causeTerritory: null };
+  ATTENTIVE: { score: 60 }, INTENTIONAL: { score: 62 }, REFLECTIVE: { score: 40 }, ...extra });
+const WRITTEN_ECO = { opening: 'Earned creative would get MKB talked about.', opportunities: [{ attribute: 'AWAKE', truth: 'Open grid data, Utility Dive', idea: 'Map the outages the data prevented.', change: 'Puts MKB in the heat wave story.' }], sortFirst: ['SENTINEL_RISK rate case, PUC docket'] };
 
-test('the report shows the recommendation and HOWL, with no inputs anywhere', async () => {
+test('the full report shows the opportunities, the internal list and HOWL, with no form controls', async () => {
   const eco = await import('../src/lib/eco.js');
-  const data = eco.ecoFromReport(ecoScores(G1_FAIL), { brand: 'MKB', companyStage: 'scaleup', stageName: 'Differentiating' });
-  const doc = new JSDOM(server.renderToStaticMarkup(h(App.EcoBlocks, { blocks: data.blocks }))).window.document;
+  const section = eco.buildEcoSection(ecoScores({ earnedCreativeOpportunity: WRITTEN_ECO }), { brand: 'MKB' });
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.EcoSection, { section, internal: true }))).window.document;
   assert.equal(doc.querySelectorAll('input, select, textarea, fieldset').length, 0, 'no form controls');
-  assert.equal(doc.querySelector('.dc-eco-ladder li.is-ready b').textContent, 'Foundations', 'REFLECTIVE 40 fails G1: it starts at Foundations');
+  assert.equal(doc.querySelector('.dc-eco-opps li[data-attr="AWAKE"] .dc-kicker').textContent, 'Lifts Awake');
+  assert.ok(doc.querySelector('.dc-eco-truth').textContent.includes('Open grid data'));
+  assert.ok(doc.querySelector('[data-block="sort-first"]').textContent.includes('SENTINEL_RISK'));
   assert.equal(doc.querySelector('.dc-eco-howl img').getAttribute('src'), '/howl-logo.svg');
-  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  assert.ok(src.includes('Rescore this report to generate its earned creative opportunity.'), 'older reports are told to rescore, not given a form');
+  assert.equal(doc.querySelector('.dc-eco-lockup span').textContent, 'by Antenna');
+  const older = eco.buildEcoSection(ecoScores(), { brand: 'MKB' });
+  const doc2 = new JSDOM(server.renderToStaticMarkup(h(App.EcoSection, { section: older, internal: true }))).window.document;
+  assert.equal(doc2.querySelectorAll('.dc-eco-opps > li').length, 3, 'an older report still gets the section');
+  assert.ok(doc2.querySelector('[data-field="eco-rescore"]'), 'with a note that a rescore grounds it in evidence');
 });
 
-test('the client payload sends the blocks only, and nothing while the gate is pending', () => {
-  const pending = App.makeClientPayload({ project: { brandName: 'MKB', industry: 'energy' }, scores: ecoScores(undefined), benchmark: null });
-  assert.equal(pending.eco, null);
-  const ready = App.makeClientPayload({ project: { brandName: 'MKB', industry: 'energy' }, scores: ecoScores(G1_FAIL, { eco: { override: { outcome: 'Moment-driven', reason: 'secret reason' }, claimsPct: 90, glassdoor: 4, announcementPct: 70 } }), benchmark: null });
-  assert.deepEqual(Object.keys(ready.eco), ['blocks']);
-  const json = JSON.stringify(ready);
-  for (const leak of ['secret reason', 'claimsPct', 'glassdoor', 'announcementPct']) assert.ok(!json.includes(leak), leak);
+test('the client link carries the section and HOWL, never the sort-first list', () => {
+  const payload = App.makeClientPayload({ project: { brandName: 'MKB', industry: 'energy' }, scores: ecoScores({ earnedCreativeOpportunity: WRITTEN_ECO }), benchmark: null });
+  assert.deepEqual(Object.keys(payload.eco).sort(), ['howl', 'opening', 'opportunities']);
+  const json = JSON.stringify(payload);
+  assert.ok(!json.includes('SENTINEL_RISK') && !json.includes('sortFirst'));
+  const html = server.renderToStaticMarkup(h(App.ClientReportView, { payload }));
+  const doc = new JSDOM(html).window.document;
+  const sec = doc.querySelector('#earned-creative');
+  assert.ok(sec, 'the client view shows it');
+  assert.equal(sec.querySelector('.dc-eco-howl img').getAttribute('src'), '/howl-logo.svg');
+  assert.equal(sec.querySelector('[data-block="sort-first"]'), null);
+  assert.equal(sec.querySelector('[data-field="eco-rescore"]'), null);
 });
 
-test('the Teaser read carries the lite view: verdict, definition, HOWL standard opener, gate needs the full assessment', async () => {
+test('the Teaser read names the attribute each opportunity would lift, then HOWL with its logo', async () => {
   const logic = await import('../src/lib/teaser.js');
   const rubric = await import('../src/data/rubric.js');
   const o = { headline: 'H', summary: 'S', fullAssessmentWouldResolve: ['Q'], trustFindings: [], campaignCoherence: { level: 1 } };
@@ -175,11 +185,12 @@ test('the Teaser read carries the lite view: verdict, definition, HOWL standard 
   const doc = new JSDOM(server.renderToStaticMarkup(h(App.TeaserReport, { record, busy: false, progress: null, error: null, campaigns: [], baseline: null, onBack() {}, onRescore() {}, onRefresh() {}, onConvert() {}, onDelete() {} }))).window.document;
   const lite = doc.querySelector('[data-field="eco-lite"]');
   assert.ok(lite, 'in the Teaser read');
-  assert.ok(lite.textContent.includes('Most brands have more to say than the world has heard. HOWL exists to change that.'));
-  assert.ok(lite.textContent.includes('set by the full assessment'));
-  assert.equal(lite.querySelectorAll('.dc-eco-ladder li').length, 4);
-  assert.equal(lite.querySelector('.dc-eco-ladder li.is-ready'), null, 'no starting step without the gate');
-  assert.equal(lite.querySelector('h2').textContent, 'Earned creative opportunity');
+  assert.equal(lite.querySelector('h2').textContent, 'How earned creative could help');
+  assert.ok(lite.querySelector('.dc-eco-verdict').textContent.startsWith('Earned creative would help Acme most on'));
+  assert.equal(lite.querySelectorAll('.dc-eco-opps > li').length, 3);
+  assert.equal(lite.querySelector('.dc-eco-idea'), null, 'no idea starters in the teaser');
+  assert.equal(lite.querySelector('.dc-eco-howl img').getAttribute('src'), '/howl-logo.svg');
+  assert.equal(lite.querySelector('.dc-eco-ladder'), null, 'the ladder is gone');
 });
 
 // ── Report section 08, benchmark comparison (packet 14, v3.106.0) ──
@@ -652,7 +663,7 @@ test('consistency stats: per attribute min, median, max and spread, and the over
 
 test('scoring runs three passes in parallel and combines them in code; the check runs five and saves nothing', () => {
   const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  assert.ok(src.includes('const gathered = await gatherRuns(Array.from({ length: runsWanted }, () => startPass), { earlyFinish: !consistencyCheck });'), 'all passes start at once; the check never finishes early');
+  assert.ok(src.includes('const gathered = await gatherRuns(Array.from({ length: runsWanted }, (_, i) => () => startPass(i)), { earlyFinish: !consistencyCheck });'), 'all passes start at once; the check never finishes early');
   assert.ok(src.includes('callClaude(prompt, apiKey, null, [], 0, true, 12000, meta)'));
   assert.ok(src.includes('const combined = combineRuns(runs);'));
   assert.ok(src.includes("setConsistency({ ...consistencyStats(runs), failed: runs.filter(r => !r).length, requested: runsWanted, timing });\n        return;"), 'the check returns before anything is set or saved');
@@ -742,6 +753,92 @@ test('the full scoring schema no longer asks for gaps; confidence stays', () => 
   assert.ok(schema.length > 200);
   assert.ok(!schema.includes('"gaps"'));
   assert.ok(schema.includes('"confidence": "low|medium|high"'));
+});
+
+// ── Live progress from streamed passes (v3.114.0) ──
+
+const sse = (evts) => evts.map(e => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join('');
+
+test('stream parser: rebuilds the answer from deltas split anywhere, with usage and stop reason', async () => {
+  const c = await import('../src/lib/consensus.js');
+  const seen = [];
+  const p = c.createStreamParser(t => seen.push(t));
+  const raw = sse([
+    { type: 'message_start', message: { usage: { input_tokens: 9000, output_tokens: 1 } } },
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '{"AWAKE": ' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '{"score": 51}}' } },
+    { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 4800 } },
+    { type: 'message_stop' },
+  ]);
+  for (let i = 0; i < raw.length; i += 7) p.feed(raw.slice(i, i + 7));   // arbitrary chunk boundaries
+  const out = p.result();
+  assert.equal(out.text, '{"AWAKE": {"score": 51}}');
+  assert.equal(out.stopReason, 'end_turn');
+  assert.equal(out.usage.output_tokens, 4800);
+  assert.equal(out.usage.input_tokens, 9000);
+  assert.equal(seen.at(-1), out.text);
+  const e = c.createStreamParser(); e.feed(sse([{ type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } }]));
+  assert.equal(e.result().error, 'Overloaded');
+});
+
+test('pass progress is read from what the model has written: section, stage and attributes reached', async () => {
+  const c = await import('../src/lib/consensus.js');
+  assert.deepEqual(c.readPassProgress('').scored, []);
+  assert.equal(c.readPassProgress('').progress, 0);
+  const mid = c.readPassProgress('{"headline": "h", "trustFindings": [], "sustainabilityNarrative": {}, "footprint": {"verdict": "v"');
+  assert.equal(mid.group, 'footprint');
+  assert.deepEqual(mid.doneGroups, ['trust', 'principles']);
+  const late = c.readPassProgress('{"headline": "h", "campaignCoherence": {}, "AWAKE": { "score": 55, "findings": "x" }, "AWARE": {"score":4');
+  assert.deepEqual(late.scored, ['AWAKE', 'AWARE']);
+  assert.ok(late.doneGroups.includes('footprint'), 'a stage the model moved past counts as done even if it skipped it');
+  assert.ok(!late.doneGroups.includes('earned'), 'earned creative is written last');
+  assert.ok(late.progress > mid.progress && late.progress < 0.98);
+  assert.equal(c.readPassProgress('"findings": "AWAKE is strong"').scored.length, 0, 'an attribute named in prose is not a score');
+});
+
+test('the bar follows the pass that sets the pace, and the stage list follows it too', async () => {
+  const c = await import('../src/lib/consensus.js');
+  const p = (status, progress, group = 'attributes', doneGroups = []) => ({ status, progress, group, doneGroups });
+  assert.equal(c.overallProgress([p('running', 0.6), p('running', 0.4), p('running', 0.2)]), 0.4, 'second fastest until two are done');
+  assert.equal(c.overallProgress([p('done', 1), p('done', 1), p('running', 0.5)]), 0.5, 'then the one still running');
+  assert.equal(c.overallProgress([p('failed', 0), p('running', 0.7), p('running', 0.3)]), 0.3, 'a failed pass is ignored');
+  assert.equal(c.overallProgress([p('done', 1), p('done', 1), p('skipped', 0.6)]), 1);
+  const st = c.stageStates([p('running', 0.5, 'attributes', ['trust', 'principles', 'footprint', 'coherence']), p('running', 0.4, 'coherence', ['trust', 'principles', 'footprint']), p('running', 0.1, 'trust')]);
+  assert.deepEqual(st.map(s => s.state), ['done', 'done', 'done', 'current', 'waiting', 'waiting'], 'from the second-fastest pass');
+});
+
+test('the outcome line says how the passes ended, and the recap tallies the readouts honestly', async () => {
+  const c = await import('../src/lib/consensus.js');
+  assert.equal(c.outcomeLine({ early: true, timings: [{ status: 'used' }, { status: 'used' }, { status: 'skipped' }] }), 'The first two passes agreed within 3 points, so the third was not needed.');
+  assert.equal(c.outcomeLine({ early: false, timings: [{ status: 'used' }, { status: 'used' }, { status: 'used' }] }), 'The passes differed, so the Compass kept the middle score of the three.');
+  assert.equal(c.outcomeLine({ early: false, timings: [{ status: 'failed' }, { status: 'used' }, { status: 'used' }] }), 'One pass did not return. The other two were combined.');
+  const rows = c.evidenceRecap({
+    website: { content: 'site', techAudit: { scores: {} } },
+    social: { noSocialPresence: true },
+    aiReputation: { claudeManual: 'a', geminiManual: 'b', wikipediaContent: 'w' },
+    earnedMedia: {},
+  }, { websiteUrl: 'https://www.mkb.com/about', additionalProperties: [{ url: 'https://shop.mkb.com' }] });
+  assert.deepEqual(rows.map(r => r.detail), ['mkb.com \u00b7 2 properties \u00b7 technical audit', 'No social presence, confirmed', '2 of 5 AI engines \u00b7 Wikipedia', 'Not completed']);
+  assert.equal(rows[3].missing, true);
+  for (const r of rows) assert.ok(!/\u2014/.test(r.detail));
+});
+
+test('scoring streams through the proxy, and only when asked; the check does not stream', () => {
+  const api = readFileSync(new URL('../api/claude.js', import.meta.url), 'utf8');
+  assert.ok(api.includes('const streaming = !!stream && !useWebSearch;'));
+  assert.ok(api.includes("res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');"));
+  assert.ok(api.includes('await requireUser(req, res)'), 'streaming sits behind the same sign-in check');
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes("...(meta?.onText ? { stream: true } : {})"));
+  assert.ok(src.includes("const meta = consistencyCheck ? {} : { onText: (text) => { live[i].text = text; } };"));
+  assert.ok(src.includes('await new Promise(r => setTimeout(r, OUTCOME_HOLD_MS));'));
+});
+
+test('teaser read page 4: the rule between evidence items clears the next claim', () => {
+  const src = readFileSync(new URL('../src/lib/teaserReport.js', import.meta.url), 'utf8');
+  assert.ok(src.includes('cy += EVIDENCE_GAP + Math.round(13.5 * 0.75);'), 'the gap below a rule includes the claim cap height, since y is a baseline');
+  assert.ok(!src.includes('if (i < items.length - 1) { d.rule(x, cy, colW); cy += 10; }'));
 });
 
 test('Check consistency is for admins only', async () => {

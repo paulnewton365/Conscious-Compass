@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const EXPOSE = ['ComparisonPage', 'StayConsciousPage', 'AdminPage', 'SharedReportView', 'SavedAssessmentsPage', 'CompassResultsPage', 'WelcomePage', 'ReportPage', 'WebsiteAssessment', 'SocialMediaAssessment', 'AIReputationPage', 'EarnedMediaAssessment', 'ProgressSteps', 'canTeaser', 'UIKitPage', 'SetupPage', 'StepRail', 'Header', 'TeaserClientView', 'TeaserReport', 'TeaserPage', 'TrustLensPanel', 'ThesisPanel', 'ClientReportView', 'makeClientPayload', 'CampaignCoherencePanel', 'FootprintMap', 'Dialog', 'ChallengeModal', 'LanguageModal', 'ClientLinkModal', 'CLIENT_REPORT_SECTIONS', 'TeaserProgress', 'resumeStepFor', 'EcoBlocks', 'ReportBenchmarkSection', 'summaryPicks'];
+const EXPOSE = ['ComparisonPage', 'StayConsciousPage', 'AdminPage', 'SharedReportView', 'SavedAssessmentsPage', 'CompassResultsPage', 'WelcomePage', 'ReportPage', 'WebsiteAssessment', 'SocialMediaAssessment', 'AIReputationPage', 'EarnedMediaAssessment', 'ProgressSteps', 'canTeaser', 'UIKitPage', 'SetupPage', 'StepRail', 'Header', 'TeaserClientView', 'TeaserReport', 'TeaserPage', 'TrustLensPanel', 'ThesisPanel', 'ClientReportView', 'makeClientPayload', 'CampaignCoherencePanel', 'FootprintMap', 'Dialog', 'ChallengeModal', 'LanguageModal', 'ClientLinkModal', 'CLIENT_REPORT_SECTIONS', 'TeaserProgress', 'resumeStepFor', 'EcoSection', 'ReportBenchmarkSection', 'summaryPicks'];
 
 await build({
   entryPoints: [path.join(root, 'src/App.jsx')],

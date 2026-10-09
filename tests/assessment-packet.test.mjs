@@ -260,12 +260,27 @@ test('the issue takes the packet structure: tools, masthead, front page, section
   assert.deepEqual(top(page), top(design));
   assert.equal(page.querySelector('.dc-np-lead .dc-kicker').textContent, 'AI Visibility · Lead story');
   assert.equal(page.querySelectorAll('.dc-np-lead .dc-np-text.is-cols p').length, 2, 'paragraphs flow in the columns');
-  assert.equal(page.querySelector('.dc-np-lead figure'), null, 'no image, no figure and no placeholder');
+  const fill = page.querySelectorAll('.dc-np-lead figure');
+  assert.equal(fill.length, 1, 'no story image: the house image fills the column, and no placeholder');
+  assert.equal(fill[0].dataset.field, 'lead-fill');
+  assert.equal(fill[0].querySelector('img').getAttribute('src'), '/newsletter/lead-fill.jpg');
+  assert.equal(fill[0].querySelector('img').getAttribute('alt'), '', 'decorative');
+  assert.equal(page.querySelector('.dc-np-lead .slot'), null);
   assert.equal(page.querySelector('[data-value="average"]').textContent, '51');
   assert.match(page.querySelector('.dc-np-figure .dc-meta').textContent, /^Average score out of 100 · Based on 58 brands across 11 sectors$/);
   assert.deepEqual([...page.querySelectorAll('.dc-np-opp .dc-np-ord')].map(o => o.textContent), ['1', '2']);
   assert.equal(page.querySelectorAll('[style*="color"], [class*="text-["], .card, svg.lucide').length, 0, 'no chips, legacy classes or icons');
   assert.equal(page.querySelector('.dc-np-dateline time').getAttribute('datetime'), '2026-09-27T19:30:00.000Z');
+  await act(async () => root.unmount());
+});
+
+test('a lead story with its own image shows that, not the house image', async () => {
+  const issue = ISSUE(); issue.leadStory.image = { src: 'https://example.com/story.jpg', alt: 'Story', caption: 'Caption' };
+  const { container, root } = await mountIssue(issue);
+  const figs = [...container.querySelectorAll('.dc-np-lead figure')];
+  assert.equal(figs.length, 1);
+  assert.equal(figs[0].querySelector('img').getAttribute('src'), 'https://example.com/story.jpg');
+  assert.equal(container.querySelector('[data-field="lead-fill"]'), null);
   await act(async () => root.unmount());
 });
 
