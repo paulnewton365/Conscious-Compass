@@ -6,12 +6,42 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.120.0';
+const APP_VERSION = '3.123.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
-// The newsletter's house image for the lead column (v3.116.0).
-const NEWSLETTER_LEAD_FILL = '/newsletter/lead-fill.jpg';
+// The newsletter's house images for the lead column. One file per image in
+// public/newsletter/ (v3.123.0). That folder is uploaded to the repo once and
+// left out of the build ZIPs, so it never counts against the upload limit.
+// Each edition takes the next image, by issue number, wrapping after the last.
+// focus is the subject's position in the image, in %, for object-position.
+const NEWSLETTER_HOUSE_IMAGES = [
+  { src: '/newsletter/house-1.jpg', focus: [50, 36] },
+  { src: '/newsletter/house-2.jpg', focus: [34, 51] },
+  { src: '/newsletter/house-3.jpg', focus: [54, 38] },
+  { src: '/newsletter/house-4.jpg', focus: [47, 54] },
+  { src: '/newsletter/house-5.jpg', focus: [45, 48] },
+  { src: '/newsletter/house-6.jpg', focus: [50, 50] },
+  { src: '/newsletter/house-7.jpg', focus: [55, 48] },
+  { src: '/newsletter/house-8.jpg', focus: [50, 42] },
+];
+const houseImageIndex = (issueNumber) => {
+  const n = Math.floor(Number(issueNumber));
+  return Number.isFinite(n) && n > 0 ? (n - 1) % NEWSLETTER_HOUSE_IMAGES.length : 0;
+};
+
+// If an image is missing (the folder not uploaded yet), the frame stays empty
+// rather than showing a broken image.
+function NewsletterHouseImage({ issueNumber }) {
+  const index = houseImageIndex(issueNumber);
+  const { src, focus: [fx, fy] } = NEWSLETTER_HOUSE_IMAGES[index];
+  const [failed, setFailed] = useState(null);
+  return (
+    <figure className="dc-np-fig is-fill" data-field="lead-fill" data-edition={index + 1} aria-hidden="true">
+      {failed !== src && <img src={src} alt="" loading="lazy" style={{ objectPosition: `${fx}% ${fy}%` }} onError={() => setFailed(src)} />}
+    </figure>
+  );
+}
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
 import { SCORING_RUNS, SPREAD_FLAG, gatherRuns, combineRuns, consistencyStats, timingSummary, createStreamParser, readPassProgress, overallProgress, stageStates, outcomeLine, evidenceRecap, ATTRIBUTE_IDS, SCORING_STAGES } from './lib/consensus';
@@ -9369,7 +9399,7 @@ function LandscapeView({ results, industries, isAdmin = false }) {
 }
 
 // Brand Comparison Page
-function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyDeepLink, loading = false, loadError = null, onRetry }) {
+function ComparisonPage({ results, profile, initialTab = 'brands', copyDeepLink, loading = false, loadError = null, onRetry }) {
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [filterIndustry, setFilterIndustry] = useState('all');
   const [filterBusinessModel, setFilterBusinessModel] = useState('all');
@@ -9440,32 +9470,25 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
   return (
     <div className="min-h-screen bg-[#FBFAF7]">
       <div className="dc-wrap dc-page pt-8">
-        <div className="dc-pagehead">
-          <div className="min-w-0">
-            <h1 className="dc-h2 text-[#15171A]">Compare</h1>
-            <p className="dc-standfirst">Compare brands or explore the consciousness landscape</p>
+        {/* The Results and Saved page head (v3.121.0): one row of text
+            buttons beside the title. dc-btns had no styles, so the buttons
+            stacked; the Back button goes, as on those pages, since the nav
+            reaches every page. */}
+        <div className="dc-head-row" data-field="compare-head">
+          <div className="dc-page-head">
+            <h1 className="dc-display">Compare</h1>
+            <p className="dc-standfirst">Compare brands or explore the consciousness landscape.</p>
           </div>
-          <div className="dc-btns items-center flex-nowrap">
-            <button onClick={onBack} className="btn-secondary flex items-center gap-2 !text-[11px] !px-4 !py-3">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
+          <div className="dc-head-actions">
             {copyDeepLink && (
-              <button
-                onClick={() => copyDeepLink(
-                  viewMode === 'landscape' ? 'compare/landscape' : 'compare'
-                )}
-                className="btn-secondary flex items-center gap-2"
-                title="Copy link to this tab"
-              >
-                <Share2 className="w-4 h-4" /> Share Link
+              <button type="button" className="btn-secondary" title="Copy a link to this tab"
+                onClick={() => copyDeepLink(viewMode === 'landscape' ? 'compare/landscape' : 'compare')}>
+                Share link
               </button>
             )}
-            <button 
-              onClick={exportComparison} 
-              disabled={viewMode !== 'brands' || selectedBrands.length < 2}
-              className="btn-primary flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" /> Export Comparison
+            <button type="button" onClick={exportComparison} disabled={viewMode !== 'brands' || selectedBrands.length < 2} className="btn-primary"
+              title={viewMode !== 'brands' || selectedBrands.length < 2 ? 'Select at least two brands to export a comparison' : undefined}>
+              Export comparison
             </button>
           </div>
         </div>
@@ -12188,13 +12211,10 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                   <p>{ns.leadStory.whyItMatters}</p>
                 </aside>
               )}
-              {/* House image (v3.116.0): fills the lead column down to the foot
-                  of the rail when the story brings no image of its own. */}
-              {!ns.leadStory?.image?.src && (
-                <figure className="dc-np-fig is-fill" data-field="lead-fill" aria-hidden="true">
-                  <img src={NEWSLETTER_LEAD_FILL} alt="" loading="lazy" />
-                </figure>
-              )}
+              {/* House image (v3.116.0; rotates by edition since v3.122.0): fills
+                  the lead column down to the foot of the rail when the story
+                  brings no image of its own. */}
+              {!ns.leadStory?.image?.src && <NewsletterHouseImage issueNumber={ns.issueNumber} />}
             </article>
             {la?.summary && (
               <aside className="dc-np-rail" aria-labelledby="landscape-h">

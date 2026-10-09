@@ -944,6 +944,17 @@ test('the score adjustment is internal only: never in the Word file or a client 
   assert.ok(src.includes('{showInternal && campaignAffected.length > 0 && campaignStage && ('), 'the panel needs showInternal');
 });
 
+test('Compare: the page head is one row of text buttons, as on Results and Saved (v3.121.0)', () => {
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.ComparisonPage, { results: RESULTS, profile: { is_admin: true }, copyDeepLink() {}, onRetry() {} }))).window.document;
+  const head = doc.querySelector('[data-field="compare-head"]');
+  assert.ok(head.classList.contains('dc-head-row'));
+  assert.equal(head.querySelector('h1.dc-display').textContent, 'Compare');
+  const actions = head.querySelector('.dc-head-actions');
+  assert.deepEqual([...actions.querySelectorAll('button')].map(b => b.textContent), ['Share link', 'Export comparison']);
+  assert.equal(actions.querySelectorAll('svg').length, 0, 'text buttons, no icons');
+  assert.equal(doc.querySelector('.dc-btns'), null, 'the unstyled class is gone');
+});
+
 test('Check consistency is for admins only', async () => {
   const { ATTRIBUTES } = await import('../src/data/rubric.js');
   const scores = Object.fromEntries(ATTRIBUTES.map(a => [a.id, { score: 50, findings: 'f' }]));

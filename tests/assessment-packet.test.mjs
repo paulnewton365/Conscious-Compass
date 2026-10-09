@@ -2,7 +2,7 @@
 // Run: node tests/support/build-render-bundle.mjs && node --test tests/
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'https://compass.test/', pretendToBeVisual: true });
@@ -263,8 +263,8 @@ test('the issue takes the packet structure: tools, masthead, front page, section
   const fill = page.querySelectorAll('.dc-np-lead figure');
   assert.equal(fill.length, 1, 'no story image: the house image fills the column, and no placeholder');
   assert.equal(fill[0].dataset.field, 'lead-fill');
-  assert.equal(fill[0].querySelector('img').getAttribute('src'), '/newsletter/lead-fill.jpg');
-  assert.equal(fill[0].querySelector('img').getAttribute('alt'), '', 'decorative');
+  assert.equal(fill[0].getAttribute('aria-hidden'), 'true', 'decorative');
+  assert.equal(fill[0].dataset.edition, '5', 'issue 29 takes the fifth of eight images (v3.122.0)');
   assert.equal(page.querySelector('.dc-np-lead .slot'), null);
   assert.equal(page.querySelector('[data-value="average"]').textContent, '51');
   assert.match(page.querySelector('.dc-np-figure .dc-meta').textContent, /^Average score out of 100 · Based on 58 brands across 11 sectors$/);
@@ -272,6 +272,23 @@ test('the issue takes the packet structure: tools, masthead, front page, section
   assert.equal(page.querySelectorAll('[style*="color"], [class*="text-["], .card, svg.lucide').length, 0, 'no chips, legacy classes or icons');
   assert.equal(page.querySelector('.dc-np-dateline time').getAttribute('datetime'), '2026-09-27T19:30:00.000Z');
   await act(async () => root.unmount());
+});
+
+test('the house image moves on one with each edition and wraps after eight (v3.122.0; one file each since v3.123.0)', async () => {
+  for (const [issue, want] of [[1, '1'], [2, '2'], [8, '8'], [9, '1'], [30, '6'], [undefined, '1']]) {
+    const nl = ISSUE(); nl.issueNumber = issue;
+    const { container, root } = await mountIssue(nl);
+    assert.equal(container.querySelector('[data-field="lead-fill"]').dataset.edition, want, `issue ${issue}`);
+    assert.equal(container.querySelector('[data-field="lead-fill"] img').getAttribute('src'), `/newsletter/house-${want}.jpg`);
+    await act(async () => root.unmount());
+  }
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  for (let i = 1; i <= 8; i++) assert.ok(src.includes(`src: '/newsletter/house-${i}.jpg'`), `image ${i} is listed`);
+  // The folder is uploaded to the repo once and left out of build ZIPs (v3.123.0),
+  // so it is only checked where it exists.
+  if (existsSync(new URL('../public/newsletter/', import.meta.url))) {
+    for (let i = 1; i <= 8; i++) assert.ok(existsSync(new URL(`../public/newsletter/house-${i}.jpg`, import.meta.url)), `house-${i}.jpg`);
+  }
 });
 
 test('a lead story with its own image shows that, not the house image', async () => {
