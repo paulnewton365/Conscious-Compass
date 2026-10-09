@@ -330,3 +330,16 @@ test('v4.0 sweep: citations that split the JSON mid-string still parse; two-lett
   const setup = readFileSync(new URL('../docs/SUPABASE_SETUP.sql', import.meta.url), 'utf8');
   assert.ok(setup.includes('drop index if exists public.saved_assessments_brand_name_key;') && !/create unique index if not exists saved_assessments_brand_name_key/.test(setup));
 });
+
+test('v4.0.1: an example is kept only if its article names the brand and the work, and descriptions end on a whole sentence', async () => {
+  const mod = await import('../api/refresh-stay-conscious-newsletter.js');
+  const item = { brand: 'The Ordinary', title: 'The Markup Marche', url: 'https://www.inc.com/x/free-bus', searchTitle: "The Ordinary's latest marketing stunt: a free bus for Brooklynites" };
+  const page = (t) => async () => ({ ok: true, text: async () => `<html><body>${'filler '.repeat(120)}${t}</body></html>` });
+  assert.equal(await mod.verifyExample(item, { fetchImpl: page('The Ordinary launched a free bus in Brooklyn.') }), false, 'same brand, different campaign: dropped');
+  assert.equal(await mod.verifyExample(item, { fetchImpl: page('The Ordinary opened the Markup March\u00e9, a fake grocery store.') }), true, 'accents folded');
+  assert.equal(await mod.verifyExample(item, { fetchImpl: async () => ({ ok: false }) }), false, 'blocked page: the headline must pass instead');
+  assert.equal(await mod.verifyExample({ ...item, searchTitle: 'The Ordinary opens The Markup Marche pop-ups' }, { fetchImpl: async () => { throw new Error('timeout'); } }), true);
+  assert.equal(mod.wholeSentences('One two three. Four five six seven eight nine ten eleven twelve thirteen.', 40), 'One two three.');
+  assert.equal(mod.wholeSentences('Short enough.', 40), 'Short enough.');
+  assert.ok(mod.EARNED_CREATIVE_PROMPT.includes('Never use a link about a different campaign by the same brand.'));
+});

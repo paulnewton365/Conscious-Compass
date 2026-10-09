@@ -35,7 +35,7 @@ export function publicIssue(newsletter, brandNames = []) {
     earnedCreative: Array.isArray(newsletter.earnedCreative?.items) ? {
       items: newsletter.earnedCreative.items
         .filter(e => e && typeof e.url === 'string' && /^https:\/\//.test(e.url))
-        .map(e => ({ brand: str(e.brand, 80), agency: str(e.agency, 80), title: str(e.title, 140), what: str(e.what, 400), coverage: str(e.coverage, 300), outlet: str(e.outlet, 80), url: e.url.slice(0, 600) }))
+        .map(e => ({ brand: str(e.brand, 80), agency: str(e.agency, 80), title: str(e.title, 140), what: str(e.what, 600), coverage: str(e.coverage, 300), outlet: str(e.outlet, 80), url: e.url.slice(0, 600) }))
         .slice(0, 3),
     } : null,
     landscapeAnalysis: la && typeof la === 'object' ? {

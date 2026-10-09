@@ -31,7 +31,9 @@ Prefer work by brands with a purpose, climate, energy, health or social angle, b
 For each example, use only facts from the pages your searches returned. The link must be the article you read about it.
 
 Return JSON only, no prose before or after:
-{"examples":[{"brand":"The brand behind the work","agency":"The agency, or empty if none is named","title":"Name of the work, or a plain description","what":"What they did, in one or two sentences.","coverage":"What coverage it generated: who carried it and how widely, from the article. One sentence.","outlet":"The publication of the link","url":"https://..."}]}
+{"examples":[{"brand":"The brand behind the work","agency":"The agency, or empty if none is named","title":"Name of the work, or a plain description","what":"What they did. Two short sentences, under 45 words.","coverage":"What coverage it generated: who carried it and how widely, from the article. One sentence, under 30 words.","outlet":"The publication of the link","url":"https://..."}]}
+
+The url must be the article about THIS piece of work: a page that names the brand and the work itself. Never use a link about a different campaign by the same brand. If you cannot find such an article for an example, leave that example out.
 
 US English. No em dashes or en dashes.`;
 
@@ -45,17 +47,63 @@ const normUrl = (u) => {
   } catch { return null; }
 };
 
-// The links the web search actually returned, from result blocks and citations.
-export function searchedUrls(content = []) {
-  const urls = new Set();
+// The links the web search actually returned, from result blocks and
+// citations, with the headline the search gave each (v4.0.1).
+export function searchedResults(content = []) {
+  const found = new Map();
+  const add = (url, title) => { const n = normUrl(url); if (n) found.set(n, [found.get(n), title].filter(Boolean).join(' ')); };
   (content || []).forEach(b => {
-    if (b?.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach(r => { const n = normUrl(r?.url); if (n) urls.add(n); });
-    if (b?.type === 'text' && Array.isArray(b.citations)) b.citations.forEach(c => { const n = normUrl(c?.url); if (n) urls.add(n); });
+    if (b?.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach(r => add(r?.url, r?.title));
+    if (b?.type === 'text' && Array.isArray(b.citations)) b.citations.forEach(c => add(c?.url, [c?.title, c?.cited_text].filter(Boolean).join(' ')));
   });
-  return urls;
+  return found;
+}
+export const searchedUrls = (content = []) => new Set(searchedResults(content).keys());
+
+const tidy = (v) => String(v ?? '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim();
+const cleanText = (v, n) => tidy(v).slice(0, n);
+// Longer text is cut at the last whole sentence that fits, never mid-sentence
+// (v4.0.1: descriptions were being cut off mid-word).
+export function wholeSentences(v, n) {
+  const t = tidy(v);
+  if (t.length <= n) return t;
+  const head = t.slice(0, n);
+  const end = Math.max(head.lastIndexOf('. '), head.lastIndexOf('! '), head.lastIndexOf('? '));
+  if (end > 0) return head.slice(0, end + 1);
+  // One sentence longer than the limit: cut at a word and say so.
+  return `${head.slice(0, head.lastIndexOf(' ')).replace(/[,;:]$/, '')}\u2026`;
 }
 
-const cleanText = (v, n) => String(v ?? '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim().slice(0, n);
+// Does a page, or a search headline, name both the brand and the work? A link
+// about another campaign by the same brand names the brand but not the work.
+const fold = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'your', 'their', 'campaign', 'stunt', 'brand']);
+export function namesTheWork(text, { brand, title }) {
+  const t = fold(text);
+  const b = fold(brand).replace(/^the\s+/, '').trim();
+  if (!b || !t.includes(b)) return false;
+  const terms = [...new Set(fold(title).split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !STOP.has(w)))];
+  if (!terms.length) return true;
+  const hits = terms.filter(w => t.includes(w)).length;
+  return terms.length <= 2 ? hits === terms.length : hits >= Math.ceil((terms.length * 2) / 3);
+}
+
+// Opens the article and checks it; if the page cannot be read (paywall, block,
+// timeout), the search headline has to pass the same check instead.
+export async function verifyExample(item, { fetchImpl = fetch, timeoutMs = 8000 } = {}) {
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    const r = await fetchImpl(item.url, { signal: ctl.signal, redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ConsciousCompass/4.0; +https://conscious-compass.vercel.app)', Accept: 'text/html' } });
+    clearTimeout(timer);
+    if (r.ok) {
+      const html = await r.text();
+      const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
+      if (text.length > 500) return namesTheWork(text, item);
+    }
+  } catch { /* fall back to the search headline */ }
+  return namesTheWork(item.searchTitle || '', item);
+}
 
 export function earnedCreativeFromResponse(data) {
   const content = Array.isArray(data?.content) ? data.content : [];
@@ -66,15 +114,16 @@ export function earnedCreativeFromResponse(data) {
   if (!match) return [];
   let parsed;
   try { parsed = JSON.parse(match[0]); } catch { return []; }
-  const allowed = searchedUrls(content);
+  const results = searchedResults(content);
   const seen = new Set();
   return (Array.isArray(parsed?.examples) ? parsed.examples : [])
     .map(e => ({
       brand: cleanText(e?.brand, 80), agency: cleanText(e?.agency, 80), title: cleanText(e?.title, 140),
-      what: cleanText(e?.what, 400), coverage: cleanText(e?.coverage, 300), outlet: cleanText(e?.outlet, 80),
+      what: wholeSentences(e?.what, 420), coverage: wholeSentences(e?.coverage, 300), outlet: cleanText(e?.outlet, 80),
       url: String(e?.url || '').trim(),
+      searchTitle: results.get(normUrl(e?.url)) || '',
     }))
-    .filter(e => e.brand && e.what && e.url.startsWith('https://') && allowed.has(normUrl(e.url)))
+    .filter(e => e.brand && e.what && e.url.startsWith('https://') && results.has(normUrl(e.url)))
     .filter(e => { const k = e.brand.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
     .slice(0, 3);
 }
@@ -91,7 +140,10 @@ async function fetchEarnedCreative(anthropicKey) {
       }),
     });
     if (!r.ok) return null;
-    const items = earnedCreativeFromResponse(await r.json());
+    const candidates = earnedCreativeFromResponse(await r.json());
+    // Each link is opened and must name the brand and the work (v4.0.1).
+    const checks = await Promise.all(candidates.map(e => verifyExample(e)));
+    const items = candidates.filter((_, i) => checks[i]).map(({ searchTitle: _t, ...e }) => e);
     return items.length ? { items, generatedAt: new Date().toISOString() } : null;
   } catch {
     return null;   // the issue still goes out without the section
