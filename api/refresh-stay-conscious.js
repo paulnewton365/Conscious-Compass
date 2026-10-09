@@ -20,7 +20,7 @@ Each item:
 
 export default async function handler(req, res) {
   // Callers must be signed in (v3.100.1); see api/_auth.js.
-  if (!(await requireUser(req, res, { allowCron: true }))) return;
+  if (!(await requireUser(req, res, { admin: true, allowCron: true }))) return;   // admins or the scheduled run only (v3.124.2)
   // Vercel cron jobs call with GET; also allow POST for manual triggering
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });

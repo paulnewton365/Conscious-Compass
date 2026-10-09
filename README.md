@@ -4,7 +4,7 @@
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-3.124.1-blue)
+![Version](https://img.shields.io/badge/version-3.124.2-blue)
 ![Rubric](https://img.shields.io/badge/rubric-v2.9-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
 
@@ -519,6 +519,8 @@ Evidence is gathered automatically and in parallel: website pages, a social scan
 **Stage and sector calibration (v3.56, method 2.4).** Two rubric assumptions were breaking smaller and non-cleantech brands. Company stage is now a required field on the teaser, using Antenna's six-stage framework (`src/data/stages.js`): Startup, Scaleup, Market Leader, Multinational, Conglomerate, Global Brand. Each stage names what a company at it would not yet have (Glassdoor, employee advocacy, analyst recognition, Wikipedia, share of voice, impact reporting, candour about litigation), which then counts neither for nor against, and what to judge instead (founder visibility, named early customers, a findable entity, candour about what is unproven). Stage also steers which services are worth naming. Sector profiles (`src/data/sectorProfiles.js`) give Real Estate & Construction and Energy & Utilities their own audiences, proof, channels, weak indicators and tone; other sectors get guidance to read their own conventions rather than borrowing cleantech's. Both change interpretation only: attribute weights and the overall calculation are untouched, so baselines stay comparable. The export separates Maturity (the band the score falls into) from Stage (where the company is in its evolution).
 
 **The old stylesheet removed (v3.77).** The app had been carrying its entire pre-restyle stylesheet underneath the design system: 653 lines defining 52 of the same classes, including every button, and setting properties the new rules never reset. That is where the stray button colours, the header underlines and the alignment came from. It is gone; eight rules the system does not cover were carried forward. Nineteen of my own earlier patches were also removed, since they predated the system and were overriding it. The header is rebuilt to the export: a 64px shell, the `.dc-wordmark`, a text nav marked with `aria-current` rather than a class, and a Menu button below 900px.
+
+**Only admins can force a refresh (v3.124.2).** The Force refresh buttons were already shown to admins only, but the four weekly jobs behind them (the newsletter, the news items, the landscape analysis and the insights) accepted any signed-in user, so anyone could regenerate the issue for everyone by calling them directly. They now require an admin. The Sunday schedule still runs them, through the cron secret.
 
 **The HOWL site in the newsletter (v3.124.1).** The earned creative section now closes with a link to howlagency.com rather than antennagroup.com, on the page, in the Copy text and in the Word export.
 

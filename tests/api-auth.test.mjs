@@ -289,3 +289,23 @@ test('earned creative in the news: only examples whose link the web search retur
   const out = pub.publicIssue({ issueNumber: 1, earnedCreative: { items: [...items, { brand: 'Bad', url: 'javascript:alert(1)' }], generatedAt: 'x' } }, []);
   assert.deepEqual(out.earnedCreative.items.map(i => i.brand), ['Real One', 'Real Two'], 'the public issue carries the section, https links only');
 });
+
+test('the weekly refreshes: a signed-in non-admin gets 403 and nothing runs; the scheduled run still gets in (v3.124.2)', async () => {
+  const jobs = ['refresh-stay-conscious-newsletter.js', 'refresh-stay-conscious.js', 'refresh-landscape-analysis.js', 'refresh-insights-analysis.js'];
+  for (const f of jobs) {
+    const src = readFileSync(new URL(f, API), 'utf8');
+    assert.ok(src.includes('requireUser(req, res, { admin: true, allowCron: true })'), `${f} requires an admin or the schedule`);
+    const upstream = [];
+    globalThis.fetch = supabaseFetch({ user: { id: 'u1' }, admin: false, upstream });
+    const { default: handler } = await import(new URL(f, API).href);
+    const res = mockRes();
+    await handler({ method: 'POST', headers: { authorization: 'Bearer good-token' }, query: {} }, res);
+    assert.equal(res.code, 403, `${f}: non-admin refused`);
+    assert.ok(!upstream.some(u => u.includes('api.anthropic.com') || u.includes('stay_conscious') || u.includes('_cache')), `${f}: nothing read, generated or written`);
+  }
+  const { requireUser } = await import(new URL('_auth.js', API).href);
+  process.env.CRON_SECRET = 's3cret';
+  const ok = await requireUser({ headers: { authorization: 'Bearer s3cret' } }, mockRes(), { admin: true, allowCron: true });
+  assert.deepEqual(ok, { cron: true }, 'the Sunday schedule needs no admin');
+  delete process.env.CRON_SECRET;
+});
