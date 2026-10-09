@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '4.1.7';
+const APP_VERSION = '4.1.8';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -1495,7 +1495,7 @@ function ThesisPanel({ thesis, onRegenerate = null }) {
       {!thesis.present ? (
         <div className="dc-alert">No sustainability narrative is observable for this brand.</div>
       ) : (
-        <div className="dc-stack" style={{ gap: 'var(--cc-s-4)' }}>
+        <div className="dc-stack dc-principles-wrap">
           <div className="dc-principles-head">
             <h3 className="dc-h is-card">Six principles</h3>
             <div className="dc-principles-tally">

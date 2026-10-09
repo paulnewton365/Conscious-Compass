@@ -892,7 +892,7 @@ button { font: inherit; color: inherit; }
 
 /* ---------- Sustainability narrative ---------- */
 .dc-sus { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: var(--cc-s-12); align-items: start; }
-.dc-sus-read { font: var(--cc-w-regular) var(--cc-fs-card)/1.35 var(--cc-serif); color: var(--cc-ink); max-width: 30ch; }
+.dc-sus-read { font: var(--cc-w-regular) var(--cc-fs-card)/1.4 var(--cc-serif); margin: 0; color: var(--cc-ink); max-width: 30ch; }
 .dc-verdict { display: flex; flex-direction: column; gap: var(--cc-s-4); }
 .dc-verdict-name { font: var(--cc-w-regular) var(--cc-fs-num-m)/1 var(--cc-serif); color: var(--cc-rust-dark); }
 .dc-verdict p { font-size: 15px; line-height: 1.5; color: var(--cc-paper); }
@@ -902,6 +902,11 @@ button { font: inherit; color: inherit; }
 .dc-scales .seg i { height: 6px; background: var(--cc-dark-rule); }
 .dc-scales .seg i.on { background: var(--cc-paper); }
 .dc-scales strong { font-size: 15px; font-weight: var(--cc-w-semi); color: var(--cc-paper); }
+/* Breathing room (v4.1.8): the read ran straight into "Six principles", and
+   the rows sat tight. The six now start a clear step below the read and the
+   verdict, the heading has space above its rule, and each row is looser. */
+[data-thesis-panel] > .dc-sus + * { margin-top: var(--cc-s-12); }
+.dc-principles-wrap { gap: var(--cc-s-6); }
 .dc-principles-head { display: flex; justify-content: space-between; align-items: center; gap: var(--cc-s-6); flex-wrap: wrap; }
 .dc-principles-tally { display: flex; align-items: center; gap: var(--cc-s-5); font-size: var(--cc-fs-ui); color: var(--cc-muted); flex-wrap: wrap; }
 .dc-principles-tally b { color: var(--cc-ink); font: var(--cc-w-regular) 22px/1 var(--cc-serif); margin-right: 5px; }
@@ -911,10 +916,10 @@ button { font: inherit; color: inherit; }
 .dc-principles-strip i.is-surfacing { background: var(--cc-warn); }
 .dc-principles-strip i.is-buried { background: transparent; border: 1px dashed var(--cc-faint); height: 6px; }
 .dc-principles { list-style: none; padding: 0; margin: 0; border-top: var(--cc-border-strong); }
-.dc-principle { display: grid; grid-template-columns: 150px minmax(0,1fr); gap: var(--cc-s-6); padding: var(--cc-s-5) 0; border-bottom: var(--cc-border); align-items: baseline; }
+.dc-principle { display: grid; grid-template-columns: 150px minmax(0,1fr); gap: var(--cc-s-6); padding: var(--cc-s-6) 0; border-bottom: var(--cc-border); align-items: baseline; }
 /* v3.110.2: names in the serif at 22px, like the report's other list headings (campaign names, ladder steps); reasons at body size */
 .dc-principle h3 { margin: 0; font: var(--cc-w-regular) 22px/1.25 var(--cc-serif); color: var(--cc-ink); }
-.dc-principle p { margin: 6px 0 0; font-size: var(--cc-fs-body); line-height: 1.55; color: var(--cc-body); max-width: 72ch; }
+.dc-principle p { margin: 10px 0 0; font-size: var(--cc-fs-body); line-height: 1.55; color: var(--cc-body); max-width: 72ch; }
 .dc-status-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: var(--cc-r-1); font: var(--cc-w-semi) 12px/1 var(--cc-sans); }
 .dc-status-chip.is-evident, .dc-status-chip.is-breaking { background: var(--cc-pos); color: var(--cc-paper); }
 .dc-status-chip.is-surfacing { border: 1px solid var(--cc-warn); color: var(--cc-warn); }
@@ -925,7 +930,8 @@ button { font: inherit; color: inherit; }
 }
 @media (max-width: 720px) {
   .dc-fp-stats { width: 100%; }
-  .dc-principle { grid-template-columns: 1fr; gap: 8px; }
+  .dc-principle { grid-template-columns: 1fr; gap: 10px; }
+  [data-thesis-panel] > .dc-sus + * { margin-top: var(--cc-s-10); }
   }
 /* "Who drives it" is carried by the key dot; the column shows only when the table has the full width */
 .dc-fp-table th:nth-child(2), .dc-fp-table td:nth-child(2) { display: none; }
