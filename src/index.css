@@ -1071,8 +1071,8 @@ button { font: inherit; color: inherit; }
 .dc-np-ec-offer a { color: var(--cc-rust-text); text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 720px) { .dc-np-ec-offer { flex-direction: column; align-items: flex-start; } }
 /* Public newsletter: the Antenna mark in place of Back (v3.120.0) */
-.dc-np-brand { display: inline-flex; align-items: center; height: 40px; }
-.dc-np-brand img { height: 22px; width: auto; display: block; }
+.dc-np-brand { display: inline-flex; align-items: center; min-height: 40px; }
+.dc-np-brand img { height: 34px; width: auto; display: block; }   /* larger on the public issue (v4.1.7) */
 /* Full report: the Assessment Pack image row (v3.119.0) */
 .dc-pack-image { display: flex; flex-direction: column; gap: var(--cc-s-2); margin-top: var(--cc-s-5); padding-top: var(--cc-s-4); border-top: var(--cc-border); }
 .dc-pack-image .dc-inline { display: flex; align-items: center; gap: var(--cc-s-3); flex-wrap: wrap; }
@@ -1443,6 +1443,18 @@ button { font: inherit; color: inherit; }
 .dc-np-gloss dt { font-weight: 600; font-size: var(--cc-fs-ui); color: var(--cc-ink); }
 .dc-np-gloss dd { margin: 0; font-size: var(--cc-fs-ui); line-height: 1.45; color: var(--cc-body); }
 @media (max-width: 560px) { .dc-np-gloss-grid { grid-template-columns: minmax(0, 1fr); } }
+/* Phone masthead (v4.1.7): the logo and Share link stay on one row; the title
+   stacks on two lines, sized so "Conscious" (4.83em wide at this tracking)
+   fills the width, about 40% larger than on one line; the tagline and dateline
+   step down so the title leads. */
+@media (max-width: 560px) {
+  .dc-np-tools.is-public { flex-wrap: nowrap; }
+  .dc-np-tools.is-public .dc-head-actions { width: auto; flex: none; }
+  .dc-np-brand img { height: 28px; }
+  .dc-np-title { font-size: min(calc((100vw - 2 * var(--cc-gutter)) / 4.95), 96px); line-height: .95; letter-spacing: -.04em; padding: var(--cc-s-2) 0 var(--cc-s-4); }
+  .dc-np-tagline { font-size: 13.5px; }
+  .dc-np-dateline { font-size: 10px; letter-spacing: .06em; gap: 4px 14px; padding: 8px 0; }
+}
 .dc-np-why.is-sm p { font-size: var(--cc-fs-ui); color: var(--cc-muted); }
 .dc-np-figure { display: flex; flex-direction: column; gap: 4px; padding: var(--cc-s-2) 0 var(--cc-s-4); border-bottom: var(--cc-border); }
 .dc-np-num { font: var(--cc-w-medium) var(--cc-fs-num-l)/.9 'Inter', var(--cc-sans); color: var(--cc-ink); letter-spacing: -.04em; }   /* Inter Medium (v4.1.6) */

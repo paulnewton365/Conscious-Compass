@@ -4,7 +4,7 @@
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-4.1.6-blue)
+![Version](https://img.shields.io/badge/version-4.1.7-blue)
 ![Framework](https://img.shields.io/badge/framework-v2.13-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
 
@@ -583,6 +583,8 @@ Evidence is gathered automatically and in parallel: website pages, a social scan
 **Stage and sector calibration (v3.56, method 2.4).** Two rubric assumptions were breaking smaller and non-cleantech brands. Company stage is now a required field on the teaser, using Antenna's six-stage framework (`src/data/stages.js`): Startup, Scaleup, Market Leader, Multinational, Conglomerate, Global Brand. Each stage names what a company at it would not yet have (Glassdoor, employee advocacy, analyst recognition, Wikipedia, share of voice, impact reporting, candour about litigation), which then counts neither for nor against, and what to judge instead (founder visibility, named early customers, a findable entity, candour about what is unproven). Stage also steers which services are worth naming. Sector profiles (`src/data/sectorProfiles.js`) give Real Estate & Construction and Energy & Utilities their own audiences, proof, channels, weak indicators and tone; other sectors get guidance to read their own conventions rather than borrowing cleantech's. Both change interpretation only: attribute weights and the overall calculation are untouched, so baselines stay comparable. The export separates Maturity (the band the score falls into) from Stage (where the company is in its evolution).
 
 **The old stylesheet removed (v3.77).** The app had been carrying its entire pre-restyle stylesheet underneath the design system: 653 lines defining 52 of the same classes, including every button, and setting properties the new rules never reset. That is where the stray button colours, the header underlines and the alignment came from. It is gone; eight rules the system does not cover were carried forward. Nineteen of my own earlier patches were also removed, since they predated the system and were overriding it. The header is rebuilt to the export: a 64px shell, the `.dc-wordmark`, a text nav marked with `aria-current` rather than a class, and a Menu button below 900px.
+
+**A bigger logo and a phone masthead (v4.1.7).** The Antenna logo on the public newsletter grows from 22px to 34px tall (28px on a phone). On a phone, the logo and the Share link now stay on one row instead of the button dropping below the logo. The title stacks on two lines, sized so "Conscious" fills the width, about 40% larger than it could be on one line, with nothing ever wider than the screen. The tagline steps down from 17px to 13.5px and the dateline from 11.5px to 10px with tighter tracking, so the title leads. Desktop is unchanged apart from the logo.
 
 **The average score in Inter, and the hyphen fixed (v4.1.6).** The large average in Landscape insights moves from the Newsreader serif to Inter Medium, so it matches the headline beneath it without outweighing the masthead; Inter is now loaded in Regular, Medium and Bold. Setting the headlines in Inter also opened a wide gap around hyphens ("Third - Party"): the page sets fixed-width figures everywhere, and Inter applies that to the hyphen too. Everything in Inter on the newsletter now uses ordinary proportional figures, which closes the gap. Checked against the same Inter files Google Fonts serves.
 

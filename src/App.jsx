@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '4.1.6';
+const APP_VERSION = '4.1.7';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12218,7 +12218,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   // rules do the structure. Categories are plain text.
   return (
     <div className="dc-wrap dc-page dc-np" data-screen="stay-conscious">
-      <div className="dc-np-tools">
+      <div className={`dc-np-tools${publicView ? ' is-public' : ''}`}>
         {publicView
           ? <a href="https://antennagroup.com" className="dc-np-brand"><img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" style={{ filter: 'brightness(0)' }} /></a>
           : <button className="btn-secondary" type="button" onClick={onBack}>Back</button>}
