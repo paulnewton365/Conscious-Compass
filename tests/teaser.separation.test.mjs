@@ -562,7 +562,7 @@ test('the report toolbar is a row of text buttons, as the export has it', () => 
     assert.ok(!head.includes(t), `${t} still in the toolbar`));
   // v3.118.0: Copy full report removed; Check consistency's class is a template
   // (greyed once run), so five plain secondaries remain.
-  assert.equal((head.match(/className="btn-secondary"/g) || []).length, 4, 'Challenge, Language, Save, Client link');
+  assert.equal((head.match(/className="btn-secondary"/g) || []).length, 5, 'Challenge, Language, Save, Client link, Export DOCX (v3.119.0)');
   assert.ok(head.includes("className={`btn-secondary${checkDone ? ' is-spent' : ''}`}"), 'Check consistency greys once run');
   assert.equal((head.match(/className="btn-primary"/g) || []).length, 1, 'one primary');
 });
@@ -633,20 +633,21 @@ test('sections sit on the page stack, not on 80px margins of their own', () => {
 test('the report toolbar keeps every action wired', () => {
   // the welcome hero uses the same class, so anchor on the report's own row
   const at = app.indexOf('dc-head-actions', app.indexOf('<header className="dc-page-head">'));
-  const bar = app.slice(at, at + 2200);
+  const bar = app.slice(at, at + 3200);
   const wired = [
     ['Challenge', 'setShowChallenge(true)'],
     ['Language', 'setShowLanguage(true)'],
     ['Save', 'onClick={saveReport}'],   // v3.108.1: via saveReport, which shows Saving and Saved
     ['Client link', 'setShowClientLink(true)'],
     ['Export DOCX', 'onClick={generateDocx}'],
+    ['Download Assessment Pack', 'onClick={downloadPack}'],
   ];
   assert.ok(!bar.includes('Copy full report') && !app.includes('copyReportText'), 'Copy full report is gone (v3.118.0)');
   wired.forEach(([label, handler]) => {
     assert.ok(bar.includes(label), `${label} is present`);
     assert.ok(bar.includes(handler), `${label} is wired to ${handler}`);
   });
-  assert.ok(bar.includes('disabled={isGenerating}'), 'export reports its own progress');
+  assert.ok(bar.includes('disabled={isGenerating || packing}'), 'export reports its own progress');
 });
 
 // v3.97: the footprint and trust lens source-string checks above were replaced

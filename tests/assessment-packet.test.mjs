@@ -308,7 +308,7 @@ test('Share link copies the current issue and says so; Force refresh is admin-on
   const btn = (t) => [...container.querySelectorAll('.dc-np-tools button')].find(b => b.textContent === t);
   assert.equal(btn('Force refresh'), undefined, 'not for non-admins');
   await act(async () => { btn('Share link').click(); await new Promise(r => setTimeout(r, 0)); });
-  assert.match(copied, /#newsletter$/);
+  assert.match(copied, /\/newsletter$/, 'the public link, which needs no sign-in (v3.120.0)');
   assert.ok(btn('Link copied'), 'the label confirms it');
   await act(async () => root.unmount());
   let posted = 0;
@@ -338,4 +338,24 @@ test('the newsletter Word export uses the newspaper system and embeds the fonts'
   assert.ok(gen.includes("const SANS = 'Hanken Grotesk', SERIF = 'Newsreader';"));
   assert.ok(gen.includes('BorderStyle.DOUBLE'), 'double rules under the dateline and section heads');
   assert.ok(gen.includes('embedReportFonts(await Packer.toBlob(doc)'));
+});
+
+// ── The public issue (v3.120.0) ──────────────────────────────
+
+test('the public issue renders without the internal tools or story opportunities', async () => {
+  const issue = ISSUE(5);
+  delete issue.storyOpportunities;   // the server never sends them publicly
+  let asked = null;
+  globalThis.fetch = window.fetch = async (url) => { asked = String(url); return { ok: true, json: async () => ({ newsletter: issue, refreshedAt: '2026-09-27T19:30:00Z', public: true }) }; };
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.StayConsciousPage, { onBack() {}, isAdmin: true, publicView: true })); });
+  for (let i = 0; i < 5; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+  assert.equal(asked, '/api/stay-conscious-newsletter?public=1');
+  const labels = [...container.querySelectorAll('button')].map(b => b.textContent);
+  assert.deepEqual(labels, ['Share link'], 'no Back, DOCX, Copy or Force refresh, even for an admin');
+  assert.ok(container.querySelector('.dc-np-brand img'), 'the Antenna mark instead');
+  assert.ok(container.textContent.includes('Brand intelligence from Antenna Group'));
+  assert.ok(container.querySelector('.dc-np-lead') && container.querySelector('[data-value="average"]'));
+  await act(async () => root.unmount());
 });

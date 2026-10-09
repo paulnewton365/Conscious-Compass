@@ -157,12 +157,12 @@ export function buildSlideShapes(d, rels = {}) {
   // would otherwise wrap this to four lines and spill out of the plate.
   s.push(textBox('Compass score label', L.leftX + L.leftW - plateW + 28, plateY + 30.5, plateLabelW, 60,
     para(run('YOUR COMPASS', { size: 24, color: C.ground, tracking: 0.14 }), { lineHeight: 26.8 / 24, size: 24 }) +
-    para(run('TEASER SCORE', { size: 24, color: C.ground, tracking: 0.14 }), { lineHeight: 26.8 / 24, size: 24 }), { wrap: 'none' }));
+    para(run(d?.source === 'full' ? 'SCORE' : 'TEASER SCORE', { size: 24, color: C.ground, tracking: 0.14 }), { lineHeight: 26.8 / 24, size: 24 }), { wrap: 'none' }));
   s.push(textBox('Compass score value', L.leftX + L.leftW - 28 - plateNumW, plateY + 24.9, plateNumW, 86,
     para(run(num(d.overall), { size: 76, color: C.ground }) + run('/100', { size: 26, color: C.ground, bold: false }), { align: 'r', lineHeight: 1, size: 76 })));
 
   s.push(textBox('Measured by', L.leftX, L.footY, L.leftW, L.footH + 6,
-    para(run('INDICATIVE SCORES MEASURED BY THE CONSCIOUS COMPASS TEASER ASSESSMENT', { size: 15, color: C.dim, tracking: 0.18 }), { size: 15, lineHeight: 1.2 })));
+    para(run(d?.source === 'full' ? 'SCORES MEASURED BY THE CONSCIOUS COMPASS FULL ASSESSMENT' : 'INDICATIVE SCORES MEASURED BY THE CONSCIOUS COMPASS TEASER ASSESSMENT', { size: 15, color: C.dim, tracking: 0.18 }), { size: 15, lineHeight: 1.2 })));
 
   [['credibility', 'CREDIBILITY'], ['trust', 'TRUST'], ['reputation', 'REPUTATION'], ['authenticity', 'AUTHENTICITY']]
     .forEach(([key, label], i) => {
@@ -195,7 +195,7 @@ export function buildSlideShapes(d, rels = {}) {
   const bodyParas = [
     'Antenna Group\u2019s proprietary brand diagnostic assesses how well brands with purpose meet the world.',
     'It scores your credibility, trust, reputation, and influence, and pinpoints the marketing opportunities that will sharpen your impact.',
-    'The scores shown here come from our teaser assessment.',
+    d?.source === 'full' ? 'The scores shown here come from our full Conscious Compass assessment.' : 'The scores shown here come from our teaser assessment.',
     'Contact us for a deeper dive into your brand.',
   ];
   s.push(textBox('Body', L.rightX, 436.7, 711, 196.6,

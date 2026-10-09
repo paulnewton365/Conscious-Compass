@@ -220,7 +220,8 @@ export function drawCardFront(pdf, d, assets = {}) {
 
   // Footer line.
   const footY = tileTop + tileH + 0.12 + 8.5 * PX * 0.9;
-  tracked(pdf, 'MEASURED BY THE CONSCIOUS COMPASS TEASER ASSESSMENT', L, footY,
+  // The Assessment Pack's card names the full assessment (v3.119.0).
+  tracked(pdf, d?.source === 'full' ? 'MEASURED BY THE CONSCIOUS COMPASS FULL ASSESSMENT' : 'MEASURED BY THE CONSCIOUS COMPASS TEASER ASSESSMENT', L, footY,
     { size: 8.5 * PX * 72, spacing: 0.18 * 8.5 * PX, color: C.dim });
 
   // Lime call to action.

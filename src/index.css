@@ -1059,6 +1059,12 @@ button { font: inherit; color: inherit; }
 .dc-listrow > *:last-child { justify-self: end; }
 .dc-listrow-t { font: var(--cc-w-semi) var(--cc-fs-lead)/1.25 var(--cc-sans); color: var(--cc-ink); }
 .dc-listrow-m { font-size: var(--cc-fs-meta); color: var(--cc-muted); margin-top: 2px; }
+/* Public newsletter: the Antenna mark in place of Back (v3.120.0) */
+.dc-np-brand { display: inline-flex; align-items: center; height: 40px; }
+.dc-np-brand img { height: 22px; width: auto; display: block; }
+/* Full report: the Assessment Pack image row (v3.119.0) */
+.dc-pack-image { display: flex; flex-direction: column; gap: var(--cc-s-2); margin-top: var(--cc-s-5); padding-top: var(--cc-s-4); border-top: var(--cc-border); }
+.dc-pack-image .dc-inline { display: flex; align-items: center; gap: var(--cc-s-3); flex-wrap: wrap; }
 /* Saved page: earlier assessments of a brand, shown under its latest (v3.118.0) */
 .dc-listrow-toggle { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--cc-rule); text-underline-offset: 4px; }
 .dc-listrow-toggle:hover { text-decoration-color: var(--cc-ink); }

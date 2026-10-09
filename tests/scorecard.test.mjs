@@ -513,3 +513,43 @@ test('brand names are made safe for a file system without being mangled', () => 
   assert.equal(PACK_FILES.card('Acme'), 'Acme Teaser Card 5x7 bleed.pdf');
   assert.equal(PACK_FILES.slide('Acme'), 'Acme Teaser Slide.pptx');
 });
+
+// ── Assessment Pack: the full report's pack (v3.119.0) ──
+
+import { exportAssessmentPack, assessmentPackReady, assessmentCardData, ASSESSMENT_PACK_FILES } from '../src/lib/scorecard.js';
+
+test('the Assessment Pack holds the full report, the card and the slide, and the slide says full assessment', async () => {
+  const png = 'data:image/png;base64,' + readFileSync(new URL('../public/scorecard/qr-lets-chat.png', import.meta.url)).toString('base64');
+  const media = { hero: png, heroRatio: 1.6, qr: png, antenna: png, howl: png };
+  const assets = { qr: png, antennaA: png, antennaARatio: 1.3, hero: png, heroRatio: 1.6, spaceMono: null };
+  const d = assessmentCardData({ brand: 'Acme & Sons', sectorName: 'Energy & Utilities', baselineAvg: 54, overall: 52, lenses: { credibility: 50, trust: 52, reputation: 48, authenticity: 52 }, heroImage: png });
+  assert.equal(d.source, 'full');
+  const reportBlob = new Blob([Buffer.from('PK fake docx')]);
+  let savedBlob = null, savedName = null;
+  const { included, filename } = await exportAssessmentPack({ brand: 'Acme & Sons', reportBlob, d, includeScorecard: true }, {
+    jsPDF, JSZip, saveAs: (b, n) => { savedBlob = b; savedName = n; }, assets, media,
+    backArtwork: 'data:image/png;base64,' + readFileSync(new URL('../public/scorecard/card-back.png', import.meta.url)).toString('base64'),
+  });
+  assert.equal(filename, 'Acme & Sons Assessment Pack.zip');
+  assert.equal(savedName, filename);
+  assert.deepEqual(included, ['report', 'card', 'slide']);
+  const zip = await JSZip.loadAsync(Buffer.from(await savedBlob.arrayBuffer()));
+  assert.deepEqual(Object.keys(zip.files).filter(n => !zip.files[n].dir).sort(), [
+    'Acme & Sons Assessment Card 5x7 bleed.pdf', 'Acme & Sons Assessment Slide.pptx', 'Acme & Sons Full Assessment.docx']);
+  const slide = await JSZip.loadAsync(await zip.file('Acme & Sons Assessment Slide.pptx').async('nodebuffer'));
+  const xml = await slide.file('ppt/slides/slide1.xml').async('string');
+  assert.ok(xml.includes('from our full Conscious Compass assessment') && !/teaser/i.test(xml), 'no teaser wording anywhere on the slide');
+  const card = await zip.file('Acme & Sons Assessment Card 5x7 bleed.pdf').async('string');
+  assert.ok(!/TEASER/.test(card), 'nor on the card');
+});
+
+test('without an image or a sector average, the Assessment Pack is the report alone and says what is missing', async () => {
+  assert.deepEqual(assessmentPackReady({ overall: 52, heroImage: null, baselineAvg: null }).missing, ['a brand image', 'an industry average']);
+  assert.equal(assessmentPackReady({ overall: 52, heroImage: 'x', baselineAvg: 54 }).ready, true);
+  let savedBlob = null;
+  const { included } = await exportAssessmentPack({ brand: 'Acme', reportBlob: new Blob(['x']), d: {}, includeScorecard: false }, { jsPDF, JSZip, saveAs: (b) => { savedBlob = b; } });
+  assert.deepEqual(included, ['report']);
+  const zip = await JSZip.loadAsync(Buffer.from(await savedBlob.arrayBuffer()));
+  assert.deepEqual(Object.keys(zip.files), ['Acme Full Assessment.docx']);
+  assert.equal(ASSESSMENT_PACK_FILES.card('Acme'), 'Acme Assessment Card 5x7 bleed.pdf');
+});

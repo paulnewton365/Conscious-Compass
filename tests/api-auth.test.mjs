@@ -41,8 +41,11 @@ test('every endpoint imports the caller check and calls it first', () => {
     const src = readFileSync(new URL(f, API), 'utf8');
     assert.ok(src.includes("import { requireUser } from './_auth.js';"), f);
     const body = src.slice(src.indexOf('export default async function handler'));
-    const firstStatement = body.split('\n').slice(1).find(l => l.trim() && !l.trim().startsWith('//'));
-    assert.match(firstStatement, /requireUser\(req, res/, `${f}: the check runs before anything else`);
+    const statements = body.split('\n').slice(1).filter(l => l.trim() && !l.trim().startsWith('//'));
+    // The one documented exception (v3.120.0): the public newsletter issue,
+    // which sends only publicIssue(). Everything else checks the caller first.
+    const first = f === 'stay-conscious-newsletter.js' && statements[0].includes('if (isPublicRequest(req)) return sendPublicIssue(req, res);') ? statements[1] : statements[0];
+    assert.match(first, /requireUser\(req, res/, `${f}: the check runs before anything else`);
   }
 });
 
@@ -226,4 +229,34 @@ test('the report export uses the template type and palette, and embeds the fonts
   assert.ok(gen.includes("background: { color: 'FBFAF7' }"), 'paper ground');
   assert.ok(gen.includes('embedReportFonts(await Packer.toBlob(doc)'), 'fonts embedded before saving');
   for (const old of ["'1A1A1A'", "'E53935'", "'059669'", "'E0DED9'"]) assert.ok(!gen.includes(old), `old colour ${old} gone`);
+});
+
+test('the public newsletter issue: no sign-in, allowlisted sections only, no story opportunities, no assessed brand names', async () => {
+  const mod = await import('../api/stay-conscious-newsletter.js');
+  const nl = { issueNumber: 30, weekOf: 'October 4, 2026', secretField: 'SENTINEL_FIELD',
+    leadStory: { category: 'AI Visibility', headline: 'H', insight: 'I', whyItMatters: 'W', internal: 'SENTINEL_LEAD' },
+    intelligenceItems: [{ category: 'c', headline: 'h', insight: 'i', whyItMatters: 'w' }],
+    landscapeAnalysis: { brandCount: 52, sectorCount: 11, averageScore: 50, headline: 'Brands skipped the conviction.', summary: 'Most brands built the infrastructure.\n\nAcme Water leads the water sector.', insights: 'ACME WATER is the outlier.\n\nSentient lags everywhere.' },
+    storyOpportunities: [{ headline: 'SENTINEL_STORY', body: 'Acme Water' }] };
+  const out = mod.publicIssue(nl, ['Acme Water', 'MKB']);
+  const json = JSON.stringify(out);
+  for (const t of ['SENTINEL_FIELD', 'SENTINEL_LEAD', 'SENTINEL_STORY', 'storyOpportunities', 'Acme Water', 'ACME WATER']) assert.ok(!json.includes(t), t);
+  assert.equal(out.landscapeAnalysis.summary, 'Most brands built the infrastructure.');
+  assert.equal(out.landscapeAnalysis.insights, 'Sentient lags everywhere.');
+  assert.equal(out.landscapeAnalysis.averageScore, 50);
+  assert.equal(out.leadStory.headline, 'H');
+  // the handler: GET ?public=1 is served without a session, and with no brand list nothing is sent
+  const calls = [];
+  globalThis.fetch = async (url) => { calls.push(String(url)); return String(url).includes('compass_results')
+    ? { ok: true, json: async () => [{ brand_name: 'Acme Water' }] }
+    : { ok: true, json: async () => [{ newsletter: nl, refreshed_at: '2026-10-04T23:30:00Z' }] }; };
+  const res = { statusCode: 0, body: null, headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  await mod.default({ method: 'GET', query: { public: '1' }, headers: {} }, res);
+  assert.equal(res.statusCode, 200);
+  assert.ok(!JSON.stringify(res.body).includes('SENTINEL_STORY') && !JSON.stringify(res.body).includes('Acme Water'));
+  assert.ok(!calls.some(u => u.includes('/auth/v1/user')), 'no session check on the public issue');
+  globalThis.fetch = async (url) => (String(url).includes('compass_results') ? { ok: false, status: 500, json: async () => ({}) } : { ok: true, json: async () => [{ newsletter: nl }] });
+  const res2 = { ...res, statusCode: 0, body: null };
+  await mod.default({ method: 'GET', query: { public: '1' }, headers: {} }, res2);
+  assert.equal(res2.statusCode, 502, 'without the brand list the issue is withheld, not sent unchecked');
 });

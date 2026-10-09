@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers } from './data/rubric';
+import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.118.0';
+const APP_VERSION = '3.120.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -57,7 +57,7 @@ import {
   fetchCampaignScores
 } from './lib/supabase';
 import { buildCampaignWorkbook, buildCampaignRows, campaignSummary } from './lib/teaserExport';
-import { scorecardData, scorecardReady, exportTeaserPack } from './lib/scorecard';
+import { scorecardData, scorecardReady, exportTeaserPack, assessmentPackReady, assessmentCardData, exportAssessmentPack } from './lib/scorecard';
 import { loadJSZip } from './lib/lazyZip';
 import { embedReportFonts } from './lib/docxFonts';
 
@@ -5310,7 +5310,8 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
 
                 {/* Sits in the grid's next cell, beside the last attribute,
                     rather than spanning a row of its own (v3.118.0). */}
-                {campaignAffected.length > 0 && campaignStage && (
+                {/* Internal only, by construction (v3.120.0): never in a client view. */}
+                {showInternal && campaignAffected.length > 0 && campaignStage && (
                   <div className="dc-block dc-attr-adj" data-field="score-adjustment">
                     <h4 className="dc-h is-card">Score adjustment</h4>
                     <p className="text-[12px] text-[#5B6068]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DEDAD2' }}>
@@ -5460,6 +5461,10 @@ function ReportBenchmarkSection({ project, scores, overall, benchmark, benchmark
 function ReportPage({ project, setProject, scores, setScores, assessments, setAssessments, apiKey, onSave, onPrev, profile, compassResults = [], savedBenchmark = null }) {
   // Save shows its state (v3.108.1): Saving while it runs, then Saved.
   const [saveState, setSaveState] = useState('idle');
+  // Assessment Pack (v3.119.0): declared up here, before any early return.
+  const heroRef = useRef(null);
+  const [heroError, setHeroError] = useState(null);
+  const [packing, setPacking] = useState(false);
   const saveReport = async () => {
     if (saveState === 'saving') return;
     setSaveState('saving');
@@ -6571,12 +6576,14 @@ Return the complete revised readout as prose. No preamble, no notes about what y
 
 
 
-  const generateDocx = async () => {
+  // save: false hands the file back instead of downloading it, for the
+  // Assessment Pack (v3.119.0). A click passes an event, which reads as save.
+  const generateDocx = async ({ save = true } = {}) => {
     setIsGenerating(true);
     try {
       // Loaded on demand (v3.101.0): the Word and screenshot libraries are only
       // needed here, so they stay out of the bundle every visitor downloads.
-      const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer: DocxFooter, Header: DocxHeader, PageNumber, NumberFormat } = await import('docx');
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, ShadingType, ImageRun, LevelFormat, Footer: DocxFooter, Header: DocxHeader, PageNumber, HeightRule, TabStopType } = await import('docx');
       const { default: html2canvas } = await import('html2canvas');
       // Palette and type from the restyled template (v3.102.0): Hanken Grotesk
       // for text, Newsreader for headings and the score, the app's ink, body,
@@ -6640,9 +6647,9 @@ Return the complete revised readout as prose. No preamble, no notes about what y
         });
         const ptStr = pts.map(p => `${p.x},${p.y}`).join(' ');
         const rings = [...RING_PATHS].reverse().map((p, i) =>
-          `<path d="${shift(p)}" fill="${i % 2 === 0 ? '#DEDAD2' : '#FBFAF7'}" stroke="none"/>`).join('');
+          `<path d="${shift(p)}" fill="#FBFAF7" stroke="none" data-i="${i}"/>`).join('');
         const gridPath = RING_PATHS.map(p => shift(p)).join('');
-        const grid = `<path d="${gridPath}" stroke="#15171A" stroke-width="1.5" fill="none"/>`;
+        const grid = `<path d="${gridPath}" stroke="#DEDAD2" stroke-width="1.5" fill="none"/>`;
         const axes = data.map((_, i) => {
           const a = (i * 2 * Math.PI / data.length) - Math.PI / 2;
           const x2 = (226 + 225 * Math.cos(a) + 100).toFixed(2);
@@ -6653,35 +6660,38 @@ Return the complete revised readout as prose. No preamble, no notes about what y
         const scoreLabels = pts.map((pt, i) => {
           const a = (i * 2 * Math.PI / data.length) - Math.PI / 2;
           const sx = (+pt.x + 18 * Math.cos(a)).toFixed(2), sy = (+pt.y + 18 * Math.sin(a)).toFixed(2);
-          return `<text x="${sx}" y="${sy}" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700" fill="#C23B22">${data[i].value}</text>`;
+          return `<text x="${sx}" y="${sy}" text-anchor="middle" dominant-baseline="middle" font-family="Hanken Grotesk,Arial,sans-serif" font-size="12" font-weight="700" fill="#C23B22">${data[i].value}</text>`;
         }).join('');
         const attrLabels = data.map((item, i) => {
           const p = calcLabel(i, data.length, 260);
-          return `<text x="${p.x.toFixed(2)}" y="${(p.y + p.dy).toFixed(2)}" text-anchor="${p.ta}" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="500" fill="#15171A">${item.name}</text>`;
+          return `<text x="${p.x.toFixed(2)}" y="${(p.y + p.dy).toFixed(2)}" text-anchor="${p.ta}" font-family="Hanken Grotesk,Arial,sans-serif" font-size="14" font-weight="500" fill="#15171A">${item.name}</text>`;
         }).join('');
         const cx = (226 + 100).toFixed(2), cy = (226 + 50).toFixed(2);
-        const centre = `<circle cx="${cx}" cy="${cy}" r="36" fill="#C23B22"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="26" font-weight="700" fill="#15171A">${overall}</text>`;
+        const centre = `<circle cx="${cx}" cy="${cy}" r="40" fill="#FBFAF7" stroke="#15171A" stroke-opacity="0.15"/><text x="${cx}" y="${+cy - 4}" text-anchor="middle" dominant-baseline="middle" font-family="Newsreader,Georgia,serif" font-size="38" fill="#15171A">${overall}</text><text x="${cx}" y="${+cy + 24}" text-anchor="middle" dominant-baseline="middle" font-family="Hanken Grotesk,Arial,sans-serif" font-size="10" font-weight="600" letter-spacing="1.2" fill="#5B6068">OVERALL</text>`;
         // viewBox starts at 0,0 — total size 652x552
         return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 652 552" width="652" height="552"><rect width="652" height="552" fill="#FBFAF7"/>${rings}<polygon points="${ptStr}" fill="#D9442A" fill-opacity="0.14" stroke="#D9442A" stroke-width="1.5"/>${grid}${axes}${dots}${scoreLabels}${attrLabels}${centre}</svg>`;
       };
 
       // ── Maturity bar SVG ───────────────────────────────────────
       const buildMaturitySvg = () => {
-        const w = 800, h = 80, bh = 16, by = 10, sw = w / MATURITY_STAGES.length;
-        const rects = MATURITY_STAGES.map((s, i) => {
-          const x = i * sw, isCurr = s.id === stage.id;
-          return `<rect x="${x}" y="${by}" width="${sw}" height="${bh}" fill="${s.color}" opacity="${isCurr ? '1' : '0.28'}" rx="2"/>
-                  <text x="${x+sw/2}" y="${by+bh+18}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="${isCurr ? 12 : 10}" font-weight="${isCurr ? 700 : 400}" fill="${isCurr ? s.color : '#5B6068'}">${s.name}</text>`;
+        // In the report palette (v3.119.0): track segments, the current band in
+        // ink, the score as a rust marker. The rainbow stage colors are retired.
+        const w = 800, h = 80, bh = 10, by = 14, gap = 4, sw = w / MATURITY_STAGES.length;
+        const rects = MATURITY_STAGES.map((st, i) => {
+          const x = i * sw, isCurr = st.id === stage.id;
+          return `<rect x="${x + (i ? gap / 2 : 0)}" y="${by}" width="${sw - gap}" height="${bh}" fill="${isCurr ? '#15171A' : '#E7E3DB'}"/>
+                  <text x="${x + sw / 2}" y="${by + bh + 22}" text-anchor="middle" font-family="Hanken Grotesk,Arial,sans-serif" font-size="12" font-weight="${isCurr ? 700 : 400}" fill="${isCurr ? '#15171A' : '#5B6068'}">${st.name}</text>
+                  <text x="${x + sw / 2}" y="${by + bh + 40}" text-anchor="middle" font-family="Hanken Grotesk,Arial,sans-serif" font-size="10" fill="#8A8E95">${st.min}\u2013${st.max}</text>`;
         }).join('');
-        const mx = (overall / 100) * w;
-        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="white"/>${rects}<circle cx="${mx}" cy="${by+bh/2}" r="10" fill="${stage.color}" stroke="white" stroke-width="3"/><text x="${mx}" y="${by+bh/2+1}" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="9" font-weight="700" fill="white">${overall}</text></svg>`;
+        const mx = Math.max(6, Math.min(w - 6, (overall / 100) * w));
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="#FBFAF7"/>${rects}<rect x="${mx - 2}" y="${by - 8}" width="4" height="${bh + 16}" fill="#D9442A"/></svg>`;
       };
 
-      // ── Logo ───────────────────────────────────────────────────
-      const fetchLogo = async () => {
+      // HOWL wordmark for the earned creative section (v3.119.0).
+      const fetchHowl = async () => {
         try {
-          const r = await fetch('https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg');
-          return await svgToPng(await r.text(), 200, 56);
+          const r = await fetch('/howl-logo.svg');
+          return await svgToPng(await r.text(), 348, 104);
         } catch { return null; }
       };
 
@@ -6724,15 +6734,17 @@ ${content.slice(0, 8000)}`;
       };
 
       // Run summarisation and image generation in parallel
-      const [logoB64, radarB64, matB64, aiSummary, earnedSummary, bmPositionImg, bmSpreadImg] = await Promise.all([
-        fetchLogo(),
+      const [logoB64, radarB64, matB64, aiSummary, earnedSummary, bmPositionImg, bmSpreadImg, howlB64] = await Promise.all([
+        Promise.resolve(null),
         svgToPng(buildOctagonSvg(), 652, 552),
         svgToPng(buildMaturitySvg(), 800, 80),
         summariseSection(assessments.aiReputation?.content || '', 'AI Reputation and Discoverability'),
         summariseSection(assessments.earnedMedia?.content || assessments.earnedMedia?.autoAssessContent || '', 'Earned Media'),
         captureNode(benchmarkPositionRef, 540),
         captureNode(benchmarkSpreadRef, 540),
+        fetchHowl(),
       ]);
+      void logoB64;   // no logo block: the running header names Antenna, as the teaser read does
 
       const topRecs = recommendations.slice(0, 6);
 
@@ -6815,37 +6827,8 @@ ${content.slice(0, 8000)}`;
       // grey on white, between hairline rules.
       const th = (text, w, align = AlignmentType.LEFT) => cell([new TextRun({ text: String(text).toUpperCase(), bold: true, size: 16, font: SANS, color: MUTED, characterSpacing: 12 })], w, 'FFFFFF', align);
 
-      // ── Attribute score table ──────────────────────────────────
-      const attrTable = new Table({
-        width: { size: 9360, type: WidthType.DXA },
-        columnWidths: [4860, 1560, 2940],
-        rows: [
-          new TableRow({ tableHeader: true, children: [
-            th('Attribute', 4860),
-            th('Score', 1560, AlignmentType.CENTER),
-            th('Maturity', 2940),
-          ]}),
-          ...ATTRIBUTES.map((attr, i) => {
-            const sc = scores[attr.id]?.score || 0;
-            const as = getMaturityStage(sc);
-            const bg = i % 2 === 0 ? 'FFFFFF' : 'FFFFFF';
-            return new TableRow({ children: [
-              cell([new TextRun({ text: `${attr.name} (${attr.fullName})`, size: 18, font: SANS })], 4860, bg),
-              cell([new TextRun({ text: `${sc}/100`, bold: true, size: 18, font: SANS, color: INK })], 1560, bg, AlignmentType.CENTER),
-              cell([new TextRun({ text: as.name, size: 18, font: SANS, color: bandHex(as.name) })], 2940, bg),
-            ]});
-          }),
-        ],
-      });
-
       // ── Heading paragraph helper ───────────────────────────────
       const LINE_SPACING = { line: 276, lineRule: 'auto' }; // 1.15 line spacing
-      const h2 = (text, pageBreak = false) => new Paragraph({
-        heading: HeadingLevel.HEADING_2,
-        pageBreakBefore: pageBreak,
-        spacing: { before: 240, after: 80, ...LINE_SPACING },
-        children: [new TextRun({ text })],
-      });
       const h3 = (text) => new Paragraph({
         heading: HeadingLevel.HEADING_3,
         spacing: { before: 160, after: 60, ...LINE_SPACING },
@@ -6856,47 +6839,44 @@ ${content.slice(0, 8000)}`;
         children: [new TextRun({ text: clean(text), size: 20, font: SANS })],
       });
 
+      // ── Teaser read system (v3.119.0) ──────────────────────────
+      // The full report now takes the teaser read's look: tracked small-caps
+      // eyebrows, Newsreader for names and figures, thin bars, hairline rules,
+      // ink and rust on paper. Content width is 10080 DXA (7in).
+      const CW = 10080, TRACK = 'E7E3DB', FAINT = '8A8E95';
+      const NONE = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+      const noBorders = { top: NONE, bottom: NONE, left: NONE, right: NONE, insideHorizontal: NONE, insideVertical: NONE };
+      const cellNone = { top: NONE, bottom: NONE, left: NONE, right: NONE };
+      const hair = (color = RULE, size = 4) => ({ style: BorderStyle.SINGLE, size, color, space: 0 });
+      const eyebrow = (text, color = MUTED, { before = 0, after = 60 } = {}) => new Paragraph({ keepNext: true, spacing: { before, after },
+        children: [new TextRun({ text: String(text).toUpperCase(), bold: true, size: 15, font: SANS, color, characterSpacing: 30 })] });
+      // A bar as a one-row table: filled share, then track.
+      const bar = (value, width, fill = INK, height = 70) => {
+        const v = Math.max(0, Math.min(100, Number(value) || 0));
+        const w1 = Math.round((width * v) / 100), w2 = width - w1;
+        const c = (w, f) => new TableCell({ width: { size: w, type: WidthType.DXA }, borders: cellNone, shading: { fill: f, type: ShadingType.CLEAR, color: 'auto' },
+          margins: { top: 0, bottom: 0, left: 0, right: 0 }, children: [new Paragraph({ spacing: { before: 0, after: 0, line: 20, lineRule: 'exact' }, children: [new TextRun({ text: '', size: 2 })] })] });
+        const parts = [[w1, fill], [w2, TRACK]].filter(([w]) => w > 0);
+        return new Table({ width: { size: width, type: WidthType.DXA }, columnWidths: parts.map(([w]) => w),
+          borders: noBorders, rows: [new TableRow({ height: { value: height, rule: HeightRule.EXACT }, children: parts.map(([w, f]) => c(w, f)) })] });
+      };
+      // A section head as the teaser read sets one: eyebrow, serif title, rule.
+      // No forced page breaks (v3.119.0): sections run on.
+      const secHead = (eyebrowText, title) => [
+        eyebrow(eyebrowText, RUST, { before: 360, after: 40 }),
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: title })] }),
+      ];
+      const lensRows = (() => { try { return computeTrustLenses(scores); } catch { return null; } })();
+      const pillars = lensRows ? [
+        ...lensRows.rows.map(r => ({ name: r.name, score: r.score })),
+        { name: lensRows.foundation.name, score: lensRows.foundation.score },
+      ] : [];
+
       // ── Summary two-column layout (score info | radar) ─────────
       // Left: 5040 DXA (~3.5"), Right: 4320 DXA (~3")
       const websiteEvalDescriptionDocx = assessments.website?.pagesReviewed
         ? `Website analysis covered ${assessments.website.pagesReviewed}, examining brand positioning, messaging, information architecture, UI design, user experience, accessibility, and AI search readability.`
         : 'Website analysis examined brand positioning, messaging, design, and user experience.';
-
-      const summaryLeft = [
-        new Paragraph({ spacing: { after: 80, line: 276, lineRule: 'auto' }, children: [
-          new TextRun({ text: `${overall}/100`, size: 88, font: SERIF, color: INK }),
-          new TextRun({ text: `   ${stage.name}`, bold: true, size: 20, font: SANS, color: RUST, allCaps: true, characterSpacing: 16 }),
-        ]}),
-        ...(scores.headline ? [new Paragraph({ spacing: { after: 100, line: 276, lineRule: 'auto' }, children: [new TextRun({ text: `"${clean(scores.headline)}"`, size: 20, font: SANS, italics: true, color: '2E3238' })] })] : []),
-        new Paragraph({ spacing: { after: 100, line: 276, lineRule: 'auto' }, children: [new TextRun({ text: clean(scores.conclusion || `${project.brandName} demonstrates developing brand consciousness across eight dimensions.`), size: 20, font: SANS })] }),
-        new Paragraph({ spacing: { after: 80, line: 276, lineRule: 'auto' }, children: [
-          new TextRun({ text: `${project.brandName} demonstrates strength in `, size: 20, font: SANS }),
-          new TextRun({ text: summaryPicks(sortedAttrs).strengths.join(' and '), size: 20, font: SANS, bold: true, color: POS }),
-          new TextRun({ text: ', with opportunities to grow in ', size: 20, font: SANS }),
-          new TextRun({ text: summaryPicks(sortedAttrs).growth.join(' and '), size: 20, font: SANS, bold: true, color: RUST }),
-          new TextRun({ text: '.', size: 20, font: SANS }),
-        ]}),
-      ];
-
-      const summaryTable = new Table({
-        width: { size: 9360, type: WidthType.DXA },
-        columnWidths: [5040, 4320],
-        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, insideH: { style: BorderStyle.NONE }, insideV: { style: BorderStyle.NONE } },
-        rows: [new TableRow({ children: [
-          new TableCell({
-            width: { size: 5040, type: WidthType.DXA },
-            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
-            margins: { top: 0, bottom: 0, left: 0, right: 160 },
-            children: summaryLeft,
-          }),
-          new TableCell({
-            width: { size: 4320, type: WidthType.DXA },
-            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
-            margins: { top: 0, bottom: 0, left: 160, right: 0 },
-            children: radarB64 ? [new Paragraph({ children: [new ImageRun({ data: radarB64, transformation: { width: 280, height: 237 }, type: 'png' })] })] : [new Paragraph({ children: [] })],
-          }),
-        ]})],
-      });
 
       // ── Build document ─────────────────────────────────────────
       const doc = new Document({
@@ -6914,43 +6894,97 @@ ${content.slice(0, 8000)}`;
               run: { size: 64, font: SERIF, color: INK },
               paragraph: { keepNext: true, spacing: { before: 240, after: 120, line: 240, lineRule: 'auto' }, outlineLevel: 0 } },
             { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-              run: { size: 40, font: SERIF, color: INK },
-              paragraph: { keepNext: true, border: { top: { style: BorderStyle.SINGLE, size: 8, space: 10, color: INK } },
-                spacing: { before: 480, after: 160, line: 240, lineRule: 'auto' }, outlineLevel: 1 } },
+              run: { size: 44, font: SERIF, color: INK },
+              paragraph: { keepNext: true, border: { bottom: { style: BorderStyle.SINGLE, size: 6, space: 6, color: INK } },
+                spacing: { before: 0, after: 200, line: 240, lineRule: 'auto' }, outlineLevel: 1 } },
             { id: 'Heading3', name: 'Heading 3', basedOn: 'Normal', next: 'Normal', quickFormat: true,
               run: { size: 17, bold: true, font: SANS, allCaps: true, characterSpacing: 16, color: RUST },
               paragraph: { keepNext: true, spacing: { before: 320, after: 100 }, outlineLevel: 2 } },
           ],
         },
         sections: [{
-          properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1080, right: 1080, bottom: 1440, left: 1080 } } },
-          footers: { default: new DocxFooter({ children: [new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: `${new Date(project.date || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}  |  Conscious Compass Framework v${FRAMEWORK_VERSION}  |  Assessed by ${assessorName}`, size: 16, font: SANS, color: MUTED })],
+          properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1080, right: 1080, bottom: 1080, left: 1080, header: 600, footer: 600 } } },
+          // Running header and footer, as the teaser read's (v3.119.0).
+          headers: { default: new DocxHeader({ children: [new Paragraph({
+            tabStops: [{ type: TabStopType.RIGHT, position: CW }], border: { bottom: hair(INK, 6) }, spacing: { after: 120 },
+            children: [
+              new TextRun({ text: project.brandName.toUpperCase(), bold: true, size: 15, font: SANS, color: INK, characterSpacing: 26 }),
+              new TextRun({ text: ' ● ', size: 15, font: SANS, color: RUST }),
+              new TextRun({ text: 'CONSCIOUS COMPASS', bold: true, size: 15, font: SANS, color: MUTED, characterSpacing: 26 }),
+              new TextRun({ text: `\tFull assessment · ${new Date(project.date || Date.now()).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, size: 16, font: SANS, color: MUTED }),
+            ],
           })] }) },
+          footers: { default: new DocxFooter({ children: [new Paragraph({
+            tabStops: [{ type: TabStopType.RIGHT, position: CW }],
+            children: [
+              new TextRun({ text: `ANTENNA GROUP · CONSCIOUS COMPASS · FULL ASSESSMENT · ASSESSED BY ${String(assessorName).toUpperCase()}`, bold: true, size: 14, font: SANS, color: FAINT, characterSpacing: 20 }),
+              new TextRun({ children: ['\t', PageNumber.CURRENT], bold: true, size: 14, font: SANS, color: FAINT }),
+            ],
+          })] }) },
+
           children: [
 
-            // ── COVER ────────────────────────────────────────────
-            ...(logoB64 ? [new Paragraph({ spacing: { after: 400 }, children: [new ImageRun({ data: logoB64, transformation: { width: 150, height: 42 }, type: 'png' })] })] : [new Paragraph({ spacing: { after: 400 } })]),
-            new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 0, after: 60 }, children: [
-              new TextRun({ text: project.brandName, font: SERIF, size: 64 }),
-              new TextRun({ text: ' Conscious Brand Assessment', font: SERIF, size: 40, color: MUTED }),
+            // ── PAGE ONE, as the teaser read's (v3.119.0) ─────────
+            eyebrow('Brand under review'),
+            new Paragraph({ spacing: { before: 0, after: 160 }, tabStops: [{ type: TabStopType.RIGHT, position: CW }], children: [
+              new TextRun({ text: project.brandName, font: SERIF, size: 96, color: INK }),
+              ...(project.websiteUrl ? [new TextRun({ text: `\t${String(project.websiteUrl || '').replace(/^https?:\/\//, '').replace(/\/$/, '')}`, font: SANS, size: 20, color: MUTED })] : []),
             ]}),
-            new Paragraph({ spacing: { after: 320 }, children: [
-              new TextRun({ text: `${new Date(project.date || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}  |  ${INDUSTRIES.find(i => i.id === project.industry)?.name || project.industry}  |  ${project.businessModel.toUpperCase()}`, size: 20, font: SANS, color: MUTED }),
+            // Score | radar
+            new Table({
+              width: { size: CW, type: WidthType.DXA }, columnWidths: [5040, 5040],
+              borders: { ...noBorders, top: hair(RULE), bottom: hair(RULE), insideVertical: hair(RULE) },
+              rows: [new TableRow({ children: [
+                new TableCell({ width: { size: 5040, type: WidthType.DXA }, borders: { top: hair(RULE), bottom: hair(RULE), left: NONE, right: hair(RULE) },
+                  margins: { top: 240, bottom: 200, left: 0, right: 240 }, children: [
+                    new Paragraph({ spacing: { after: 0 }, children: [
+                      new TextRun({ text: 'OVERALL SCORE  ', bold: true, size: 15, font: SANS, color: MUTED, characterSpacing: 30 }),
+                      new TextRun({ text: ` ${stage.name.toUpperCase()} `, bold: true, size: 15, font: SANS, color: 'FBFAF7', characterSpacing: 26, shading: { type: ShadingType.CLEAR, fill: INK, color: 'auto' } }),
+                    ]}),
+                    new Paragraph({ spacing: { before: 0, after: 80, line: 240, lineRule: 'auto' }, children: [
+                      new TextRun({ text: String(overall), font: SERIF, size: 200, color: INK }),
+                      new TextRun({ text: '  / 100', font: SANS, size: 24, color: MUTED }),
+                    ]}),
+                    bar(overall, 4560, 'D9442A', 90),
+                    new Paragraph({ spacing: { before: 60, after: 0 }, tabStops: [{ type: TabStopType.CENTER, position: 2280 }, { type: TabStopType.RIGHT, position: 4560 }], children: [
+                      new TextRun({ text: '0\t50\t100', size: 15, font: SANS, color: FAINT }),
+                    ]}),
+                  ] }),
+                new TableCell({ width: { size: 5040, type: WidthType.DXA }, borders: { top: hair(RULE), bottom: hair(RULE), left: hair(RULE), right: NONE },
+                  margins: { top: 120, bottom: 120, left: 240, right: 0 }, children: radarB64
+                    ? [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: radarB64, transformation: { width: 300, height: 254 }, type: 'png' })] })]
+                    : [new Paragraph({ children: [] })] }),
+              ]})],
+            }),
+            // The four trust lenses, as the teaser read's pillars
+            ...(pillars.length ? [new Table({
+              width: { size: CW, type: WidthType.DXA }, columnWidths: pillars.map(() => CW / pillars.length),
+              borders: { ...noBorders, bottom: hair(RULE), insideVertical: hair(RULE) },
+              rows: [new TableRow({ children: pillars.map((p, i) => new TableCell({
+                width: { size: CW / pillars.length, type: WidthType.DXA },
+                borders: { top: NONE, bottom: hair(RULE), left: i ? hair(RULE) : NONE, right: NONE },
+                margins: { top: 200, bottom: 200, left: i ? 240 : 0, right: 240 },
+                children: [
+                  eyebrow(p.name, MUTED, { after: 20 }),
+                  new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: String(p.score ?? '\u2013'), font: SERIF, size: 60, color: INK })] }),
+                  bar(p.score, CW / pillars.length - 480, INK, 40),
+                ],
+              })) })],
+            })] : []),
+            // Headline and narrative
+            ...(scores.headline ? [new Paragraph({ spacing: { before: 320, after: 160, line: 276, lineRule: 'auto' }, children: [new TextRun({ text: clean(scores.headline), font: SERIF, size: 36, color: INK })] })] : []),
+            body(clean(scores.conclusion || `${project.brandName} demonstrates developing brand consciousness across eight dimensions.`), 120),
+            new Paragraph({ spacing: { after: 80, ...LINE_SPACING }, children: [
+              new TextRun({ text: `${project.brandName} demonstrates strength in `, size: 20, font: SANS }),
+              new TextRun({ text: summaryPicks(sortedAttrs).strengths.join(' and '), size: 20, font: SANS, bold: true }),
+              new TextRun({ text: ', with opportunities to grow in ', size: 20, font: SANS }),
+              new TextRun({ text: summaryPicks(sortedAttrs).growth.join(' and '), size: 20, font: SANS, bold: true }),
+              new TextRun({ text: '.', size: 20, font: SANS }),
             ]}),
-            new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: INK, space: 1 } }, spacing: { after: 0 } }),
-
-            // ── SUMMARY PANEL ─────────────────────────────────────
-            h2('Summary'),
-            summaryTable,
-
-            // Attribute score table
-            new Paragraph({ spacing: { before: 200, after: 120 } }),
-            attrTable,
+            new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: `${INDUSTRIES.find(i => i.id === project.industry)?.name || project.industry}  \u00b7  ${String(project.businessModel || '').toUpperCase()}  \u00b7  Framework v${FRAMEWORK_VERSION}`, size: 17, font: SANS, color: MUTED })] }),
 
             // ── BRAND CONSCIOUSNESS MATURITY ─────────────────────
-            h2('Brand Consciousness Maturity'),
+            ...secHead('Where the score sits', 'Brand maturity'),
             ...(matB64 ? [
               new Paragraph({ spacing: { after: 80 }, children: [new ImageRun({ data: matB64, transformation: { width: 540, height: 54 }, type: 'png' })] }),
             ] : []),
@@ -6961,46 +6995,81 @@ ${content.slice(0, 8000)}`;
             ...(overall < 100 ? [body(`${Math.min(100, MATURITY_STAGES.find(s => s.min > overall)?.min || 100) - overall} points to next level.`, 60)] : []),
 
             // ── WHAT WE EVALUATED ─────────────────────────────────
-            h2('What We Evaluated'),
+            ...secHead('Method', 'What we evaluated'),
             body(`This assessment was conducted using Antenna Group's Brand Consciousness Framework v${FRAMEWORK_VERSION}, evaluating ${project.brandName} across four key dimensions. ${websiteEvalDescriptionDocx} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice. The business model (${project.businessModel.toUpperCase()}) and industry context (${INDUSTRIES.find(i => i.id === project.industry)?.name || project.industry}) were applied to weight attribute importance appropriately.`),
 
             // ── ATTRIBUTE ANALYSIS ───────────────────────────────
-            h2('Attribute Analysis', true),
-            ...ATTRIBUTES.flatMap(attr => {
+            ...secHead('The eight attributes', 'Attribute analysis'),
+            // One row per attribute, as the teaser read's: rust numeral, name
+            // and subtitle, a thin bar, then the text, over a hairline.
+            ...ATTRIBUTES.map(attr => {
               const sc = scores[attr.id]?.score || 0;
               const as = getMaturityStage(sc);
               const findings = clean(scores[attr.id]?.findings || scores[attr.id]?.summary || attr.description);
-              const imp = clean(scores[attr.id]?.impact || '');
-              const act = clean(scores[attr.id]?.actions || '');
+              const imp = clean(scores[attr.id]?.impact || '').replace(/^What'?s driving it:?\s*/i, '');
+              const act = clean(scores[attr.id]?.actions || '').replace(/^To improve( the score)?:?\s*/i, '');
               const opp = clean(scores[attr.id]?.opportunity || '');
-              return [
-                new Paragraph({ spacing: { before: 240, after: 60 }, children: [
-                  new TextRun({ text: `${attr.name}`, bold: true, size: 24, font: SANS, color: INK }),
-                  new TextRun({ text: `  (${attr.fullName})`, size: 20, font: SANS, color: MUTED }),
-                  new TextRun({ text: `  ${sc}/100 - ${as.name}`, bold: true, size: 20, font: SANS }),
-                ]}),
-                body(findings, (imp || act || opp) ? 60 : 160),
-                ...(imp ? [new Paragraph({ spacing: { after: act || opp ? 60 : 160 }, children: [
-                  new TextRun({ text: "What's driving it: ", bold: true, size: 20, font: SANS }),
-                  new TextRun({ text: imp, size: 20, font: SANS }),
-                ]})] : []),
-                ...(act ? [new Paragraph({ spacing: { after: opp ? 60 : 160 }, children: [
-                  new TextRun({ text: 'To improve the score: ', bold: true, size: 20, font: SANS }),
-                  new TextRun({ text: act, size: 20, font: SANS }),
-                ]})] : []),
-                ...(opp ? [new Paragraph({ spacing: { after: 160 }, children: [
-                  new TextRun({ text: 'Opportunity: ', bold: true, size: 20, font: SANS }),
-                  new TextRun({ text: opp, size: 20, font: SANS }),
-                ]})] : []),
-              ];
+              const para = (label, text, after = 100) => new Paragraph({ spacing: { after, ...LINE_SPACING }, children: [
+                ...(label ? [new TextRun({ text: `${label} `, bold: true, size: 20, font: SANS })] : []),
+                new TextRun({ text, size: 20, font: SANS }),
+              ]});
+              return new Table({
+                width: { size: CW, type: WidthType.DXA }, columnWidths: [1440, CW - 1440],
+                borders: { ...noBorders, bottom: hair(RULE) },
+                rows: [new TableRow({ children: [
+                  new TableCell({ width: { size: 1440, type: WidthType.DXA }, borders: { top: NONE, left: NONE, right: NONE, bottom: hair(RULE) },
+                    margins: { top: 240, bottom: 240, left: 0, right: 120 }, children: [
+                      new Paragraph({ spacing: { after: 0, line: 240, lineRule: 'auto' }, children: [new TextRun({ text: String(sc), font: SERIF, size: 72, color: RUST })] }),
+                    ] }),
+                  new TableCell({ width: { size: CW - 1440, type: WidthType.DXA }, borders: { top: NONE, left: NONE, right: NONE, bottom: hair(RULE) },
+                    margins: { top: 260, bottom: 240, left: 0, right: 0 }, children: [
+                      new Paragraph({ keepNext: true, spacing: { after: 40 }, tabStops: [{ type: TabStopType.RIGHT, position: CW - 1440 }], children: [
+                        new TextRun({ text: attr.name, bold: true, size: 26, font: SANS, color: INK }),
+                        new TextRun({ text: `   ${attr.fullName}`, size: 19, font: SANS, color: MUTED }),
+                        new TextRun({ text: `\t${as.name.toUpperCase()}`, bold: true, size: 15, font: SANS, color: MUTED, characterSpacing: 26 }),
+                      ]}),
+                      bar(sc, CW - 1440, INK, 40),
+                      new Paragraph({ spacing: { before: 120, after: 0 }, children: [] }),
+                      para(null, findings),
+                      ...(imp ? [para("What's driving it:", imp)] : []),
+                      ...(act ? [new Paragraph({ spacing: { after: 100, ...LINE_SPACING }, indent: { left: 200 }, border: { left: { style: BorderStyle.SINGLE, size: 18, color: 'D9442A', space: 8 } }, children: [
+                        new TextRun({ text: 'To improve: ', bold: true, size: 20, font: SANS }), new TextRun({ text: act, size: 20, font: SANS }),
+                      ]})] : []),
+                      ...(opp ? [new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: opp, size: 17, font: SANS, color: MUTED })] })] : []),
+                    ] }),
+                ]})],
+              });
             }),
+
+            // ── THE EVIDENCE, two columns as the teaser read's page 4 ──
+            ...(() => {
+              const list = Array.isArray(scores.trustFindings) ? scores.trustFindings.filter(f => f && f.text) : [];
+              if (!list.length) return [];
+              const col = (items, title, color) => [
+                new Paragraph({ spacing: { after: 100 }, border: { bottom: hair(color, 12) }, children: [new TextRun({ text: title.toUpperCase(), bold: true, size: 16, font: SANS, color, characterSpacing: 30 })] }),
+                ...(items.length ? items.flatMap((f, i) => [
+                  new Paragraph({ spacing: { before: i ? 160 : 60, after: 40, ...LINE_SPACING }, border: i ? { top: hair(RULE) } : undefined, children: [new TextRun({ text: clean(f.text), size: 20, font: SANS, color: '2E3238' })] }),
+                  ...(Array.isArray(f.tags) && f.tags.length ? [new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: f.tags.join(', ').toUpperCase(), size: 15, font: SANS, color: MUTED, characterSpacing: 10 })] })] : []),
+                ]) : [new Paragraph({ children: [new TextRun({ text: 'None found.', size: 19, font: SANS, color: MUTED })] })]),
+              ];
+              return [
+                ...secHead('Trust, credibility, reputation and authenticity', 'The evidence'),
+                new Table({
+                  width: { size: CW, type: WidthType.DXA }, columnWidths: [CW / 2, CW / 2], borders: noBorders,
+                  rows: [new TableRow({ children: [
+                    new TableCell({ width: { size: CW / 2, type: WidthType.DXA }, borders: cellNone, margins: { top: 0, bottom: 0, left: 0, right: 220 }, children: col(list.filter(f => f.supports), '+ Supporting', POS) }),
+                    new TableCell({ width: { size: CW / 2, type: WidthType.DXA }, borders: cellNone, margins: { top: 0, bottom: 0, left: 220, right: 0 }, children: col(list.filter(f => !f.supports), '– Weighing against', RUST) }),
+                  ]})],
+                }),
+              ];
+            })(),
 
             // ── SUSTAINABILITY NARRATIVE (framework 2.10) ─────────
             ...(() => {
               const tr = thesisTextRows(scores.sustainabilityNarrative);
               if (!tr) return [];
               return [
-                h2('Sustainability Narrative', true),
+                ...secHead('Six principles', 'Sustainability narrative'),
                 ...(tr.verdict ? [body(clean(tr.verdict))] : []),
                 ...(tr.summary ? [body(clean(tr.summary))] : []),
                 ...tr.tenets.map(t => new Paragraph({ spacing: { after: 80, ...LINE_SPACING }, children: [
@@ -7012,7 +7081,7 @@ ${content.slice(0, 8000)}`;
 
             // ── CAMPAIGN COHERENCE ───────────────────────────────
             ...(campaignStage ? [
-              h2('Campaign Coherence', true),
+              ...secHead('Strategy or activity', 'Campaign coherence'),
               new Paragraph({ spacing: { before: 0, after: 80, ...LINE_SPACING }, children: [
                 new TextRun({ text: campaignStage.level === 0 ? 'No tier reached' : `Level ${campaignStage.level} of 5`, bold: true, size: 24, font: SANS, color: RUST }),
                 new TextRun({ text: `  ${campaignStage.name}`, bold: true, size: 24, font: SANS }),
@@ -7032,7 +7101,7 @@ ${content.slice(0, 8000)}`;
               ]})] : []),
 
               // Ladder reference table
-              h3('The Coherence Ladder'),
+              h3('The coherence ladder'),
               new Table({
                 width: { size: 9360, type: WidthType.DXA },
                 columnWidths: [780, 1800, 6780],
@@ -7056,7 +7125,7 @@ ${content.slice(0, 8000)}`;
 
               // Campaigns identified
               ...(Array.isArray(campaign.campaigns) && campaign.campaigns.length ? [
-                h3('Campaigns Identified'),
+                h3('Campaigns identified'),
                 ...campaign.campaigns.flatMap(c => [
                   new Paragraph({ spacing: { before: 160, after: 40, ...LINE_SPACING }, children: [
                     new TextRun({ text: clean(c.name), bold: true, size: 21, font: SANS }),
@@ -7070,38 +7139,13 @@ ${content.slice(0, 8000)}`;
                 ]),
               ] : []),
 
-              // Adjustment, stated openly
-              ...(campaignAffected.length ? [
-                h3('Score Adjustment'),
-                body('Attribute scores judge the quality of the work. Campaign coherence is scored separately and applied here, so neither is counted twice.', 100),
-                new Table({
-                  width: { size: 9360, type: WidthType.DXA },
-                  columnWidths: [4680, 1560, 1560, 1560],
-                  rows: [
-                    new TableRow({ tableHeader: true, children: [
-                      th('Attribute', 4680),
-                      th('Base', 1560, AlignmentType.CENTER),
-                      th('Campaign', 1560, AlignmentType.CENTER),
-                      th('Final', 1560, AlignmentType.CENTER),
-                    ]}),
-                    ...campaignAffected.map((attr, i) => {
-                      const adj = campaignAdjustment(attr.id);
-                      const bg = i % 2 === 0 ? 'FFFFFF' : 'FFFFFF';
-                      return new TableRow({ children: [
-                        cell([new TextRun({ text: attr.name, size: 18, font: SANS })], 4680, bg),
-                        cell([new TextRun({ text: String(scores[attr.id]?.baseScore ?? ''), size: 18, font: SANS })], 1560, bg, AlignmentType.CENTER),
-                        cell([new TextRun({ text: `${adj > 0 ? '+' : ''}${adj}`, bold: true, size: 18, font: SANS, color: adj > 0 ? POS : RUST })], 1560, bg, AlignmentType.CENTER),
-                        cell([new TextRun({ text: String(scores[attr.id]?.score ?? ''), bold: true, size: 18, font: SANS })], 1560, bg, AlignmentType.CENTER),
-                      ]});
-                    }),
-                  ],
-                }),
-              ] : []),
+              // The score adjustment is not in the Word file (v3.120.0): it is
+              // internal working, shown only on the internal report.
             ] : []),
 
             // ── BENCHMARK COMPARISON ─────────────────────────────
             ...(benchmark ? [
-              h2('Benchmark Comparison', true),
+              ...secHead('Against the portfolio', 'Benchmark comparison'),
               new Paragraph({ spacing: { before: 0, after: 120, ...LINE_SPACING }, children: [
                 new TextRun({ text: 'Benchmark basis: ', bold: true, size: 18, font: SANS, color: MUTED }),
                 new TextRun({
@@ -7118,7 +7162,7 @@ ${content.slice(0, 8000)}`;
                 new ImageRun({ data: bmSpreadImg.data, transformation: { width: bmSpreadImg.w, height: bmSpreadImg.h }, type: 'png' }),
               ]})] : []),
 
-              h3('Attribute Detail'),
+              h3('Attribute detail'),
               new Table({
                 width: { size: 9360, type: WidthType.DXA },
                 columnWidths: [4680, 1560, 1560, 1560],
@@ -7146,7 +7190,7 @@ ${content.slice(0, 8000)}`;
             ] : []),
 
             // ── WEBSITE ASSESSMENT ───────────────────────────────
-            h2('Website Assessment'),
+            ...secHead('Readout', 'Website'),
             ...mdParas(extractSummary(assessments.website?.content || '')),
 
             // ── DIGITAL ESTATE CONSISTENCY ───────────────────────
@@ -7158,7 +7202,7 @@ ${content.slice(0, 8000)}`;
               const risk = pd.consistencyAnalysis?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i)?.[1] || null;
               const riskHex = risk === 'Low' ? POS : risk === 'Medium' ? 'F59E0B' : risk === 'High' ? RUST : MUTED;
               return [
-                h2('Digital Estate Consistency'),
+                ...secHead('Readout', 'Digital estate consistency'),
                 new Paragraph({ spacing: { before: 0, after: 80 }, children: [
                   new TextRun({ text: `${allProps.length} registered properties`, font: SANS, size: 18, color: MUTED }),
                   ...(risk ? [new TextRun({ text: `  ·  ${risk} consistency risk`, font: SANS, size: 18, bold: true, color: riskHex })] : []),
@@ -7196,19 +7240,44 @@ ${content.slice(0, 8000)}`;
             })(),
 
             // ── SOCIAL MEDIA ASSESSMENT ──────────────────────────
-            h2('Social Media Assessment'),
+            ...secHead('Readout', 'Social media'),
             ...mdParas(extractSummary(assessments.social?.content || '')),
 
             // ── AI REPUTATION ASSESSMENT ─────────────────────────
-            h2('AI Reputation and Discoverability'),
+            ...secHead('Readout', 'AI reputation and discoverability'),
             ...mdParas(clean(aiSummary)),
 
             // ── EARNED MEDIA ASSESSMENT ──────────────────────────
-            h2('Earned Media Assessment'),
+            ...secHead('Readout', 'Earned media'),
             ...mdParas(clean(earnedSummary)),
 
             // ── RECOMMENDATIONS ──────────────────────────────────
-            h2('Recommendations'),
+            // ── HOW EARNED CREATIVE COULD HELP (ECO v2.0) ─────────
+            // The client-safe version: no internal sort-first list.
+            ...(() => {
+              const e = clientEcoSection(scores, project.brandName);
+              if (!e) return [];
+              return [
+                ...secHead('Earned creative', 'How earned creative could help'),
+                ...(e.opening ? [new Paragraph({ spacing: { after: 200, line: 300, lineRule: 'auto' }, children: [new TextRun({ text: clean(e.opening), font: SERIF, size: 30, color: INK })] })] : []),
+                ...e.opportunities.flatMap((o, i) => [
+                  new Paragraph({ keepNext: true, spacing: { before: i ? 200 : 0, after: 40 }, border: { top: hair(i ? RULE : INK, i ? 4 : 6) }, children: [
+                    new TextRun({ text: `LIFTS ${String(o.name).toUpperCase()}`, bold: true, size: 15, font: SANS, color: RUST, characterSpacing: 30 }),
+                    ...(Number.isFinite(Number(o.score)) ? [new TextRun({ text: `   NOW ${o.score}`, bold: true, size: 15, font: SANS, color: MUTED, characterSpacing: 30 })] : []),
+                  ]}),
+                  ...(o.truth ? [new Paragraph({ spacing: { after: 40, ...LINE_SPACING }, children: [new TextRun({ text: 'Built on ', bold: true, size: 18, font: SANS }), new TextRun({ text: clean(o.truth), size: 18, font: SANS, color: MUTED })] })] : []),
+                  ...(o.idea ? [new Paragraph({ spacing: { after: 40, line: 300, lineRule: 'auto' }, children: [new TextRun({ text: clean(o.idea), font: SERIF, size: 26, color: INK })] })] : []),
+                  ...(o.change ? [body(clean(o.change), 60)] : []),
+                ]),
+                new Paragraph({ spacing: { before: 280, after: 80 }, border: { top: hair(INK, 6) }, children: howlB64
+                  ? [new ImageRun({ data: howlB64, transformation: { width: 87, height: 26 }, type: 'png' }), new TextRun({ text: '   BY ANTENNA', bold: true, size: 15, font: SANS, color: MUTED, characterSpacing: 30 })]
+                  : [new TextRun({ text: 'HOWL  BY ANTENNA', bold: true, size: 18, font: SANS })] }),
+                body(e.howl?.opener || ECO_COPY.howlOpener, 60),
+                body(ECO_COPY.howlBody, 120),
+              ];
+            })(),
+
+            ...secHead('What to do next', 'Recommendations'),
             body(`Across all four assessment areas, these are the highest-priority actions for moving ${project.brandName} toward the next maturity stage.`, 160),
             ...topRecs.flatMap(r => [
               new Paragraph({ numbering: { reference: 'recs', level: 0 }, spacing: { before: 160, after: 60 }, children: [new TextRun({ text: clean(r.title), bold: true, size: 22, font: SANS })] }),
@@ -7220,14 +7289,14 @@ ${content.slice(0, 8000)}`;
             ]),
 
             // ── CONCLUSION ───────────────────────────────────────
-            h2('Conclusion'),
+            ...secHead('In short', 'Conclusion'),
             body(clean(scores.conclusion || `${project.brandName} has demonstrated ${overall >= 60 ? 'strong potential' : 'a foundation'} for building a more conscious brand presence. By focusing on the recommendations outlined above, the brand can elevate its market position and create deeper connections with its audience.`), 200),
 
             // ── CHALLENGE HISTORY ────────────────────────────────
             // Internal document only. A rescored report must not leave the
             // building without the record of what moved it.
             ...(scores.challenges?.length ? [
-              h2('Challenge History'),
+              ...secHead('Internal record', 'Challenge history'),
               body(`This assessment was rescored after additional context was put to it. Each challenge below records what was submitted, which readouts were revised, and how the scores moved.`, 160),
               ...scores.challenges.flatMap((c, i) => {
                 const when = (() => { const d = new Date(c.date); return isNaN(d) ? '' : d.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }); })();
@@ -7261,12 +7330,65 @@ ${content.slice(0, 8000)}`;
 
       // Hanken Grotesk and Newsreader travel inside the file (v3.102.0).
       const blob = await embedReportFonts(await Packer.toBlob(doc), { JSZip: await loadJSZip() });
-      saveAs(blob, `${project.brandName.replace(/\s+/g, '_')}_Conscious_Brand_Assessment.docx`);
+      if (save !== false) saveAs(blob, `${project.brandName.replace(/\s+/g, '_')}_Conscious_Brand_Assessment.docx`);
+      return blob;
     } catch (e) {
       console.error('DOCX generation error:', e);
       alert('Error generating DOCX: ' + e.message);
+      return null;
     } finally { setIsGenerating(false); }
   };
+
+  // ── Assessment Pack (v3.119.0) ─────────────────────────────
+  // The full report as Word, plus the teaser's 5x7 card and slide, filled from
+  // this report. The brand image is stored with the saved assessment
+  // (project.heroImage) and never reaches a client link.
+  const heroImage = project.heroImage || null;
+  const packLenses = (() => {
+    try {
+      const l = computeTrustLenses(scores);
+      return { credibility: l.rows.find(r => r.id === 'credibility')?.score, trust: l.rows.find(r => r.id === 'trust')?.score, reputation: l.rows.find(r => r.id === 'reputation')?.score, authenticity: l.foundation?.score };
+    } catch { return {}; }
+  })();
+  const pickHero = async (file) => {
+    setHeroError(null);
+    try {
+      const img = await readHeroImage(file);
+      if (img && img.width < 900) setHeroError(`That image is ${img.width}px wide. The templates want 1200px or more, so it may look soft in print.`);
+      const patch = { heroImage: img ? img.dataUrl : null };
+      setProject(prev => ({ ...prev, ...patch }));
+      if (scores) await onSave({ quiet: true, projectPatch: patch });
+    } catch (e) { setHeroError(e.message); }
+  };
+  const removeHero = async () => {
+    setProject(prev => ({ ...prev, heroImage: null }));
+    if (scores) await onSave({ quiet: true, projectPatch: { heroImage: null } });
+  };
+  // The card and slide label their comparison "Industry average", so they use
+  // the sector benchmark only, never the all-brands fallback.
+  const sectorAvg = benchmark?.scope === 'industry' ? benchmark.avgScore : null;
+  const packStatus = assessmentPackReady({ overall, heroImage, baselineAvg: sectorAvg });
+  if (!packStatus.ready && benchmark && benchmark.scope !== 'industry') {
+    packStatus.missing = packStatus.missing.map(m => (m === 'an industry average' ? 'an industry average (this sector has too few full assessments yet)' : m));
+  }
+  const downloadPack = async () => {
+    setHeroError(null);
+    setPacking(true);
+    try {
+      const reportBlob = await generateDocx({ save: false });
+      if (!reportBlob) return;
+      const d = assessmentCardData({ brand: project.brandName, sectorName: industryName || '', baselineAvg: sectorAvg, overall, lenses: packLenses, heroImage });
+      await exportAssessmentPack({ brand: project.brandName, reportBlob, d, includeScorecard: packStatus.ready }, {
+        jsPDF: (await import('jspdf')).jsPDF, JSZip: await loadJSZip(), saveAs,
+      });
+    } catch (e) {
+      console.error('Assessment pack failed', e);
+      setHeroError(`Download failed: ${e.message}. The browser console has the full detail.`);
+    } finally {
+      setPacking(false);
+    }
+  };
+
 
   // Section numbers are resolved from a fixed, condition-aware list rather than
   // a counter incremented during render. React does not guarantee that child
@@ -7322,8 +7444,12 @@ ${content.slice(0, 8000)}`;
                 {saveState === 'saving' ? 'Saving\u2026' : saveState === 'saved' ? 'Saved' : 'Save'}
               </button>
               <button onClick={() => setShowClientLink(true)} className="btn-secondary">Client link</button>
-              <button onClick={generateDocx} disabled={isGenerating} className="btn-primary">
-                {isGenerating ? 'Preparing\u2026' : 'Export DOCX'}
+              <button onClick={generateDocx} disabled={isGenerating || packing} className="btn-secondary" data-field="export-docx">
+                {isGenerating && !packing ? 'Preparing\u2026' : 'Export DOCX'}
+              </button>
+              <button type="button" onClick={downloadPack} disabled={packing || isGenerating} className="btn-primary" data-field="download-pack"
+                title={packStatus.ready ? 'A zip holding the full report, the printed card and the slide' : `A zip holding the full report. For the card and slide, add ${packStatus.missing.join(' and ')}.`}>
+                {packing ? 'Preparing\u2026' : 'Download Assessment Pack'}
               </button>
             </div>
           ) : (
@@ -7352,6 +7478,25 @@ ${content.slice(0, 8000)}`;
             className="dc-pill" style={{ marginTop: 12 }}>
             Rescored after challenge{scores.challenges.length > 1 ? ` \u00d7${scores.challenges.length}` : ''}
           </button>
+        )}
+
+        {/* Brand image for the Assessment Pack's card and slide (v3.119.0).
+            Internal: stored with the saved assessment, never in client links. */}
+        {!isReadonly && (
+          <div className="dc-pack-image" data-field="hero-image">
+            <span className="dc-kicker">Assessment Pack image</span>
+            <div className="dc-inline">
+              {heroImage && <img src={heroImage} alt="" className="dc-tz-hero" />}
+              <input ref={heroRef} type="file" accept="image/*" hidden
+                onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pickHero(f); }} />
+              <button type="button" onClick={() => heroRef.current?.click()} disabled={packing} className="btn-secondary is-sm">{heroImage ? 'Replace' : 'Upload'}</button>
+              {heroImage && <button type="button" onClick={removeHero} disabled={packing} className="dc-link-btn">Remove</button>}
+              <span className="dc-meta" data-field="pack-status">
+                {packStatus.ready ? 'The pack will hold the full report, the card and the slide.' : `The pack holds the full report. For the card and slide, add ${packStatus.missing.join(' and ')}.`}
+              </span>
+            </div>
+            {heroError && <p className="dc-note is-warn">{heroError}</p>}
+          </div>
         )}
 
       </header>
@@ -11714,7 +11859,14 @@ Each item:
 - insight: 2-3 sentences. What is actually happening, with specifics where possible.
 - whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
 
-function StayConsciousPage({ onBack, isAdmin }) {
+// The public issue (v3.120.0) is this page with publicView: no sign-in, no
+// tools beyond Share link, and only what the server's publicIssue() sends.
+const NEWSLETTER_PUBLIC_PATH = '/newsletter';
+const publicNewsletterUrl = () => `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}`;
+
+function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
+  // Fixed for the page's life; read through a ref by the loader.
+  const publicRef = useRef(publicView);
   const [newsletter, setNewsletter] = useState(null);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -11726,13 +11878,13 @@ function StayConsciousPage({ onBack, isAdmin }) {
   const loadNewsletter = async () => {
     setLoading(true); setError(null);
     try {
-      const res  = await fetch('/api/stay-conscious-newsletter');
+      const res  = await fetch(publicRef.current ? '/api/stay-conscious-newsletter?public=1' : '/api/stay-conscious-newsletter');
       const data = await res.json();
       if (data.newsletter) {
         setNewsletter(data.newsletter);
         setRefreshedAt(data.refreshedAt ? new Date(data.refreshedAt) : null);
       } else {
-        setError(data.error || 'No newsletter available yet — check back after Sunday night.');
+        setError(data.error || 'No issue yet. Check back after Sunday night.');
       }
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
@@ -11938,11 +12090,12 @@ function StayConsciousPage({ onBack, isAdmin }) {
 
 
   // ── Render ──────────────────────────────────────────────────────
-  // Share link copies a link to the current issue: the app keeps one issue,
-  // so there are no per-issue permalinks yet. The label says so for 2 seconds.
+  // Share link copies the public link to the current issue (v3.120.0), which
+  // anyone can open without signing in. The app keeps one issue, so there are
+  // no per-issue permalinks yet. The label says so for 2 seconds.
   const [linkCopied, setLinkCopied] = useState(false);
   const shareLink = async () => {
-    const url = `${window.location.origin}${window.location.pathname}#newsletter`;
+    const url = publicNewsletterUrl();
     try { await navigator.clipboard.writeText(url); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); } catch { /* clipboard blocked */ }
   };
   const confirmRefresh = () => {
@@ -11974,12 +12127,14 @@ function StayConsciousPage({ onBack, isAdmin }) {
   return (
     <div className="dc-wrap dc-page dc-np" data-screen="stay-conscious">
       <div className="dc-np-tools">
-        <button className="btn-secondary" type="button" onClick={onBack}>Back</button>
+        {publicView
+          ? <a href="https://antennagroup.com" className="dc-np-brand"><img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" style={{ filter: 'brightness(0)' }} /></a>
+          : <button className="btn-secondary" type="button" onClick={onBack}>Back</button>}
         <div className="dc-head-actions">
-          {ns && <button className="btn-primary" type="button" onClick={handleExportDocx} disabled={exportingDocx} aria-busy={exportingDocx || undefined}>{exportingDocx ? 'Preparing…' : 'DOCX'}</button>}
-          {ns && <button className="btn-secondary" type="button" onClick={handleCopyText}>Copy</button>}
-          <button className="btn-secondary" type="button" title="Copy link to this issue" aria-live="polite" onClick={shareLink}>{linkCopied ? 'Link copied' : 'Share link'}</button>
-          {isAdmin && (
+          {ns && !publicView && <button className="btn-primary" type="button" onClick={handleExportDocx} disabled={exportingDocx} aria-busy={exportingDocx || undefined}>{exportingDocx ? 'Preparing…' : 'DOCX'}</button>}
+          {ns && !publicView && <button className="btn-secondary" type="button" onClick={handleCopyText}>Copy</button>}
+          <button className="btn-secondary" type="button" title="Copy the public link to this issue. Anyone can open it without signing in." aria-live="polite" onClick={shareLink}>{linkCopied ? 'Link copied' : 'Share link'}</button>
+          {isAdmin && !publicView && (
             <button className="btn-secondary" type="button" title="Force refresh for all users" onClick={confirmRefresh} disabled={refreshing || loading} aria-busy={refreshing || undefined}>
               {refreshing ? 'Refreshing…' : 'Force refresh'}
             </button>
@@ -11988,7 +12143,7 @@ function StayConsciousPage({ onBack, isAdmin }) {
       </div>
 
       <header className="dc-np-mast">
-        <p className="dc-np-tagline">Brand intelligence for assessors. What's shifting, why it matters.</p>
+        <p className="dc-np-tagline">{publicView ? "Brand intelligence from Antenna Group. What's shifting, why it matters." : "Brand intelligence for assessors. What's shifting, why it matters."}</p>
         <h1 className="dc-np-title">Stay Conscious</h1>
         <div className="dc-np-dateline">
           {ns && <span>Issue <span data-value="issue">{ns.issueNumber}</span></span>}
@@ -12082,7 +12237,7 @@ function StayConsciousPage({ onBack, isAdmin }) {
             </section>
           )}
 
-          {ns.storyOpportunities?.length > 0 && (
+          {!publicView && ns.storyOpportunities?.length > 0 && (
             <section className="dc-np-sec" aria-labelledby="opps-h">
               <h2 className="dc-np-sechead" id="opps-h">Story opportunities</h2>
               <ol className="dc-np-opps">
@@ -13491,6 +13646,8 @@ function AppContent() {
     const key = getDraftKey(user.id);
     try {
       const draft = {
+        // Kept with the draft, pack image included: a draft without it would
+        // wipe the image from the saved record on the next save.
         project,
         assessments: {
           ...assessments,
@@ -13712,15 +13869,18 @@ function AppContent() {
   // One save at a time (v3.108.1): a second click while a save is running
   // used to start another, and every save adds a results row.
   const savingRef = useRef(false);
-  // The saving code below declares its own `scores`; this is the state value.
+  // The saving code below declares its own `scores` and `project`; these are the state values.
   const scoresState = scores;
+  const projectState = project;
   // v3.118.0: saves by record id. project.savedId is the saved assessment this
   // report belongs to; project.resultId is the Results history entry for the
   // current scoring run. newRun (a fresh scoring run) starts a new history
   // entry; any other save updates the current one. scoresOverride lets the
   // report save scores it has only just set, before state has caught up.
-  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false } = {}) => {
+  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false, projectPatch = null } = {}) => {
     const scores = scoresOverride || scoresState;
+    // A change just made in the report (the pack image, say), before state catches up.
+    const project = projectPatch ? { ...projectState, ...projectPatch } : projectState;
     if (!project.brandName) {
       alert('Please enter a brand name before saving.');
       return false;
@@ -13957,9 +14117,13 @@ function AppContent() {
     const forceIncludeServices = getForceIncludeServicesFromAIReputation(aiRepSynthesis, assessment.assessments);
     
     // Include essential assessment summary data (excluding large images)
+    // The pack image, record ids and the consistency check stay out of the
+    // link: internal, and the image alone would swamp the URL (v3.119.0).
+    const { heroImage: _img, savedId: _sid, resultId: _rid, ...shareProject } = assessment.project || {};
+    const { consistencyCheck: _cc, ...shareScores } = assessment.scores || {};
     const shareData = {
-      project: assessment.project,
-      scores: assessment.scores,
+      project: shareProject,
+      scores: shareScores,
       assessmentSummary: {
         pagesReviewed: assessment.assessments?.website?.pagesReviewed || '',
         websiteUrl: assessment.assessments?.website?.websiteUrl || assessment.project?.websiteUrl || '',
@@ -14263,6 +14427,16 @@ export default function App() {
   // navigation, no chrome. Checked here rather than inside AppContent so a
   // client can never reach the authenticated shell, even for a frame.
   const clientToken = new URLSearchParams(window.location.search).get('client');
+
+  // The public newsletter (v3.120.0), like a client link, never touches the
+  // authenticated shell.
+  if (window.location.pathname.replace(/\/+$/, '') === NEWSLETTER_PUBLIC_PATH) {
+    return (
+      <ErrorBoundary>
+        <StayConsciousPage publicView onBack={() => {}} isAdmin={false} />
+      </ErrorBoundary>
+    );
+  }
 
   if (clientToken) {
     return (

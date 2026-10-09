@@ -382,7 +382,7 @@ test('Save shows Saving, ignores a second click, then shows Saved', async () => 
 
 test('the save handler: one at a time, results failures surfaced, a refresh hiccup is not a failed save', () => {
   const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  const at = src.indexOf('  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false } = {}) => {');
+  const at = src.indexOf('  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false, projectPatch = null } = {}) => {');
   assert.ok(at > 0);
   const fn = src.slice(at - 200, src.indexOf('\n  };\n', at));
   assert.ok(fn.includes('if (savingRef.current) return false;') && fn.includes('savingRef.current = false;'), 'one save at a time, released in finally');
@@ -922,6 +922,26 @@ test('the sector lens reads real estate, health and energy brands by their own t
   const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   const prompt = src.slice(src.indexOf('const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework'));
   assert.ok(prompt.slice(0, 600).includes('${sectorPromptBlock(project.industry,'), 'the full scoring prompt carries the lens');
+});
+
+test('the full report: Word export without forced page breaks, in the teaser read system, and the pack image stays internal (v3.119.0)', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const docx = src.slice(src.indexOf('const generateDocx = async'), src.indexOf('// ── Assessment Pack (v3.119.0)'));
+  assert.ok(!docx.includes('pageBreakBefore') && !docx.includes(', true),'), 'no forced page breaks');
+  for (const part of ["eyebrow('Brand under review')", "secHead('Trust, credibility, reputation and authenticity', 'The evidence')", "secHead('Earned creative', 'How earned creative could help')", 'headers: { default: new DocxHeader', 'clientEcoSection(scores, project.brandName)'])
+    assert.ok(docx.includes(part), part);
+  assert.ok(!docx.includes('#F59E0B') && !docx.includes('s.color'), 'the rainbow stage colors are gone from the maturity bar');
+  const payload = App.makeClientPayload({ project: { brandName: 'Acme', industry: 'energy', heroImage: 'data:image/jpeg;base64,SENTINEL_IMG', savedId: 'SENTINEL_ID' }, scores: { headline: 'H', consistencyCheck: { at: 'SENTINEL_CHECK' } }, benchmark: null });
+  const json = JSON.stringify(payload);
+  ['SENTINEL_IMG', 'SENTINEL_ID', 'SENTINEL_CHECK'].forEach(t => assert.ok(!json.includes(t), t));
+  assert.ok(src.includes('const { heroImage: _img, savedId: _sid, resultId: _rid, ...shareProject } = assessment.project || {};'), 'the share link drops them too');
+});
+
+test('the score adjustment is internal only: never in the Word file or a client view (v3.120.0)', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const docx = src.slice(src.indexOf('const generateDocx = async'), src.indexOf('// ── Assessment Pack (v3.119.0)'));
+  assert.ok(!docx.includes("h3('Score adjustment')") && !/th\('Campaign'/.test(docx), 'gone from the Word file');
+  assert.ok(src.includes('{showInternal && campaignAffected.length > 0 && campaignStage && ('), 'the panel needs showInternal');
 });
 
 test('Check consistency is for admins only', async () => {

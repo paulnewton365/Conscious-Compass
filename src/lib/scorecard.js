@@ -362,3 +362,63 @@ export async function exportTeaserPack(payload, d, { jsPDF, JSZip, saveAs, save 
   if (save) saveAs(blob, filename);
   return { blob, filename, included };
 }
+
+// ── Assessment Pack (v3.119.0) ─────────────────────────────────
+// The full assessment's counterpart to the Teaser Pack: the full report as a
+// Word file, plus the same 5x7 card and slide, filled from the full
+// assessment's scores and trust lenses. Without a brand image and a
+// benchmark average the pack holds the report alone, as the Teaser Pack
+// holds the read alone.
+export const ASSESSMENT_PACK_FILES = {
+  report: (brand) => `${packName(brand)} Full Assessment.docx`,
+  card: (brand) => `${packName(brand)} Assessment Card 5x7 bleed.pdf`,
+  slide: (brand) => `${packName(brand)} Assessment Slide.pptx`,
+  zip: (brand) => `${packName(brand)} Assessment Pack.zip`,
+};
+
+// What the card and slide need from a full report.
+export function assessmentPackReady({ overall, heroImage, baselineAvg }) {
+  const missing = [];
+  const has = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));   // Number(null) is 0
+  if (!has(overall)) missing.push('a score');
+  if (!heroImage) missing.push('a brand image');
+  if (!has(baselineAvg)) missing.push('an industry average');
+  return { ready: missing.length === 0, missing };
+}
+
+// The card and slide data from a full report. source 'full' changes the
+// slide's line about where the scores come from.
+export function assessmentCardData({ brand, sectorName, baselineAvg, overall, lenses = {}, heroImage }) {
+  return {
+    brand: brand || '',
+    sector: sectorName || '',
+    baseline: baselineAvg,
+    overall,
+    credibility: lenses.credibility,
+    trust: lenses.trust,
+    reputation: lenses.reputation,
+    authenticity: lenses.authenticity,
+    img: heroImage || '',
+    source: 'full',
+  };
+}
+
+export async function exportAssessmentPack({ brand, reportBlob, d, includeScorecard }, { jsPDF, JSZip, saveAs, save = true, assets = null, media = null, backArtwork = BACK_ARTWORK }) {
+  if (typeof saveAs !== 'function') throw new Error('The download helper (file-saver) did not load. Reload the page and try again.');
+  const zip = new JSZip();
+  const included = [];
+  zip.file(ASSESSMENT_PACK_FILES.report(brand), await reportBlob.arrayBuffer());
+  included.push('report');
+  if (includeScorecard) {
+    const { pdf: card } = await exportScorecardPdf(d, { jsPDF, save: false, assets, backArtwork });
+    zip.file(ASSESSMENT_PACK_FILES.card(brand), card.output('arraybuffer'));
+    included.push('card');
+    const { blob: slide } = await exportScorecardSlide(d, { JSZip, saveAs, save: false, media });
+    zip.file(ASSESSMENT_PACK_FILES.slide(brand), await slide.arrayBuffer());
+    included.push('slide');
+  }
+  const filename = ASSESSMENT_PACK_FILES.zip(brand);
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
+  if (save) saveAs(blob, filename);
+  return { blob, filename, included };
+}

@@ -2,8 +2,69 @@
 // Returns the composed weekly newsletter from Supabase cache.
 // Cache is written by /api/refresh-stay-conscious-newsletter every Sunday at 23:30 UTC.
 
+// Public issue (v3.120.0): GET ?public=1 needs no sign-in and returns only the
+// sections safe to publish, by allowlist: the lead story, the brand
+// intelligence items and the landscape figures. Story opportunities are
+// internal (they are built from the list of assessed brands) and never leave.
+// Landscape text that names an assessed brand is dropped as well.
+
 import { requireUser } from './_auth.js';
+
+const str = (v, n = 4000) => (typeof v === 'string' ? v.slice(0, n) : '');
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export function publicIssue(newsletter, brandNames = []) {
+  if (!newsletter || typeof newsletter !== 'object') return null;
+  const names = [...new Set(brandNames.map(n => String(n || '').trim()).filter(n => n.length >= 3))];
+  const named = names.length ? new RegExp(`(^|[^\\p{L}\\p{N}])(${names.map(escapeRe).join('|')})(?=$|[^\\p{L}\\p{N}])`, 'iu') : null;
+  const mentions = (t) => !!(named && named.test(t));
+  const keepParas = (t) => str(t).split(/\n\s*\n/).filter(p => p.trim() && !mentions(p)).join('\n\n');
+  const item = (x) => (x && typeof x === 'object' ? {
+    category: str(x.category, 80), headline: str(x.headline, 300), insight: str(x.insight), whyItMatters: str(x.whyItMatters),
+    ...(x.image && typeof x.image.src === 'string' && /^https:\/\//.test(x.image.src) ? { image: { src: x.image.src, alt: str(x.image.alt, 300), caption: str(x.image.caption, 300) } } : {}),
+  } : null);
+  const la = newsletter.landscapeAnalysis;
+  return {
+    issueNumber: num(newsletter.issueNumber),
+    weekOf: str(newsletter.weekOf, 60),
+    leadStory: item(newsletter.leadStory),
+    intelligenceItems: Array.isArray(newsletter.intelligenceItems) ? newsletter.intelligenceItems.map(item).filter(Boolean) : [],
+    landscapeAnalysis: la && typeof la === 'object' ? {
+      brandCount: num(la.brandCount), sectorCount: num(la.sectorCount), averageScore: num(la.averageScore),
+      headline: mentions(str(la.headline)) ? '' : str(la.headline, 300),
+      summary: keepParas(la.summary),
+      insights: keepParas(la.insights),
+    } : null,
+  };
+}
+
+const isPublicRequest = (req) => req.method === 'GET' && String(req.query?.public ?? new URL(req.url || '/', 'http://x').searchParams.get('public')) === '1';
+
+async function sendPublicIssue(req, res) {
+  const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: 'Server environment variables not configured' });
+  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
+  try {
+    const [issueRes, namesRes] = await Promise.all([
+      fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?select=newsletter,refreshed_at&order=refreshed_at.desc&limit=1`, { headers }),
+      fetch(`${supabaseUrl}/rest/v1/compass_results?select=brand_name`, { headers }),
+    ]);
+    // Without the brand list the landscape text cannot be checked, so none is sent.
+    if (!issueRes.ok || !namesRes.ok) return res.status(502).json({ error: 'The issue could not be loaded.' });
+    const rows = await issueRes.json();
+    const names = (await namesRes.json()).map(r => r.brand_name);
+    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+    return res.status(200).json({ newsletter: publicIssue(rows?.[0]?.newsletter, names), refreshedAt: rows?.[0]?.refreshed_at || null, public: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'The issue could not be loaded.' });
+  }
+}
+
 export default async function handler(req, res) {
+  // The public issue is the one exception to sign-in, and sends only publicIssue().
+  if (isPublicRequest(req)) return sendPublicIssue(req, res);
   // Callers must be signed in (v3.100.1); see api/_auth.js.
   if (!(await requireUser(req, res))) return;
   if (req.method !== 'GET') {
