@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.116.0';
+const APP_VERSION = '3.118.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -18,6 +18,7 @@ import { SCORING_RUNS, SPREAD_FLAG, gatherRuns, combineRuns, consistencyStats, t
 const SCORING_STAGES_BY_ID = Object.fromEntries(SCORING_STAGES.map(st => [st.id, st]));
 import { startScrollMotion, retagSections, revealAll, motionAllowed } from './lib/scrollMotion';
 import { benchmarkView, benchmarkPosition, latestPerBrand, resultHistory, resultBrandKey } from './lib/benchmarkView';
+import { sectorPromptBlock } from './data/sectorProfiles';
 import { buildTeaserEco, applyEarnedCreativeLift, buildEcoSection, clientEcoSection, parseOpportunity, ECO_COPY } from './lib/eco';
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
 import { trustLensView } from './lib/trustLensView';
@@ -31,6 +32,7 @@ import {
   getProfile,
   fetchCompassResults,
   saveCompassResult,
+  updateCompassResult,
   deleteCompassResult,
   fetchSavedAssessments,
   saveAssessment,
@@ -898,7 +900,7 @@ IMPORTANT FORMATTING RULES:
 }
 
 // Spider Chart Component
-function SpiderChart({ scores, animate = true }) {
+function SpiderChart({ scores, animate = true, total = null }) {
   // Reduced motion: drawn at once (v3.108.0).
   const moving = animate && motionAllowed();
   const [progress, setProgress] = useState(moving ? 0 : 1);
@@ -1008,6 +1010,18 @@ function SpiderChart({ scores, animate = true }) {
             </text>
           );
         })}
+
+        {/* The overall score at the centre (v3.118.0), on a paper disc so the
+            data shape never runs through it. */}
+        {total !== null && Number.isFinite(Number(total)) && (
+          <g data-field="radar-total">
+            <circle cx="226" cy="226" r="40" fill="#FBFAF7" stroke="#15171A" strokeOpacity="0.15" strokeWidth="1" />
+            <text x="226" y="222" textAnchor="middle" dominantBaseline="middle"
+              style={{ fontFamily: 'Newsreader, Georgia, serif', fontSize: '38px', fill: '#15171A' }}>{total}</text>
+            <text x="226" y="250" textAnchor="middle" dominantBaseline="middle"
+              style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.12em', fill: '#5B6068' }}>OVERALL</text>
+          </g>
+        )}
 
         {/* Attribute labels — always visible */}
         {data.map((item, i) => {
@@ -5196,7 +5210,7 @@ function ReportGlanceSection({ project, scores, overall, stage, sortedAttrs, cha
         </p>
       </div>
       <figure className="dc-radar" ref={chartRef}>
-        <SpiderChart scores={scores} />
+        <SpiderChart scores={scores} total={overall} />
       </figure>
     </div>
   );
@@ -5294,10 +5308,10 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                   );
                 })}
 
-                {/* Runs the full width of the grid: as a single cell it left
-                    most of a row empty. */}
+                {/* Sits in the grid's next cell, beside the last attribute,
+                    rather than spanning a row of its own (v3.118.0). */}
                 {campaignAffected.length > 0 && campaignStage && (
-                  <div className="dc-block dc-attr-span">
+                  <div className="dc-block dc-attr-adj" data-field="score-adjustment">
                     <h4 className="dc-h is-card">Score adjustment</h4>
                     <p className="text-[12px] text-[#5B6068]" style={{ lineHeight: 1.5, marginTop: 8, paddingBottom: 14, borderBottom: '1px solid #DEDAD2' }}>
                       Attribute scores judge the quality of the work. Campaign coherence is scored
@@ -5457,8 +5471,14 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
   // evidence, reported side by side. Nothing is saved.
   const [consistency, setConsistency] = useState(null);
   const [checkOpen, setCheckOpen] = useState(false);
+  // v3.118.0: once run on the current scores the result is kept with the
+  // report (scores.consistencyCheck, internal only) and the button greys out;
+  // it then opens that result instead of running again. A rescore builds a new
+  // scores object without it, so the check is available again.
+  const checkDone = !!scores?.consistencyCheck;
   const runConsistencyCheck = async () => {
     setCheckOpen(true);
+    if (checkDone) { setConsistency(scores.consistencyCheck); return; }
     setConsistency({ running: true });
     await runScoring({ consistencyCheck: 5 });
   };
@@ -5746,6 +5766,8 @@ HOW TO TREAT A CHALLENGE. Read this carefully, it protects the integrity of the 
 
     const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}.
 ${project.companyStage ? `\n${stagePromptBlock(project.companyStage)}\n` : ''}
+${sectorPromptBlock(project.industry, INDUSTRIES.find(i => i.id === project.industry)?.name)}
+
 ${challengeBlock}
 ${project.assessorContext ? `\nSTRATEGIC LENS — READINESS:\nThe brand has stated the following aspirations and goals:\n${project.assessorContext}\n\nWrite the whole assessment through this lens. Do not only score what the brand is today; judge how ready it is to achieve what it says it wants. If it wants to reposition, assess its readiness to reposition. If it wants to reach a new audience, assess how well set up it is to reach that audience. Carry this readiness judgment through the findings, impact, actions, and conclusion.\nDo NOT reference the assessor, "the context provided", or this instruction anywhere in the report. The only thing you may surface from it is the brand's own stated aspirations and goals, framed as the brand's ambition. Everything else appears as analysis of readiness, never as a quote.\n` : ''}
 
@@ -6031,7 +6053,14 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
       const runs = gathered.runs;
       const timing = { early: gathered.early, wallMs: gathered.wallMs, passes: gathered.timings };
       if (consistencyCheck) {
-        setConsistency({ ...consistencyStats(runs), failed: runs.filter(r => !r).length, requested: runsWanted, timing });
+        const check = { ...consistencyStats(runs), failed: runs.filter(r => !r).length, requested: runsWanted, timing, at: new Date().toISOString() };
+        setConsistency(check);
+        // Kept with the report, and saved with it; scores never change here.
+        if (check.runs) {
+          const withCheck = { ...scores, consistencyCheck: check };
+          setScores(withCheck);
+          await onSave({ quiet: true, scoresOverride: withCheck });
+        }
         return;
       }
       const combined = combineRuns(runs);
@@ -6123,12 +6152,21 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             // A language directive is a standing preference, not a one-off, so
             // it is reapplied to freshly generated text rather than silently
             // lost every time the report is rescored.
+            let finalScores = adjusted;
             if (project.languageDirective) {
               setScores(adjusted);
-              await applyLanguageDirective(project.languageDirective, adjusted, { silent: true });
+              finalScores = (await applyLanguageDirective(project.languageDirective, adjusted, { silent: true })) || adjusted;
             } else {
               setScores(adjusted);
             }
+            // Saved as soon as it is scored (v3.118.0): a rescore updates its
+            // saved record, a net new assessment creates one, and each scoring
+            // run adds one Results history entry. Failures say so and the Save
+            // button stays available to retry.
+            setSaveState('saving');
+            const autoSaved = await onSave({ quiet: true, scoresOverride: finalScores, newRun: true });
+            setSaveState(autoSaved ? 'saved' : 'idle');
+            if (autoSaved) setTimeout(() => setSaveState(st => (st === 'saved' ? 'idle' : st)), 4000);
             // The report opens at the top, where the overall score counts up
             // and the chart draws in: the reveal after the wait (v3.114.0).
             if (!challengeContext) { try { window.scrollTo({ top: 0 }); } catch { /* not available */ } }
@@ -6460,254 +6498,6 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   const websiteEvalDescription = assessments.website?.pagesReviewed 
     ? `Website analysis covered ${assessments.website.pagesReviewed}, examining brand positioning, messaging and storytelling, information architecture, UI design, user experience, accessibility, and AI search readability.`
     : 'Website analysis examined homepage and key pages for brand positioning, messaging, information architecture, UI/UX design, accessibility compliance, and AI search readability.';
-
-  // Copy Report Text to clipboard
-  const copyReportText = () => {
-    const divider = '═'.repeat(60);
-    const subDivider = '─'.repeat(40);
-    
-    // Build attribute scores text
-    const attrScoresText = ATTRIBUTES.map(attr => {
-      const score = scores[attr.id]?.score || 0;
-      return `  ${attr.name}: ${score}/100`;
-    }).join('\n');
-    
-    // Build strengths and opportunities
-    const strengths = sortedAttrs.slice(-3).reverse().map(a => `  • ${a.name} (${a.score}/100)`).join('\n');
-    const opportunities = sortedAttrs.slice(0, 3).map(a => `  • ${a.name} (${a.score}/100)`).join('\n');
-    
-    // Build recommendations text
-    const recsText = recommendations.slice(0, 6).map((rec, i) => 
-      `  ${i + 1}. ${rec.title}\n     ${rec.description}\n     Benefit: ${rec.impact}`
-    ).join('\n\n');
-
-    let reportText = `
-${divider}
-CONSCIOUS COMPASS ASSESSMENT REPORT
-${divider}
-
-Brand: ${project.brandName}
-Industry: ${industryName}
-Website: ${project.websiteUrl}
-Business Model: ${project.businessModel.toUpperCase()}
-Company Stage: ${findStage(project.companyStage)?.name || 'Not set'}
-Date: ${new Date().toLocaleDateString()}
-
-${divider}
-OVERALL SCORE: ${overall}/100
-Maturity Stage: ${stage.name}
-${divider}
-
-${subDivider}
-ATTRIBUTE SCORES
-${subDivider}
-${attrScoresText}
-
-${campaignStage ? `${subDivider}
-CAMPAIGN COHERENCE
-${subDivider}
-${campaignStage.level === 0 ? 'No tier reached' : `Level ${campaignStage.level} of 5`}: ${campaignStage.name}
-${campaignStage.summary}
-${campaign.verdict ? `\nVerdict: ${campaign.verdict}` : ''}
-${campaign.rationale ? `Why this level: ${campaign.rationale}` : ''}
-${campaign.toNextLevel ? `To reach level ${Math.min(5, campaignStage.level + 1)}: ${campaign.toNextLevel}` : ''}
-${Array.isArray(campaign.campaigns) && campaign.campaigns.length ? `\nCampaigns identified:\n${campaign.campaigns.map(c => `  • ${c.name}${c.channels?.length ? ` (${c.channels.join(', ')})` : ''}${c.idea ? `\n    Idea: ${c.idea}` : ''}${c.evidence ? `\n    Evidence: ${c.evidence}` : ''}`).join('\n')}` : ''}
-${campaignAffected.length ? `\nScore adjustment applied:\n${campaignAffected.map(a => `  • ${a.name}: ${scores[a.id]?.baseScore} ${campaignAdjustment(a.id) > 0 ? '+' : ''}${campaignAdjustment(a.id)} = ${scores[a.id]?.score}`).join('\n')}\n(Attribute scores judge quality of work. Campaign coherence is scored separately and applied here.)` : ''}
-
-` : ''}${benchmark ? `${subDivider}
-BENCHMARK COMPARISON
-${subDivider}
-Benchmarked against: ${benchmark.cohortLabel} (n=${benchmark.count}${benchmark.rubricVersions?.length ? `, framework v${benchmark.rubricVersions.join(', v')}` : ''})
-${benchmark.fallbackReason ? `Note: ${benchmark.fallbackReason}\n` : ''}
-Overall: ${overall} vs ${benchmark.scope === 'industry' ? 'sector' : 'all brands'} average ${benchmark.avgScore} (${overall - benchmark.avgScore > 0 ? '+' : ''}${overall - benchmark.avgScore})
-${benchmarkPosition(benchmark)?.rank ? `Rank: ${ordinal(benchmarkPosition(benchmark).rank)} of ${benchmarkPosition(benchmark).n}` : ''}
-Percentile: ${benchmarkPosition(benchmark)?.percentile != null ? ordinal(benchmarkPosition(benchmark).percentile) : 'n/a'}
-All assessed brands average: ${benchmark.allBrandsAvg}
-
-Attribute vs ${benchmark.scope === 'industry' ? 'sector' : 'all brands'} average:
-${ATTRIBUTES.map(a => {
-  const b = benchmark.attrAvgs?.[a.id] ?? 0;
-  const s = scores[a.id]?.score || 0;
-  const d = s - b;
-  return `  ${a.name.padEnd(13)} ${String(s).padStart(3)}  vs ${String(b).padStart(3)}  (${d > 0 ? '+' : ''}${d})`;
-}).join('\n')}
-
-` : ''}${subDivider}
-KEY STRENGTHS
-${subDivider}
-${strengths}
-
-${subDivider}
-GROWTH OPPORTUNITIES
-${subDivider}
-${opportunities}
-
-${subDivider}
-TOP RECOMMENDATIONS
-${subDivider}
-${recsText}
-
-${divider}
-ASSESSMENT READOUTS
-${divider}
-`;
-
-    // Add Website Assessment
-    if (assessments.website?.autoAssessContent || assessments.website?.seoAssessment || assessments.website?.content) {
-      reportText += `
-${subDivider}
-WEBSITE ASSESSMENT
-${subDivider}
-`;
-      if (assessments.website?.autoAssessContent) {
-        reportText += `
-[Auto-Assess Analysis]
-${assessments.website.autoAssessContent}
-`;
-      }
-      if (assessments.website?.seoAssessment) {
-        reportText += `
-[SEO Visibility Assessment]
-${assessments.website.seoAssessment}
-`;
-      }
-      if (assessments.website?.content) {
-        reportText += `
-[Full Website Analysis]
-${assessments.website.content}
-`;
-      }
-      // Inject property consistency data if present
-      const additionalProps = project.additionalProperties?.filter(p => p.url) || [];
-      const pd = assessments.website?.propertyData || {};
-      if (additionalProps.length > 0 && (Object.keys(pd).length > 0 || pd.consistencyAnalysis)) {
-        const allProps = [{ url: project.websiteUrl, type: 'primary', label: 'Primary' }, ...additionalProps];
-        const propTable = allProps.map(p => {
-          const d = pd[p.url] || {};
-          return `  ${p.label || p.type} (${p.url}): Perf ${d.performance ?? 'n/a'} | SEO ${d.seo ?? 'n/a'} | Access. ${d.accessibility ?? 'n/a'}`;
-        }).join('\n');
-        const riskMatch = pd.consistencyAnalysis?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i);
-        reportText += `
-[Digital Estate Consistency — ${additionalProps.length + 1} Properties]
-${propTable}
-${riskMatch ? `Consistency Risk: ${riskMatch[1]}` : ''}
-${pd.consistencyAnalysis ? `\nConsistency Analysis:\n${pd.consistencyAnalysis}` : ''}
-
-SCORING GUIDANCE FOR ATTRIBUTE SCORES:
-- REFLECTIVE: Cross-property visual, tone, or message inconsistency is direct evidence of brand inauthenticity. Weight this finding in the REFLECTIVE score. Translated sites with poor brand voice preservation should reduce this score further.
-- ATTENTIVE: Performance variance across properties signals inconsistent experience delivery. Use the weakest property score when assessing ATTENTIVE, not just the primary site.
-- COGENT: Fragmented tech stacks or missing SEO localisation on translated/regional properties indicates weak strategic intelligence.
-- AWARE: Regional/translated properties with no local adaptation (just translated content) suggest the brand does not truly understand its non-primary audiences.
-`;
-      }
-    }
-
-    // Add Social Media Assessment
-    if (assessments.social?.redditAnswersContent || assessments.social?.content) {
-      reportText += `
-${subDivider}
-SOCIAL MEDIA ASSESSMENT
-${subDivider}
-`;
-      if (assessments.social?.redditAnswersContent) {
-        reportText += `
-[Reddit Answers - AI Search Visibility]
-${assessments.social.redditAnswersContent}
-`;
-      }
-      if (assessments.social?.content) {
-        reportText += `
-[Full Social Media Analysis]
-${assessments.social.content}
-`;
-      }
-    }
-
-    // Add AI Reputation Assessment
-    if (assessments.aiReputation?.content) {
-      reportText += `
-${subDivider}
-AI REPUTATION ASSESSMENT
-${subDivider}
-
-${assessments.aiReputation.content}
-`;
-    }
-
-    // Add Earned Media Assessment
-    if (assessments.earnedMedia?.autoAssessContent || assessments.earnedMedia?.content) {
-      reportText += `
-${subDivider}
-EARNED MEDIA ASSESSMENT
-${subDivider}
-`;
-      if (assessments.earnedMedia?.autoAssessContent) {
-        reportText += `
-[Auto-Assess Earned Media Performance]
-${assessments.earnedMedia.autoAssessContent}
-`;
-      }
-      if (assessments.earnedMedia?.content) {
-        reportText += `
-[Full Earned Media Analysis]
-${assessments.earnedMedia.content}
-`;
-      }
-    }
-
-    // Challenge history. Internal copy only; the client payload excludes it.
-    if (scores.challenges?.length) {
-      reportText += `
-${divider}
-CHALLENGE HISTORY
-${divider}
-This assessment was rescored after additional context was put to it.
-`;
-      scores.challenges.forEach((c, i) => {
-        const when = (() => { const d = new Date(c.date); return isNaN(d) ? '' : d.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }); })();
-        const delta = (c.afterOverall ?? 0) - (c.beforeOverall ?? 0);
-        const moved = ATTRIBUTES
-          .map(a => { const d = c.attributeDeltas?.[a.id];
-            return d && d.before != null && d.after != null && d.before !== d.after
-              ? `${a.name} ${d.before} to ${d.after}` : null; })
-          .filter(Boolean);
-        reportText += `
-${subDivider}
-Challenge ${i + 1}${c.author ? ` — ${c.author}` : ''}${when ? `, ${when}` : ''}
-${subDivider}
-Overall: ${c.beforeOverall} to ${c.afterOverall}${delta === 0 ? ' (no change)' : ` (${delta > 0 ? '+' : ''}${delta})`}
-${moved.length ? `Attributes moved: ${moved.join('; ')}` : 'No individual attribute changed'}
-${c.sectionsRevised?.length ? `Readouts revised: ${c.sectionsRevised.join(', ')}` : ''}
-`;
-        [['Business context', c.businessContext], ['Website', c.website], ['Social media', c.social],
-         ['AI reputation', c.aiReputation], ['Earned media', c.earnedMedia]]
-          .filter(([, v]) => v && v.trim())
-          .forEach(([label, v]) => { reportText += `\n[${label}]\n${v.trim()}\n`; });
-      });
-    }
-
-    reportText += `
-${divider}
-METHODOLOGY
-${divider}
-${websiteEvalDescription} Social media presence was analyzed across LinkedIn, X, Instagram, and YouTube for brand consistency and engagement. AI reputation was assessed across up to five AI engines (Claude, Gemini, ChatGPT, Perplexity, Microsoft Copilot), supplemented by Wikipedia presence, Reddit community perception, and third-party news, review, and search signals, to understand how AI systems perceive and represent the brand. Earned media coverage from the past 3 months was reviewed for sentiment, message penetration, and share of voice.
-
-Generated by Conscious Compass | Antenna Group Brand Consciousness Framework v${FRAMEWORK_VERSION}
-`;
-
-    navigator.clipboard.writeText(reportText.trim()).then(() => {
-      alert('Report copied to clipboard!');
-    }).catch(() => {
-      // Fallback for browsers that don't support clipboard API
-      const textArea = document.createElement('textarea');
-      textArea.value = reportText.trim();
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      alert('Report copied to clipboard!');
-    });
-  };
 
   // Copy proposal-ready text (structured for use in proposals)
   // Retained but no longer surfaced. The "Text For Proposal" button was removed
@@ -7519,12 +7309,13 @@ ${content.slice(0, 8000)}`;
               one primary. The icons and the size overrides are gone. */}
           {!isReadonly ? (
             <div className="dc-head-actions">
-              <button onClick={copyReportText} className="btn-secondary">Copy full report</button>
               <button onClick={() => setShowChallenge(true)} className="btn-secondary">Challenge</button>
               <button onClick={() => setShowLanguage(true)} className="btn-secondary">Language</button>
               {profile?.is_admin && (
-                <button type="button" onClick={runConsistencyCheck} className="btn-secondary" disabled={consistency?.running} data-field="consistency">
-                  {consistency?.running ? 'Checking\u2026' : 'Check consistency'}
+                <button type="button" onClick={runConsistencyCheck} className={`btn-secondary${checkDone ? ' is-spent' : ''}`} disabled={consistency?.running}
+                  data-field="consistency"
+                  title={checkDone ? `Checked ${new Date(scores.consistencyCheck.at).toLocaleDateString('en-US', { dateStyle: 'medium' })}. Rescore to check again.` : undefined}>
+                  {consistency?.running ? 'Checking\u2026' : checkDone ? 'Consistency checked' : 'Check consistency'}
                 </button>
               )}
               <button type="button" onClick={saveReport} className="btn-secondary" disabled={saveState === 'saving'} aria-busy={saveState === 'saving' || undefined} aria-live="polite" data-field="save">
@@ -7593,7 +7384,7 @@ ${content.slice(0, 8000)}`;
           <div className="dc-maturity-labels">
             {MATURITY_STAGES.map(st => (
               <div key={st.id} className={st.name === stage.name ? 'is-current' : ''}>
-                <span>{st.name}</span><span>{st.min}\u2013{st.max}</span>
+                <span>{st.name}</span><span>{`${st.min}\u2013${st.max}`}</span>
               </div>
             ))}
           </div>
@@ -7678,7 +7469,9 @@ ${content.slice(0, 8000)}`;
 
       {checkOpen && (
         <Dialog title="Scoring consistency" onClose={() => setCheckOpen(false)} busy={!!consistency?.running}
-          subtitle="Five scoring passes on this report's saved evidence. Nothing is saved or changed.">
+          subtitle={checkDone && !consistency?.running
+            ? `Checked ${new Date(scores.consistencyCheck.at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Rescore the report to check again.`
+            : "Five scoring passes on this report's saved evidence. Scores don't change; the result is kept with the report."}>
           <div className="dc-dialog-body" data-field="consistency-result">
             {consistency?.running && <p className="dc-meta" role="status">Running five scoring passes. This takes a minute or two.</p>}
             {consistency?.error && <div className="dc-alert is-error" role="alert"><strong>The check did not finish</strong><p>{consistency.error}</p></div>}
@@ -8502,267 +8295,6 @@ function OnboardingTour({ onComplete }) {
             </button>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Portfolio Insights View Component
-function InsightsView({ results, isAdmin = false }) {
-  const [aiInsights, setAiInsights] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [refreshedAt, setRefreshedAt] = useState(null);
-  
-  // Calculate portfolio-wide statistics
-  const portfolioStats = useMemo(() => {
-    if (results.length === 0) return null;
-    
-    const totalBrands = results.length;
-    const avgScore = Math.round(results.reduce((sum, r) => sum + r.totalScore, 0) / totalBrands);
-    
-    // Distribution by maturity
-    const maturityDistribution = {};
-    results.forEach(r => {
-      const stage = r.maturityLevel || 'Unknown';
-      maturityDistribution[stage] = (maturityDistribution[stage] || 0) + 1;
-    });
-    
-    // Attribute averages
-    const attrAverages = {};
-    ATTRIBUTES.forEach(attr => {
-      const sum = results.reduce((s, r) => s + (r.scores?.[attr.id] || 0), 0);
-      attrAverages[attr.id] = Math.round(sum / totalBrands);
-    });
-    
-    // Find strongest and weakest attributes
-    const sortedAttrs = Object.entries(attrAverages).sort((a, b) => b[1] - a[1]);
-    const strongestAttr = sortedAttrs[0];
-    const weakestAttr = sortedAttrs[sortedAttrs.length - 1];
-    
-    // Top and bottom performers
-    const sortedBrands = [...results].sort((a, b) => b.totalScore - a.totalScore);
-    const topPerformers = sortedBrands.slice(0, 3);
-    const bottomPerformers = sortedBrands.slice(-3).reverse();
-    
-    // Industry breakdown
-    const industryBreakdown = {};
-    results.forEach(r => {
-      const ind = r.industry || 'other';
-      if (!industryBreakdown[ind]) {
-        industryBreakdown[ind] = { count: 0, totalScore: 0 };
-      }
-      industryBreakdown[ind].count++;
-      industryBreakdown[ind].totalScore += r.totalScore;
-    });
-    Object.keys(industryBreakdown).forEach(ind => {
-      industryBreakdown[ind].avgScore = Math.round(industryBreakdown[ind].totalScore / industryBreakdown[ind].count);
-    });
-    
-    // Score distribution (for histogram)
-    const scoreDistribution = [
-      { range: '0-25', label: 'Pre-Foundational', count: results.filter(r => r.totalScore <= 25).length, color: '#94A3B8' },
-      { range: '26-39', label: 'Foundational', count: results.filter(r => r.totalScore > 25 && r.totalScore <= 39).length, color: '#8C5A0B' },
-      { range: '40-55', label: 'Establishing', count: results.filter(r => r.totalScore > 39 && r.totalScore <= 55).length, color: '#8C5A0B' },
-      { range: '56-69', label: 'Differentiating', count: results.filter(r => r.totalScore > 55 && r.totalScore <= 69).length, color: '#2F6B55' },
-      { range: '70-84', label: 'Leading', count: results.filter(r => r.totalScore > 69 && r.totalScore <= 84).length, color: '#0D9488' },
-      { range: '85-100', label: 'Transforming', count: results.filter(r => r.totalScore > 84).length, color: '#5B6068' },
-    ];
-    
-    return {
-      totalBrands,
-      avgScore,
-      maturityDistribution,
-      attrAverages,
-      strongestAttr,
-      weakestAttr,
-      topPerformers,
-      bottomPerformers,
-      industryBreakdown,
-      scoreDistribution,
-    };
-  }, [results]);
-
-  const loadInsights = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/insights-analysis');
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      const data = await res.json();
-      if (data.stories?.length) {
-        setAiInsights(data.stories);
-        setRefreshedAt(data.refreshedAt ? new Date(data.refreshedAt) : null);
-      } else {
-        setError(data.error || 'No stories available yet — check back after the first weekly refresh, or ask an admin to force one.');
-      }
-    } catch (e) {
-      setError(e.message || 'Failed to load stories.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const forceRefreshInsights = async () => {
-    setRefreshing(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/refresh-insights-analysis', { method: 'POST' });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      const data = await res.json();
-      if (data.success) {
-        await loadInsights();
-      } else {
-        throw new Error(data.error || 'Refresh failed');
-      }
-    } catch (e) {
-      setError(e.message || 'Refresh failed.');
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => { loadInsights(); }, []);
-
-
-  if (!portfolioStats) {
-    return (
-      <div className="card text-center">
-        <TrendingUp className="w-16 h-16 text-[#DEDAD2] mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-[#15171A] mb-2">No Data for Insights</h3>
-        <p className="text-[#5B6068]">Add some brand assessments to see portfolio insights.</p>
-      </div>
-    );
-  }
-
-  const maxCount = Math.max(...portfolioStats.scoreDistribution.map(d => d.count), 1);
-
-  return (
-    <div className="space-y-6">
-      {/* Portfolio Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card text-center">
-          <div className="text-4xl font-bold text-[#15171A] mb-1">{portfolioStats.totalBrands}</div>
-          <div className="text-sm text-[#5B6068]">Brands Assessed</div>
-        </div>
-        <div className="card text-center">
-          <div className="text-4xl font-bold mb-1" style={{ color: getMaturityStage(portfolioStats.avgScore).color }}>
-            {portfolioStats.avgScore}
-          </div>
-          <div className="text-sm text-[#5B6068]">Portfolio Average</div>
-        </div>
-        <div className="card text-center">
-          <div className="text-lg font-bold text-[#2F6B55] mb-1 flex items-center justify-center gap-1">
-            <TrendingUp className="w-5 h-5" />
-            {ATTRIBUTES.find(a => a.id === portfolioStats.strongestAttr[0])?.name}
-          </div>
-          <div className="text-sm text-[#5B6068]">Strongest Area ({portfolioStats.strongestAttr[1]})</div>
-        </div>
-        <div className="card text-center">
-          <div className="text-lg font-bold text-[#8C5A0B] mb-1 flex items-center justify-center gap-1">
-            <TrendingDown className="w-5 h-5" />
-            {ATTRIBUTES.find(a => a.id === portfolioStats.weakestAttr[0])?.name}
-          </div>
-          <div className="text-sm text-[#5B6068]">Growth Opportunity ({portfolioStats.weakestAttr[1]})</div>
-        </div>
-      </div>
-
-      {/* Score Distribution Visualization */}
-      <div className="card">
-        <h3 className="text-sm font-medium text-[#15171A] mb-3">Portfolio Maturity Distribution</h3>
-        <div className="flex items-end gap-3 mb-4" style={{ height: '160px' }}>
-          {portfolioStats.scoreDistribution.map((bucket, idx) => {
-            const barHeight = bucket.count > 0 ? Math.max((bucket.count / maxCount) * 140, 16) : 8;
-            return (
-              <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full">
-                <div className="text-sm font-medium text-[#15171A] mb-2">{bucket.count}</div>
-                <div 
-                  className="w-full -t-lg transition-all duration-500"
-                  style={{ 
-                    backgroundColor: bucket.color,
-                    height: `${barHeight}px`,
-                    opacity: bucket.count > 0 ? 1 : 0.3
-                  }}
-                />
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex gap-3">
-          {portfolioStats.scoreDistribution.map((bucket, idx) => (
-            <div key={idx} className="flex-1 text-center">
-              <div className="text-xs text-[#5B6068]">{bucket.label}</div>
-              <div className="text-[10px] text-[#8A8E95]">{bucket.range}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* AI Insights Section */}
-      <div className="card">
-        <div className="flex items-start justify-between mb-4 gap-4">
-          <div>
-            <h3 className="font-semibold text-[#15171A] flex items-center gap-2">
-              <Lightbulb className="w-5 h-5 text-[#D9442A]"  /> Story Opportunities
-            </h3>
-            <p className="text-xs text-[#5B6068] mt-1">Thought leadership angles from your assessment data. Refreshes automatically every Sunday night.</p>
-            {refreshedAt && (
-              <p className="text-[10px] text-[#999] mt-1">
-                Last updated {refreshedAt.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })} at {refreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
-            )}
-          </div>
-          {isAdmin && (
-            <button
-              onClick={forceRefreshInsights}
-              disabled={refreshing || loading}
-              className="flex-shrink-0 btn-primary flex items-center gap-2 text-sm"
-            >
-              {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              {refreshing ? 'Refreshing…' : 'Force Refresh'}
-            </button>
-          )}
-        </div>
-
-        {error && (
-          <div className="p-4 bg-[#FBFAF7] text-[#C23B22] mb-4 text-sm">
-            {error}
-          </div>
-        )}
-
-        {loading && (
-          <div className="text-center py-8 text-[#5B6068]">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#DEDAD2]" />
-            <p className="text-sm">Loading story opportunities…</p>
-          </div>
-        )}
-
-        {!aiInsights && !loading && !error && (
-          <div className="text-center py-8 text-[#5B6068]">
-            <Lightbulb className="w-12 h-12 mx-auto mb-3 text-[#DEDAD2]" />
-            <p className="text-sm">No stories available yet. They will appear here after the first Sunday night refresh.</p>
-            {isAdmin && <p className="text-xs text-[#999] mt-2">As an admin, you can trigger it now using Force Refresh above.</p>}
-          </div>
-        )}
-
-        {aiInsights && !loading && (
-          <div className="space-y-4">
-            {aiInsights.map((story, idx) => (
-              <div key={idx} className="p-5 bg-[#15171A] ">
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-[#D9442A] text-[#15171A] flex items-center justify-center flex-shrink-0 font-bold text-sm mt-0.5">
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white mb-2 leading-snug">{story.headline}</div>
-                    <div className="text-sm text-[#8A8E95] leading-relaxed">{story.body}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -9725,30 +9257,6 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
   const industriesWithData = [...new Set(results.map(r => r.industry).filter(Boolean))];
 
   // Calculate industry benchmarks
-  const getIndustryBenchmarks = () => {
-    const benchmarks = {};
-    industriesWithData.forEach(industry => {
-      const industryBrands = results.filter(r => r.industry === industry);
-      if (industryBrands.length > 0) {
-        const avgScore = Math.round(industryBrands.reduce((sum, b) => sum + b.totalScore, 0) / industryBrands.length);
-        const attrAvgs = {};
-        ATTRIBUTES.forEach(attr => {
-          attrAvgs[attr.id] = Math.round(
-            industryBrands.reduce((sum, b) => sum + (b.scores?.[attr.id] || 0), 0) / industryBrands.length
-          );
-        });
-        benchmarks[industry] = {
-          avgScore,
-          attrAvgs,
-          count: industryBrands.length,
-          industryName: industries.find(i => i.id === industry)?.name || industry,
-        };
-      }
-    });
-    return benchmarks;
-  };
-
-  const industryBenchmarks = getIndustryBenchmarks();
 
   const toggleBrand = (brand) => {
     if (selectedBrands.find(b => b.id === brand.id)) {
@@ -9799,8 +9307,7 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             {copyDeepLink && (
               <button
                 onClick={() => copyDeepLink(
-                  viewMode === 'landscape' ? 'compare/landscape' :
-                  viewMode === 'insights'  ? 'compare/insights' : 'compare'
+                  viewMode === 'landscape' ? 'compare/landscape' : 'compare'
                 )}
                 className="btn-secondary flex items-center gap-2"
                 title="Copy link to this tab"
@@ -9832,12 +9339,6 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
           >
             Landscape
           </button>
-          <button
-            onClick={() => setViewMode('insights')}
-            className={`dc-tab ${viewMode === 'insights' ? 'dc-tab-on' : ''}`}
-          >
-            Insights
-          </button>
         </div>
 
         {loading && results.length === 0 ? (
@@ -9850,9 +9351,6 @@ function ComparisonPage({ results, onBack, profile, initialTab = 'brands', copyD
             <h3 className="text-xl font-semibold text-[#15171A] mb-2">No Results to Compare</h3>
             <p className="text-[#5B6068]">Complete some assessments first to compare brands.</p>
           </div>
-        ) : viewMode === 'insights' ? (
-          /* AI Insights View */
-          <InsightsView results={results} industryBenchmarks={industryBenchmarks} industries={industries} isAdmin={profile?.is_admin} />
         ) : viewMode === 'landscape' ? (
           /* Landscape View */
           <LandscapeView results={results} industries={industries} isAdmin={profile?.is_admin} />
@@ -10751,6 +10249,115 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
   const hasFilters = search || filterStage || filterIndustry;
   const [showClientLinks, setShowClientLinks] = useState(false);
   const [deletingKey, setDeletingKey] = useState(null);
+  // One row per brand, the latest assessment first (v3.118.0). A brand assessed
+  // more than once keeps every saved record; clicking the brand shows the
+  // earlier ones. Filters and sorting apply to each brand's latest. Only the
+  // latest feeds benchmarks, which read Results, latest per brand.
+  const [openBrands, setOpenBrands] = useState({});
+  const brandKeyOf = (a) => String(a.project?.brandName || '').trim().toLowerCase();
+  const byBrand = new Map();
+  [...enriched].sort((x, y) => lastSaved(y.a).localeCompare(lastSaved(x.a))).forEach(e => {
+    const k = brandKeyOf(e.a);
+    if (!byBrand.has(k)) byBrand.set(k, []);
+    byBrand.get(k).push(e);
+  });
+  const groups = filtered
+    .filter(e => byBrand.get(brandKeyOf(e.a))?.[0] === e)
+    .map(e => ({ key: brandKeyOf(e.a), head: e, older: byBrand.get(brandKeyOf(e.a)).slice(1) }));
+  const savedRow = ({ a, i, overallScore, maturity, industryName, challengeCount }, { history = false, earlier = 0, open = false, onToggle = null } = {}) => (
+                <div key={i} className={`dc-listrow${history ? ' is-history' : ''}`} data-history={history || undefined}>
+                  <div className="flex items-center gap-6 flex-1 min-w-0">
+                    {/* Brand info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="dc-listrow-t truncate flex items-center gap-2">
+                        {earlier > 0
+                          ? <button type="button" className="dc-listrow-toggle truncate" onClick={onToggle} aria-expanded={open}>{a.project.brandName}</button>
+                          : <span className="truncate">{history ? `Earlier: ${a.project.brandName}` : a.project.brandName}</span>}
+                        {challengeCount > 0 && (
+                          <span title={`Rescored after ${challengeCount} challenge${challengeCount > 1 ? 's' : ''}`}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold flex-shrink-0"
+                            style={{ background: '#D9442A', color: '#15171A', letterSpacing: '.06em' }}>
+                            <MessageSquareWarning className="w-2.5 h-2.5" />
+                            CHALLENGED{challengeCount > 1 ? ` ×${challengeCount}` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="dc-listrow-m">
+                        {[industryName, maturity?.name,
+                          lastSaved(a) ? `saved ${new Date(lastSaved(a)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : null,
+                          earlier > 0 ? `${earlier} earlier ${earlier === 1 ? 'assessment' : 'assessments'}${open ? '' : ', click to show'}` : null]
+                          .filter(Boolean).join(' · ') || '—'}
+                      </div>
+                    </div>
+
+                    {/* Score, set as a figure rather than a badge */}
+                    {overallScore !== null && (
+                      <div className="flex-shrink-0 text-right">
+                        <div className="text-[32px] font-normal dc-numeral leading-none tracking-tight"
+                          style={{ color: scoreColor(overallScore) }}>{overallScore}</div>
+                      </div>
+                    )}
+                  </div>
+
+                    {/* Actions — right-aligned on desktop, visible always */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {!isReadonly && (
+                        <>
+                          <button onClick={() => onShare(a)} title="Share link"
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#5B6068] hover:text-[#15171A] hover:bg-[#C23B2208] transition-colors">
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => onExport(a)} title="Export JSON"
+                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#2E3238] hover:text-[#15171A] hover:bg-[#DEDAD2] transition-colors">
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => onRescore(a)}
+                            className="px-3 py-1.5 text-xs font-medium border border-[#DEDAD2] text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors whitespace-nowrap hidden sm:block">
+                            Rescore
+                          </button>
+                        </>
+                      )}
+                      <button onClick={() => onLoad(a)}
+                        className="px-4 py-1.5 text-xs font-semibold bg-[#15171A] text-white hover:bg-[#333333] transition-colors whitespace-nowrap">
+                        Load
+                      </button>
+                      {!isReadonly && (
+                        <button onClick={() => handleDeleteClick(a, i)} title="Delete"
+                          disabled={deletingKey !== null}
+                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#5B6068] hover:text-[#C23B22] hover:bg-[#FBFAF7] transition-colors disabled:opacity-40">
+                          {deletingKey === i
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+
+                  {/* Mobile-only secondary actions */}
+                  {!isReadonly && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#DEDAD2] sm:hidden">
+                      <button onClick={() => onShare(a)} title="Share"
+                        className="w-8 h-8 flex items-center justify-center text-[#5B6068] hover:text-[#15171A] transition-colors">
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => onExport(a)} title="Export"
+                        className="w-8 h-8 flex items-center justify-center text-[#5B6068] hover:text-[#15171A] transition-colors">
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => onRescore(a)}
+                        className="px-3 py-1.5 text-xs font-medium border border-[#DEDAD2] text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors">
+                        Rescore
+                      </button>
+                      <button onClick={() => handleDeleteClick(a, i)} title="Delete"
+                        disabled={deletingKey !== null}
+                        className="w-8 h-8 flex items-center justify-center text-[#5B6068] hover:text-[#C23B22] transition-colors ml-auto disabled:opacity-40">
+                        {deletingKey === i
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+  );
 
   // Deleting hits the network and then refetches the whole list, so it is
   // never instant. The row reports what it is doing rather than sitting there
@@ -10848,97 +10455,15 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
             <div className="dc-alert"><strong>No matching assessments</strong><p>Try adjusting your search or filters.</p></div>
           ) : (
             <div className="space-y-2">
-              {filtered.map(({ a, i, overallScore, maturity, industryName, challengeCount }) => (
-                <div key={i} className="dc-listrow">
-                  <div className="flex items-center gap-6 flex-1 min-w-0">
-                    {/* Brand info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="dc-listrow-t truncate flex items-center gap-2">
-                        <span className="truncate">{a.project.brandName}</span>
-                        {challengeCount > 0 && (
-                          <span title={`Rescored after ${challengeCount} challenge${challengeCount > 1 ? 's' : ''}`}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold flex-shrink-0"
-                            style={{ background: '#D9442A', color: '#15171A', letterSpacing: '.06em' }}>
-                            <MessageSquareWarning className="w-2.5 h-2.5" />
-                            CHALLENGED{challengeCount > 1 ? ` ×${challengeCount}` : ''}
-                          </span>
-                        )}
-                      </div>
-                      <div className="dc-listrow-m">
-                        {[industryName, maturity?.name,
-                          lastSaved(a) ? `saved ${new Date(lastSaved(a)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : null]
-                          .filter(Boolean).join(' · ') || '—'}
-                      </div>
-                    </div>
-
-                    {/* Score, set as a figure rather than a badge */}
-                    {overallScore !== null && (
-                      <div className="flex-shrink-0 text-right">
-                        <div className="text-[32px] font-normal dc-numeral leading-none tracking-tight"
-                          style={{ color: scoreColor(overallScore) }}>{overallScore}</div>
-                      </div>
-                    )}
+              {groups.map(({ key, head, older }) => {
+                const open = !!openBrands[key];
+                return (
+                  <div key={key} className="dc-saved-group" data-brand={key}>
+                    {savedRow(head, { earlier: older.length, open, onToggle: () => setOpenBrands(o => ({ ...o, [key]: !o[key] })) })}
+                    {open && older.map(e => savedRow(e, { history: true }))}
                   </div>
-
-                    {/* Actions — right-aligned on desktop, visible always */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {!isReadonly && (
-                        <>
-                          <button onClick={() => onShare(a)} title="Share link"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#5B6068] hover:text-[#15171A] hover:bg-[#C23B2208] transition-colors">
-                            <Share2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => onExport(a)} title="Export JSON"
-                            className="w-8 h-8 hidden sm:flex items-center justify-center text-[#2E3238] hover:text-[#15171A] hover:bg-[#DEDAD2] transition-colors">
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => onRescore(a)}
-                            className="px-3 py-1.5 text-xs font-medium border border-[#DEDAD2] text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors whitespace-nowrap hidden sm:block">
-                            Rescore
-                          </button>
-                        </>
-                      )}
-                      <button onClick={() => onLoad(a)}
-                        className="px-4 py-1.5 text-xs font-semibold bg-[#15171A] text-white hover:bg-[#333333] transition-colors whitespace-nowrap">
-                        Load
-                      </button>
-                      {!isReadonly && (
-                        <button onClick={() => handleDeleteClick(a, i)} title="Delete"
-                          disabled={deletingKey !== null}
-                          className="w-8 h-8 hidden sm:flex items-center justify-center text-[#5B6068] hover:text-[#C23B22] hover:bg-[#FBFAF7] transition-colors disabled:opacity-40">
-                          {deletingKey === i
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <Trash2 className="w-3.5 h-3.5" />}
-                        </button>
-                      )}
-                    </div>
-
-                  {/* Mobile-only secondary actions */}
-                  {!isReadonly && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#DEDAD2] sm:hidden">
-                      <button onClick={() => onShare(a)} title="Share"
-                        className="w-8 h-8 flex items-center justify-center text-[#5B6068] hover:text-[#15171A] transition-colors">
-                        <Share2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => onExport(a)} title="Export"
-                        className="w-8 h-8 flex items-center justify-center text-[#5B6068] hover:text-[#15171A] transition-colors">
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => onRescore(a)}
-                        className="px-3 py-1.5 text-xs font-medium border border-[#DEDAD2] text-[#2E3238] hover:border-[#15171A] hover:bg-[#DEDAD2] transition-colors">
-                        Rescore
-                      </button>
-                      <button onClick={() => handleDeleteClick(a, i)} title="Delete"
-                        disabled={deletingKey !== null}
-                        className="w-8 h-8 flex items-center justify-center text-[#5B6068] hover:text-[#C23B22] transition-colors ml-auto disabled:opacity-40">
-                        {deletingKey === i
-                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          : <Trash2 className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -11506,7 +11031,7 @@ function ClientReportView({ payload }) {
           <div className="dc-cover-l">
             <div className="dc-kicker is-accent">The Conscious Compass</div>
             <h1 className="dc-cover-brand">{project.brandName}</h1>
-            {scores?.headline && <p className="dc-cover-thesis">\u201c{scores.headline}\u201d</p>}
+            {scores?.headline && <p className="dc-cover-thesis">{`\u201c${scores.headline}\u201d`}</p>}
             <p className="dc-meta">
               Conscious Compass Assessment{industryName ? ` \u00b7 ${industryName}` : ''}
               {project.date ? ` \u00b7 ${new Date(project.date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : ''}
@@ -11568,7 +11093,7 @@ function ClientReportView({ payload }) {
           <div className="dc-maturity-labels">
             {MATURITY_STAGES.map(st => (
               <div key={st.id} className={st.name === stage.name ? 'is-current' : ''}>
-                <span>{st.name}</span><span>{st.min}\u2013{st.max}</span>
+                <span>{st.name}</span><span>{`${st.min}\u2013${st.max}`}</span>
               </div>
             ))}
           </div>
@@ -13884,7 +13409,8 @@ function AppContent() {
     'newsletter':        () => { setShowStayConsciousPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
     'compare':           () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
     'compare/landscape': () => { setShowComparisonPage(true); setCompareInitialTab('landscape'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
-    'compare/insights':  () => { setShowComparisonPage(true); setCompareInitialTab('insights'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
+    // The Insights tab was removed (v3.117.0); old links open Compare.
+    'compare/insights':  () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
     'results':           () => { setShowResultsPage(true); setShowComparisonPage(false); setShowStayConsciousPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
     'saved':             () => { setShowSavedPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowStayConsciousPage(false); setShowTeaserPage(false); setShowUIKit(false); },
     // Admin only: the render gate below checks is_admin before showing it.
@@ -13919,7 +13445,7 @@ function AppContent() {
     if (new URLSearchParams(window.location.search).get('report')) return;
     let hash = '';
     if (showStayConsciousPage) hash = 'newsletter';
-    else if (showComparisonPage) hash = compareInitialTab === 'landscape' ? 'compare/landscape' : compareInitialTab === 'insights' ? 'compare/insights' : 'compare';
+    else if (showComparisonPage) hash = compareInitialTab === 'landscape' ? 'compare/landscape' : 'compare';
     else if (showResultsPage) hash = 'results';
     else if (showSavedPage) hash = 'saved';
     else if (showTeaserPage) hash = 'teaser';
@@ -14186,7 +13712,15 @@ function AppContent() {
   // One save at a time (v3.108.1): a second click while a save is running
   // used to start another, and every save adds a results row.
   const savingRef = useRef(false);
-  const handleSave = async ({ quiet = false, resumeStep = null } = {}) => {
+  // The saving code below declares its own `scores`; this is the state value.
+  const scoresState = scores;
+  // v3.118.0: saves by record id. project.savedId is the saved assessment this
+  // report belongs to; project.resultId is the Results history entry for the
+  // current scoring run. newRun (a fresh scoring run) starts a new history
+  // entry; any other save updates the current one. scoresOverride lets the
+  // report save scores it has only just set, before state has caught up.
+  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false } = {}) => {
+    const scores = scoresOverride || scoresState;
     if (!project.brandName) {
       alert('Please enter a brand name before saving.');
       return false;
@@ -14228,18 +13762,18 @@ function AppContent() {
         ...(benchmarkSnapshot ? { benchmarkSnapshot } : {}),
         ...(resumeStep != null ? { resumeStep } : {}),
       };
+      if (newRun) delete projectToSave.resultId;
 
-      // Save to Supabase - saved assessments
-      const { error: saveError } = await saveAssessment({
+      // Save to Supabase - saved assessments, by id
+      const { data: savedRow, error: saveError } = await saveAssessment({
         project: projectToSave,
         assessments: assessmentsToSave,
         scores,
-      });
-      
-      if (saveError) throw saveError;
+      }, { id: project.savedId || null });
 
-      // Keep the in-memory report on the same frozen numbers as the saved one.
-      if (benchmarkSnapshot) setProject(projectToSave);
+      if (saveError) throw saveError;
+      const savedId = savedRow?.id || project.savedId || null;
+      let resultId = projectToSave.resultId || null;
 
       // Also save to compass results (summary only)
       if (scores) {
@@ -14299,11 +13833,22 @@ function AppContent() {
         
         // The results summary feeds the Results page and every benchmark. Its
         // failure used to be ignored while the alert still said "saved".
-        const { error: resultError } = await saveCompassResult(resultData);
+        const { data: resultRow, error: resultError } = resultId
+          ? await updateCompassResult(resultId, resultData)
+          : await saveCompassResult(resultData);
+        if (resultRow?.id) resultId = resultRow.id;
         if (resultError) {
           console.error('Results summary not saved:', resultError);
           alert(`The assessment was saved, but its results summary was not, so Results and benchmarks won't include it yet: ${resultError.message || 'unknown error'}. Save again to retry.`);
         }
+      }
+
+      // Keep the ids, and the frozen benchmark, on the report in memory, and in
+      // the saved record so a reload saves to the same places.
+      const ids = { savedId, ...(resultId ? { resultId } : {}) };
+      setProject(prev => ({ ...prev, ...(benchmarkSnapshot ? { benchmarkSnapshot } : {}), ...ids }));
+      if (savedId && (savedId !== projectToSave.savedId || resultId !== projectToSave.resultId)) {
+        await saveAssessment({ project: { ...projectToSave, ...ids }, assessments: assessmentsToSave, scores }, { id: savedId });
       }
 
       clearDraft();
@@ -14331,8 +13876,10 @@ function AppContent() {
     if (ok) { setCurrentStep(0); setShowSavedPage(true); }
   };
 
+  // A loaded report belongs to the record it came from, so saving it, or
+  // rescoring it, updates that record (v3.118.0).
   const handleLoad = (data) => {
-    setProject(data.project);
+    setProject({ ...data.project, savedId: data.id || data.project?.savedId || null });
     setAssessments(data.assessments);
     setScores(data.scores);
     setCurrentStep(resumeStepFor(data));
@@ -14340,7 +13887,7 @@ function AppContent() {
   };
 
   const handleRescore = (data) => {
-    setProject(data.project);
+    setProject({ ...data.project, savedId: data.id || data.project?.savedId || null });
     setAssessments(data.assessments);
     setScores(null); // Clear existing scores so user can regenerate
     setCurrentStep(6); // Go to Report page (which now handles scoring)
@@ -14691,7 +14238,8 @@ function AppContent() {
         )
       ) : (
         <>
-          {currentStep > 1 && currentStep < 7 && <ProgressSteps currentStep={currentStep} steps={steps} savedAt={lastAutoSave} />}
+          {/* Pages are numbered from the Welcome page (0), steps from Setup (0), so the step index is one less (v3.117.0). */}
+          {currentStep > 1 && currentStep < 7 && <ProgressSteps currentStep={currentStep - 1} steps={steps} savedAt={lastAutoSave} />}
 
           {/* Draft restore banner */}
 

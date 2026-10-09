@@ -227,7 +227,8 @@ test('end to end: streamed passes move the roll call, two that agree finish earl
     return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
   };
   let saved = null;
-  const props = { ...reportProps('sk-test'), setScores: (v) => { saved = typeof v === 'function' ? v(saved) : v; } };
+  const saves = [];
+  const props = { ...reportProps('sk-test'), setScores: (v) => { saved = typeof v === 'function' ? v(saved) : v; }, onSave: async (o) => { saves.push(o); return true; } };
   const m = await mount(h(App.ReportPage, props));
   const go = [...m.container.querySelectorAll('button')].find(b => b.textContent === 'Generate the report');
   await act(async () => { go.click(); });
@@ -246,6 +247,9 @@ test('end to end: streamed passes move the roll call, two that agree finish earl
   assert.equal(saved.consensus.early, true);
   assert.deepEqual(saved.consensus.timing.passes.map(p => p.status), ['used', 'used', 'skipped']);
   assert.equal(saved.consensus.timing.passes[0].outputTokens, 5000);
+  assert.equal(saves.length, 1, 'saved once, as soon as it was scored (v3.118.0)');
+  assert.equal(saves[0].newRun, true);
+  assert.equal(saves[0].scoresOverride.AWAKE.score, 51, 'the scores just set, not stale state');
   await m.unmount();
 });
 

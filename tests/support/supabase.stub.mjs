@@ -37,7 +37,8 @@ export const deleteTeaser = async (id) => { calls.push(['deleteTeaser', id]); re
 
 // Full-assessment writers. A teaser must never call these.
 export const saveCompassResult = async (r) => { calls.push(['saveCompassResult', r]); return ok(r); };
-export const saveAssessment = async (a) => { calls.push(['saveAssessment', a]); return ok(a); };
+export const saveAssessment = async (a, opts = {}) => { calls.push(['saveAssessment', a, opts]); return ok({ id: opts.id || 'saved-1', ...a }); };
+export const updateCompassResult = async (id, r) => { calls.push(['updateCompassResult', id, r]); return ok({ id, ...r }); };
 
 // Campaigns
 state.campaigns = [];

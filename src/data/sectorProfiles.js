@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// SECTOR PROFILES (v3.56)
+// SECTOR PROFILES (v3.56; full assessments since v3.118.0)
 //
 // The rubric was built around climate, clean energy and B2B technology, and
 // reads every brand as though it were one. A real estate firm working well
@@ -15,6 +15,7 @@
 export const SECTOR_PROFILES = {
   realestate: {
     name: 'Real Estate & Construction',
+    brandTypes: 'Developers, owners and REITs, brokerages and agencies, property and facilities managers, architects and engineers, and contractors and builders. Each sells to different people on different proof: a REIT answers to investors, a brokerage to clients and agents, a contractor to owners and specifiers.',
     audience: 'Brokers and agents, tenants and buyers, investors and lenders, municipalities and planning authorities, and the trades who deliver the work.',
     strong: [
       'Assets and projects presented properly: project and property pages with specifications, delivery status, tenancy and location detail',
@@ -34,6 +35,7 @@ export const SECTOR_PROFILES = {
   },
   energy: {
     name: 'Energy & Utilities',
+    brandTypes: 'Regulated utilities, independent power producers and project developers, cleantech and climate technology companies, oil and gas companies in transition, and energy services and efficiency firms. A utility answers to regulators and ratepayers, a developer to offtakers and communities, a cleantech company to buyers and investors.',
     audience: 'Commercial and industrial buyers, utilities and grid operators, investors, regulators and policymakers, project developers, and increasingly the communities that host the infrastructure.',
     strong: [
       'Technical credibility: performance data, pilots, third-party validation, peer-reviewed or independently verified results',
@@ -49,6 +51,27 @@ export const SECTOR_PROFILES = {
     tone: 'Evidence-led. Claims about performance, cost and carbon should be specific and attributable. Treat unverifiable superlatives as a credibility problem, and treat clear, sourced technical argument as strength.',
     sustainability: 'Sustainability is the product here, so the thesis tenets bite hardest: judge whether the impact case is specific and evidenced rather than assumed, and whether hard parts (intermittency, siting, supply chain, unit economics) are addressed openly.',
   },
+  // v3.118.0
+  healthcare: {
+    name: 'Healthcare & Life Sciences',
+    brandTypes: 'Pharmaceutical and biotech companies, medical device and diagnostics makers, providers and health systems, payers and insurers, digital health companies, and contract research and manufacturing organizations. A biotech answers to investors and clinicians, a health system to patients and its community, a device maker to clinicians and procurement.',
+    audience: 'Clinicians and health systems, payers, patients and caregivers, regulators, investors, and research and academic partners.',
+    strong: [
+      'Clinical and scientific evidence presented plainly: trials, peer-reviewed data, approvals and clearances, with sources',
+      'Named medical and scientific leaders with standing in their field',
+      'Patient outcomes and experience shown with care and consent, not as testimonials stripped of context',
+      'Credible partnerships with health systems, academic centers and patient organizations',
+      'Medical and trade press, specialist journals, and the congresses where this category is judged',
+    ],
+    weakIndicators: [
+      'Consumer social reach and follower counts, outside consumer health brands',
+      'Viral or provocative creative, which regulated categories rightly avoid',
+      'Claims a regulated company is not permitted to make about its products',
+      'A measured, compliance-shaped tone, which is the norm here rather than an absence of brand',
+    ],
+    tone: 'Evidence-led and careful. Do not mark a brand down for regulatory restraint or for declining to make claims it cannot lawfully make. Mark it down for unsupported or overreaching claims, evidence that cannot be found, opaque safety or quality records, or patient stories used without context.',
+    sustainability: 'Sustainability shows up as access and affordability, supply chain and manufacturing footprint, clinical trial diversity, and waste from single-use and clinical settings. Judge it there, not by campaign language.',
+  },
 };
 
 // Sectors without a written profile get the shape of the question rather than
@@ -61,7 +84,7 @@ export function sectorPromptBlock(industryId, industryName) {
   const p = findSectorProfile(industryId);
   if (!p) return `SECTOR: ${industryName || 'not specified'}.\n${DEFAULT_SECTOR_GUIDANCE}`;
   return `SECTOR: ${p.name}.
-Audience: ${p.audience}
+${p.brandTypes ? `Brand types in this sector differ. Decide first which this brand is, and read it against its own type's audience and proof: ${p.brandTypes}\n` : ''}Audience: ${p.audience}
 What strong looks like here:
 ${p.strong.map(x => `  - ${x}`).join('\n')}
 Weak indicators in this sector, which must not be treated as gaps:

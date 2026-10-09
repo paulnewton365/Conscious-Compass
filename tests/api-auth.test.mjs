@@ -36,7 +36,7 @@ beforeEach(() => {
 });
 
 test('every endpoint imports the caller check and calls it first', () => {
-  assert.ok(handlers.length >= 14);
+  assert.ok(handlers.length >= 13);   // 13 since insights-analysis went with the Insights tab (v3.117.0)
   for (const f of handlers) {
     const src = readFileSync(new URL(f, API), 'utf8');
     assert.ok(src.includes("import { requireUser } from './_auth.js';"), f);

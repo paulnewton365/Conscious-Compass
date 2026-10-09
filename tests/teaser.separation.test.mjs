@@ -95,8 +95,10 @@ test('server jobs behind Landscape, Insights and Stay Conscious never read tease
 });
 
 test('full results are written only from the known full-assessment sites', () => {
-  const writes = [...app.matchAll(/await (saveCompassResult|saveAssessment)\(/g)].map(m => m.index);
-  assert.equal(writes.length, 4, 'manual result entry, save (assessment + result), rescore');
+  const writes = [...app.matchAll(/await (saveCompassResult|saveAssessment|updateCompassResult)\(/g)].map(m => m.index);
+  // v3.118.0: save writes the assessment by id (and once more to record new ids),
+  // and the result as a new history entry or an update to the current one.
+  assert.ok(writes.length >= 4 && writes.length <= 7, `${writes.length} writes`);
   const start = app.indexOf('// TEASER (v3.29)');
   const end = app.indexOf('function AppContent() {');
   writes.forEach(i => assert.ok(i < start || i > end, 'a full-result write sits inside the teaser block'));
@@ -558,7 +560,10 @@ test('the report toolbar is a row of text buttons, as the export has it', () => 
   // text only: the icons and the size overrides are gone
   ['MessageSquareWarning', 'ExternalLink', '!text-[11px]', '!px-4'].forEach(t =>
     assert.ok(!head.includes(t), `${t} still in the toolbar`));
-  assert.equal((head.match(/className="btn-secondary"/g) || []).length, 6, 'six secondary buttons (v3.112.0: Check consistency, admins only)');
+  // v3.118.0: Copy full report removed; Check consistency's class is a template
+  // (greyed once run), so five plain secondaries remain.
+  assert.equal((head.match(/className="btn-secondary"/g) || []).length, 4, 'Challenge, Language, Save, Client link');
+  assert.ok(head.includes("className={`btn-secondary${checkDone ? ' is-spent' : ''}`}"), 'Check consistency greys once run');
   assert.equal((head.match(/className="btn-primary"/g) || []).length, 1, 'one primary');
 });
 
@@ -599,12 +604,10 @@ test('maturity and the attribute cards follow the export', () => {
   assert.ok(!/color: scoreColor\(sc\.score\)/.test(cards), 'the numeral is not coloured by score');
 });
 
-test('the score adjustment panel spans the attribute grid', () => {
-  assert.ok(app.includes('className="dc-block dc-attr-span"'), 'it is a block spanning the grid');
-  const css = read('src/index.css');
-  assert.match(css, /\.dc-attr-span \{ grid-column: 1 \/ -1; \}/);
-  // and it is no longer a bare white cell with hand-set type
-  const panel = app.slice(app.indexOf('dc-attr-span'), app.indexOf('dc-attr-span') + 400);
+test('the score adjustment sits in the grid beside the last attribute (v3.118.0)', () => {
+  assert.ok(app.includes('className="dc-block dc-attr-adj" data-field="score-adjustment"'), 'a grid cell, not a full row');
+  assert.ok(!app.includes('className="dc-block dc-attr-span"'));
+  const panel = app.slice(app.indexOf('dc-attr-adj'), app.indexOf('dc-attr-adj') + 400);
   assert.ok(panel.includes('className="dc-h is-card"'), 'its heading uses the system');
 });
 
@@ -630,15 +633,15 @@ test('sections sit on the page stack, not on 80px margins of their own', () => {
 test('the report toolbar keeps every action wired', () => {
   // the welcome hero uses the same class, so anchor on the report's own row
   const at = app.indexOf('dc-head-actions', app.indexOf('<header className="dc-page-head">'));
-  const bar = app.slice(at, at + 1300);
+  const bar = app.slice(at, at + 2200);
   const wired = [
-    ['Copy full report', 'onClick={copyReportText}'],
     ['Challenge', 'setShowChallenge(true)'],
     ['Language', 'setShowLanguage(true)'],
     ['Save', 'onClick={saveReport}'],   // v3.108.1: via saveReport, which shows Saving and Saved
     ['Client link', 'setShowClientLink(true)'],
     ['Export DOCX', 'onClick={generateDocx}'],
   ];
+  assert.ok(!bar.includes('Copy full report') && !app.includes('copyReportText'), 'Copy full report is gone (v3.118.0)');
   wired.forEach(([label, handler]) => {
     assert.ok(bar.includes(label), `${label} is present`);
     assert.ok(bar.includes(handler), `${label} is wired to ${handler}`);

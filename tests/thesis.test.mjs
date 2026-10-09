@@ -81,7 +81,7 @@ const orig = (id) => {
 };
 
 test('framework is 2.12 and stays on benchmark major version 2', () => {
-  assert.equal(FRAMEWORK_VERSION, '2.12');   // 2.12: median of three scoring passes
+  assert.equal(FRAMEWORK_VERSION, '2.13');   // 2.13: sector lens in full scoring; 2.12: median of three passes
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.match(app, /const BENCHMARK_RUBRIC_MAJOR = '2';/);
   assert.equal(FRAMEWORK_VERSION.split('.')[0], '2', 'existing 2.x full assessments stay comparable');

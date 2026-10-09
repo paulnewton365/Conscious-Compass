@@ -3,7 +3,7 @@
 // Run: node tests/support/build-render-bundle.mjs && node --test tests/
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'https://compass.test/', pretendToBeVisual: true });
@@ -382,10 +382,12 @@ test('Save shows Saving, ignores a second click, then shows Saved', async () => 
 
 test('the save handler: one at a time, results failures surfaced, a refresh hiccup is not a failed save', () => {
   const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  const at = src.indexOf('  const handleSave = async ({ quiet = false, resumeStep = null } = {}) => {');
+  const at = src.indexOf('  const handleSave = async ({ quiet = false, resumeStep = null, scoresOverride = null, newRun = false } = {}) => {');
+  assert.ok(at > 0);
   const fn = src.slice(at - 200, src.indexOf('\n  };\n', at));
   assert.ok(fn.includes('if (savingRef.current) return false;') && fn.includes('savingRef.current = false;'), 'one save at a time, released in finally');
-  assert.ok(fn.includes('const { error: resultError } = await saveCompassResult(resultData);'), 'the results error is read');
+  assert.ok(fn.includes('const { data: resultRow, error: resultError } = resultId'), 'the results error is read');
+  assert.ok(fn.includes('if (resultError) {'), 'and surfaced');
   assert.ok(fn.includes("try { await loadDataFromSupabase(); } catch (e) { console.warn('Saved, but the lists did not refresh:', e); }"), 'refresh failure does not fail the save');
 });
 
@@ -666,7 +668,11 @@ test('scoring runs three passes in parallel and combines them in code; the check
   assert.ok(src.includes('const gathered = await gatherRuns(Array.from({ length: runsWanted }, (_, i) => () => startPass(i)), { earlyFinish: !consistencyCheck });'), 'all passes start at once; the check never finishes early');
   assert.ok(src.includes('callClaude(prompt, apiKey, null, [], 0, true, 12000, meta)'));
   assert.ok(src.includes('const combined = combineRuns(runs);'));
-  assert.ok(src.includes("setConsistency({ ...consistencyStats(runs), failed: runs.filter(r => !r).length, requested: runsWanted, timing });\n        return;"), 'the check returns before anything is set or saved');
+  // v3.118.0: the check keeps its result with the report; the scores themselves never change
+  assert.ok(src.includes("const check = { ...consistencyStats(runs), failed: runs.filter(r => !r).length, requested: runsWanted, timing, at: new Date().toISOString() };"));
+  assert.ok(src.includes("const withCheck = { ...scores, consistencyCheck: check };"), 'only the check is added');
+  const branch = src.slice(src.indexOf('if (consistencyCheck) {\n        const check'), src.indexOf('const combined = combineRuns(runs);'));
+  assert.ok(branch.includes('return;') && !branch.includes('applyCampaignModifiers'), 'it returns before any scoring is applied');
   assert.ok(src.includes('await runScoring({ consistencyCheck: 5 });'));
   const lib = readFileSync(new URL('../src/lib/consensus.js', import.meta.url), 'utf8');
   assert.ok(lib.includes('export const SCORING_RUNS = 3;'));
@@ -839,6 +845,83 @@ test('teaser read page 4: the rule between evidence items clears the next claim'
   const src = readFileSync(new URL('../src/lib/teaserReport.js', import.meta.url), 'utf8');
   assert.ok(src.includes('cy += EVIDENCE_GAP + Math.round(13.5 * 0.75);'), 'the gap below a rule includes the claim cap height, since y is a baseline');
   assert.ok(!src.includes('if (i < items.length - 1) { d.rule(x, cy, colW); cy += 10; }'));
+});
+
+test('QA v3.117.0: the step bar marks the page you are on, and no escape code reaches the screen', async () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('<ProgressSteps currentStep={currentStep - 1} steps={steps}'), 'Website (page 2) is step index 1');
+  const steps = ['Setup', 'Website', 'Social', 'AI Rep', 'Earned', 'Report'].map((n, i) => ({ id: String(i), name: n }));
+  const doc = new JSDOM(server.renderToStaticMarkup(h(App.ProgressSteps, { currentStep: 2 - 1, steps }))).window.document;
+  assert.equal(doc.querySelector('li[aria-current="step"] b').textContent, 'Website');
+  assert.ok(doc.querySelector('.dc-steps-compact strong').textContent.startsWith('Step 2 of 6'));
+  const { ATTRIBUTES } = await import('../src/data/rubric.js');
+  const scores = { headline: 'A headline.', ...Object.fromEntries(ATTRIBUTES.map(a => [a.id, { score: 50, findings: 'f', impact: 'i' }])) };
+  const payload = App.makeClientPayload({ project: { brandName: 'Acme', industry: 'energy' }, scores, benchmark: null });
+  const html = server.renderToStaticMarkup(h(App.ClientReportView, { payload }));
+  assert.ok(!/\\u[0-9a-f]{4}/i.test(html), 'no literal \\uXXXX in the client view');
+  assert.ok(html.includes('0\u201325') && html.includes('\u201cA headline.\u201d'));
+  assert.ok(!src.includes('<span>{st.min}\\u2013{st.max}</span>'));
+});
+
+test('Insights tab is gone from Compare; its weekly job stays for the newsletter', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(!src.includes('function InsightsView(') && !src.includes("setViewMode('insights')"));
+  assert.ok(!existsSync(new URL('../api/insights-analysis.js', import.meta.url)));
+  assert.ok(existsSync(new URL('../api/refresh-insights-analysis.js', import.meta.url)), 'feeds the newsletter story opportunities');
+});
+
+test('Saved: one row per brand, latest first; clicking the brand shows its earlier assessments (v3.118.0)', async () => {
+  const row = (id, brand, at) => ({ id, project: { brandName: brand, industry: 'energy' }, assessments: {}, scores: null, savedAt: at, updatedAt: at });
+  const rows = [row('a1', 'Alpha', '2026-03-01T12:00:00Z'), row('b1', 'Beta', '2026-05-01T12:00:00Z'), row('a2', 'Alpha', '2026-09-01T12:00:00Z'), row('a3', 'alpha ', '2026-01-01T12:00:00Z')];
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.SavedAssessmentsPage, { assessments: rows, onLoad() {}, onDelete() {}, onImport() {}, onExport() {}, onShare() {}, onRescore() {}, profile: { is_admin: true }, onRetry() {} })); });
+  const heads = () => [...container.querySelectorAll('.dc-saved-group > .dc-listrow:not(.is-history)')];
+  assert.equal(heads().length, 2, 'two brands');
+  assert.equal(heads()[0].querySelector('.dc-listrow-m').textContent.includes('saved Sep 1, 2026'), true, 'Alpha shows its latest');
+  assert.ok(heads()[0].textContent.includes('2 earlier assessments'));
+  assert.equal(container.querySelectorAll('.dc-listrow.is-history').length, 0, 'closed by default');
+  const toggle = container.querySelector('.dc-listrow-toggle');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  await act(async () => { toggle.click(); });
+  const older = [...container.querySelectorAll('.dc-listrow.is-history .dc-listrow-m')].map(m => m.textContent);
+  assert.equal(older.length, 2);
+  assert.ok(older[0].includes('Mar 1, 2026') && older[1].includes('Jan 1, 2026'), 'newest first');
+  await act(async () => root.unmount());
+});
+
+test('saving goes by record id, and every scoring run is saved as it finishes (v3.118.0)', () => {
+  const sb = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
+  const save = sb.slice(sb.indexOf('export const saveAssessment'), sb.indexOf('export const deleteAssessment'));
+  assert.ok(!save.includes(".eq('brand_name'"), 'no longer matched by brand name');
+  assert.ok(save.includes(".eq('id', id)") && save.includes('.insert(assessmentData)'));
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('const autoSaved = await onSave({ quiet: true, scoresOverride: finalScores, newRun: true });'), 'saved on generation');
+  assert.ok(src.includes('}, { id: project.savedId || null });'), 'a rescore updates its own record; a new assessment has no id');
+  assert.ok(src.includes("setProject({ ...data.project, savedId: data.id || data.project?.savedId || null });"), 'a loaded report remembers its record');
+  assert.ok(src.includes('if (newRun) delete projectToSave.resultId;'), 'one Results history entry per scoring run');
+  assert.ok(src.includes(': await saveCompassResult(resultData);') && src.includes('? await updateCompassResult(resultId, resultData)'), 'a later save updates that entry');
+});
+
+test('the radar shows the overall score at its centre (v3.118.0)', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('<SpiderChart scores={scores} total={overall} />'));
+  assert.ok(src.includes('<g data-field="radar-total">'));
+});
+
+test('the sector lens reads real estate, health and energy brands by their own type, in full scoring too (framework 2.13)', async () => {
+  const sp = await import('../src/data/sectorProfiles.js');
+  for (const id of ['realestate', 'healthcare', 'energy']) {
+    const block = sp.sectorPromptBlock(id, 'x');
+    assert.ok(block.includes('Brand types in this sector differ'), `${id} names its brand types`);
+    assert.ok(block.includes('Weak indicators in this sector, which must not be treated as gaps'), id);
+    assert.ok(!/[\u2014\u2013]/.test(block), `${id}: no em dashes`);
+  }
+  assert.ok(sp.sectorPromptBlock('healthcare').includes('regulatory restraint'));
+  assert.ok(sp.sectorPromptBlock('media', 'Media').includes('No written profile exists'), 'other sectors keep the general guidance');
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const prompt = src.slice(src.indexOf('const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework'));
+  assert.ok(prompt.slice(0, 600).includes('${sectorPromptBlock(project.industry,'), 'the full scoring prompt carries the lens');
 });
 
 test('Check consistency is for admins only', async () => {

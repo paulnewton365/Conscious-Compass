@@ -89,6 +89,33 @@ export const saveCompassResult = async (result) => {
   return { data, error };
 };
 
+// One Results history entry per scoring run (v3.118.0): saving the same run
+// again (after a language pass, say) updates its entry rather than adding a
+// duplicate. If the entry is gone, a new one is inserted.
+export const updateCompassResult = async (id, result) => {
+  const resultData = {
+    brand_name: result.brandName,
+    business_model: result.businessModel,
+    industry: result.industry,
+    total_score: result.totalScore,
+    maturity_level: result.maturityLevel,
+    scores: result.scores,
+    services_recommended: result.servicesRecommended || [],
+    is_manual: result.isManual || false,
+    assessor_name: result.assessorName || null,
+    rubric_version: result.rubricVersion || '2.4',
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from('compass_results')
+    .update(resultData)
+    .eq('id', id)
+    .select()
+    .maybeSingle();
+  if (error || data) return { data, error };
+  return saveCompassResult(result);
+};
+
 export const deleteCompassResult = async (id) => {
   const { error } = await supabase
     .from('compass_results')
@@ -106,14 +133,12 @@ export const fetchSavedAssessments = async () => {
   return { data, error };
 };
 
-export const saveAssessment = async (assessment) => {
-  // Check if assessment with same brand name exists
-  const { data: existing } = await supabase
-    .from('saved_assessments')
-    .select('id')
-    .eq('brand_name', assessment.project.brandName)
-    .single();
-
+// Saves by record id, not brand name (v3.118.0). A report remembers the id of
+// the saved record it came from (project.savedId): a rescore updates that
+// record, and a net new assessment, with no id, inserts a new one even when the
+// brand already has a saved assessment. If the record has since been deleted,
+// the update finds nothing and a new record is inserted instead.
+export const saveAssessment = async (assessment, { id = null } = {}) => {
   const assessmentData = {
     brand_name: assessment.project.brandName,
     project: assessment.project,
@@ -121,23 +146,21 @@ export const saveAssessment = async (assessment) => {
     scores: assessment.scores,
     updated_at: new Date().toISOString(),
   };
-
-  if (existing?.id) {
+  if (id) {
     const { data, error } = await supabase
       .from('saved_assessments')
       .update(assessmentData)
-      .eq('id', existing.id)
+      .eq('id', id)
       .select()
-      .single();
-    return { data, error };
-  } else {
-    const { data, error } = await supabase
-      .from('saved_assessments')
-      .insert(assessmentData)
-      .select()
-      .single();
-    return { data, error };
+      .maybeSingle();
+    if (error || data) return { data, error };
   }
+  const { data, error } = await supabase
+    .from('saved_assessments')
+    .insert(assessmentData)
+    .select()
+    .single();
+  return { data, error };
 };
 
 export const deleteAssessment = async (id) => {
