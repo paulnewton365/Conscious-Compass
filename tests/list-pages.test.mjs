@@ -3,7 +3,7 @@
 // Run: node tests/support/build-render-bundle.mjs && node --test tests/
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'https://compass.test/', pretendToBeVisual: true });
@@ -591,4 +591,180 @@ test('every summary sentence (screen, plain text, Word) takes its picks from one
   assert.ok(!/demonstrates strength in \$\{sortedAttrs\.slice/.test(src), 'plain text');
   assert.ok(!/text: sortedAttrs\.slice\(-?\d/.test(src), 'Word export');
   assert.ok(src.includes('const { strengths, growth } = summaryPicks(sortedAttrs);'), 'screen and client link');
+});
+
+// ── Consistent scoring: median of three passes (framework 2.12, v3.112.0) ──
+
+const run = (scores, extra = {}) => ({
+  ...Object.fromEntries(Object.entries(scores).map(([k, v]) => [k, { score: v, findings: `findings at ${v}` }])),
+  campaignCoherence: { level: 2 }, earnedCreative: { activations: [] },
+  footprint: { channels: { earned: { level: 5 } } },
+  sustainabilityNarrative: { tenets: { inside: { level: 'buried' } } }, ...extra });
+const base8 = { AWAKE: 48, AWARE: 42, REFLECTIVE: 38, ATTENTIVE: 35, COGENT: 45, SENTIENT: 29, VISIONARY: 62, INTENTIONAL: 54 };
+const shift = (d) => Object.fromEntries(Object.entries(base8).map(([k, v]) => [k, v + d]));
+
+test('consensus: each attribute is the median of the runs, and the text comes from the run closest to it', async () => {
+  const c = await import('../src/lib/consensus.js');
+  const combined = c.combineRuns([run(shift(-4)), run(base8), run(shift(6))]);
+  for (const [k, v] of Object.entries(base8)) assert.equal(combined[k].score, v, k);
+  assert.equal(combined.AWAKE.findings, 'findings at 48', 'text from the representative run');
+  assert.deepEqual(combined.AWAKE.runScores, [44, 48, 54]);
+  assert.equal(combined.consensus.spread.AWAKE, 10);
+  assert.deepEqual(combined.consensus.flagged, [], 'a spread of 10 is not flagged; over 10 is');
+  assert.equal(combined.consensus.method, 'median of 3');
+});
+
+test('consensus: ordinal judgments take the median; the earned creative lift needs a majority', async () => {
+  const c = await import('../src/lib/consensus.js');
+  const act = { activations: [{ name: 'Open grid data' }] };
+  const r1 = run(base8, { campaignCoherence: { level: 1 }, earnedCreative: act, footprint: { channels: { earned: { level: 3 } } }, sustainabilityNarrative: { tenets: { inside: { level: 'breaking' } } } });
+  const r2 = run(base8, { campaignCoherence: { level: 3 }, footprint: { channels: { earned: { level: 5 } } }, sustainabilityNarrative: { tenets: { inside: { level: 'surfacing' } } } });
+  const r3 = run(base8, { campaignCoherence: { level: 2 }, footprint: { channels: { earned: { level: 4 } } }, sustainabilityNarrative: { tenets: { inside: { level: 'buried' } } } });
+  const one = c.combineRuns([r1, r2, r3]);
+  assert.equal(one.campaignCoherence.level, 2);
+  assert.equal(one.footprint.channels.earned.level, 4);
+  assert.equal(one.sustainabilityNarrative.tenets.inside.level, 'surfacing');
+  assert.deepEqual(one.earnedCreative.activations, [], 'found in 1 of 3: no lift');
+  const two = c.combineRuns([r1, { ...r2, earnedCreative: act }, r3]);
+  assert.equal(two.earnedCreative.activations.length, 1, 'found in 2 of 3: the lift applies');
+  assert.equal(two.consensus.activationVotes, '2 of 3');
+});
+
+test('consensus: a failed run is left out; no runs at all is an error, not a guess', async () => {
+  const c = await import('../src/lib/consensus.js');
+  const combined = c.combineRuns([run(base8), null, run(shift(2))]);
+  assert.equal(combined.consensus.runs, 2); assert.equal(combined.consensus.requested, 3);
+  assert.equal(combined.AWAKE.score, 49, 'median of two is their rounded mean');
+  assert.equal(c.combineRuns([null, null, null]), null);
+  assert.equal(c.parseScoringRun('no json here'), null);
+  assert.equal(c.parseScoringRun('{"AWAKE": {"findings": "no score"}}'), null);
+  assert.ok(c.parseScoringRun('text {"AWAKE": {"score": 40}} text'));
+});
+
+test('consistency stats: per attribute min, median, max and spread, and the overall range', async () => {
+  const c = await import('../src/lib/consensus.js');
+  const st = c.consistencyStats([run(shift(-2)), run(base8), run(shift(3)), null, run(shift(1))]);
+  assert.equal(st.runs, 4);
+  const awake = st.rows.find(r => r.id === 'AWAKE');
+  assert.deepEqual([awake.min, awake.median, awake.max, awake.spread], [46, 49, 51, 5]);
+  assert.equal(st.overall.min, 42); assert.equal(st.overall.max, 47);
+});
+
+test('scoring runs three passes in parallel and combines them in code; the check runs five and saves nothing', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(src.includes('const gathered = await gatherRuns(Array.from({ length: runsWanted }, () => startPass), { earlyFinish: !consistencyCheck });'), 'all passes start at once; the check never finishes early');
+  assert.ok(src.includes('callClaude(prompt, apiKey, null, [], 0, true, 12000, meta)'));
+  assert.ok(src.includes('const combined = combineRuns(runs);'));
+  assert.ok(src.includes("setConsistency({ ...consistencyStats(runs), failed: runs.filter(r => !r).length, requested: runsWanted, timing });\n        return;"), 'the check returns before anything is set or saved');
+  assert.ok(src.includes('await runScoring({ consistencyCheck: 5 });'));
+  const lib = readFileSync(new URL('../src/lib/consensus.js', import.meta.url), 'utf8');
+  assert.ok(lib.includes('export const SCORING_RUNS = 3;'));
+});
+
+// ── Early finish and pass timing (v3.113.0) ──
+
+// A controllable pass: resolves when told to, with the given scores.
+const deferred = () => { let res, rej; const p = new Promise((a, b) => { res = a; rej = b; }); return { p, res, rej }; };
+const textOf = (r) => ({ text: JSON.stringify(r), usage: { output_tokens: 5000 } });
+
+test('early finish: two passes that agree are used without waiting for the third', async () => {
+  const c = await import('../src/lib/consensus.js');
+  const d = [deferred(), deferred(), deferred()];
+  let clock = 0;
+  const pending = c.gatherRuns(d.map(x => () => x.p), { now: () => clock });
+  clock = 60000; d[1].res(textOf(run(base8)));
+  await new Promise(r => setTimeout(r, 0));
+  clock = 70000; d[0].res(textOf(run(shift(3))));
+  const g = await pending;
+  assert.equal(g.early, true);
+  assert.equal(g.wallMs, 70000);
+  assert.deepEqual(g.timings.map(t => t.status), ['used', 'used', 'skipped']);
+  assert.equal(g.timings[1].outputTokens, 5000);
+  const combined = c.combineRuns(g.runs);
+  assert.equal(combined.consensus.runs, 2);
+  assert.equal(combined.AWAKE.score, 50, 'median of two is their rounded mean');
+  d[2].res(textOf(run(shift(20))));
+});
+
+test('early finish: passes that disagree, on a score or a discrete call, wait for the third', async () => {
+  const c = await import('../src/lib/consensus.js');
+  assert.equal(c.EARLY_AGREE, 3);
+  assert.equal(c.runsAgree(run(base8), run(shift(3))), true);
+  assert.equal(c.runsAgree(run(base8), run(shift(4))), false, 'four points apart');
+  assert.equal(c.runsAgree(run(base8), run(base8, { campaignCoherence: { level: 3 } })), false, 'coherence level moves scores');
+  assert.equal(c.runsAgree(run(base8), run(base8, { earnedCreative: { activations: [{ name: 'x' }] } })), false, 'earned creative moves scores');
+  const d = [deferred(), deferred(), deferred()];
+  const pending = c.gatherRuns(d.map(x => () => x.p));
+  d[0].res(textOf(run(base8))); d[1].res(textOf(run(shift(8))));
+  await new Promise(r => setTimeout(r, 0));
+  let settled = false; pending.then(() => { settled = true; });
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(settled, false, 'still waiting for the third');
+  d[2].res(textOf(run(shift(2))));
+  const g = await pending;
+  assert.equal(g.early, false);
+  assert.equal(c.combineRuns(g.runs).AWAKE.score, 50, 'the median of three');
+});
+
+test('early finish: a failed pass never counts as agreement, and the check waits for every pass', async () => {
+  const c = await import('../src/lib/consensus.js');
+  const d = [deferred(), deferred(), deferred()];
+  const pending = c.gatherRuns(d.map(x => () => x.p));
+  d[0].rej(new Error('overloaded')); d[1].res(textOf(run(base8)));
+  await new Promise(r => setTimeout(r, 0));
+  d[2].res(textOf(run(shift(1))));
+  const g = await pending;
+  assert.equal(g.early, false);
+  assert.deepEqual(g.timings.map(t => t.status), ['failed', 'used', 'used']);
+  assert.equal(g.errors[0].message, 'overloaded');
+  const five = [0, 0, 0, 0, 0].map(() => () => Promise.resolve(textOf(run(base8))));
+  const all = await c.gatherRuns(five, { earlyFinish: false });
+  assert.deepEqual(all.timings.map(t => t.status), ['used', 'used', 'used', 'used', 'used']);
+});
+
+test('timing summary reads plainly, and timings stay out of the client payload', async () => {
+  const c = await import('../src/lib/consensus.js');
+  const line = c.timingSummary({ early: true, wallMs: 74200, passes: [{ status: 'used', ms: 71000, outputTokens: 5820 }, { status: 'used', ms: 74200, outputTokens: 6010 }, { status: 'skipped' }] });
+  assert.equal(line, 'Finished in 74s, early: the first two passes agreed within 3 points. Passes: 71s (5,820 tokens out), 74s (6,010 tokens out), skipped.');
+  assert.ok(!/\u2014/.test(line));
+  assert.equal(c.timingSummary(null), '');
+  const { ATTRIBUTES } = await import('../src/data/rubric.js');
+  const scores = Object.fromEntries(ATTRIBUTES.map(a => [a.id, { score: 50, findings: 'f', impact: 'i', runScores: [48, 52] }]));
+  scores.consensus = { method: 'median of 2', timing: { early: true, wallMs: 1, passes: [] } };
+  const payload = App.makeClientPayload({ project: { brandName: 'Acme', industry: 'energy' }, scores, benchmark: null });
+  const json = JSON.stringify(payload);
+  assert.ok(!json.includes('consensus') && !json.includes('runScores') && !json.includes('wallMs'));
+});
+
+test('the full scoring schema no longer asks for gaps; confidence stays', () => {
+  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const schema = src.slice(src.indexOf('"AWAKE":      { "score": 0-100'), src.indexOf('"INTENTIONAL":{ "score": 0-100') + 200);
+  assert.ok(schema.length > 200);
+  assert.ok(!schema.includes('"gaps"'));
+  assert.ok(schema.includes('"confidence": "low|medium|high"'));
+});
+
+test('Check consistency is for admins only', async () => {
+  const { ATTRIBUTES } = await import('../src/data/rubric.js');
+  const scores = Object.fromEntries(ATTRIBUTES.map(a => [a.id, { score: 50, findings: 'f' }]));
+  window.scrollTo = () => {};
+  globalThis.fetch = window.fetch = () => new Promise(() => {});
+  const project = { brandName: 'MKB', websiteUrl: 'https://mkb.com', industry: 'energy', businessModel: 'b2b', date: '2026-09-28' };
+  for (const [isAdmin, want] of [[true, 1], [false, 0]]) {
+    const container = document.createElement('div'); document.body.appendChild(container);
+    const root = client.createRoot(container);
+    await act(async () => { root.render(h(App.ReportPage, { project, setProject() {}, scores, setScores() {}, assessments: {}, setAssessments() {}, apiKey: 'PROXY', onSave() {}, onPrev() {}, profile: { is_admin: isAdmin }, compassResults: [] })); });
+    assert.equal(container.querySelectorAll('[data-field="consistency"]').length, want, `admin ${isAdmin}`);
+    await act(async () => root.unmount());
+  }
+});
+
+test('every model call uses the one pinned model ID', () => {
+  // From the 4.6 generation, a dateless ID such as claude-sonnet-4-6 is a fixed
+  // snapshot: Anthropic ships an updated model under a new ID, never behind an
+  // existing one. So scores cannot drift from a silent model change.
+  const files = ['../src/App.jsx', ...readdirSync(new URL('../api/', import.meta.url)).filter(f => f.endsWith('.js')).map(f => `../api/${f}`)];
+  const ids = new Set();
+  for (const f of files) for (const m of readFileSync(new URL(f, import.meta.url), 'utf8').matchAll(/['"`](claude-[a-z]+-[0-9][a-z0-9-]*)['"`]/g)) ids.add(m[1]);
+  assert.deepEqual([...ids], ['claude-sonnet-4-6']);
 });

@@ -558,7 +558,7 @@ test('the report toolbar is a row of text buttons, as the export has it', () => 
   // text only: the icons and the size overrides are gone
   ['MessageSquareWarning', 'ExternalLink', '!text-[11px]', '!px-4'].forEach(t =>
     assert.ok(!head.includes(t), `${t} still in the toolbar`));
-  assert.equal((head.match(/className="btn-secondary"/g) || []).length, 5, 'five secondary buttons');
+  assert.equal((head.match(/className="btn-secondary"/g) || []).length, 6, 'six secondary buttons (v3.112.0: Check consistency, admins only)');
   assert.equal((head.match(/className="btn-primary"/g) || []).length, 1, 'one primary');
 });
 

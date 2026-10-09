@@ -3,7 +3,7 @@
 // 2.10: sustainability narrative thesis signals added to six attributes.
 // Minor bump: benchmarks compare on the major version, so 2.x assessments
 // remain comparable.
-export const FRAMEWORK_VERSION = '2.11';   // 2.11: earned creative in use lifts SENTIENT and INTENTIONAL (src/lib/eco.js)
+export const FRAMEWORK_VERSION = '2.12';   // 2.12: scores are the median of three scoring passes (src/lib/consensus.js); 2.11: earned creative lift
 
 export const MATURITY_STAGES = [
   { id: 'pre-foundational', name: 'Pre-Foundational', min: 0, max: 25, color: '#94A3B8', description: 'Requires fundamental development across most attributes. Significant gaps exist in basic brand presence and identity. The brand is largely invisible or incoherent to its audiences.' },

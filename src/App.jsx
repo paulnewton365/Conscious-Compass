@@ -6,9 +6,10 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '3.111.2';
+const APP_VERSION = '3.113.0';
 import { STAGES, findStage, stagePromptBlock } from './data/stages';
 import { campaignCoherenceView } from './lib/campaignCoherence';
+import { SCORING_RUNS, SPREAD_FLAG, gatherRuns, combineRuns, consistencyStats, timingSummary } from './lib/consensus';
 import { startScrollMotion, retagSections, revealAll, motionAllowed } from './lib/scrollMotion';
 import { benchmarkView, benchmarkPosition, latestPerBrand, resultHistory, resultBrandKey } from './lib/benchmarkView';
 import { buildLiteSection, applyEarnedCreativeLift, ecoFromReport, parseObservedEvidence } from './lib/eco';
@@ -791,7 +792,7 @@ Banned constructions: the rule-of-three list, "not just X, but Y", the "It's not
 No motivational closers. No summary that restates what you just said.
 Be willing to provoke. Where evidence supports a hard line, take it. Name the gap, the contradiction, the bluff. A pointed question is fine when it forces a decision.`;
 
-async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0, isJson = false, maxTokens = 6000) {
+async function callClaude(prompt, apiKey, primaryImage = null, additionalImages = [], temperature = 0, isJson = false, maxTokens = 6000, meta = null) {
   // Add standard instructions for consistency
   const enhancedPrompt = `${prompt}
 
@@ -851,6 +852,8 @@ IMPORTANT FORMATTING RULES:
     }
     const data = await response.json();
     const stopReason = data.stop_reason;
+    // Callers that pass a meta object get the usage back, for timing (v3.113.0).
+    if (meta) { meta.usage = data.usage || null; meta.stopReason = stopReason; }
     result = data.content[0].text;
     if (isJson && stopReason === 'max_tokens') {
       throw new Error('Response was cut short — increase max tokens or reduce prompt size.');
@@ -5253,11 +5256,12 @@ function ReportAttributeSection({ scores, benchmark, campaignAdjustment, campaig
                         )}
                         {(() => {
                           const ec = sc.earnedCreativeLiftApplied || 0;
-                          const shown = showInternal && (adj !== 0 || ec !== 0);
+                          const runsLine = Array.isArray(sc.runScores) && sc.runScores.length > 1 ? `runs ${sc.runScores.join(' \u00b7 ')}` : null;
+                          const shown = showInternal && (adj !== 0 || ec !== 0 || !!runsLine);
                           return (
                             <p className="dc-kicker-sm" style={{ marginTop: 4, visibility: shown ? 'visible' : 'hidden' }}>
                               {shown
-                                ? [`${sc.baseScore} base`, adj !== 0 ? `${adj > 0 ? '+' : ''}${adj} campaign coherence` : null, ec ? `+${ec} earned creative` : null].filter(Boolean).join(' ')
+                                ? [(adj !== 0 || ec) ? `${sc.baseScore} base` : null, adj !== 0 ? `${adj > 0 ? '+' : ''}${adj} campaign coherence` : null, ec ? `+${ec} earned creative` : null, runsLine].filter(Boolean).join(' \u00b7 ')
                                 : 'placeholder'}
                             </p>
                           );
@@ -5443,6 +5447,15 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
     const ok = await onSave({ quiet: true });
     setSaveState(ok ? 'saved' : 'idle');
     if (ok) setTimeout(() => setSaveState(st => (st === 'saved' ? 'idle' : st)), 2500);
+  };
+  // Consistency check (admin, v3.112.0): five scoring passes on the saved
+  // evidence, reported side by side. Nothing is saved.
+  const [consistency, setConsistency] = useState(null);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const runConsistencyCheck = async () => {
+    setCheckOpen(true);
+    setConsistency({ running: true });
+    await runScoring({ consistencyCheck: 5 });
   };
   const motionRef = useScrollMotion();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -5655,7 +5668,9 @@ ${JSON.stringify(extractLanguageText(source), null, 2)}`;
   // Scoring reads from scoringInputs rather than the assessments prop directly,
   // so a challenge pass can score against revised readouts in the same tick,
   // before React has flushed the new state.
-  const runScoring = async ({ assessmentsData = null, challengeContext = null } = {}) => {
+  // consistencyCheck (v3.112.0): run the scoring pass that many times on the
+  // saved evidence and report the spread, without saving or changing anything.
+  const runScoring = async ({ assessmentsData = null, challengeContext = null, consistencyCheck = 0 } = {}) => {
     const scoringInputs = assessmentsData || assessments;
     const challenges = challengeContext
       ? [...(project.challenges || []), challengeContext]
@@ -5664,10 +5679,12 @@ ${JSON.stringify(extractLanguageText(source), null, 2)}`;
       setScoringError('API key is required. Please go back to Setup and enter your Anthropic API key.');
       return;
     }
-    setIsScoring(true);
-    setScoringError(null);
-    setScoringProgress(0);
-    setScoringStartedAt(Date.now());
+    if (!consistencyCheck) {
+      setIsScoring(true);
+      setScoringError(null);
+      setScoringProgress(0);
+      setScoringStartedAt(Date.now());
+    }
 
     // The real work is a single long model call with no mid-call signal, so
     // true progress cannot be measured. The bar trickles toward a 95% ceiling
@@ -5675,7 +5692,7 @@ ${JSON.stringify(extractLanguageText(source), null, 2)}`;
     // estimate, the screen shows no percentage and names no steps (v3.97.2):
     // it shows the real elapsed time instead.
     let prog = 0;
-    const progressInterval = setInterval(() => {
+    const progressInterval = consistencyCheck ? null : setInterval(() => {
       prog = prog + (95 - prog) * 0.045;
       if (prog > 94.5) prog = 94.5;
       setScoringProgress(Math.round(prog));
@@ -5969,17 +5986,40 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
     "rationale": "Why this level and not the one above or below. Reference the ladder signals. Under 70 words.",
     "toNextLevel": "The specific move that would take this brand to the next level of the ladder. Brand-specific, under 40 words."
   },
-  "AWAKE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "What was observed, cited evidence, under 80 words.", "impact": "What is pushing this score up or down, good and bad, specific to this brand. Under 50 words.", "gaps": ["max 3 items"], "actions": "The 1-2 concrete moves that would raise this score for this brand. Specific, not generic. Under 40 words.", "opportunity": "Relevant service area recommendation." },
-  "AWARE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
-  "REFLECTIVE": { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
-  "ATTENTIVE":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
-  "COGENT":     { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
-  "SENTIENT":   { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
-  "VISIONARY":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." },
-  "INTENTIONAL":{ "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "gaps": ["..."], "actions": "...", "opportunity": "..." }
+  "AWAKE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "What was observed, cited evidence, under 80 words.", "impact": "What is pushing this score up or down, good and bad, specific to this brand. Under 50 words.", "actions": "The 1-2 concrete moves that would raise this score for this brand. Specific, not generic. Under 40 words.", "opportunity": "Relevant service area recommendation." },
+  "AWARE":      { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
+  "REFLECTIVE": { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
+  "ATTENTIVE":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
+  "COGENT":     { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
+  "SENTIENT":   { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
+  "VISIONARY":  { "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." },
+  "INTENTIONAL":{ "score": 0-100, "confidence": "low|medium|high", "findings": "...", "impact": "...", "actions": "...", "opportunity": "..." }
 }`;
 
-      const result = await callClaude(prompt, apiKey, null, [], 0, true, 12000);
+      // Framework 2.12 (v3.112.0): the pass runs SCORING_RUNS times in parallel
+      // on the same evidence and the runs are combined in code: the median of
+      // each attribute, the median of each ordinal judgment, a majority vote
+      // for the earned creative lift (src/lib/consensus.js). A run that fails
+      // is left out; the rest still combine.
+      // v3.113.0: when the first two passes agree within EARLY_AGREE points on
+      // every attribute (and on the coherence level and the earned creative
+      // call), the third is not waited for and the two are combined. The
+      // consistency check always waits for all five. Every pass is timed.
+      const runsWanted = consistencyCheck || SCORING_RUNS;
+      const startPass = () => { const meta = {}; return callClaude(prompt, apiKey, null, [], 0, true, 12000, meta).then(text => ({ text, usage: meta.usage })); };
+      const gathered = await gatherRuns(Array.from({ length: runsWanted }, () => startPass), { earlyFinish: !consistencyCheck });
+      const runs = gathered.runs;
+      const timing = { early: gathered.early, wallMs: gathered.wallMs, passes: gathered.timings };
+      if (consistencyCheck) {
+        setConsistency({ ...consistencyStats(runs), failed: runs.filter(r => !r).length, requested: runsWanted, timing });
+        return;
+      }
+      const combined = combineRuns(runs);
+      if (!combined) {
+        throw new Error(gathered.errors[0]?.message || 'None of the scoring runs returned scores. Please try again.');
+      }
+      combined.consensus = { ...combined.consensus, requested: runsWanted, early: gathered.early, timing };
+      const result = JSON.stringify(combined);
       clearInterval(progressInterval);
       setScoringProgress(100);
       const match = result.match(/\{[\s\S]*\}/);
@@ -6078,10 +6118,11 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
         console.error('No JSON match found in result:', result.substring(0, 500));
       }
     } catch (e) { 
-      clearInterval(progressInterval);
-      setScoringError(e.message); 
+      if (progressInterval) clearInterval(progressInterval);
+      if (consistencyCheck) setConsistency({ error: e.message });
+      else setScoringError(e.message);
     }
-    finally { setIsScoring(false); }
+    finally { if (!consistencyCheck) setIsScoring(false); }
   };
 
   // ── Challenge loop ──────────────────────────────────────────
@@ -6208,7 +6249,7 @@ Return the complete revised readout as prose. No preamble, no notes about what y
             <h1 className="dc-display">{isScoring ? 'Reading the evidence.' : 'Generate the report'}</h1>
             <p className="dc-standfirst">
               {isScoring
-                ? 'The Compass is reading your four readouts together, scoring all eight attributes and writing the report in a single pass.'
+                ? 'The Compass is reading your four readouts together and scoring all eight attributes in three passes at once. If the first two agree it stops there; if not, it keeps the middle score of the three.'
                 : 'Scoring reads the four readouts together and produces the full report: the eight attribute scores, what drives each one, and the actions.'}
             </p>
           </div>
@@ -7450,6 +7491,11 @@ ${content.slice(0, 8000)}`;
               <button onClick={copyReportText} className="btn-secondary">Copy full report</button>
               <button onClick={() => setShowChallenge(true)} className="btn-secondary">Challenge</button>
               <button onClick={() => setShowLanguage(true)} className="btn-secondary">Language</button>
+              {profile?.is_admin && (
+                <button type="button" onClick={runConsistencyCheck} className="btn-secondary" disabled={consistency?.running} data-field="consistency">
+                  {consistency?.running ? 'Checking\u2026' : 'Check consistency'}
+                </button>
+              )}
               <button type="button" onClick={saveReport} className="btn-secondary" disabled={saveState === 'saving'} aria-busy={saveState === 'saving' || undefined} aria-live="polite" data-field="save">
                 {saveState === 'saving' ? 'Saving\u2026' : saveState === 'saved' ? 'Saved' : 'Save'}
               </button>
@@ -7598,6 +7644,46 @@ ${content.slice(0, 8000)}`;
           benchmarkPositionRef={benchmarkPositionRef} benchmarkSpreadRef={benchmarkSpreadRef}
           open={expandedSections.benchmark} />
       </div>
+
+      {checkOpen && (
+        <Dialog title="Scoring consistency" onClose={() => setCheckOpen(false)} busy={!!consistency?.running}
+          subtitle="Five scoring passes on this report's saved evidence. Nothing is saved or changed.">
+          <div className="dc-dialog-body" data-field="consistency-result">
+            {consistency?.running && <p className="dc-meta" role="status">Running five scoring passes. This takes a minute or two.</p>}
+            {consistency?.error && <div className="dc-alert is-error" role="alert"><strong>The check did not finish</strong><p>{consistency.error}</p></div>}
+            {scores?.consensus?.timing && <p className="dc-meta" data-field="last-scoring-timing">Last scoring: {timingSummary(scores.consensus.timing)}</p>}
+            {consistency?.rows && (
+              <>
+                <p className="dc-meta">
+                  {consistency.runs} of {consistency.requested} passes returned scores{consistency.failed ? ` (${consistency.failed} failed)` : ''}.
+                  {' '}Overall {consistency.overall.min === consistency.overall.max ? consistency.overall.min : `${consistency.overall.min} to ${consistency.overall.max}`} (median {consistency.overall.median}).
+                  {' '}Earned creative found in {consistency.activationRuns} of {consistency.runs}. Campaign levels: {consistency.campaignLevels.filter(l => l !== null).join(', ') || 'none'}.
+                </p>
+                <div className="dc-table-wrap">
+                  <table className="dc-table is-static">
+                    <thead><tr><th>Attribute</th><th>Runs</th><th className="num">Min</th><th className="num">Median</th><th className="num">Max</th><th className="num">Spread</th></tr></thead>
+                    <tbody>
+                      {consistency.rows.map(r => (
+                        <tr key={r.id}>
+                          <td className="is-strong">{ATTRIBUTES.find(a => a.id === r.id)?.name}</td>
+                          <td>{r.scores.join(', ')}</td>
+                          <td className="num">{r.min}</td><td className="num">{r.median}</td><td className="num">{r.max}</td>
+                          <td className="num">{r.spread}{r.spread > SPREAD_FLAG ? ' \u00b7 wide' : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {consistency.timing && <p className="dc-meta" data-field="consistency-timing">{timingSummary(consistency.timing)}</p>}
+                <p className="dc-meta">Reports now score each attribute as the median of {SCORING_RUNS} passes, or of two when the first two agree, so a report's scores move far less than the spread here.</p>
+              </>
+            )}
+          </div>
+          <div className="dc-dialog-foot">
+            <button type="button" className="btn-secondary" onClick={() => setCheckOpen(false)} disabled={!!consistency?.running}>Close</button>
+          </div>
+        </Dialog>
+      )}
 
       {/* Earned creative (ECO module v1.0) */}
       {eco && (
