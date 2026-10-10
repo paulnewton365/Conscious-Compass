@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '4.3.2';
+const APP_VERSION = '4.3.3';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12403,6 +12403,13 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
             <p className="dc-np-gate-hint">{gateMode === 'signup'
               ? 'Not a Compass user? Register with your antennagroup.com email to read the newsletter. We will email you a link to confirm your address. This account is for the newsletter only and does not open the Compass.'
               : 'Compass users: use your Compass email and password. Registered for the newsletter already? Sign in the same way.'}</p>
+            {/* First visit (v4.3.3): staff without a Compass account register first. */}
+            {gateMode === 'signin' && (
+              <p className="dc-np-gate-hint is-first">
+                <strong>First time here and not a Compass user?</strong> You need to{' '}
+                <button type="button" className="dc-np-gate-switch" onClick={() => { setGateMode('signup'); setGateError(''); setGateNote(''); }}>register</button> first.
+              </p>
+            )}
             <form className="dc-np-gate-form" onSubmit={submitGate} noValidate>
               {gateMode === 'signup' && (
                 <label className="dc-field"><span className="dc-label">Full name</span>

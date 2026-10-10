@@ -1493,6 +1493,9 @@ button { font: inherit; color: inherit; }
 .dc-np-gate-form .btn-primary { width: 100%; justify-content: center; }
 .dc-np-gate-error { margin: 0; font-size: var(--cc-fs-ui); color: var(--cc-rust-text); }
 .dc-np-gate-note { margin: 0; font-size: var(--cc-fs-ui); color: var(--cc-body); }
+.dc-np-gate-switch { background: none; border: 0; padding: 0; font: inherit; color: var(--cc-rust-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.dc-np-gate-hint.is-first { padding: 10px 12px; background: var(--cc-track); border-radius: var(--cc-r-1); }
+.dc-np-gate-hint strong { font-weight: var(--cc-w-semi); color: var(--cc-ink); }
 .dc-np-gate-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; max-width: 380px; border-bottom: var(--cc-border); margin-top: var(--cc-s-2); }
 .dc-np-gate-tab { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 10px 0; font: var(--cc-w-medium) 15px/1.2 'Inter', var(--cc-sans); color: var(--cc-muted); cursor: pointer; }
 .dc-np-gate-tab.is-on { color: var(--cc-ink); border-bottom-color: var(--cc-rust-text); }

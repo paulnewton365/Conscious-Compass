@@ -593,6 +593,7 @@ test('v4.3.2: two ways in, Sign in for Compass users and registered staff, Regis
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes("[['signin', 'Sign in'], ['signup', 'Register']]") && app.includes('role="tablist"'));
   assert.ok(app.includes('Compass users: use your Compass email and password.'));
+  assert.ok(app.includes('<strong>First time here and not a Compass user?</strong> You need to') && app.includes(">register</button> first."), 'first-time staff are told to register, with a link to the Register tab (v4.3.3)');
   assert.ok(app.includes('This account is for the newsletter only and does not open the Compass.'));
   assert.ok(app.includes("signUp(email, gateForm.password, gateForm.name.trim(), { newsletter_only: true }, `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}`)"), 'registrations are marked newsletter only, and the confirmation link returns to the newsletter');
   assert.ok(app.includes('data.user.identities.length === 0'), 'an address that already has an account is sent to Sign in');
