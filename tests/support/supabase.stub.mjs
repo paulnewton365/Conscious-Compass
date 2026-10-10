@@ -65,3 +65,11 @@ export const setCampaignAudience = async (id, cso) => {
 };
 export const setBiz = async (userId, isBiz) => { calls.push(['setBiz', userId, isBiz]); return ok({ id: userId, is_biz: isBiz }); };
 export const signInWithGoogleStaff = async (redirectTo) => { calls.push(['signInWithGoogleStaff', redirectTo]); return { data: null, error: null }; };
+// Password reset (v4.4.0)
+export const RESET_PARAM = 'reset';
+export const isRecoveryVisit = () => { try { return new URLSearchParams(window.location.search).get('reset') === '1'; } catch { return false; } };
+export const onRecovery = () => () => {};
+export const resetLandingUrl = (path) => `https://app.test${path}?reset=1`;
+export const sendPasswordReset = async (email, redirectTo) => { calls.push(['sendPasswordReset', email, redirectTo]); return { error: null }; };
+export const setNewPassword = async (pw) => { calls.push(['setNewPassword', pw]); return { data: {}, error: null }; };
+export const clearRecoveryUrl = () => { calls.push(['clearRecoveryUrl']); };

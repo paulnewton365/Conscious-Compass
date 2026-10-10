@@ -6,9 +6,9 @@ import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from '
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
-import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
+import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.3.3';
+const APP_VERSION = '4.4.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -148,6 +148,108 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ── Password reset (v4.4.0) ──────────────────────────────────
+// Both halves, shared by the Compass sign-in and the newsletter. The request
+// never says whether an account exists, so it cannot be used to find out who
+// has one. The link works in the browser that asked for it.
+const looksLikeEmail = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v || '').trim());
+function ForgotPasswordForm({ landingPath, initialEmail = '', onBack, staffOnly = false, audience = 'compass' }) {
+  const [email, setEmail] = useState(initialEmail);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    const v = email.trim();
+    if (!looksLikeEmail(v)) { setError('Enter the email address you sign in with.'); return; }
+    if (staffOnly && !isStaffEmail(v)) { setError('Use your antennagroup.com email address.'); return; }
+    setBusy(true);
+    const { error: err } = await sendPasswordReset(v, resetLandingUrl(landingPath));
+    setBusy(false);
+    if (err) {
+      setError(/rate limit|too many|security purposes/i.test(err.message) ? 'Too many reset emails have been sent. Wait a few minutes and try again.' : err.message);
+      return;
+    }
+    setSent(true);
+  };
+  if (sent) {
+    return (
+      <div className="dc-reset" role="status" data-field="reset-sent">
+        <p className="dc-reset-p">If there is an account for <strong>{email.trim()}</strong>, we have sent it a link to choose a new password. Open the link in this browser. It can take a minute to arrive, so check your spam folder too.</p>
+        <button type="button" className="dc-reset-link" onClick={onBack}>Back to sign in</button>
+      </div>
+    );
+  }
+  return (
+    <form className="dc-reset" onSubmit={submit} noValidate data-field="reset-request">
+      {/* The Compass and the newsletter share one account per person (v4.4.0),
+          so a reset on either changes the password for both. */}
+      <p className="dc-reset-p">{audience === 'newsletter'
+        ? 'Enter the email you use for Stay Conscious and we will send you a link to choose a new password. If you also use the Conscious Compass, this is your Compass password too.'
+        : 'Enter the email you use for the Conscious Compass and we will send you a link to choose a new password.'}</p>
+      <label className="dc-field"><span className="dc-label">Email</span>
+        <input type="email" autoComplete="email" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required />
+      </label>
+      {error && <p className="dc-reset-error" role="alert">{error}</p>}
+      <button type="submit" className="btn-primary" disabled={busy} aria-busy={busy || undefined}>{busy ? 'Sending\u2026' : 'Send reset link'}</button>
+      <button type="button" className="dc-reset-link" onClick={onBack}>Back to sign in</button>
+    </form>
+  );
+}
+function SetNewPasswordForm({ onDone, audience = 'compass' }) {
+  const [pw, setPw] = useState('');
+  const [again, setAgain] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (pw.length < 8) { setError('Use at least 8 characters.'); return; }
+    if (pw !== again) { setError('The two passwords do not match.'); return; }
+    setBusy(true);
+    const { error: err } = await setNewPassword(pw);
+    setBusy(false);
+    if (err) {
+      const m = String(err.message || '');
+      setError(/session|expired|invalid|jwt/i.test(m) ? 'This reset link has expired or was already used. Ask for a new one from the sign-in page.'
+        : /different from the old|same password/i.test(m) ? 'Choose a password different from your old one.'
+        : m);
+      return;
+    }
+    onDone();
+  };
+  return (
+    <form className="dc-reset" onSubmit={submit} noValidate data-field="reset-set">
+      {audience === 'newsletter' && <p className="dc-reset-p">If you also use the Conscious Compass, this becomes your Compass password too.</p>}
+      <label className="dc-field"><span className="dc-label">New password</span>
+        <input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} required />
+        <span className="dc-meta">At least 8 characters.</span>
+      </label>
+      <label className="dc-field"><span className="dc-label">Type it again</span>
+        <input type="password" autoComplete="new-password" value={again} onChange={e => setAgain(e.target.value)} required />
+      </label>
+      {error && <p className="dc-reset-error" role="alert">{error}</p>}
+      <button type="submit" className="btn-primary" disabled={busy} aria-busy={busy || undefined}>{busy ? 'Saving\u2026' : 'Save new password'}</button>
+    </form>
+  );
+}
+// The Compass's own reset screen, in the sign-in page's frame.
+function RecoveryScreen({ onDone }) {
+  return (
+    <div className="min-h-screen bg-[#DEDAD2] flex items-center justify-center p-6">
+      <div className="max-w-md w-full">
+        <div className="mb-8">
+          <img src="https://ktuyiikwhspwmzvyczit.supabase.co/storage/v1/object/public/assets/brand/antenna-new-logo.svg" alt="Antenna Group" className="h-6 mb-7" style={{ filter: 'brightness(0)' }} />
+          <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>Choose a new password</h1>
+          <p className="dc-standfirst">For your Conscious Compass account. Then you will be signed in.</p>
+        </div>
+        <div className="card"><SetNewPasswordForm onDone={onDone} /></div>
+      </div>
+    </div>
+  );
+}
+
 // Auth Page Component (Login/Signup)
 function AuthPage({ onAuthSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -157,6 +259,7 @@ function AuthPage({ onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [forgot, setForgot] = useState(false);   // v4.4.0
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -182,7 +285,7 @@ function AuthPage({ onAuthSuccess }) {
       if (error) {
         setError(error.message);
       } else {
-        setMessage('Account created! Please wait for an administrator to approve your access.');
+        setMessage('Account created. Confirm your email if asked, then wait for an administrator to approve your Compass access. You can read the Stay Conscious newsletter in the meantime.');
         setIsLogin(true);
       }
     }
@@ -199,11 +302,14 @@ function AuthPage({ onAuthSuccess }) {
             <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#15171A]">The Conscious Compass</span>
           </div>
           <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
-            {isLogin ? 'Sign in' : 'Create account'}
+            {forgot ? 'Reset your password' : isLogin ? 'Sign in' : 'Create account'}
           </h1>
-          <p className="dc-standfirst">{isLogin ? 'Access the assessment tool' : 'Get started'}</p>
+          <p className="dc-standfirst">{forgot ? 'We will email you a link' : isLogin ? 'For Conscious Compass users' : 'Request access to the Conscious Compass'}</p>
         </div>
-        
+
+        {forgot ? (
+          <div className="card"><ForgotPasswordForm landingPath="/" initialEmail={email} onBack={() => { setForgot(false); setError(''); setMessage(''); }} /></div>
+        ) : (
         <form onSubmit={handleSubmit} className="card">
           {!isLogin && (
             <div className="mb-4">
@@ -242,6 +348,11 @@ function AuthPage({ onAuthSuccess }) {
               required
               minLength={6}
             />
+            {isLogin && (
+              <div className="mt-2 text-right">
+                <button type="button" onClick={() => { setForgot(true); setError(''); setMessage(''); }} className="text-sm text-[#C23B22] hover:underline">Forgot password?</button>
+              </div>
+            )}
           </div>
           
           {error && (
@@ -256,7 +367,7 @@ function AuthPage({ onAuthSuccess }) {
             </div>
           )}
           
-          <button type="submit" disabled={loading} className="btn-primary btn-arrow w-full">
+          <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? (
               <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> {isLogin ? 'Signing in...' : 'Creating account...'}</>
             ) : (
@@ -274,7 +385,18 @@ function AuthPage({ onAuthSuccess }) {
             </button>
           </div>
         </form>
+        )}
         
+        {/* Compass sign-in vs the newsletter (v4.4.0): staff who only want
+            Stay Conscious register there, with no approval needed. */}
+        {!forgot && (
+          <p className="dc-auth-aside">
+            {isLogin
+              ? <>Looking for the Stay Conscious newsletter? Any Antenna Group colleague can read it.{' '}<a href={NEWSLETTER_PUBLIC_PATH}>Go to the newsletter</a>, where Compass users sign in as here and everyone else registers.</>
+              : <>Compass accounts are approved by an administrator. Only want the Stay Conscious newsletter?{' '}<a href={NEWSLETTER_PUBLIC_PATH}>Register on the newsletter page</a> instead. No approval is needed.</>}
+          </p>
+        )}
+
         <p className="text-center text-xs text-[#8A8E95] mt-6">
           Antenna Group | Brand Consciousness Assessment
         </p>
@@ -11959,6 +12081,10 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   const [gateForm, setGateForm] = useState({ name: '', email: '', password: '' });
   const [gateError, setGateError] = useState('');
   const [gateNote, setGateNote] = useState('');
+  // Password reset on the newsletter (v4.4.0): 'forgot' is a third view of the
+  // sign-in panel; recovering is a reader back from a reset link.
+  const [recovering, setRecovering] = useState(() => publicView && isRecoveryVisit());
+  useEffect(() => (publicView ? onRecovery(() => setRecovering(true)) : undefined), [publicView]);
   const gateFrom = (res) => (res.status === 401 ? 'signin' : res.status === 403 ? 'staff' : null);
 
   // ── Data loading ────────────────────────────────────────────────
@@ -12378,7 +12504,15 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </div>
       </header>
 
-      {gate === 'staff' && (
+      {recovering && (
+        <section className="dc-np-gate" aria-labelledby="reset-h" data-field="reset-gate">
+          <h2 id="reset-h" className="dc-np-gate-h">Choose a new password</h2>
+          <p className="dc-np-gate-p">Then you will go straight to the issue.</p>
+          <div className="dc-np-gate-panel"><SetNewPasswordForm audience="newsletter" onDone={() => { clearRecoveryUrl(); setRecovering(false); setGate(null); reload(); }} /></div>
+        </section>
+      )}
+
+      {!recovering && gate === 'staff' && (
         <section className="dc-np-gate" aria-labelledby="gate-h" data-field="staff-gate">
           <h2 id="gate-h" className="dc-np-gate-h">This is not an Antenna Group account</h2>
           <p className="dc-np-gate-p">Stay Conscious is for Antenna Group staff. Sign out, then sign in with your antennagroup.com account.</p>
@@ -12386,7 +12520,16 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </section>
       )}
 
-      {gate === 'signin' && (
+      {!recovering && gate === 'signin' && gateMode === 'forgot' && (
+        <section className="dc-np-gate" aria-labelledby="gate-h" data-field="staff-gate">
+          <h2 id="gate-h" className="dc-np-gate-h">Reset your password</h2>
+          <div className="dc-np-gate-panel">
+            <ForgotPasswordForm landingPath={NEWSLETTER_PUBLIC_PATH} initialEmail={gateForm.email} staffOnly audience="newsletter" onBack={() => { setGateMode('signin'); setGateError(''); setGateNote(''); }} />
+          </div>
+        </section>
+      )}
+
+      {!recovering && gate === 'signin' && gateMode !== 'forgot' && (
         <section className="dc-np-gate" aria-labelledby="gate-h" data-field="staff-gate">
           <h2 id="gate-h" className="dc-np-gate-h">For Antenna Group staff</h2>
           <p className="dc-np-gate-p">Stay Conscious is our weekly brand intelligence briefing, open to everyone at Antenna Group.</p>
@@ -12401,8 +12544,8 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
           </div>
           <div id="gate-panel" role="tabpanel" aria-labelledby={`gate-tab-${gateMode}`} className="dc-np-gate-panel">
             <p className="dc-np-gate-hint">{gateMode === 'signup'
-              ? 'Not a Compass user? Register with your antennagroup.com email to read the newsletter. We will email you a link to confirm your address. This account is for the newsletter only and does not open the Compass.'
-              : 'Compass users: use your Compass email and password. Registered for the newsletter already? Sign in the same way.'}</p>
+              ? 'For colleagues who do not use the Conscious Compass. Register with your antennagroup.com email to read the newsletter; we will email you a link to confirm your address. This account is for the newsletter only and does not open the Compass. Compass users do not need to register.'
+              : 'Compass users: sign in with your Compass email and password, no registration needed. Everyone else: sign in with the account you registered for the newsletter.'}</p>
             {/* First visit (v4.3.3): staff without a Compass account register first. */}
             {gateMode === 'signin' && (
               <p className="dc-np-gate-hint is-first">
@@ -12422,6 +12565,9 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
               <label className="dc-field"><span className="dc-label">{gateMode === 'signup' ? 'Choose a password' : 'Password'}</span>
                 <input type="password" autoComplete={gateMode === 'signup' ? 'new-password' : 'current-password'} value={gateForm.password} onChange={e => setGateForm(f => ({ ...f, password: e.target.value }))} required />
                 {gateMode === 'signup' && <span className="dc-meta">At least 8 characters.</span>}
+                {gateMode === 'signin' && (
+                  <button type="button" className="dc-np-gate-switch dc-np-gate-forgot" onClick={() => { setGateMode('forgot'); setGateError(''); setGateNote(''); }}>Forgot password?</button>
+                )}
               </label>
               {gateError && <p className="dc-np-gate-error" role="alert">{gateError}</p>}
               {gateNote && <p className="dc-np-gate-note" role="status">{gateNote}</p>}
@@ -12434,7 +12580,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </section>
       )}
 
-      {!gate && showArchive && (
+      {!recovering && !gate && showArchive && (
         <section className="dc-np-arch" aria-label="Past issues" data-field="archive">
           {pastIssues === null && <SkeletonRows count={4} />}
           {pastIssues?.length === 0 && (
@@ -12458,7 +12604,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </section>
       )}
 
-      {!gate && !showArchive && issueId && ns && !loading && (
+      {!recovering && !gate && !showArchive && issueId && ns && !loading && (
         <div className="dc-np-archived" role="status">
           <span>You are reading a past issue{ns.weekOf ? `, from the week of ${ns.weekOf}` : ''}.</span>
           <span className="dc-np-archived-actions">
@@ -12468,9 +12614,9 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </div>
       )}
 
-      {!gate && !showArchive && (loading || refreshing) && <SkeletonRows count={6} />}
+      {!recovering && !gate && !showArchive && (loading || refreshing) && <SkeletonRows count={6} />}
 
-      {!gate && !showArchive && error && !loading && !refreshing && (
+      {!recovering && !gate && !showArchive && error && !loading && !refreshing && (
         <div className="dc-alert is-error" role="alert">
           <strong>The issue did not load</strong>
           <p>{error}</p>
@@ -12478,14 +12624,14 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </div>
       )}
 
-      {!gate && !showArchive && !ns && !loading && !refreshing && !error && (
+      {!recovering && !gate && !showArchive && !ns && !loading && !refreshing && !error && (
         <div className="dc-alert">
           <strong>No issue yet</strong>
           <p>The first issue appears after the weekly refresh on Sunday night.{isAdmin ? ' Force refresh generates it now.' : ''}</p>
         </div>
       )}
 
-      {!gate && !showArchive && ns && !loading && !refreshing && (
+      {!recovering && !gate && !showArchive && ns && !loading && !refreshing && (
         <>
           <section className="dc-np-front">
             <article className="dc-np-lead">
@@ -13874,6 +14020,9 @@ function UIKitPage() {
 
 function AppContent() {
   const [authLoading, setAuthLoading] = useState(true);
+  // Arrived from a password reset link (v4.4.0): a new password comes first.
+  const [recovering, setRecovering] = useState(() => isRecoveryVisit());
+  useEffect(() => onRecovery(() => setRecovering(true)), []);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [showAdminPage, setShowAdminPage] = useState(false);
@@ -14512,6 +14661,10 @@ function AppContent() {
   };
 
   const updateAssessment = (key, data) => setAssessments(prev => ({ ...prev, [key]: { ...prev[key], ...data } }));
+
+  if (recovering) {
+    return <RecoveryScreen onDone={() => { clearRecoveryUrl(); window.location.reload(); }} />;
+  }
 
   // Show loading while checking auth
   if (authLoading) {

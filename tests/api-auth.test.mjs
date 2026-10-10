@@ -592,11 +592,38 @@ test('v4.3.1: staff sign in with their Compass email and password; the session i
 test('v4.3.2: two ways in, Sign in for Compass users and registered staff, Register for staff without an account', async () => {
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes("[['signin', 'Sign in'], ['signup', 'Register']]") && app.includes('role="tablist"'));
-  assert.ok(app.includes('Compass users: use your Compass email and password.'));
+  assert.ok(app.includes('Compass users: sign in with your Compass email and password, no registration needed.'));
   assert.ok(app.includes('<strong>First time here and not a Compass user?</strong> You need to') && app.includes(">register</button> first."), 'first-time staff are told to register, with a link to the Register tab (v4.3.3)');
   assert.ok(app.includes('This account is for the newsletter only and does not open the Compass.'));
   assert.ok(app.includes("signUp(email, gateForm.password, gateForm.name.trim(), { newsletter_only: true }, `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}`)"), 'registrations are marked newsletter only, and the confirmation link returns to the newsletter');
   assert.ok(app.includes('data.user.identities.length === 0'), 'an address that already has an account is sent to Sign in');
   const sb = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
   assert.ok(sb.includes('data: { full_name: fullName, ...extra }'));
+});
+
+test('v4.4.0: forgotten passwords, on the Compass sign-in and the newsletter', async () => {
+  const sb = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
+  assert.ok(sb.includes("supabase.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo })"), 'Supabase sends the reset email');
+  assert.ok(sb.includes("supabase.auth.updateUser({ password })"), 'the new password is saved to the account');
+  assert.ok(sb.indexOf("event === 'PASSWORD_RECOVERY'") > sb.indexOf('export const supabase = createClient('), 'the reset visit is heard as the client is created, before any page');
+  assert.ok(sb.includes("new URLSearchParams(window.location.search).get(RESET_PARAM) === '1'") && sb.includes('type=recovery'), 'and the address is checked too');
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('Forgot password?'), 'the Compass sign-in offers it');
+  assert.ok(app.includes('<ForgotPasswordForm landingPath="/" initialEmail={email}'), 'Compass links land on the Compass');
+  assert.ok(app.includes('<ForgotPasswordForm landingPath={NEWSLETTER_PUBLIC_PATH} initialEmail={gateForm.email} staffOnly'), 'newsletter links land on the newsletter, staff addresses only');
+  assert.ok(app.includes("if (recovering) {\n    return <RecoveryScreen"), 'back from a link, the Compass asks for a new password before anything else');
+  assert.ok(app.indexOf('if (recovering) {\n    return <RecoveryScreen') < app.indexOf('// Show loading while checking auth'), 'even before the app opens');
+  assert.ok(app.includes('If there is an account for <strong>'), 'the request never says whether an account exists');
+  assert.ok(app.includes("if (pw.length < 8) { setError('Use at least 8 characters.'); return; }") && app.includes("if (pw !== again) { setError('The two passwords do not match.'); return; }"));
+});
+
+test('v4.4.0: the copy tells the Compass sign-in and the newsletter sign-in apart', async () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes("isLogin ? 'For Conscious Compass users' : 'Request access to the Conscious Compass'"), 'the Compass sign-in says who it is for');
+  assert.ok(app.includes('Looking for the Stay Conscious newsletter? Any Antenna Group colleague can read it.'), 'and points staff to the newsletter');
+  assert.ok(app.includes('Only want the Stay Conscious newsletter?') && app.includes('Register on the newsletter page</a> instead. No approval is needed.'), 'Compass sign-up says the newsletter needs no approval');
+  assert.ok(app.includes('Everyone else: sign in with the account you registered for the newsletter.'));
+  assert.ok(app.includes('Compass users do not need to register.'));
+  assert.ok(app.includes('If you also use the Conscious Compass, this is your Compass password too.'), 'a newsletter reset says it changes the Compass password as well');
+  assert.ok(app.includes('audience="newsletter"'));
 });

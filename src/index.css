@@ -1496,6 +1496,17 @@ button { font: inherit; color: inherit; }
 .dc-np-gate-switch { background: none; border: 0; padding: 0; font: inherit; color: var(--cc-rust-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .dc-np-gate-hint.is-first { padding: 10px 12px; background: var(--cc-track); border-radius: var(--cc-r-1); }
 .dc-np-gate-hint strong { font-weight: var(--cc-w-semi); color: var(--cc-ink); }
+.dc-np-gate-forgot { align-self: flex-end; font-size: var(--cc-fs-meta); }
+/* Password reset (v4.4.0), on the Compass sign-in and the newsletter. */
+.dc-reset { display: flex; flex-direction: column; gap: var(--cc-s-4); width: 100%; text-align: left; }
+.dc-reset .btn-primary { width: 100%; justify-content: center; }
+.dc-reset input[type="email"], .dc-reset input[type="password"] { width: 100%; height: 44px; background: var(--cc-paper); border: 1px solid var(--cc-faint); border-radius: var(--cc-r-1); color: var(--cc-ink); font: var(--cc-w-regular) var(--cc-fs-ui)/1.4 var(--cc-sans); padding: 0 12px; }
+.dc-reset input:focus-visible { outline: none; border-color: var(--cc-rust-text); box-shadow: var(--cc-focus); }
+.dc-auth-aside { margin: var(--cc-s-5) 0 0; padding: 12px 14px; background: var(--cc-paper); border: 1px solid var(--cc-rule); border-radius: var(--cc-r-1); font-size: 13.5px; line-height: 1.5; color: var(--cc-body); }
+.dc-auth-aside a { color: var(--cc-rust-text); text-decoration: underline; text-underline-offset: 3px; }
+.dc-reset-p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--cc-body); }
+.dc-reset-error { margin: 0; font-size: var(--cc-fs-ui); color: var(--cc-rust-text); }
+.dc-reset-link { align-self: center; background: none; border: 0; padding: 0; font: inherit; font-size: var(--cc-fs-ui); color: var(--cc-rust-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .dc-np-gate-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; max-width: 380px; border-bottom: var(--cc-border); margin-top: var(--cc-s-2); }
 .dc-np-gate-tab { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 10px 0; font: var(--cc-w-medium) 15px/1.2 'Inter', var(--cc-sans); color: var(--cc-muted); cursor: pointer; }
 .dc-np-gate-tab.is-on { color: var(--cc-ink); border-bottom-color: var(--cc-rust-text); }

@@ -5,6 +5,50 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// ── Password reset (v4.4.0) ──────────────────────────────────
+// "Forgot password?" sends Supabase's reset email; its link signs the person
+// in for recovery only, and the page must then ask for a new password before
+// anything else. Supabase announces that visit once (PASSWORD_RECOVERY),
+// while it reads the link, so the listener is attached here, as the client is
+// created, before any page can miss it. The link also carries ?reset=1 as a
+// second signal, in case the address is on Supabase's Redirect URLs list.
+let recovering = false;
+const recoveryListeners = new Set();
+try {
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') { recovering = true; recoveryListeners.forEach(fn => fn()); }
+  });
+} catch { /* no auth in this environment */ }
+export const RESET_PARAM = 'reset';
+export const isRecoveryVisit = () => {
+  if (recovering) return true;
+  try {
+    if (new URLSearchParams(window.location.search).get(RESET_PARAM) === '1') return true;
+    return /(^|[#&])type=recovery(&|$)/.test(window.location.hash || '');
+  } catch { return false; }
+};
+export const onRecovery = (fn) => { recoveryListeners.add(fn); return () => recoveryListeners.delete(fn); };
+// Where the reset link should land: this page, marked as a reset.
+export const resetLandingUrl = (path) => `${window.location.origin}${path}${path.includes('?') ? '&' : '?'}${RESET_PARAM}=1`;
+export const sendPasswordReset = async (email, redirectTo) => {
+  const { error } = await supabase.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo });
+  return { error };
+};
+export const setNewPassword = async (password) => {
+  const { data, error } = await supabase.auth.updateUser({ password });
+  if (!error) recovering = false;
+  return { data, error };
+};
+// Takes the reset marker out of the address once the password is set.
+export const clearRecoveryUrl = () => {
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.delete(RESET_PARAM);
+    u.hash = '';
+    window.history.replaceState({}, '', `${u.pathname}${u.search}`);
+  } catch { /* nothing to clear */ }
+};
+
 // Auth helpers
 // extra goes into the account's metadata; the newsletter marks its own
 // registrations newsletter_only (v4.3.2), so they can be told apart later.
