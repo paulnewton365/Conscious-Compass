@@ -64,3 +64,4 @@ export const setCampaignAudience = async (id, cso) => {
   return ok(c);
 };
 export const setBiz = async (userId, isBiz) => { calls.push(['setBiz', userId, isBiz]); return ok({ id: userId, is_biz: isBiz }); };
+export const signInWithGoogleStaff = async (redirectTo) => { calls.push(['signInWithGoogleStaff', redirectTo]); return { data: null, error: null }; };

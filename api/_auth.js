@@ -76,3 +76,28 @@ export async function requireUser(req, res, { admin = false, allowCron = false, 
   }
   return user;
 }
+
+// ── Staff only (v4.3.0) ───────────────────────────────────────
+// The /newsletter page is for Antenna Group staff: a signed-in user whose
+// confirmed email address is at one of these domains. Google sign-in is
+// limited to the Antenna Workspace on Google's side as well; this check is
+// what the server relies on.
+export const STAFF_DOMAINS = ['antennagroup.com'];
+export function isStaffUser(user) {
+  const email = String(user?.email || '').trim().toLowerCase();
+  const domain = email.includes('@') ? email.slice(email.lastIndexOf('@') + 1) : '';
+  return !!(user && (user.email_confirmed_at || user.confirmed_at) && STAFF_DOMAINS.includes(domain));
+}
+export async function requireStaff(req, res, { fetchImpl = fetch } = {}) {
+  if (typeof res.setHeader === 'function') res.setHeader('Cache-Control', 'private, no-store');
+  const user = await verifyUser(req, fetchImpl);
+  if (!user) {
+    res.status(401).json({ error: 'Sign in with your Antenna Group Google account to read Stay Conscious.', signIn: true });
+    return null;
+  }
+  if (!isStaffUser(user)) {
+    res.status(403).json({ error: 'Stay Conscious is for Antenna Group staff. Sign in with your antennagroup.com Google account.', staffOnly: true });
+    return null;
+  }
+  return user;
+}

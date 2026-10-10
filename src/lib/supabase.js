@@ -35,6 +35,13 @@ export const signIn = async (email, password) => {
   return { data, error };
 };
 
+// Google sign-in for the staff newsletter (v4.3.0). hd asks Google to offer
+// only Antenna Workspace accounts; the server still checks the domain itself.
+export const signInWithGoogleStaff = (redirectTo) => supabase.auth.signInWithOAuth({
+  provider: 'google',
+  options: { redirectTo, queryParams: { hd: 'antennagroup.com', prompt: 'select_account' } },
+});
+
 export const signOut = async () => {
   const { error } = await supabase.auth.signOut();
   return { error };

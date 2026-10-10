@@ -39,12 +39,16 @@ test('every endpoint imports the caller check and calls it first', () => {
   assert.ok(handlers.length >= 13);   // 13 since insights-analysis went with the Insights tab (v3.117.0)
   for (const f of handlers) {
     const src = readFileSync(new URL(f, API), 'utf8');
-    assert.ok(src.includes("import { requireUser } from './_auth.js';"), f);
+    assert.match(src, /import \{ requireUser(, requireStaff)? \} from '\.\/_auth\.js';/, f);
     const body = src.slice(src.indexOf('export default async function handler'));
     const statements = body.split('\n').slice(1).filter(l => l.trim() && !l.trim().startsWith('//'));
-    // The one documented exception (v3.120.0): the public newsletter issue,
-    // which sends only publicIssue(). Everything else checks the caller first.
+    // The one documented branch (v3.120.0): the reader issue, which sends only
+    // publicIssue() and since v4.3.0 checks for a staff account first.
     const first = f === 'stay-conscious-newsletter.js' && statements[0].includes('if (isPublicRequest(req)) return sendPublicIssue(req, res);') ? statements[1] : statements[0];
+    if (f === 'stay-conscious-newsletter.js') {
+      const send = src.slice(src.indexOf('async function sendPublicIssue(req, res) {'));
+      assert.match(send.split('\n')[1], /if \(!\(await requireStaff\(req, res\)\)\) return;/, 'the reader issue checks for staff before anything else');
+    }
     assert.match(first, /requireUser\(req, res/, `${f}: the check runs before anything else`);
   }
 });
@@ -245,19 +249,22 @@ test('the public newsletter issue: no sign-in, allowlisted sections only, no sto
   assert.equal(out.landscapeAnalysis.insights, 'Sentient lags everywhere.');
   assert.equal(out.landscapeAnalysis.averageScore, 50);
   assert.equal(out.leadStory.headline, 'H');
-  // the handler: GET ?public=1 is served without a session, and with no brand list nothing is sent
+  // the handler: GET ?public=1 needs a staff session (v4.3.0), and with no brand list nothing is sent
   const calls = [];
-  globalThis.fetch = async (url) => { calls.push(String(url)); return String(url).includes('compass_results')
+  process.env.SUPABASE_URL = 'https://db'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'k';
+  const staff = { id: 'u1', email: 'Paul.Newton@antennagroup.com', email_confirmed_at: '2026-01-01' };
+  globalThis.fetch = async (url) => { calls.push(String(url)); if (String(url).includes('/auth/v1/user')) return { ok: true, json: async () => staff }; return String(url).includes('compass_results')
     ? { ok: true, json: async () => [{ brand_name: 'Acme Water' }] }
     : { ok: true, json: async () => [{ newsletter: nl, refreshed_at: '2026-10-04T23:30:00Z' }] }; };
   const res = { statusCode: 0, body: null, headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
-  await mod.default({ method: 'GET', query: { public: '1' }, headers: {} }, res);
+  await mod.default({ method: 'GET', query: { public: '1' }, headers: { authorization: 'Bearer t' } }, res);
   assert.equal(res.statusCode, 200);
   assert.ok(!JSON.stringify(res.body).includes('SENTINEL_STORY') && !JSON.stringify(res.body).includes('Acme Water'));
-  assert.ok(!calls.some(u => u.includes('/auth/v1/user')), 'no session check on the public issue');
-  globalThis.fetch = async (url) => (String(url).includes('compass_results') ? { ok: false, status: 500, json: async () => ({}) } : { ok: true, json: async () => [{ newsletter: nl }] });
+  assert.ok(calls.some(u => u.includes('/auth/v1/user')), 'the session is checked');
+  assert.equal(res.headers['Cache-Control'], 'private, no-store', 'never kept by a shared cache');
+  globalThis.fetch = async (url) => (String(url).includes('/auth/v1/user') ? { ok: true, json: async () => staff } : String(url).includes('compass_results') ? { ok: false, status: 500, json: async () => ({}) } : { ok: true, json: async () => [{ newsletter: nl }] });
   const res2 = { ...res, statusCode: 0, body: null };
-  await mod.default({ method: 'GET', query: { public: '1' }, headers: {} }, res2);
+  await mod.default({ method: 'GET', query: { public: '1' }, headers: { authorization: 'Bearer t' } }, res2);
   assert.equal(res2.statusCode, 502, 'without the brand list the issue is withheld, not sent unchecked');
 });
 
@@ -494,12 +501,13 @@ test('v4.2.0: the Sunday run keeps the issue it replaces; past issues can be lis
   const seen = [];
   globalThis.fetch = async (url) => {
     seen.push(String(url));
+    if (String(url).includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'u1', email: 'a@antennagroup.com', email_confirmed_at: 'x' }) };
     if (String(url).includes('compass_results')) return { ok: true, json: async () => [{ brand_name: 'Acme' }] };
     return { ok: true, json: async () => [{ newsletter: { issueNumber: 30, storyOpportunities: [{ headline: 'internal' }], landscapeAnalysis: { summary: 'Acme leads.\n\nBrands lag.' } }, refreshed_at: 'x' }] };
   };
   process.env.SUPABASE_URL = 'https://db'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'k';
   const res = mockRes();
-  await pub.default({ method: 'GET', query: { public: '1', issue: '3' }, headers: {} }, res);
+  await pub.default({ method: 'GET', query: { public: '1', issue: '3' }, headers: { authorization: 'Bearer t' } }, res);
   assert.equal(res.code, 200);
   assert.ok(seen.some(u => u.includes('stay_conscious_newsletter_archive?') && u.includes('id=eq.3')));
   assert.equal(res.body.newsletter.issueNumber, 30);
@@ -527,4 +535,46 @@ test('v4.2.1: one Archive button opens past issues newest first, each with its l
   assert.ok(app.includes("localeCompare(String(x.refreshedAt || ''))"), 'newest first by publish date');
   assert.ok(app.includes('<ArchiveThumb image={p.image} issueNumber={p.issueNumber} />'));
   assert.ok(!app.includes('data-field="past-issues"'), 'the list at the foot of the issue is gone');
+});
+
+
+test('v4.3.0: the newsletter is staff only: a confirmed antennagroup.com account, checked on the server', async () => {
+  const auth = await import('../api/_auth.js');
+  const ok = (u) => auth.isStaffUser(u);
+  assert.equal(ok({ email: 'paul.newton@antennagroup.com', email_confirmed_at: 'x' }), true);
+  assert.equal(ok({ email: 'Someone@AntennaGroup.com', confirmed_at: 'x' }), true, 'case does not matter');
+  assert.equal(ok({ email: 'someone@antennagroup.com' }), false, 'an unconfirmed address is not enough');
+  assert.equal(ok({ email: 'someone@gmail.com', email_confirmed_at: 'x' }), false);
+  assert.equal(ok({ email: 'someone@antennagroup.com.evil.io', email_confirmed_at: 'x' }), false, 'look-alike domains fail');
+  assert.equal(ok({ email: 'antennagroup.com@evil.io', email_confirmed_at: 'x' }), false);
+  assert.equal(ok(null), false);
+
+  process.env.SUPABASE_URL = 'https://db'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'k';
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const reached = [];
+  const run = async (user, headers) => {
+    globalThis.fetch = async (url) => { reached.push(String(url)); return String(url).includes('/auth/v1/user') ? (user ? { ok: true, json: async () => user } : { ok: false, json: async () => ({}) }) : { ok: true, json: async () => [] }; };
+    const res = { statusCode: 0, body: null, headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+    await pub.default({ method: 'GET', query: { public: '1' }, headers }, res);
+    return res;
+  };
+  reached.length = 0;
+  const anon = await run(null, {});
+  assert.equal(anon.statusCode, 401); assert.equal(anon.body.signIn, true);
+  assert.ok(!reached.some(u => u.includes('stay_conscious_newsletter') || u.includes('compass_results')), 'nothing read for a stranger');
+  const outsider = await run({ id: 'u2', email: 'x@gmail.com', email_confirmed_at: 'x' }, { authorization: 'Bearer t' });
+  assert.equal(outsider.statusCode, 403); assert.equal(outsider.body.staffOnly, true);
+  assert.equal(outsider.headers['Cache-Control'], 'private, no-store');
+  const list = await (async () => {
+    globalThis.fetch = async (url) => (String(url).includes('/auth/v1/user') ? { ok: false, json: async () => ({}) } : { ok: true, json: async () => [] });
+    const res = { statusCode: 0, body: null, headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+    await pub.default({ method: 'GET', query: { public: '1', archive: 'list' }, headers: {} }, res);
+    return res;
+  })();
+  assert.equal(list.statusCode, 401, 'the archive is staff only too');
+
+  const sb = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
+  assert.ok(sb.includes("provider: 'google'") && sb.includes("hd: 'antennagroup.com'"));
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('data-field="staff-gate"') && app.includes("res.status === 401 ? 'signin' : res.status === 403 ? 'staff' : null"));
 });

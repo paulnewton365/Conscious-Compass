@@ -2,13 +2,15 @@
 // Returns the composed weekly newsletter from Supabase cache.
 // Cache is written by /api/refresh-stay-conscious-newsletter every Sunday at 23:30 UTC.
 
-// Public issue (v3.120.0): GET ?public=1 needs no sign-in and returns only the
-// sections safe to publish, by allowlist: the lead story, the brand
+// Reader issue (v3.120.0): GET ?public=1 is what the /newsletter page reads.
+// Since v4.3.0 it is staff only (a signed-in antennagroup.com account, see
+// requireStaff in _auth.js), but it still returns only the reader sections,
+// by allowlist: the lead story, the brand
 // intelligence items and the landscape figures. Story opportunities are
 // internal (they are built from the list of assessed brands) and never leave.
 // Landscape text that names an assessed brand is dropped as well.
 
-import { requireUser } from './_auth.js';
+import { requireUser, requireStaff } from './_auth.js';
 import { titleCaseAttributes } from '../src/data/attributeGlossary.js';
 
 // Attribute codes read as names publicly: SENTIENT becomes Sentient (v4.1.0).
@@ -75,11 +77,14 @@ async function sendArchiveList(res, supabaseUrl, headers, cacheable) {
   const r = await fetch(`${supabaseUrl}/rest/v1/${ARCHIVE_TABLE}?select=${ARCHIVE_LIST_SELECT}&order=refreshed_at.desc&limit=104`, { headers });
   // No table yet (the SQL has not been run): an empty list, not an error.
   if (!r.ok) return res.status(200).json({ issues: [] });
-  if (cacheable) res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
+  if (cacheable) res.setHeader('Cache-Control', 'private, no-store');   // staff only (v4.3.0): never in a shared cache
   return res.status(200).json({ issues: (await r.json()).map(archiveListRow) });
 }
 
+// Staff only since v4.3.0: the /newsletter page needs a signed-in Antenna
+// Group account (requireStaff), and nothing is cached by shared caches.
 async function sendPublicIssue(req, res) {
+  if (!(await requireStaff(req, res))) return;
   const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: 'Server environment variables not configured' });
@@ -108,7 +113,6 @@ async function sendPublicIssue(req, res) {
     if (!issueRes.ok || !names) return res.status(502).json({ error: 'The issue could not be loaded.' });
     const rows = await issueRes.json();
     if (id && !rows?.length) return res.status(404).json({ error: 'That issue could not be found.' });
-    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=3600');
     return res.status(200).json({ newsletter: publicIssue(rows?.[0]?.newsletter, names), refreshedAt: rows?.[0]?.refreshed_at || null, public: true, ...(id ? { archived: true, archiveId: id } : {}) });
   } catch {
     return res.status(500).json({ error: 'The issue could not be loaded.' });

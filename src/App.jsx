@@ -6,9 +6,9 @@ import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from '
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
-import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
+import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, signInWithGoogleStaff, signOut as signOutUser } from './lib/supabase';
 
-const APP_VERSION = '4.2.1';
+const APP_VERSION = '4.3.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -11899,8 +11899,9 @@ Each item:
 - insight: 2-3 sentences. What is actually happening, with specifics where possible.
 - whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
 
-// The public issue (v3.120.0) is this page with publicView: no sign-in, no
-// tools beyond Share link, and only what the server's publicIssue() sends.
+// The reader issue (v3.120.0) is this page with publicView: no tools beyond
+// Archive and Share link, and only what the server's publicIssue() sends.
+// Staff only since v4.3.0: readers sign in with their Antenna Google account.
 const NEWSLETTER_PUBLIC_PATH = '/newsletter';
 
 // Earned creative in the news (v3.124.0). The framing is fixed copy; the
@@ -11945,6 +11946,11 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   const [issueId, setIssueId] = useState(() => issueFromUrl());
   const [pastIssues, setPastIssues] = useState(null);   // null until first loaded
   const [showArchive, setShowArchive] = useState(() => archiveFromUrl());
+  // Staff only (v4.3.0): 'signin' before a reader has signed in, 'staff' when
+  // the account is not an Antenna Group one; null once the issue loads.
+  const [gate, setGate] = useState(null);
+  const [gateBusy, setGateBusy] = useState(false);
+  const gateFrom = (res) => (res.status === 401 ? 'signin' : res.status === 403 ? 'staff' : null);
 
   // ── Data loading ────────────────────────────────────────────────
   const apiUrl = (extra = {}) => {
@@ -11955,6 +11961,8 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     setLoading(true); setError(null);
     try {
       const res  = await fetch(apiUrl(id ? { issue: String(id) } : {}));
+      if (publicRef.current && gateFrom(res)) { setGate(gateFrom(res)); setNewsletter(null); return; }
+      setGate(null);
       const data = await res.json();
       if (data.newsletter) {
         setNewsletter(data.newsletter);
@@ -11968,12 +11976,24 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   };
   const loadPastIssues = async () => {
     try {
-      const data = await (await fetch(apiUrl({ archive: 'list' }))).json();
+      const res = await fetch(apiUrl({ archive: 'list' }));
+      if (publicRef.current && gateFrom(res)) { setGate(gateFrom(res)); setPastIssues([]); return; }
+      const data = await res.json();
       const list = Array.isArray(data.issues) ? data.issues : [];
       // Newest first, by when each edition was published.
       setPastIssues([...list].sort((x, y) => String(y.refreshedAt || '').localeCompare(String(x.refreshedAt || ''))));
     } catch { setPastIssues([]); }
   };
+  // Google sign-in returns the reader to this same address (issue or archive).
+  const signInGoogle = async () => {
+    setGateBusy(true);
+    try {
+      const { error: err } = await signInWithGoogleStaff(window.location.href.split('#')[0]);
+      if (err) throw err;
+    } catch (e) { setGateBusy(false); setError(`Google sign-in did not start: ${e.message}`); }
+  };
+  const switchAccount = async () => { setGateBusy(true); try { await signOutUser(); } catch { /* signed out anyway */ } await signInGoogle(); };
+
   // The public page keeps where the reader is in its address, so Back works
   // and any view can be shared.
   const pushView = (id, archive) => {
@@ -12294,8 +12314,8 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         <div className="dc-head-actions">
           {ns && !publicView && !showArchive && <button className="btn-primary" type="button" onClick={handleExportDocx} disabled={exportingDocx} aria-busy={exportingDocx || undefined}>{exportingDocx ? 'Preparing…' : 'DOCX'}</button>}
           {ns && !publicView && !showArchive && <button className="btn-secondary" type="button" onClick={handleCopyText}>Copy</button>}
-          <button className="btn-secondary" type="button" aria-pressed={showArchive} onClick={() => (showArchive ? openIssue(issueId) : openArchive())}>{showArchive ? 'Back to issue' : 'Archive'}</button>
-          <button className="btn-secondary" type="button" title="Copy the public link to this issue. Anyone can open it without signing in." aria-live="polite" onClick={shareLink}>{linkCopied ? 'Link copied' : 'Share link'}</button>
+          {!gate && <button className="btn-secondary" type="button" aria-pressed={showArchive} onClick={() => (showArchive ? openIssue(issueId) : openArchive())}>{showArchive ? 'Back to issue' : 'Archive'}</button>}
+          {!gate && <button className="btn-secondary" type="button" title="Copy the link to this issue. Colleagues sign in with their Antenna Group Google account to read it." aria-live="polite" onClick={shareLink}>{linkCopied ? 'Link copied' : 'Share link'}</button>}
           {isAdmin && !publicView && !issueId && !showArchive && (
             <button className="btn-secondary" type="button" title="Force refresh for all users" onClick={confirmRefresh} disabled={refreshing || loading} aria-busy={refreshing || undefined}>
               {refreshing ? 'Refreshing…' : 'Force refresh'}
@@ -12315,7 +12335,21 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </div>
       </header>
 
-      {showArchive && (
+      {gate && (
+        <section className="dc-np-gate" aria-labelledby="gate-h" data-field="staff-gate">
+          <h2 id="gate-h" className="dc-np-gate-h">{gate === 'staff' ? 'This account is not an Antenna Group account' : 'For Antenna Group staff'}</h2>
+          <p className="dc-np-gate-p">{gate === 'staff'
+            ? 'Stay Conscious is open to Antenna Group staff only. Sign in with your antennagroup.com Google account.'
+            : 'Stay Conscious is our weekly brand intelligence briefing. Sign in with your antennagroup.com Google account to read it.'}</p>
+          <button type="button" className="btn-primary dc-np-gate-btn" onClick={gate === 'staff' ? switchAccount : signInGoogle} disabled={gateBusy} aria-busy={gateBusy || undefined}>
+            <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+            {gateBusy ? 'Opening Google\u2026' : gate === 'staff' ? 'Use another Google account' : 'Sign in with Google'}
+          </button>
+          {error && <p className="dc-meta" role="alert">{error}</p>}
+        </section>
+      )}
+
+      {!gate && showArchive && (
         <section className="dc-np-arch" aria-label="Past issues" data-field="archive">
           {pastIssues === null && <SkeletonRows count={4} />}
           {pastIssues?.length === 0 && (
@@ -12339,7 +12373,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </section>
       )}
 
-      {!showArchive && issueId && ns && !loading && (
+      {!gate && !showArchive && issueId && ns && !loading && (
         <div className="dc-np-archived" role="status">
           <span>You are reading a past issue{ns.weekOf ? `, from the week of ${ns.weekOf}` : ''}.</span>
           <span className="dc-np-archived-actions">
@@ -12349,9 +12383,9 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </div>
       )}
 
-      {!showArchive && (loading || refreshing) && <SkeletonRows count={6} />}
+      {!gate && !showArchive && (loading || refreshing) && <SkeletonRows count={6} />}
 
-      {!showArchive && error && !loading && !refreshing && (
+      {!gate && !showArchive && error && !loading && !refreshing && (
         <div className="dc-alert is-error" role="alert">
           <strong>The issue did not load</strong>
           <p>{error}</p>
@@ -12359,14 +12393,14 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </div>
       )}
 
-      {!showArchive && !ns && !loading && !refreshing && !error && (
+      {!gate && !showArchive && !ns && !loading && !refreshing && !error && (
         <div className="dc-alert">
           <strong>No issue yet</strong>
           <p>The first issue appears after the weekly refresh on Sunday night.{isAdmin ? ' Force refresh generates it now.' : ''}</p>
         </div>
       )}
 
-      {!showArchive && ns && !loading && !refreshing && (
+      {!gate && !showArchive && ns && !loading && !refreshing && (
         <>
           <section className="dc-np-front">
             <article className="dc-np-lead">
