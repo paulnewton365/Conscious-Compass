@@ -6,9 +6,9 @@ import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from '
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
-import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, signInWithGoogleStaff, signOut as signOutUser } from './lib/supabase';
+import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword } from './lib/supabase';
 
-const APP_VERSION = '4.3.0';
+const APP_VERSION = '4.3.2';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -11916,6 +11916,9 @@ const NEWSLETTER_EC_COPY = {
 const publicNewsletterUrl = (issueId = null) => `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}${issueId ? `?issue=${issueId}` : ''}`;
 // An archived edition named in the address (?issue=36), or null (v4.2.0).
 const issueFromUrl = () => { try { const v = new URLSearchParams(window.location.search).get('issue'); return /^\d{1,9}$/.test(v || '') ? Number(v) : null; } catch { return null; } };
+// The newsletter is for antennagroup.com addresses (v4.3.0); the server makes
+// the same check, this one only saves a wasted round trip.
+const isStaffEmail = (email) => /^[^@\s]+@antennagroup\.com$/i.test(String(email || '').trim());
 // The archive list is open (?view=archive) (v4.2.1).
 const archiveFromUrl = () => { try { return new URLSearchParams(window.location.search).get('view') === 'archive'; } catch { return false; } };
 
@@ -11950,6 +11953,12 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   // the account is not an Antenna Group one; null once the issue loads.
   const [gate, setGate] = useState(null);
   const [gateBusy, setGateBusy] = useState(false);
+  // The sign-in form (v4.3.1): the same email and password accounts as the
+  // Compass. 'signin' or 'signup'; a note after sign-up.
+  const [gateMode, setGateMode] = useState('signin');
+  const [gateForm, setGateForm] = useState({ name: '', email: '', password: '' });
+  const [gateError, setGateError] = useState('');
+  const [gateNote, setGateNote] = useState('');
   const gateFrom = (res) => (res.status === 401 ? 'signin' : res.status === 403 ? 'staff' : null);
 
   // ── Data loading ────────────────────────────────────────────────
@@ -11984,15 +11993,49 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       setPastIssues([...list].sort((x, y) => String(y.refreshedAt || '').localeCompare(String(x.refreshedAt || ''))));
     } catch { setPastIssues([]); }
   };
-  // Google sign-in returns the reader to this same address (issue or archive).
-  const signInGoogle = async () => {
+  // Signing in keeps the session in this browser, shared with the Compass, so
+  // a reader signs in once and goes straight to the issue on later visits.
+  const reload = () => { loadNewsletter(issueId); if (showArchive) loadPastIssues(); };
+  const submitGate = async (e) => {
+    e.preventDefault();
+    setGateError(''); setGateNote('');
+    const email = gateForm.email.trim();
+    if (!isStaffEmail(email)) { setGateError('Use your antennagroup.com email address.'); return; }
     setGateBusy(true);
     try {
-      const { error: err } = await signInWithGoogleStaff(window.location.href.split('#')[0]);
-      if (err) throw err;
-    } catch (e) { setGateBusy(false); setError(`Google sign-in did not start: ${e.message}`); }
+      if (gateMode === 'signin') {
+        const { data, error: err } = await signIn(email, gateForm.password);
+        if (err) throw err;
+        if (data?.session) { setGateForm(f => ({ ...f, password: '' })); reload(); }
+      } else {
+        if (!gateForm.name.trim()) throw new Error('Add your name.');
+        if (gateForm.password.length < 8) throw new Error('Choose a password of at least 8 characters.');
+        const { data, error: err } = await signUp(email, gateForm.password, gateForm.name.trim(), { newsletter_only: true }, `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}`);
+        if (err) throw err;
+        setGateForm(f => ({ ...f, password: '' }));
+        // Supabase answers an address that already has an account with an
+        // empty identity list rather than an error.
+        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          setGateMode('signin');
+          setGateNote(`${email} already has an account, from the Compass or an earlier registration. Sign in with it below.`);
+          return;
+        }
+        if (data?.session) reload();
+        else { setGateMode('signin'); setGateNote(`Nearly there. We have sent a confirmation link to ${email}. Open it, then come back here and sign in.`); }
+      }
+    } catch (err) {
+      const msg = String(err?.message || err);
+      setGateError(/already registered/i.test(msg) ? 'That address already has an account. Sign in instead.'
+        : /invalid login credentials/i.test(msg) ? 'That email and password do not match an account. If you have not registered yet, choose Register.'
+        : /email not confirmed/i.test(msg) ? 'Confirm your email address first, using the link we sent, then sign in.'
+        : msg);
+    } finally { setGateBusy(false); }
   };
-  const switchAccount = async () => { setGateBusy(true); try { await signOutUser(); } catch { /* signed out anyway */ } await signInGoogle(); };
+  const signOutReader = async () => {
+    setGateBusy(true);
+    try { await signOut(); } catch { /* signed out anyway */ }
+    setGateBusy(false); setGate('signin'); setGateMode('signin'); setGateError(''); setGateNote('');
+  };
 
   // The public page keeps where the reader is in its address, so Back works
   // and any view can be shared.
@@ -12335,17 +12378,52 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         </div>
       </header>
 
-      {gate && (
+      {gate === 'staff' && (
         <section className="dc-np-gate" aria-labelledby="gate-h" data-field="staff-gate">
-          <h2 id="gate-h" className="dc-np-gate-h">{gate === 'staff' ? 'This account is not an Antenna Group account' : 'For Antenna Group staff'}</h2>
-          <p className="dc-np-gate-p">{gate === 'staff'
-            ? 'Stay Conscious is open to Antenna Group staff only. Sign in with your antennagroup.com Google account.'
-            : 'Stay Conscious is our weekly brand intelligence briefing. Sign in with your antennagroup.com Google account to read it.'}</p>
-          <button type="button" className="btn-primary dc-np-gate-btn" onClick={gate === 'staff' ? switchAccount : signInGoogle} disabled={gateBusy} aria-busy={gateBusy || undefined}>
-            <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
-            {gateBusy ? 'Opening Google\u2026' : gate === 'staff' ? 'Use another Google account' : 'Sign in with Google'}
-          </button>
-          {error && <p className="dc-meta" role="alert">{error}</p>}
+          <h2 id="gate-h" className="dc-np-gate-h">This is not an Antenna Group account</h2>
+          <p className="dc-np-gate-p">Stay Conscious is for Antenna Group staff. Sign out, then sign in with your antennagroup.com account.</p>
+          <button type="button" className="btn-primary" onClick={signOutReader} disabled={gateBusy} aria-busy={gateBusy || undefined}>Sign out</button>
+        </section>
+      )}
+
+      {gate === 'signin' && (
+        <section className="dc-np-gate" aria-labelledby="gate-h" data-field="staff-gate">
+          <h2 id="gate-h" className="dc-np-gate-h">For Antenna Group staff</h2>
+          <p className="dc-np-gate-p">Stay Conscious is our weekly brand intelligence briefing, open to everyone at Antenna Group.</p>
+          {/* Two ways in (v4.3.2): Compass users and staff who have registered
+              sign in; staff without an account register for the newsletter. */}
+          <div className="dc-np-gate-tabs" role="tablist" aria-label="How to get in">
+            {[['signin', 'Sign in'], ['signup', 'Register']].map(([m, label]) => (
+              <button key={m} type="button" role="tab" id={`gate-tab-${m}`} aria-selected={gateMode === m} aria-controls="gate-panel"
+                className={`dc-np-gate-tab${gateMode === m ? ' is-on' : ''}`}
+                onClick={() => { setGateMode(m); setGateError(''); setGateNote(''); }}>{label}</button>
+            ))}
+          </div>
+          <div id="gate-panel" role="tabpanel" aria-labelledby={`gate-tab-${gateMode}`} className="dc-np-gate-panel">
+            <p className="dc-np-gate-hint">{gateMode === 'signup'
+              ? 'Not a Compass user? Register with your antennagroup.com email to read the newsletter. We will email you a link to confirm your address. This account is for the newsletter only and does not open the Compass.'
+              : 'Compass users: use your Compass email and password. Registered for the newsletter already? Sign in the same way.'}</p>
+            <form className="dc-np-gate-form" onSubmit={submitGate} noValidate>
+              {gateMode === 'signup' && (
+                <label className="dc-field"><span className="dc-label">Full name</span>
+                  <input type="text" autoComplete="name" value={gateForm.name} onChange={e => setGateForm(f => ({ ...f, name: e.target.value }))} required />
+                </label>
+              )}
+              <label className="dc-field"><span className="dc-label">Work email</span>
+                <input type="email" autoComplete="email" inputMode="email" placeholder="name@antennagroup.com" value={gateForm.email} onChange={e => setGateForm(f => ({ ...f, email: e.target.value }))} required />
+              </label>
+              <label className="dc-field"><span className="dc-label">{gateMode === 'signup' ? 'Choose a password' : 'Password'}</span>
+                <input type="password" autoComplete={gateMode === 'signup' ? 'new-password' : 'current-password'} value={gateForm.password} onChange={e => setGateForm(f => ({ ...f, password: e.target.value }))} required />
+                {gateMode === 'signup' && <span className="dc-meta">At least 8 characters.</span>}
+              </label>
+              {gateError && <p className="dc-np-gate-error" role="alert">{gateError}</p>}
+              {gateNote && <p className="dc-np-gate-note" role="status">{gateNote}</p>}
+              <button type="submit" className="btn-primary" disabled={gateBusy} aria-busy={gateBusy || undefined}>
+                {gateBusy ? (gateMode === 'signup' ? 'Registering\u2026' : 'Signing in\u2026') : (gateMode === 'signup' ? 'Register' : 'Sign in')}
+              </button>
+            </form>
+          </div>
+          <p className="dc-meta dc-np-gate-foot">Once you have signed in, this browser remembers you, so you will go straight to each new issue.</p>
         </section>
       )}
 

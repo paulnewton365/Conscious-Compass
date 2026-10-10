@@ -1489,8 +1489,17 @@ button { font: inherit; color: inherit; }
 .dc-np-gate { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--cc-s-4); max-width: 520px; margin: 0 auto; padding: var(--cc-s-12) 0; }
 .dc-np-gate-h { font: var(--cc-w-bold) 28px/1.2 'Inter', var(--cc-sans); letter-spacing: -.02em; color: var(--cc-ink); text-wrap: balance; }
 .dc-np-gate-p { font: var(--cc-w-regular) 16px/1.5 'Inter', var(--cc-sans); color: var(--cc-body); }
-.dc-np-gate-btn { display: inline-flex; align-items: center; gap: 10px; margin-top: var(--cc-s-2); }
-.dc-np-gate-btn svg { background: #fff; border-radius: 2px; padding: 2px; box-sizing: content-box; }
+.dc-np-gate-form { display: flex; flex-direction: column; gap: var(--cc-s-4); width: 100%; max-width: 380px; margin-top: var(--cc-s-2); text-align: left; }
+.dc-np-gate-form .btn-primary { width: 100%; justify-content: center; }
+.dc-np-gate-error { margin: 0; font-size: var(--cc-fs-ui); color: var(--cc-rust-text); }
+.dc-np-gate-note { margin: 0; font-size: var(--cc-fs-ui); color: var(--cc-body); }
+.dc-np-gate-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; max-width: 380px; border-bottom: var(--cc-border); margin-top: var(--cc-s-2); }
+.dc-np-gate-tab { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 10px 0; font: var(--cc-w-medium) 15px/1.2 'Inter', var(--cc-sans); color: var(--cc-muted); cursor: pointer; }
+.dc-np-gate-tab.is-on { color: var(--cc-ink); border-bottom-color: var(--cc-rust-text); }
+.dc-np-gate-tab:focus-visible { outline: 2px solid var(--cc-ink); outline-offset: 2px; }
+.dc-np-gate-panel { display: flex; flex-direction: column; align-items: center; gap: var(--cc-s-3); width: 100%; max-width: 380px; }
+.dc-np-gate-hint { margin: 0; font: var(--cc-w-regular) 14px/1.5 'Inter', var(--cc-sans); color: var(--cc-body); text-align: left; width: 100%; }
+.dc-np-gate-foot { max-width: 380px; }
 /* Archive (v4.2.0, v4.2.1): one row per past edition, newest first, with its
    lead image (or that edition's house image), the date and the headline. And
    a line that says when a past edition is being read. */

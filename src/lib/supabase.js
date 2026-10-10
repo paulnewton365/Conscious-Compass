@@ -6,12 +6,17 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Auth helpers
-export const signUp = async (email, password, fullName) => {
+// extra goes into the account's metadata; the newsletter marks its own
+// registrations newsletter_only (v4.3.2), so they can be told apart later.
+// emailRedirectTo is where the confirmation link lands; Supabase uses the
+// project's Site URL instead unless the address is on its Redirect URLs list.
+export const signUp = async (email, password, fullName, extra = {}, emailRedirectTo = undefined) => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: { full_name: fullName }
+      data: { full_name: fullName, ...extra },
+      ...(emailRedirectTo ? { emailRedirectTo } : {}),
     }
   });
   return { data, error };
@@ -35,8 +40,10 @@ export const signIn = async (email, password) => {
   return { data, error };
 };
 
-// Google sign-in for the staff newsletter (v4.3.0). hd asks Google to offer
-// only Antenna Workspace accounts; the server still checks the domain itself.
+// Google sign-in for the staff newsletter (v4.3.0). Not shown on the page
+// since v4.3.1, which uses Compass accounts; kept for when Google is set up
+// in Supabase. hd asks Google to offer only Antenna Workspace accounts; the
+// server still checks the domain itself.
 export const signInWithGoogleStaff = (redirectTo) => supabase.auth.signInWithOAuth({
   provider: 'google',
   options: { redirectTo, queryParams: { hd: 'antennagroup.com', prompt: 'select_account' } },

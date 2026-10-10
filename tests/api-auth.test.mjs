@@ -578,3 +578,24 @@ test('v4.3.0: the newsletter is staff only: a confirmed antennagroup.com account
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes('data-field="staff-gate"') && app.includes("res.status === 401 ? 'signin' : res.status === 403 ? 'staff' : null"));
 });
+
+test('v4.3.1: staff sign in with their Compass email and password; the session is shared with the Compass and kept', async () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('className="dc-np-gate-form" onSubmit={submitGate}'), 'an email and password form');
+  assert.ok(app.includes("const { data, error: err } = await signIn(email, gateForm.password);"), 'the Compass sign-in, so the session is the same one');
+  assert.ok(app.includes("if (!isStaffEmail(email)) { setGateError('Use your antennagroup.com email address.'); return; }"), 'other domains stop before any request');
+  assert.ok(!app.includes('signInWithGoogleStaff('), 'no Google button until Google is set up');
+  const sb = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
+  assert.ok(!/persistSession:\s*false/.test(sb), 'sessions are kept in the browser (the Supabase default)');
+});
+
+test('v4.3.2: two ways in, Sign in for Compass users and registered staff, Register for staff without an account', async () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes("[['signin', 'Sign in'], ['signup', 'Register']]") && app.includes('role="tablist"'));
+  assert.ok(app.includes('Compass users: use your Compass email and password.'));
+  assert.ok(app.includes('This account is for the newsletter only and does not open the Compass.'));
+  assert.ok(app.includes("signUp(email, gateForm.password, gateForm.name.trim(), { newsletter_only: true }, `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}`)"), 'registrations are marked newsletter only, and the confirmation link returns to the newsletter');
+  assert.ok(app.includes('data.user.identities.length === 0'), 'an address that already has an account is sent to Sign in');
+  const sb = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
+  assert.ok(sb.includes('data: { full_name: fullName, ...extra }'));
+});
