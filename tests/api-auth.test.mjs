@@ -39,7 +39,7 @@ test('every endpoint imports the caller check and calls it first', () => {
   assert.ok(handlers.length >= 13);   // 13 since insights-analysis went with the Insights tab (v3.117.0)
   for (const f of handlers) {
     const src = readFileSync(new URL(f, API), 'utf8');
-    assert.match(src, /import \{ requireUser(, requireStaff)? \} from '\.\/_auth\.js';/, f);
+    assert.match(src, /import \{ requireUser(, requireStaff)?(, isAdmin)? \} from '\.\/_auth\.js';/, f);
     const body = src.slice(src.indexOf('export default async function handler'));
     const statements = body.split('\n').slice(1).filter(l => l.trim() && !l.trim().startsWith('//'));
     // The one documented branch (v3.120.0): the reader issue, which sends only
@@ -487,8 +487,10 @@ test('v4.2.0: the Sunday run keeps the issue it replaces; past issues can be lis
   assert.equal(await mod.archiveIssue(row, { supabaseUrl: 'https://db', supabaseKey: 'k', fetchImpl: async () => { throw new Error('down'); } }), false, 'a failed copy never throws');
 
   const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
-  assert.ok(src.includes('if (caller.cron) archived = await archiveIssue(prevRow'), 'only the scheduled run archives');
-  assert.ok(src.indexOf('archiveIssue(prevRow') < src.indexOf('// Upsert into Supabase (single row, id=1)'), 'archived before it is overwritten');
+  // v4.7.0: the week's issue is archived when the weekly draft is published,
+  // just before the live issue is overwritten; revisions archive nothing.
+  assert.ok(src.includes('const archived = meta.weekly ? await archiveIssue(liveRow, { supabaseUrl, supabaseKey }) : null;'), 'only a weekly issue archives the one it replaces');
+  assert.ok(src.indexOf('archiveIssue(liveRow') < src.indexOf('await writeIssueRow(LIVE_ID, published);'), 'archived before it is overwritten');
 
   const pub = await import('../api/stay-conscious-newsletter.js');
   assert.equal(pub.archiveId({ query: { issue: '12' } }), 12);
@@ -516,8 +518,10 @@ test('v4.2.0: the Sunday run keeps the issue it replaces; past issues can be lis
   assert.equal(res.body.archived, true);
 
   const { nextIssueAt } = await import('../src/lib/newsletter.js');
-  assert.equal(nextIssueAt(new Date('2026-10-09T22:41:00Z')).toISOString(), '2026-10-11T23:30:00.000Z', 'Friday: this Sunday, 23:30 UTC');
-  assert.equal(nextIssueAt(new Date('2026-10-11T23:45:00Z')).toISOString(), '2026-10-18T23:30:00.000Z', 'just after the run: next week');
+  // v4.7.0: issues publish on Monday at 12:00 UTC, after review
+  assert.equal(nextIssueAt(new Date('2026-10-09T22:41:00Z')).toISOString(), '2026-10-12T12:00:00.000Z', 'Friday: this Monday, 12:00 UTC');
+  assert.equal(nextIssueAt(new Date('2026-10-12T11:59:00Z')).toISOString(), '2026-10-12T12:00:00.000Z', 'Monday morning before it publishes: today');
+  assert.equal(nextIssueAt(new Date('2026-10-12T12:30:00Z')).toISOString(), '2026-10-19T12:00:00.000Z', 'just after: next week');
 
   const sql = readFileSync(new URL('../docs/SUPABASE_SETUP.sql', import.meta.url), 'utf8');
   assert.ok(sql.includes('create table if not exists public.stay_conscious_newsletter_archive') && sql.includes('refreshed_at timestamptz not null unique'));
@@ -775,4 +779,116 @@ test('v4.6.0: Landscape insights change week to week: recent sections, what move
   const pub = await import('../api/stay-conscious-newsletter.js');
   const out = pub.publicIssue({ landscapeAnalysis: { headline: 'h', summary: 's', snapshot: { brandCount: 3 }, lens: 'x' } }, []);
   assert.ok(!('snapshot' in out.landscapeAnalysis) && !('lens' in out.landscapeAnalysis), 'internal fields stay internal');
+});
+
+test('v4.7.0: sources, talking point, draft and review, Monday publish, and the team channel post', async () => {
+  // Sources must be pages the search returned
+  const sc = await import('../api/refresh-stay-conscious.js');
+  const content = [{ type: 'web_search_tool_result', content: [{ type: 'web_search_result', url: 'https://www.adweek.com/real-page/', title: 'Real page title' }] }];
+  const withSrc = sc.attachSources([{ headline: 'A', sources: [{ url: 'https://adweek.com/real-page', outlet: '' }, { url: 'https://made-up.example.com/x', outlet: 'Fake' }] }, { headline: 'B' }], content);
+  assert.deepEqual(withSrc[0].sources, [{ url: 'https://adweek.com/real-page', title: 'Real page title', outlet: 'adweek.com' }], 'invented links are dropped; outlet falls back to the host');
+  assert.deepEqual(withSrc[1].sources, []);
+  const four = [1, 2, 3, 4].map(i => ({ headline: `S${i}`, sources: [{ url: 'u' }] }));
+  assert.deepEqual(sc.keepSourced([...four, { headline: 'none', sources: [] }]).items.map(i => i.headline), ['S1', 'S2', 'S3', 'S4'], 'unsourced stories go when four sourced remain');
+  assert.equal(sc.keepSourced([four[0], { headline: 'none', sources: [] }]).items.length, 2, 'below four, kept so the issue still goes out');
+  assert.ok(sc.STAY_CONSCIOUS_PROMPT.includes('never invent or reconstruct a link'));
+
+  // Talking point
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const stories = [{ category: 'AI Visibility', headline: 'AI cites journalism', insight: 'Half of citations.' }];
+  assert.ok(nl.talkingPointPrompt(stories).includes('1. [AI Visibility] AI cites journalism'));
+  assert.deepEqual(nl.parseTalkingPoint('{"topic":"AI search.","point":"Earned coverage — not ads — feeds AI answers.","story":"AI cites journalism"}', stories),
+    { topic: 'AI search', point: 'Earned coverage, not ads, feeds AI answers.', story: 'AI cites journalism' });
+  assert.equal(nl.parseTalkingPoint('{"topic":"x","point":"y","story":"invented"}', stories).story, '', 'a story we did not run is not named');
+
+  // Draft edits: only the listed text, and stories can be removed
+  const draft = { leadStory: { headline: 'H', insight: 'I', sources: [{ url: 'https://a' }] }, intelligenceItems: [{ headline: 'A' }, { headline: 'B' }], talkingPoint: { topic: 't', point: 'p' } };
+  const edited = nl.applyDraftEdits(draft, [
+    { path: 'leadStory.headline', value: 'New — headline' }, { path: 'leadStory.sources', value: 'x' }, { path: 'issueNumber', value: '99' },
+    { path: 'intelligenceItems.0', value: null }, { path: 'talkingPoint.point', value: 'q' }, { path: '__proto__.polluted', value: 'x' },
+  ]);
+  assert.equal(edited.leadStory.headline, 'New, headline');
+  assert.deepEqual(edited.leadStory.sources, [{ url: 'https://a' }], 'sources cannot be edited');
+  assert.equal(edited.issueNumber, undefined);
+  assert.deepEqual(edited.intelligenceItems.map(i => i.headline), ['B']);
+  assert.equal(edited.talkingPoint.point, 'q');
+  assert.equal({}.polluted, undefined);
+  assert.equal(draft.leadStory.headline, 'H', 'the original is untouched');
+
+  // Channel posts: Slack text, or a Teams card
+  // v4.7.2: laid out like the issue, with the issue's own picture
+  const note = nl.publishedNote({ issueNumber: 38, weekOf: 'October 25, 2026', leadStory: { category: 'AI Visibility', headline: 'Lead', insight: 'First sentence. Second sentence.' }, talkingPoint: { topic: 'AI search', point: 'Say this.' } });
+  assert.deepEqual(note.image, { url: 'https://conscious-compass.vercel.app/newsletter/house-6.jpg', alt: 'Stay Conscious' }, 'the same house photo as the page: issue 38 is the sixth');
+  assert.equal(nl.issueImage({ issueNumber: 38, leadStory: { image: { src: 'https://cdn.example.com/lead.jpg', alt: 'A' } } }).url, 'https://cdn.example.com/lead.jpg', 'a lead story image wins');
+  const teams = nl.channelPayload('https://default93.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/x/triggers/manual/paths/invoke?api-version=1&sig=s', note);
+  const card = teams.attachments[0].content;
+  assert.equal(teams.attachments[0].contentType, 'application/vnd.microsoft.card.adaptive');
+  assert.equal(teams.summary, 'Stay Conscious, Issue 38 is out', 'the notification preview');
+  assert.deepEqual(card.msteams, { width: 'Full' });
+  assert.deepEqual([card.body[0].type, card.body[0].url, card.body[0].width], ['Image', 'https://conscious-compass.vercel.app/fully-conscious-badge.png', '88px'], 'the Fully Conscious badge above the masthead (v4.7.3)');
+  assert.deepEqual([card.body[1].type, card.body[1].url, card.body[1].altText, card.body[1].width], ['Image', 'https://conscious-compass.vercel.app/newsletter/stay-conscious-wordmark.png', 'Stay Conscious', '380px'], 'the masthead as the Inter Bold wordmark (v4.7.4)');
+  assert.equal(card.body[2].text, 'ISSUE 38  ·  WEEK OF OCTOBER 25, 2026');
+  assert.equal(nl.channelPayload('https://x.example.com/hook', { ...note, mastheadImage: null }).attachments[0].content.body[1].text, 'Stay Conscious', 'text masthead without the image');
+  assert.deepEqual([card.body[3].backgroundImage, card.body[3].minHeight], [{ url: 'https://conscious-compass.vercel.app/newsletter/house-6.jpg', fillMode: 'Cover', horizontalAlignment: 'Center', verticalAlignment: 'Center' }, '190px'], 'the photo as a cropped band, as on the page');
+  const sec = card.body.filter(b => b.type === 'Container' && !b.backgroundImage).map(c => c.items.map(i => i.text));
+  assert.deepEqual(sec, [['AI VISIBILITY · LEAD STORY', 'Lead', 'First sentence.'], ['TALKING POINT OF THE WEEK', 'If a client asks about AI search', 'Say this.']]);
+  assert.ok(card.body.filter(b => b.type === 'Container' && !b.backgroundImage).every(c => c.separator && c.items[0].color === 'Attention'), 'rules between sections, red labels');
+  assert.deepEqual(card.actions, [{ type: 'Action.OpenUrl', title: 'Read the issue', url: 'https://conscious-compass.vercel.app/newsletter' },
+    { type: 'Action.OpenUrl', title: 'Past issues', url: 'https://conscious-compass.vercel.app/newsletter?view=archive' }], 'and a way into the archive (v4.7.3)');
+  const slack = nl.channelPayload('https://hooks.slack.com/services/x', note);
+  assert.deepEqual(slack.blocks.map(b => b.type), ['image', 'header', 'context', 'image', 'divider', 'section', 'divider', 'section', 'actions']);
+  assert.ok(slack.text.startsWith('*Stay Conscious, Issue 38 is out*'), 'plain fallback text for notifications');
+  assert.deepEqual(slack.blocks.at(-1).elements.map(e => e.text.text), ['Read the issue', 'Past issues']);
+  assert.equal(await nl.postToChannel('', note), null, 'no webhook set: nothing posted');
+
+  // The job end to end with a fake database: Sunday writes a draft; Monday publishes, archives, posts
+  process.env.ANTHROPIC_API_KEY = 'k'; process.env.SUPABASE_URL = 'https://db'; process.env.SUPABASE_SERVICE_ROLE_KEY = 's'; process.env.CRON_SECRET = 'cron';
+  process.env.NEWSLETTER_WEBHOOK_URL = 'https://hooks.slack.com/services/T/B/x';
+  const rows = { 1: { id: 1, newsletter: { issueNumber: 37, leadStory: { headline: 'Old' } }, refreshed_at: '2026-10-12T12:00:00Z' } };
+  const calls = [];
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url); const m = init.method || 'GET'; calls.push(`${m} ${u}`);
+    const idm = /id=eq\.(\d)/.exec(u);
+    if (u.includes('/rest/v1/stay_conscious_newsletter?') || u.endsWith('/rest/v1/stay_conscious_newsletter')) {
+      if (m === 'GET') return { ok: true, json: async () => (idm && rows[idm[1]] ? [rows[idm[1]]] : []) };
+      if (m === 'POST') { const b = JSON.parse(init.body); rows[b.id] = b; return { ok: true, json: async () => ({}) }; }
+      if (m === 'DELETE') { delete rows[idm[1]]; return { ok: true }; }
+    }
+    if (u.includes('stay_conscious_newsletter_archive')) return { ok: true, json: async () => [] };
+    if (u.includes('hooks.slack.com')) return { ok: true, json: async () => ({}) };
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+  const cron = (q) => ({ method: 'GET', headers: { authorization: 'Bearer cron' }, query: q });
+  // No draft yet: Monday publishes nothing
+  let res = mockRes(); await nl.default(cron({ action: 'publish' }), res);
+  assert.equal(res.body.published, false);
+  // A held weekly draft is skipped by the schedule
+  rows[2] = { id: 2, newsletter: { issueNumber: 38, leadStory: { headline: 'New' }, _draft: { weekly: true, held: true } }, refreshed_at: '2026-10-18T23:30:00Z' };
+  res = mockRes(); await nl.default(cron({ action: 'publish' }), res);
+  assert.deepEqual([res.body.published, res.body.reason, rows[1].newsletter.issueNumber], [false, 'The draft is held.', 37]);
+  // The schedule cannot hold, edit or discard
+  res = mockRes(); await nl.default(cron({ action: 'discard' }), res);
+  assert.equal(res.code, 403);
+  // Released: Monday publishes it, archives the old issue, clears the draft and posts
+  rows[2].newsletter._draft.held = false;
+  calls.length = 0;
+  res = mockRes(); await nl.default(cron({ action: 'publish' }), res);
+  assert.deepEqual([res.body.published, res.body.issueNumber, res.body.posted], [true, 38, true]);
+  assert.equal(rows[1].newsletter.leadStory.headline, 'New');
+  assert.ok(!('_draft' in rows[1].newsletter), 'review notes never reach readers');
+  assert.equal(rows[2], undefined, 'the draft is cleared');
+  assert.ok(calls.some(c => c.startsWith('POST https://db/rest/v1/stay_conscious_newsletter_archive')), 'the replaced issue was archived');
+  assert.ok(calls.findIndex(c => c.includes('_archive')) < calls.findIndex(c => c === 'POST https://db/rest/v1/stay_conscious_newsletter'), 'archived before it was overwritten');
+  delete process.env.CRON_SECRET; delete process.env.NEWSLETTER_WEBHOOK_URL;
+
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes('await writeIssueRow(DRAFT_ID, { ...newsletter, _draft: { weekly,'), 'the Sunday run writes a draft, not the live issue');
+  assert.ok(src.includes('const issueNumber = weekly || !prevIssue ? prevIssue + 1 : prevIssue;'), 'a mid-week revision keeps its number');
+  const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  assert.ok(vercel.crons.some(c => c.path === '/api/refresh-stay-conscious-newsletter?action=publish' && c.schedule === '0 12 * * 1'), 'Monday 12:00 UTC');
+  // Readers only ever get the live row
+  const read = readFileSync(new URL('stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(read.includes('stay_conscious_newsletter?select=newsletter,refreshed_at&id=eq.1&limit=1'));
+  assert.ok(read.includes("if (!(await isAdmin(user.id))) return res.status(403).json({ error: 'Admins only.' });"), 'the draft is for admins only');
+  assert.ok(readFileSync(new URL('refresh-stay-conscious.js', API), 'utf8').includes('&id=eq.1&limit=1`),   // the live issue, never a draft'));
 });

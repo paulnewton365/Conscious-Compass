@@ -7,7 +7,7 @@
 import { requireUser } from './_auth.js';
 import { glossaryForPrompt, titleCaseAttributes } from '../src/data/attributeGlossary.js';
 import { ATTRIBUTES } from '../src/data/rubric.js';
-import { headlineOverlap } from './refresh-stay-conscious.js';
+import { headlineOverlap, NEWSLETTER_HOUSE_IMAGES, houseImageIndex } from '../src/lib/newsletter.js';
 // Each brand's latest save only (v3.109.0): every save is kept as a row for
 // history, but a brand must count once in portfolio figures.
 const latestPerBrand = (rows) => {
@@ -107,6 +107,32 @@ export function parseSpotlight(text, pick) {
   const out = { attribute: pick.attribute.id, name: pick.attribute.name, headline: t(j.headline, 120), action: t(j.action, 400), why: t(j.why, 400),
     steps: (Array.isArray(j.steps) ? j.steps : []).map(x => t(x, 160)).filter(Boolean).slice(0, 3), figures: pick.figures };
   return out.headline && out.action ? out : null;
+}
+
+// ── Talking point (v4.7.0) ───────────────────────────────────
+// One line an account lead can use with a client this week, drawn from this
+// issue's stories, so reading turns into using.
+export function talkingPointPrompt(stories = []) {
+  return `You are writing the Talking point for Stay Conscious, Antenna Group's weekly brand newsletter for its staff. Account leads use it in client conversations.
+
+From this week's stories below, choose the one a client is most likely to ask about, and write the single point an account lead should make about it.
+
+${stories.map((st, i) => `${i + 1}. [${st.category || ''}] ${st.headline}\n${String(st.insight || '').slice(0, 500)}`).join('\n\n')}
+
+Return JSON only:
+{"topic":"What the client might ask about, 2 to 5 words, lower case except names and acronyms, e.g. AI search or green claims on packaging","point":"The point to make, one or two sentences, under 40 words, in plain words a client would understand, with a figure from the story if it has one.","story":"The exact headline of the story it draws on"}
+
+Name no client. Use only facts from the stories. US English, no em dashes or en dashes.`;
+}
+export function parseTalkingPoint(text, stories = []) {
+  const m = String(text || '').match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  let j; try { j = JSON.parse(m[0]); } catch { return null; }
+  const t = (v, n) => String(v || '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim().slice(0, n);
+  const topic = t(j.topic, 60).replace(/[.?!]+$/, '');
+  const point = t(j.point, 300);
+  const story = stories.find(st => st.headline === t(j.story, 300)) ? t(j.story, 300) : '';
+  return topic && point ? { topic, point, story } : null;
 }
 
 // ── Landscape insights, for any reader (v4.1.0) ────────────────
@@ -226,7 +252,7 @@ US English. No em dashes or en dashes.`;
 export const EARNED_CREATIVE_PROMPT = earnedCreativePrompt();
 export const EARNED_CREATIVE_TARGET = 3;
 
-const normUrl = (u) => {
+export const normUrl = (u) => {
   try {
     const x = new URL(String(u).trim());
     if (x.protocol !== 'https:' && x.protocol !== 'http:') return null;
@@ -417,6 +443,131 @@ export function withCarryOver(fresh, previous, previousIssue = null, now = Date.
   return { ...fresh, items: kept, foundAt, carriedFrom: previous?.carriedFrom || previousIssue || null };
 }
 
+// ── Draft, review, publish (v4.7.0) ──────────────────────────
+// The Sunday run writes a draft (row 2) instead of going live; the live issue
+// stays in row 1. Admins can preview, edit the text, hold or publish it, and
+// the Monday run publishes it unless it is held. Publishing a weekly draft
+// archives the issue it replaces, so the archive keeps one edition a week.
+// A Force refresh writes a draft too: a revision of the current issue (same
+// number, nothing archived) unless a weekly draft is waiting, which it
+// replaces as that week's issue.
+export const LIVE_ID = 1;
+export const DRAFT_ID = 2;
+export const SITE_URL = () => (process.env.PUBLIC_SITE_URL || 'https://conscious-compass.vercel.app').replace(/\/$/, '');
+
+// The text an admin may change in a draft, and nothing else.
+const EDITABLE = [
+  /^leadStory\.(headline|insight|whyItMatters)$/,
+  /^intelligenceItems\.\d{1,2}\.(headline|insight|whyItMatters)$/,
+  /^talkingPoint\.(topic|point)$/,
+  /^spotlight\.(headline|action|why)$/,
+  /^landscapeAnalysis\.(headline|summary)$/,
+];
+export function applyDraftEdits(newsletter, edits = []) {
+  const out = JSON.parse(JSON.stringify(newsletter || {}));
+  const removeItems = [];
+  (Array.isArray(edits) ? edits : []).forEach(e => {
+    const path = String(e?.path || '');
+    // A story can be taken out of the draft altogether.
+    const rm = /^intelligenceItems\.(\d{1,2})$/.exec(path);
+    if (rm && e.value === null) { removeItems.push(Number(rm[1])); return; }
+    if (!EDITABLE.some(r => r.test(path)) || typeof e.value !== 'string') return;
+    const keys = path.split('.');
+    let node = out;
+    for (let i = 0; i < keys.length - 1; i++) { node = node?.[keys[i]]; if (!node || typeof node !== 'object') return; }
+    node[keys[keys.length - 1]] = e.value.replace(/\s*[—–]\s*/g, ', ').slice(0, 4000);
+  });
+  if (removeItems.length && Array.isArray(out.intelligenceItems)) out.intelligenceItems = out.intelligenceItems.filter((_, i) => !removeItems.includes(i));
+  return out;
+}
+export const stripDraft = (nl) => { const out = { ...(nl || {}) }; delete out._draft; return out; };
+
+// The note posted to Slack or Teams when an issue goes live, or when a draft
+// is ready for review. Slack incoming webhooks take text; anything else is
+// treated as a Teams Workflows webhook, which takes an Adaptive Card.
+// A note is a masthead, an optional image, labelled sections and one link.
+// v4.7.2: laid out like the issue (masthead, dateline, photo, then each
+// section under a red label, divided by rules). Teams cards cannot carry the
+// newsletter's fonts, so the type is Teams' own. Slack gets the same order.
+// Sections: { label, heading?, text?, strong? }.
+export function channelPayload(url, { title, badge = null, masthead = null, mastheadImage = null, dateline = '', image = null, sections = [], link, linkLabel, moreLinks = [] }) {
+  // The main button, then any others, such as the archive (v4.7.3).
+  const buttons = [{ label: linkLabel, url: link }, ...moreLinks.filter(l => l && l.url && l.label)];
+  let isSlack = false;
+  try { isSlack = /(^|\.)slack\.com$/.test(new URL(url).hostname); } catch { /* not a url */ }
+  if (isSlack) {
+    const text = [`*${title}*`, ...sections.map(s => [s.label ? `*${s.label}*` : null, s.heading, s.text].filter(Boolean).join('\n')), buttons.map(b => `<${b.url}|${b.label}>`).join('  ·  ')].join('\n\n');
+    return { text, blocks: [
+      ...(badge ? [{ type: 'image', image_url: badge.url, alt_text: badge.alt || 'Fully Conscious' }] : []),
+      { type: 'header', text: { type: 'plain_text', text: masthead || title } },
+      ...(dateline ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: dateline }] }] : []),
+      ...(image ? [{ type: 'image', image_url: image.url, alt_text: image.alt || 'Stay Conscious' }] : []),
+      ...sections.flatMap(s => [{ type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: [s.label ? `*${s.label}*` : null, s.heading ? `*${s.heading}*` : null, s.text].filter(Boolean).join('\n') } }]),
+      { type: 'actions', elements: buttons.map(b => ({ type: 'button', text: { type: 'plain_text', text: b.label }, url: b.url })) },
+    ] };
+  }
+  // The Fully Conscious badge from the Compass home page sits above the
+  // masthead (v4.7.3).
+  const head = masthead ? [
+    ...(badge ? [{ type: 'Image', url: badge.url, altText: badge.alt || 'Fully Conscious', width: '88px', horizontalAlignment: 'Left', spacing: 'None' }] : []),
+    // The wordmark in Inter Bold, as on the page (v4.7.4): card text tops out
+    // at ExtraLarge and Bolder, which is lighter and smaller than the masthead.
+    mastheadImage
+      ? { type: 'Image', url: mastheadImage.url, altText: masthead, width: '380px', horizontalAlignment: 'Left', spacing: badge ? 'Medium' : 'None' }
+      : { type: 'TextBlock', text: masthead, weight: 'Bolder', size: 'ExtraLarge', wrap: true, spacing: badge ? 'Small' : 'None' },
+    ...(dateline ? [{ type: 'TextBlock', text: dateline, size: 'Small', isSubtle: true, weight: 'Bolder', spacing: 'None', wrap: true }] : []),
+  ] : [{ type: 'TextBlock', text: title, weight: 'Bolder', size: 'Large', wrap: true }];
+  return { type: 'message', summary: title, attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', content: {
+    $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4',
+    msteams: { width: 'Full' },
+    body: [
+      ...head,
+      // Cropped to a wide band, as on the page, rather than shown full height.
+      ...(image ? [{ type: 'Container', separator: true, spacing: 'Medium', minHeight: '190px', bleed: false,
+        backgroundImage: { url: image.url, fillMode: 'Cover', horizontalAlignment: 'Center', verticalAlignment: 'Center' },
+        items: [{ type: 'TextBlock', text: ' ', size: 'Small' }] }] : []),
+      ...sections.map((s, i) => ({ type: 'Container', separator: true, spacing: i === 0 && !image ? 'Medium' : 'Large', items: [
+        ...(s.label ? [{ type: 'TextBlock', text: s.label.toUpperCase(), size: 'Small', weight: 'Bolder', color: 'Attention', wrap: true }] : []),
+        ...(s.heading ? [{ type: 'TextBlock', text: s.heading, size: 'Large', weight: 'Bolder', wrap: true, spacing: 'Small' }] : []),
+        ...(s.text ? [{ type: 'TextBlock', text: s.text, wrap: true, spacing: 'Small', ...(s.strong ? { weight: 'Bolder' } : {}) }] : []),
+      ] })),
+    ],
+    actions: buttons.map(b => ({ type: 'Action.OpenUrl', title: b.label, url: b.url })),
+  } }] };
+}
+const leadSentence = (t) => { const v = String(t || '').split(/\n\s*\n/)[0].replace(/\s+/g, ' ').trim(); const m = v.match(/^.+?[.!?](\s|$)/); return (m ? m[0] : v).trim().slice(0, 300); };
+// The issue's picture: the lead story's own image, or that week's house photo,
+// the one the page shows.
+export function issueImage(nl) {
+  const own = nl?.leadStory?.image?.src;
+  if (typeof own === 'string' && /^https:\/\//.test(own)) return { url: own, alt: nl.leadStory.image.alt || '' };
+  return { url: `${SITE_URL()}${NEWSLETTER_HOUSE_IMAGES[houseImageIndex(nl?.issueNumber)].src}`, alt: 'Stay Conscious' };
+}
+export function publishedNote(nl) {
+  const tp = nl?.talkingPoint;
+  const sections = [
+    nl?.leadStory?.headline ? { label: `${nl.leadStory.category ? `${nl.leadStory.category} · ` : ''}Lead story`, heading: nl.leadStory.headline, text: leadSentence(nl.leadStory.insight) } : null,
+    tp?.point ? { label: 'Talking point of the week', heading: `If a client asks about ${tp.topic}`, text: tp.point } : null,
+  ].filter(Boolean);
+  return {
+    title: `Stay Conscious, Issue ${nl?.issueNumber ?? ''} is out`,
+    badge: { url: `${SITE_URL()}/fully-conscious-badge.png`, alt: 'Fully Conscious' },
+    masthead: 'Stay Conscious',
+    mastheadImage: { url: `${SITE_URL()}/newsletter/stay-conscious-wordmark.png` },
+    dateline: [`ISSUE ${nl?.issueNumber ?? ''}`, nl?.weekOf ? `WEEK OF ${String(nl.weekOf).toUpperCase()}` : null].filter(Boolean).join('  ·  '),
+    image: issueImage(nl),
+    sections, link: `${SITE_URL()}/newsletter`, linkLabel: 'Read the issue',
+    moreLinks: [{ label: 'Past issues', url: `${SITE_URL()}/newsletter?view=archive` }],
+  };
+}
+export async function postToChannel(url, note, fetchImpl = fetch) {
+  if (!url) return null;
+  try {
+    const r = await fetchImpl(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(channelPayload(url, note)) });
+    return r.ok;
+  } catch { return false; }
+}
+
 // Copies the live issue to the archive. Returns true, false (failed) or null
 // (nothing live). Keyed on refreshed_at, so a retried Sunday run is a no-op.
 export async function archiveIssue(row, { supabaseUrl, supabaseKey, fetchImpl = fetch }) {
@@ -447,6 +598,59 @@ export default async function handler(req, res) {
 
   if (!anthropicKey || !supabaseUrl || !supabaseKey) {
     return res.status(500).json({ error: 'Missing environment variables: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY' });
+  }
+
+  const sbJson = { 'Content-Type': 'application/json', apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
+  const readIssueRow = async (id) => {
+    try {
+      const r = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?select=*&id=eq.${id}&limit=1`, { headers: sbJson });
+      return r.ok ? ((await r.json())?.[0] || null) : null;
+    } catch { return null; }
+  };
+  const writeIssueRow = async (id, newsletter, refreshedAt = new Date().toISOString()) => {
+    const r = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter`, {
+      method: 'POST', headers: { ...sbJson, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ id, newsletter, refreshed_at: refreshedAt }),
+    });
+    if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.message || `Supabase upsert error ${r.status}`); }
+  };
+  const deleteIssueRow = async (id) => fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?id=eq.${id}`, { method: 'DELETE', headers: sbJson }).then(r => r.ok).catch(() => false);
+
+  // Review actions on the draft (v4.7.0). The schedule may only publish.
+  const action = String(req.query?.action || req.body?.action || '').toLowerCase();
+  if (action) {
+    if (caller.cron && action !== 'publish') return res.status(403).json({ error: 'The schedule can only publish.' });
+    try {
+      const draftRow = await readIssueRow(DRAFT_ID);
+      if (!draftRow?.newsletter) return res.status(200).json({ success: true, draft: false, published: false, reason: 'There is no draft.' });
+      const meta = draftRow.newsletter._draft || {};
+      if (action === 'publish') {
+        if (caller.cron && meta.held) return res.status(200).json({ success: true, published: false, reason: 'The draft is held.' });
+        const liveRow = await readIssueRow(LIVE_ID);
+        const archived = meta.weekly ? await archiveIssue(liveRow, { supabaseUrl, supabaseKey }) : null;
+        const published = stripDraft(draftRow.newsletter);
+        await writeIssueRow(LIVE_ID, published);
+        await deleteIssueRow(DRAFT_ID);
+        const posted = await postToChannel(process.env.NEWSLETTER_WEBHOOK_URL, publishedNote(published));
+        return res.status(200).json({ success: true, published: true, issueNumber: published.issueNumber, archived, posted });
+      }
+      if (action === 'hold' || action === 'release') {
+        await writeIssueRow(DRAFT_ID, { ...draftRow.newsletter, _draft: { ...meta, held: action === 'hold' } }, draftRow.refreshed_at);
+        return res.status(200).json({ success: true, held: action === 'hold' });
+      }
+      if (action === 'save-draft') {
+        const edited = applyDraftEdits(draftRow.newsletter, req.body?.edits);
+        await writeIssueRow(DRAFT_ID, { ...edited, _draft: { ...meta, editedAt: new Date().toISOString() } }, draftRow.refreshed_at);
+        return res.status(200).json({ success: true, saved: true });
+      }
+      if (action === 'discard') {
+        await deleteIssueRow(DRAFT_ID);
+        return res.status(200).json({ success: true, discarded: true });
+      }
+      return res.status(400).json({ error: `Unknown action: ${action}` });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
   }
 
   const fetchTable = async (table) => {
@@ -504,6 +708,19 @@ export default async function handler(req, res) {
     return { prospectPulse: pulse, spotlight };
   };
 
+  const writeTalkingPoint = async (stories) => {
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 300, temperature: 0, messages: [{ role: 'user', content: talkingPointPrompt(stories) }] }),
+      });
+      if (!r.ok) return null;
+      const d = await r.json();
+      return parseTalkingPoint((d.content || []).filter(b => b.type === 'text').map(b => b.text).join(''), stories);
+    } catch { return null; }
+  };
+
   // Brands in the earned creative section of the live issue and the last
   // eight archived editions (v4.5.0).
   const recentlyFeaturedBrands = async (live) => {
@@ -541,12 +758,16 @@ export default async function handler(req, res) {
       || intelligenceItems.find(i => leadPriority.includes(i.category)) || intelligenceItems[0];
     const supportingItems = intelligenceItems.filter(i => i !== leadItem);
 
-    // Increment issue number from previous cache entry, starting at 1.
+    // The live issue (row 1, never the draft) and any draft waiting (v4.7.0).
+    // A weekly draft takes the next number; a Force refresh with no weekly
+    // draft waiting is a revision of the current issue and keeps its number.
     // Cap: if prevIssue is suspiciously large (>52, i.e. from old epoch calc), reset to 0.
-    const prevRow = await fetchTable('stay_conscious_newsletter');
+    const prevRow = await readIssueRow(LIVE_ID);
+    const waiting = await readIssueRow(DRAFT_ID);
+    const weekly = !!caller.cron || !!waiting?.newsletter?._draft?.weekly;
     const rawPrev = prevRow?.newsletter?.issueNumber || 0;
     const prevIssue = rawPrev > 52 ? 0 : rawPrev;
-    const issueNumber = prevIssue + 1;
+    const issueNumber = weekly || !prevIssue ? prevIssue + 1 : prevIssue;
 
     // Generate landscape headline + two-paragraph summary directly here,
     // regardless of what the cache contains. This is more reliable than
@@ -601,47 +822,33 @@ export default async function handler(req, res) {
         insight: leadItem.insight,
         whyItMatters: leadItem.whyItMatters,
         ...(leadItem.followUp ? { followUp: leadItem.followUp } : {}),   // v4.5.0
+        ...(Array.isArray(leadItem.sources) ? { sources: leadItem.sources } : {}),   // v4.7.0
       },
       intelligenceItems: supportingItems,
       landscapeAnalysis: landscapeForNewsletter,
       ...(await buildPulseAndSpotlight(prevRow)),   // v4.6.0
+      talkingPoint: await writeTalkingPoint([leadItem, ...supportingItems]),   // v4.7.0
       storyOpportunities: storyOpportunities || null,
       // Earned creative in the news (v3.124.0); null when none could be sourced.
       earnedCreative: withCarryOver(await fetchEarnedCreative(anthropicKey, { featured: await recentlyFeaturedBrands(prevRow) }), prevRow?.newsletter?.earnedCreative, prevRow?.newsletter?.issueNumber || null),
     };
 
-    // The Sunday run keeps the issue it replaces (v4.2.0): whatever was live
-    // at the end of the week, including any Force refresh, is copied to the
-    // archive first. Force refreshes archive nothing. A failed copy never
-    // stops the new issue, and the same issue is never copied twice.
-    let archived = null;
-    if (caller.cron) archived = await archiveIssue(prevRow, { supabaseUrl, supabaseKey });
-
-    // Upsert into Supabase (single row, id=1)
-    const upsertRes = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        Prefer: 'resolution=merge-duplicates',
-      },
-      body: JSON.stringify({
-        id: 1,
-        newsletter,
-        refreshed_at: new Date().toISOString(),
-      }),
-    });
-
-    if (!upsertRes.ok) {
-      const err = await upsertRes.json().catch(() => ({}));
-      throw new Error(err.message || `Supabase upsert error ${upsertRes.status}`);
-    }
+    // Written as a draft for review (v4.7.0). The issue it will replace is
+    // archived when a weekly draft is published, not now (v4.2.0 rule kept:
+    // one edition a week, as it stood at the end of the week).
+    await writeIssueRow(DRAFT_ID, { ...newsletter, _draft: { weekly, held: false, createdAt: new Date().toISOString(), by: caller.cron ? 'schedule' : (caller.email || 'admin') } });
+    const reviewPosted = caller.cron ? await postToChannel(process.env.NEWSLETTER_REVIEW_WEBHOOK_URL, {
+      title: `Stay Conscious, Issue ${issueNumber} is ready for review`,
+      sections: [{ text: 'It publishes on Monday morning unless it is held. Review it on the newsletter page in the Compass.' }],
+      link: SITE_URL(), linkLabel: 'Review the draft',
+    }) : null;
 
     return res.status(200).json({
       success: true,
+      draft: true,
+      weekly,
       issueNumber,
-      ...(caller.cron ? { archived } : {}),
+      reviewPosted,
       refreshedAt: new Date().toISOString(),
     });
 

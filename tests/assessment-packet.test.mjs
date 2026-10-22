@@ -282,7 +282,8 @@ test('the house image moves on one with each edition and wraps after eight (v3.1
     assert.equal(container.querySelector('[data-field="lead-fill"] img').getAttribute('src'), `/newsletter/house-${want}.jpg`);
     await act(async () => root.unmount());
   }
-  const src = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  // The list lives in the shared library since v4.7.2, used by the page and the Teams card.
+  const src = readFileSync(new URL('../src/lib/newsletter.js', import.meta.url), 'utf8');
   for (let i = 1; i <= 8; i++) assert.ok(src.includes(`src: '/newsletter/house-${i}.jpg'`), `image ${i} is listed`);
   // The folder is uploaded to the repo once and left out of build ZIPs (v3.123.0),
   // so it is only checked where it exists.
@@ -323,7 +324,7 @@ test('Share link copies the current issue and says so; Force refresh is admin-on
   Object.defineProperty(globalThis.navigator, 'clipboard', { value: { writeText: async (t) => { copied = t; } }, configurable: true });
   const { container, root } = await mountIssue(ISSUE(), { isAdmin: false });
   const btn = (t) => [...container.querySelectorAll('.dc-np-tools button')].find(b => b.textContent === t);
-  assert.equal(btn('Force refresh'), undefined, 'not for non-admins');
+  assert.equal(btn('New draft'), undefined, 'not for non-admins');
   await act(async () => { btn('Share link').click(); await new Promise(r => setTimeout(r, 0)); });
   assert.match(copied, /\/newsletter$/, 'the public link, which needs no sign-in (v3.120.0)');
   assert.ok(btn('Link copied'), 'the label confirms it');
@@ -333,7 +334,7 @@ test('Share link copies the current issue and says so; Force refresh is admin-on
   const f = globalThis.fetch;
   globalThis.fetch = window.fetch = async (url, o) => { if (o?.method === 'POST') posted++; return f(url, o); };
   window.confirm = () => false;
-  await act(async () => { [...admin.container.querySelectorAll('button')].find(b => b.textContent === 'Force refresh').click(); });
+  await act(async () => { [...admin.container.querySelectorAll('button')].find(b => b.textContent === 'New draft').click(); });
   assert.equal(posted, 0, 'declining the confirmation runs nothing');
   await act(async () => admin.root.unmount());
 });
@@ -410,4 +411,43 @@ test('earned creative in the news: the reminder, sourced examples with links and
     assert.equal(offer.querySelector('a').textContent, 'howlagency.com');
     await act(async () => root.unmount());
   }
+});
+
+test('v4.7.0: admins review a draft in the app: preview, hold, publish; readers never see it', async () => {
+  const issue = ISSUE();
+  const draft = { ...ISSUE(), issueNumber: 31, leadStory: { ...ISSUE().leadStory, headline: 'DRAFT LEAD' }, talkingPoint: { topic: 'ai search', point: 'Point.', story: '' }, _draft: { weekly: true, held: false } };
+  const posts = [];
+  globalThis.fetch = window.fetch = async (url, o = {}) => {
+    if (o.method === 'POST') { posts.push(JSON.parse(o.body || '{}')); return { ok: true, json: async () => ({ success: true, published: true, issueNumber: 31, posted: true }) }; }
+    if (String(url).includes('draft=1')) return { ok: true, json: async () => ({ draft, meta: draft._draft, refreshedAt: 'x' }) };
+    return { ok: true, json: async () => ({ newsletter: issue, refreshedAt: '2026-09-27T19:30:00Z' }) };
+  };
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.StayConsciousPage, { onBack() {}, isAdmin: true })); });
+  for (let i = 0; i < 5; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+  const panel = container.querySelector('[data-field="draft-review"]');
+  assert.ok(panel && panel.textContent.includes('The draft of Issue 31 is ready for review.'), 'admins see the draft is waiting');
+  assert.notEqual(container.querySelector('.dc-np-h.is-lead').textContent, 'DRAFT LEAD', 'the live issue shows until previewed');
+  const btn = (t) => [...container.querySelectorAll('button')].find(b => b.textContent === t);
+  await act(async () => { btn('Preview the draft').click(); });
+  assert.equal(container.querySelector('.dc-np-h.is-lead').textContent, 'DRAFT LEAD');
+  const talk = container.querySelector('[data-field="talking-point"]');
+  assert.equal(talk.querySelector('h2.dc-np-h.is-item').textContent, 'If a client asks about ai search', 'set like a story heading (v4.7.1)');
+  assert.equal(talk.querySelector('p.dc-np-text').textContent, 'Point.');
+  await act(async () => { btn('Hold').click(); await new Promise(r => setTimeout(r, 0)); });
+  window.confirm = () => true;
+  await act(async () => { btn('Publish now').click(); await new Promise(r => setTimeout(r, 0)); });
+  assert.deepEqual(posts.map(p => p.action), ['hold', 'publish']);
+  await act(async () => root.unmount());
+
+  // The reader page never asks for the draft and shows no review panel.
+  const asked = [];
+  globalThis.fetch = window.fetch = async (url) => { asked.push(String(url)); return { ok: true, json: async () => ({ newsletter: issue, refreshedAt: '2026-10-19T12:00:00Z', public: true }) }; };
+  const c2 = document.createElement('div'); document.body.appendChild(c2);
+  const r2 = client.createRoot(c2);
+  await act(async () => { r2.render(h(App.StayConsciousPage, { onBack() {}, isAdmin: true, publicView: true })); });
+  for (let i = 0; i < 5; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+  assert.ok(!asked.some(u => u.includes('draft=1')) && !c2.querySelector('[data-field="draft-review"]'));
+  await act(async () => r2.unmount());
 });

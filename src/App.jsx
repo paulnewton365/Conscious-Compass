@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { attributesMentioned } from './data/attributeGlossary.js';
-import { ecStatusNote, nextIssueAt } from './lib/newsletter.js';
+import { ecStatusNote, nextIssueAt, NEWSLETTER_HOUSE_IMAGES, houseImageIndex } from './lib/newsletter.js';
 import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.6.0';
+const APP_VERSION = '4.7.4';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -25,20 +25,8 @@ const ecMonth = (d) => {
   return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m[2] - 1]} ${m[1]}`;
 };
 
-const NEWSLETTER_HOUSE_IMAGES = [
-  { src: '/newsletter/house-1.jpg', focus: [50, 36] },
-  { src: '/newsletter/house-2.jpg', focus: [34, 51] },
-  { src: '/newsletter/house-3.jpg', focus: [54, 38] },
-  { src: '/newsletter/house-4.jpg', focus: [47, 54] },
-  { src: '/newsletter/house-5.jpg', focus: [45, 48] },
-  { src: '/newsletter/house-6.jpg', focus: [50, 50] },
-  { src: '/newsletter/house-7.jpg', focus: [55, 48] },
-  { src: '/newsletter/house-8.jpg', focus: [50, 42] },
-];
-const houseImageIndex = (issueNumber) => {
-  const n = Math.floor(Number(issueNumber));
-  return Number.isFinite(n) && n > 0 ? (n - 1) % NEWSLETTER_HOUSE_IMAGES.length : 0;
-};
+// The house images and their rotation live in src/lib/newsletter.js (v4.7.2),
+// so the Teams card shows the same photo as the page.
 
 // If an image is missing (the folder not uploaded yet), the frame stays empty
 // rather than showing a broken image.
@@ -12059,6 +12047,63 @@ function ArchiveThumb({ image, issueNumber }) {
   );
 }
 
+// Draft editor (v4.7.0): the text the server accepts in a draft, and nothing
+// else. Each story can also be taken out of the issue.
+function DraftEditor({ draft, onSave, onClose, busy }) {
+  const fields = [];
+  const add = (path, label, value, long = false) => { if (typeof value === 'string') fields.push({ path, label, value, long }); };
+  add('talkingPoint.topic', 'Talking point: topic', draft.talkingPoint?.topic);
+  add('talkingPoint.point', 'Talking point: the point to make', draft.talkingPoint?.point, true);
+  add('leadStory.headline', 'Lead story: headline', draft.leadStory?.headline);
+  add('leadStory.insight', 'Lead story: text', draft.leadStory?.insight, true);
+  add('leadStory.whyItMatters', 'Lead story: why it matters', draft.leadStory?.whyItMatters, true);
+  (draft.intelligenceItems || []).forEach((it, i) => {
+    add(`intelligenceItems.${i}.headline`, `Story ${i + 1}: headline`, it.headline);
+    add(`intelligenceItems.${i}.insight`, `Story ${i + 1}: text`, it.insight, true);
+    add(`intelligenceItems.${i}.whyItMatters`, `Story ${i + 1}: why it matters`, it.whyItMatters, true);
+  });
+  add('spotlight.headline', 'Spotlight: headline', draft.spotlight?.headline);
+  add('spotlight.action', 'Spotlight: the one thing', draft.spotlight?.action, true);
+  add('spotlight.why', 'Spotlight: why it lifts the score', draft.spotlight?.why, true);
+  add('landscapeAnalysis.headline', 'Landscape: headline', draft.landscapeAnalysis?.headline);
+  add('landscapeAnalysis.summary', 'Landscape: text', draft.landscapeAnalysis?.summary, true);
+  const [values, setValues] = useState(() => Object.fromEntries(fields.map(f => [f.path, f.value])));
+  const [removed, setRemoved] = useState(() => new Set());
+  const save = () => {
+    const edits = fields.filter(f => values[f.path] !== f.value).map(f => ({ path: f.path, value: values[f.path] }));
+    removed.forEach(i => edits.push({ path: `intelligenceItems.${i}`, value: null }));
+    onSave(edits);
+  };
+  return (
+    <Dialog title="Edit the draft" subtitle="Changes apply to this draft only. Sources, figures and links stay as found." onClose={onClose} busy={busy}>
+      <div className="dc-draft-edit">
+        {fields.map(f => {
+          const story = /^intelligenceItems\.(\d+)\.headline$/.exec(f.path);
+          const i = story ? Number(story[1]) : null;
+          const gone = /^intelligenceItems\.(\d+)\./.test(f.path) && removed.has(Number(f.path.split('.')[1]));
+          return (
+            <div key={f.path} className={`dc-field${gone ? ' is-removed' : ''}`}>
+              <div className="dc-field-row">
+                <label className="dc-label" htmlFor={`de-${f.path}`}>{f.label}</label>
+                {i !== null && (
+                  <label className="dc-meta dc-draft-remove"><input type="checkbox" checked={removed.has(i)} onChange={e => setRemoved(prev => { const n = new Set(prev); if (e.target.checked) n.add(i); else n.delete(i); return n; })} /> Remove this story</label>
+                )}
+              </div>
+              {f.long
+                ? <textarea id={`de-${f.path}`} rows={4} value={values[f.path]} disabled={gone} onChange={e => setValues(v => ({ ...v, [f.path]: e.target.value }))} />
+                : <input id={`de-${f.path}`} type="text" value={values[f.path]} disabled={gone} onChange={e => setValues(v => ({ ...v, [f.path]: e.target.value }))} />}
+            </div>
+          );
+        })}
+      </div>
+      <div className="dc-dialog-actions">
+        <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+        <button type="button" className="btn-primary" onClick={save} disabled={busy} aria-busy={busy || undefined}>{busy ? 'Saving\u2026' : 'Save draft'}</button>
+      </div>
+    </Dialog>
+  );
+}
+
 function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   // Fixed for the page's life; read through a ref by the loader.
   const publicRef = useRef(publicView);
@@ -12072,6 +12117,14 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   // and the list of archived editions.
   const [issueId, setIssueId] = useState(() => issueFromUrl());
   const [pastIssues, setPastIssues] = useState(null);   // null until first loaded
+  // Draft review (v4.7.0): admins on the in-app page only.
+  const canReview = isAdmin && !publicView;
+  const [draftState, setDraftState] = useState(null);   // { draft, meta, refreshedAt }
+  const [viewingDraft, setViewingDraft] = useState(false);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftMsg, setDraftMsg] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
+  const shownIssue = viewingDraft && draftState?.draft ? draftState.draft : newsletter;
   const [showArchive, setShowArchive] = useState(() => archiveFromUrl());
   // Staff only (v4.3.0): 'signin' before a reader has signed in, 'staff' when
   // the account is not an Antenna Group one; null once the issue loads.
@@ -12188,12 +12241,38 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* no scroll */ }
   };
 
+  const loadDraft = async () => {
+    if (!canReview) return;
+    try {
+      const d = await (await fetch('/api/stay-conscious-newsletter?draft=1')).json();
+      setDraftState(d?.draft ? d : null);
+      if (!d?.draft) setViewingDraft(false);
+    } catch { setDraftState(null); }
+  };
+  const draftAction = async (action, extra = {}) => {
+    setDraftBusy(true); setDraftMsg('');
+    try {
+      const r = await fetch('/api/refresh-stay-conscious-newsletter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...extra }) });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || `${r.status}`);
+      if (action === 'publish') {
+        setViewingDraft(false); setIssueId(null);
+        setDraftMsg(d.published ? `Issue ${d.issueNumber} is live.${d.posted === true ? ' It was posted to the team channel.' : d.posted === false ? ' The team channel post failed; check the webhook address.' : ''}` : (d.reason || 'Nothing was published.'));
+        await loadNewsletter(null);
+      }
+      if (action === 'discard') { setViewingDraft(false); setDraftMsg('The draft was discarded. The live issue is unchanged.'); }
+      if (action === 'save-draft') { setEditOpen(false); setDraftMsg('Your changes are saved to the draft.'); }
+      await loadDraft();
+    } catch (e) { setDraftMsg(`That did not work: ${e.message}`); }
+    finally { setDraftBusy(false); }
+  };
+  // Force refresh writes a new draft for review, never straight to readers (v4.7.0).
   const forceRefresh = async () => {
-    setRefreshing(true); setError(null);
+    setRefreshing(true); setError(null); setDraftMsg('');
     try {
       const res  = await fetch('/api/refresh-stay-conscious-newsletter', { method: 'POST' });
       const data = await res.json();
-      if (data.success) { setIssueId(null); await loadNewsletter(null); }
+      if (data.success) { setIssueId(null); await loadDraft(); setViewingDraft(true); setDraftMsg('A new draft is ready. Review it, then publish.'); }
       else { throw new Error(data.error || 'Refresh failed'); }
     } catch (e) { setError(`Refresh failed: ${e.message}`); }
     finally { setRefreshing(false); }
@@ -12221,11 +12300,22 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     );
   };
 
+  // The pages behind a story (v4.7.0).
+  const sourcesNote = (list) => (Array.isArray(list) && list.length ? (
+    <p className="dc-np-sources" data-field="sources">
+      <span className="dc-np-sources-k">{list.length > 1 ? 'Sources' : 'Source'}</span>{' '}
+      {list.map((src, k) => (
+        <React.Fragment key={k}>{k > 0 && ', '}<a href={src.url} target="_blank" rel="noopener noreferrer" title={src.title || undefined}>{src.outlet || src.title || 'Read'}</a></React.Fragment>
+      ))}
+    </p>
+  ) : null);
+
   // The effects below run once; they reach the loaders through a ref.
   const loadersRef = useRef(null);
-  loadersRef.current = { loadNewsletter, loadPastIssues };
+  loadersRef.current = { loadNewsletter, loadPastIssues, loadDraft };
   useEffect(() => {
     loadersRef.current.loadNewsletter();
+    loadersRef.current.loadDraft();
     if (archiveFromUrl()) loadersRef.current.loadPastIssues();   // the archive loads only when opened
   }, []);
   // Back and forward move between editions on the public page.
@@ -12255,13 +12345,15 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   // ── Plain-text format for email ─────────────────────────────────
   const buildPlainText = () => {
     if (!newsletter) return '';
-    const ns = newsletter;
+    const ns = shownIssue;
     const divider = '─'.repeat(60);
+    const sourcesText = (list) => (Array.isArray(list) && list.length ? [`Sources: ${list.map(src => `${src.outlet || src.title} (${src.url})`).join('; ')}`] : []);
     const lines = [
       `STAY CONSCIOUS  |  Issue #${ns.issueNumber}  |  Week of ${ns.weekOf}`,
       `Brand intelligence from Antenna Group · Conscious Compass`,
       divider,
       '',
+      ...(ns.talkingPoint?.point ? [`TALKING POINT OF THE WEEK: If a client asks about ${ns.talkingPoint.topic}: ${ns.talkingPoint.point}`, '', divider, ''] : []),
       `LEAD STORY — ${ns.leadStory?.category?.toUpperCase()}`,
       ns.leadStory?.headline,
       ...(ns.leadStory?.followUp ? [followUpText(ns.leadStory.followUp)] : []),
@@ -12269,6 +12361,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       ns.leadStory?.insight,
       '',
       `Why it matters: ${ns.leadStory?.whyItMatters}`,
+      ...sourcesText(ns.leadStory?.sources),
       '',
       divider,
       '',
@@ -12279,6 +12372,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         ...(item.followUp ? [followUpText(item.followUp)] : []),
         item.insight,
         `Why it matters: ${item.whyItMatters}`,
+        ...sourcesText(item.sources),
         '',
       ]),
       divider,
@@ -12350,7 +12444,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     setExportingDocx(true);
     try {
       const { Document, Packer, Paragraph, TextRun, BorderStyle, AlignmentType, Footer: DocxFooter, ExternalHyperlink } = await import('docx');   // on demand
-      const ns = newsletter;
+      const ns = shownIssue;
       const SANS = 'Hanken Grotesk', SERIF = 'Newsreader';
       const INK = '15171A', BODY = '2E3238', MUTED = '5B6068', RUST = 'C23B22', RULE = 'DEDAD2';
       const txt = (t) => clean(String(t || ''));
@@ -12363,6 +12457,11 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         new Paragraph({ spacing: { before: 60, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [run('Why it matters for assessment', { size: 15, bold: true, allCaps: true, characterSpacing: 16, color: MUTED })] }),
         new Paragraph({ spacing: { after: 200 }, children: [run(t, { size })] }),
       ] : [];
+      // The pages behind a story, as links (v4.7.0).
+      const sourcesDocx = (list) => (Array.isArray(list) && list.length ? [new Paragraph({ spacing: { after: 200 }, children: [
+        run(list.length > 1 ? 'SOURCES  ' : 'SOURCE  ', { size: 15, bold: true, characterSpacing: 16, color: MUTED }),
+        ...list.flatMap((src, k) => [...(k ? [run(', ', { size: 18 })] : []), new ExternalHyperlink({ link: src.url, children: [run(src.outlet || src.title || src.url, { size: 18, color: RUST, underline: {} })] })]),
+      ] })] : []);
       // A follow-up to earlier coverage (v4.5.0), under the headline.
       const followUpDocx = (f) => (f ? [new Paragraph({ spacing: { after: 140 }, border: { left: { style: BorderStyle.SINGLE, size: 12, color: RUST, space: 8 } },
         children: [run('FOLLOW-UP  ', { size: 15, bold: true, characterSpacing: 16, color: RUST }), run(followUpText(f).replace(/^Follow-up to /, 'First covered in '), { size: 18 })] })] : []);
@@ -12390,12 +12489,20 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
               border: { top: { style: BorderStyle.SINGLE, size: 8, color: INK, space: 6 }, bottom: { style: BorderStyle.DOUBLE, size: 6, color: INK, space: 6 } },
               children: [run([`Issue ${ns.issueNumber}`, refreshedAt ? `Updated ${fmtDate(refreshedAt)}` : null, `Next update ${fmtDate(nextSunday())}`].filter(Boolean).join('     ·     '), { size: 17, color: MUTED })] }),
 
+            // Talking point (v4.7.0)
+            ...(ns.talkingPoint?.point ? [
+              kicker('Talking point of the week', RUST, 60),
+              new Paragraph({ spacing: { after: 60 }, keepNext: true, children: [run(`If a client asks about ${ns.talkingPoint.topic}`, { bold: true, color: INK, size: 26 })] }),
+              ...article(ns.talkingPoint.point, 22, 120),
+              new Paragraph({ spacing: { after: 320 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [] }),
+            ] : []),
             // Lead story
             kicker(`${ns.leadStory?.category || ''} · Lead story`, RUST),
             serif(ns.leadStory?.headline, 60, 200),
             ...followUpDocx(ns.leadStory?.followUp),
             ...article(ns.leadStory?.insight, 23),
             ...why(ns.leadStory?.whyItMatters, 19),
+            ...sourcesDocx(ns.leadStory?.sources),
 
             // Landscape insights
             ...(la?.summary ? [
@@ -12418,6 +12525,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                 ...followUpDocx(item.followUp),
                 ...article(item.insight, 21),
                 ...why(item.whyItMatters),
+                ...sourcesDocx(item.sources),
               ]),
             ] : []),
 
@@ -12500,10 +12608,11 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     try { await navigator.clipboard.writeText(url); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); } catch { /* clipboard blocked */ }
   };
   const confirmRefresh = () => {
-    if (window.confirm('Regenerate this issue for everyone? It replaces the current issue and takes a minute or two.')) forceRefresh();
+    if (window.confirm('Write a new draft of the issue? It takes a minute or two, and nothing changes for readers until the draft is published.')) forceRefresh();
   };
   const paras = (t) => String(t || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
-  const when = (d) => (d ? (
+  // A missing or unreadable date shows nothing rather than breaking the page (v4.7.0).
+  const when = (d) => (d && !Number.isNaN(d.getTime()) ? (
     <time dateTime={d.toISOString()}>
       {d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
     </time>
@@ -12520,7 +12629,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     for (let i = 2; i < n; i += 3) rows.push(['is-3', items.slice(i, i + 3)]);
     return rows;
   };
-  const ns = newsletter;
+  const ns = shownIssue;
   const la = ns?.landscapeAnalysis;
   const landscapeTerms = attributesMentioned(la?.headline, la?.summary, la?.insights);
   // Public readers are not assessors (v4.1.0).
@@ -12554,8 +12663,8 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
           {!gate && <button className="btn-secondary" type="button" aria-pressed={showArchive} onClick={() => (showArchive ? openIssue(issueId) : openArchive())}>{showArchive ? 'Back to issue' : 'Archive'}</button>}
           {!gate && <button className="btn-secondary" type="button" title="Copy the link to this issue. Colleagues sign in with their Antenna Group Google account to read it." aria-live="polite" onClick={shareLink}>{linkCopied ? 'Link copied' : 'Share link'}</button>}
           {isAdmin && !publicView && !issueId && !showArchive && (
-            <button className="btn-secondary" type="button" title="Force refresh for all users" onClick={confirmRefresh} disabled={refreshing || loading} aria-busy={refreshing || undefined}>
-              {refreshing ? 'Refreshing…' : 'Force refresh'}
+            <button className="btn-secondary" type="button" title="Write a new draft for review. Readers see nothing until it is published." onClick={confirmRefresh} disabled={refreshing || loading} aria-busy={refreshing || undefined}>
+              {refreshing ? 'Writing draft…' : 'New draft'}
             </button>
           )}
         </div>
@@ -12571,6 +12680,33 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
           {!issueId && <span>Next update {when(nextSunday())}</span>}
         </div>
       </header>
+
+      {/* Draft review (v4.7.0): admins, in the app only. */}
+      {canReview && (draftState?.draft || draftMsg) && (
+        <section className={`dc-np-review${viewingDraft ? ' is-previewing' : ''}`} aria-label="Draft review" data-field="draft-review">
+          {draftState?.draft && (
+            <>
+              <p className="dc-np-review-p">
+                <strong>{viewingDraft ? `You are previewing the draft of Issue ${draftState.draft.issueNumber}.` : `The draft of Issue ${draftState.draft.issueNumber} is ready for review.`}</strong>{' '}
+                {draftState.meta?.held ? 'It is on hold and will not publish until you release it.' : <>It publishes {when(nextIssueAt())} unless you hold it.</>}
+                {!draftState.meta?.weekly && ' It revises the current issue.'}
+                {draftState.meta?.editedAt && ' It has been edited.'}
+              </p>
+              <div className="dc-np-review-actions">
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setViewingDraft(v => !v)} disabled={draftBusy}>{viewingDraft ? 'Back to the live issue' : 'Preview the draft'}</button>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => { setViewingDraft(true); setEditOpen(true); }} disabled={draftBusy}>Edit text</button>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => draftAction(draftState.meta?.held ? 'release' : 'hold')} disabled={draftBusy}>{draftState.meta?.held ? 'Release' : 'Hold'}</button>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => { if (window.confirm('Discard this draft? The live issue stays as it is.')) draftAction('discard'); }} disabled={draftBusy}>Discard</button>
+                <button type="button" className="btn-primary btn-sm" onClick={() => { if (window.confirm(`Publish Issue ${draftState.draft.issueNumber} to everyone now?`)) draftAction('publish'); }} disabled={draftBusy} aria-busy={draftBusy || undefined}>Publish now</button>
+              </div>
+            </>
+          )}
+          {draftMsg && <p className="dc-meta" role="status">{draftMsg}</p>}
+        </section>
+      )}
+      {editOpen && draftState?.draft && (
+        <DraftEditor draft={draftState.draft} busy={draftBusy} onClose={() => setEditOpen(false)} onSave={(edits) => draftAction('save-draft', { edits })} />
+      )}
 
       {recovering && (
         <section className="dc-np-gate" aria-labelledby="reset-h" data-field="reset-gate">
@@ -12701,6 +12837,17 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
 
       {!recovering && !gate && !showArchive && ns && !loading && !refreshing && (
         <>
+          {/* Talking point (v4.7.0): one line to use with clients this week. */}
+          {ns.talkingPoint?.point && (
+            <aside className="dc-np-talk" aria-labelledby="talk-h" data-field="talking-point">
+              <div className="dc-kicker is-accent">Talking point of the week</div>
+              <div className="dc-np-talk-body">
+                <h2 className="dc-np-h is-item" id="talk-h">If a client asks about {ns.talkingPoint.topic}</h2>
+                <p className="dc-np-text">{ns.talkingPoint.point}</p>
+              </div>
+            </aside>
+          )}
+
           <section className="dc-np-front">
             <article className="dc-np-lead">
               <div className="dc-kicker is-accent"><span data-value="category">{ns.leadStory?.category}</span> · Lead story</div>
@@ -12719,6 +12866,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                   <p>{ns.leadStory.whyItMatters}</p>
                 </aside>
               )}
+              {sourcesNote(ns.leadStory?.sources)}
               {/* House image (v3.116.0; rotates by edition since v3.122.0): fills
                   the lead column down to the foot of the rail when the story
                   brings no image of its own. */}
@@ -12764,6 +12912,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                       {item.whyItMatters && (
                         <div className="dc-np-why is-sm"><div className="dc-kicker">{whyLabel}</div><p>{item.whyItMatters}</p></div>
                       )}
+                      {sourcesNote(item.sources)}
                     </article>
                   ))}
                 </div>

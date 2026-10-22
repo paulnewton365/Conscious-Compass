@@ -3,6 +3,8 @@
 // Schedule defined in vercel.json: "0 22 * * 0"
 
 import { requireUser } from './_auth.js';
+import { headlineOverlap } from '../src/lib/newsletter.js';
+import { searchedResults, normUrl } from './refresh-stay-conscious-newsletter.js';
 export const STAY_CONSCIOUS_PROMPT = `You are a brand intelligence analyst advising consultants who use the Conscious Compass framework to evaluate brands based purely on publicly available signals — what audiences, prospects, and partners actually encounter. The framework measures eight attributes: Awake (narrative leadership), Aware (audience understanding), Reflective (authenticity), Attentive (experience quality), Cogent (strategic intelligence), Sentient (emotional resonance), Visionary (purpose), and Intentional (credibility).
 
 Generate exactly 6 "Stay Conscious" intelligence items that brand assessors should be aware of right now. These should be emerging trends, platform changes, new signals, shifting standards, or evolving best practices that affect how a brand is publicly experienced or how it should be rigorously assessed. Be specific and current. Avoid generic marketing platitudes. Write with conviction.
@@ -10,13 +12,40 @@ Generate exactly 6 "Stay Conscious" intelligence items that brand assessors shou
 Cover a spread across these categories — use each at most once: AI Visibility, Digital Experience, Brand Strategy, Earned Media, Social Signals, Assessment Practice.
 
 Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
-{"items":[{"headline":"...","category":"...","insight":"...","whyItMatters":"..."}]}
+{"items":[{"headline":"...","category":"...","insight":"...","whyItMatters":"...","sources":[{"title":"...","outlet":"...","url":"https://..."}]}]}
 
 Each item:
 - headline: punchy, specific, max 12 words
 - category: exactly one of: AI Visibility | Digital Experience | Brand Strategy | Earned Media | Social Signals | Assessment Practice
 - insight: 2-3 sentences. What is actually happening, with specifics where possible.
-- whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
+- whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.
+- sources: one or two pages your searches returned that support the specific facts and figures in this item: the page title, the publication, and its url. Use only pages you actually found; never invent or reconstruct a link. Every figure in the insight must come from one of these pages. If you cannot source an item, replace it with one you can.`;
+
+// ── Sources (v4.7.0) ──────────────────────────────────────────
+// Staff repeat these stories to clients, so each must carry the pages behind
+// it. A source counts only if the web search itself returned that page, the
+// same rule as earned creative: the model cannot invent a link. Stories with
+// no source are dropped while at least MIN_SOURCED sourced stories remain;
+// below that they are kept, marked as unsourced, so the issue still goes out.
+export const MIN_SOURCED = 4;
+const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+export function attachSources(items = [], content = []) {
+  const found = searchedResults(content);
+  return items.map(it => {
+    const seen = new Set();
+    const sources = (Array.isArray(it?.sources) ? it.sources : [])
+      .map(x => ({ url: String(x?.url || '').trim(), title: String(x?.title || '').replace(/\s+/g, ' ').trim().slice(0, 200), outlet: String(x?.outlet || '').trim().slice(0, 80) }))
+      .filter(x => x.url.startsWith('https://') && found.has(normUrl(x.url)))
+      .filter(x => { const k = normUrl(x.url); if (seen.has(k)) return false; seen.add(k); return true; })
+      .slice(0, 2)
+      .map(x => ({ ...x, title: x.title || String(found.get(normUrl(x.url)) || '').slice(0, 200), outlet: x.outlet || host(x.url) }));
+    return { ...it, sources };
+  });
+}
+export function keepSourced(items = []) {
+  const sourced = items.filter(i => i.sources?.length);
+  return sourced.length >= MIN_SOURCED ? { items: sourced, dropped: items.length - sourced.length } : { items, dropped: 0 };
+}
 
 // ── No repeats (v4.5.0) ───────────────────────────────────────
 // Each week's stories are written knowing what earlier issues covered: the
@@ -26,16 +55,8 @@ Each item:
 // earlier edition. A story that looks like an earlier one but is not marked
 // as a follow-up is replaced, or dropped, in code; the rule does not rely on
 // the model remembering it.
-const STOP = new Set('a an and are as at be by for from has have how in into is it its new now of on or that the their this to was what when why will with your you brands brand'.split(' '));
-const words = (t) => new Set(String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOP.has(w)));
-// Share of the smaller headline's words found in the other: 1 is the same story.
-export function headlineOverlap(a, b) {
-  const x = words(a); const y = words(b);
-  if (!x.size || !y.size) return 0;
-  let shared = 0;
-  x.forEach(w => { if (y.has(w)) shared += 1; });
-  return shared / Math.min(x.size, y.size);
-}
+// headlineOverlap lives in src/lib/newsletter.js (v4.7.0), shared with the newsletter job.
+export { headlineOverlap };
 export const REPEAT_THRESHOLD = 0.6;
 const firstSentence = (t, n = 160) => { const v = String(t || '').replace(/\s+/g, ' ').trim(); const m = v.match(/^.+?[.!?](\s|$)/); return (m ? m[0] : v).trim().slice(0, n); };
 
@@ -98,7 +119,7 @@ async function loadEditions(supabaseUrl, supabaseKey, fetchImpl = fetch) {
   const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
   const get = async (url) => { try { const r = await fetchImpl(url, { headers }); return r.ok ? await r.json() : []; } catch { return []; } };
   const [live, archived] = await Promise.all([
-    get(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?select=refreshed_at,issue_number:newsletter->issueNumber,lead:newsletter->leadStory,items:newsletter->intelligenceItems&order=refreshed_at.desc&limit=1`),
+    get(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?select=refreshed_at,issue_number:newsletter->issueNumber,lead:newsletter->leadStory,items:newsletter->intelligenceItems&id=eq.1&limit=1`),   // the live issue, never a draft (v4.7.0)
     get(`${supabaseUrl}/rest/v1/stay_conscious_newsletter_archive?select=refreshed_at,issue_number,lead:newsletter->leadStory,items:newsletter->intelligenceItems&order=refreshed_at.desc&limit=26`),
   ]);
   return [...(live || []), ...(archived || [])]
@@ -139,7 +160,9 @@ export default async function handler(req, res) {
         const err = await claudeRes.json().catch(() => ({}));
         throw new Error(err.error?.message || `Claude API error ${claudeRes.status}`);
       }
-      return parseItems(await claudeRes.json());
+      const data = await claudeRes.json();
+      // Sources are checked against this call's own search results (v4.7.0).
+      return attachSources(parseItems(data), data.content || []);
     };
 
     // What earlier issues covered (v4.5.0).
@@ -163,7 +186,8 @@ Write exactly ${repeats.length} replacement item(s), for these categories: ${rep
       items = [...kept, ...usable.slice(0, repeats.length)];
     }
     if (!items.length) throw new Error('Every story repeated earlier coverage');
-    const parsed = { items };
+    const sourcing = keepSourced(items);
+    const parsed = { items: sourcing.items };
 
     // Upsert into Supabase — single row (id=1), overwrite previous week
     const upsertRes = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_cache`, {
@@ -189,6 +213,7 @@ Write exactly ${repeats.length} replacement item(s), for these categories: ${rep
     return res.status(200).json({
       success: true,
       itemCount: parsed.items.length,
+      sources: { sourced: parsed.items.filter(i => i.sources?.length).length, droppedUnsourced: sourcing.dropped },
       history: { pastStories: past.length, followUps: parsed.items.filter(i => i.followUp).length, repeatsReplaced: replaced, repeatsDropped: repeats.length - replaced },
       refreshedAt: new Date().toISOString(),
     });

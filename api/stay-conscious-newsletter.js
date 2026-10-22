@@ -10,7 +10,7 @@
 // internal (they are built from the list of assessed brands) and never leave.
 // Landscape text that names an assessed brand is dropped as well.
 
-import { requireUser, requireStaff } from './_auth.js';
+import { requireUser, requireStaff, isAdmin } from './_auth.js';
 import { titleCaseAttributes } from '../src/data/attributeGlossary.js';
 
 // Attribute codes read as names publicly: SENTIENT becomes Sentient (v4.1.0).
@@ -38,6 +38,9 @@ export function publicIssue(newsletter, brandNames = []) {
   const keepParas = (t) => str(t).split(/\n\s*\n/).filter(p => p.trim() && !mentions(p)).join('\n\n');
   const item = (x) => (x && typeof x === 'object' ? {
     category: str(x.category, 80), headline: str(x.headline, 300), insight: str(x.insight), whyItMatters: str(x.whyItMatters),
+    // The pages behind the story, https only (v4.7.0).
+    ...(Array.isArray(x.sources) ? { sources: x.sources.filter(src => src && typeof src.url === 'string' && /^https:\/\//.test(src.url)).slice(0, 2)
+      .map(src => ({ url: src.url.slice(0, 600), title: str(src.title, 200), outlet: str(src.outlet, 80) })) } : {}),
     // A follow-up names the earlier story and edition (v4.5.0).
     ...(x.followUp && typeof x.followUp === 'object' ? { followUp: {
       issueNumber: num(x.followUp.issueNumber), headline: str(x.followUp.headline, 300), whatsNew: str(x.followUp.whatsNew, 300),
@@ -61,6 +64,8 @@ export function publicIssue(newsletter, brandNames = []) {
     } : null,
     // Prospect pulse (figures only, never a brand) and Spotlight (v4.6.0).
     prospectPulse: pulseOut(newsletter.prospectPulse),
+    talkingPoint: newsletter.talkingPoint && typeof newsletter.talkingPoint === 'object' && typeof newsletter.talkingPoint.point === 'string'
+      ? { topic: str(newsletter.talkingPoint.topic, 60), point: str(newsletter.talkingPoint.point, 300), story: str(newsletter.talkingPoint.story, 300) } : null,
     spotlight: spotlightOut(newsletter.spotlight),
     landscapeAnalysis: la && typeof la === 'object' ? {
       brandCount: num(la.brandCount), sectorCount: num(la.sectorCount), averageScore: num(la.averageScore),
@@ -92,7 +97,7 @@ export const archiveListRow = (r) => ({
 // The current issue, or one archived edition.
 const issueUrl = (base, id) => (id
   ? `${base}/rest/v1/${ARCHIVE_TABLE}?select=newsletter,refreshed_at&id=eq.${id}&limit=1`
-  : `${base}/rest/v1/stay_conscious_newsletter?select=newsletter,refreshed_at&order=refreshed_at.desc&limit=1`);
+  : `${base}/rest/v1/stay_conscious_newsletter?select=newsletter,refreshed_at&id=eq.1&limit=1`);   // the live issue, never a draft (v4.7.0)
 async function sendArchiveList(res, supabaseUrl, headers, cacheable) {
   const r = await fetch(`${supabaseUrl}/rest/v1/${ARCHIVE_TABLE}?select=${ARCHIVE_LIST_SELECT}&order=refreshed_at.desc&limit=104`, { headers });
   // No table yet (the SQL has not been run): an empty list, not an error.
@@ -143,7 +148,8 @@ export default async function handler(req, res) {
   // The public issue is the one exception to sign-in, and sends only publicIssue().
   if (isPublicRequest(req)) return sendPublicIssue(req, res);
   // Callers must be signed in (v3.100.1); see api/_auth.js.
-  if (!(await requireUser(req, res))) return;
+  const user = await requireUser(req, res);
+  if (!user) return;
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -158,6 +164,14 @@ export default async function handler(req, res) {
   const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
   try {
     if (wantsArchiveList(req)) return sendArchiveList(res, supabaseUrl, headers, false);
+    // The draft waiting for review (v4.7.0): admins only, never the reader page.
+    if (param(req, 'draft') === '1') {
+      if (!(await isAdmin(user.id))) return res.status(403).json({ error: 'Admins only.' });
+      const r = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?select=newsletter,refreshed_at&id=eq.2&limit=1`, { headers });
+      const rows = r.ok ? await r.json() : [];
+      const d = rows?.[0];
+      return res.status(200).json(d?.newsletter ? { draft: d.newsletter, meta: d.newsletter._draft || {}, refreshedAt: d.refreshed_at } : { draft: null });
+    }
     const id = archiveId(req);
     const response = await fetch(issueUrl(supabaseUrl, id), { headers });
 

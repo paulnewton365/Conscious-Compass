@@ -47,6 +47,10 @@
     {
       "path": "/api/refresh-stay-conscious-newsletter",
       "schedule": "30 23 * * 0"
+    },
+    {
+      "path": "/api/refresh-stay-conscious-newsletter?action=publish",
+      "schedule": "0 12 * * 1"
     }
   ]
 }

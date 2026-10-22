@@ -1550,6 +1550,26 @@ button { font: inherit; color: inherit; }
 .dc-np-pulse-name { font: var(--cc-w-bold) 26px/1.1 'Inter', var(--cc-sans); letter-spacing: -.02em; color: var(--cc-ink); }
 .dc-np-steps li::marker { color: var(--cc-rust-text); font-weight: var(--cc-w-semi); }
 @media (max-width: 1000px) { .dc-np-spot { grid-template-columns: 1fr; gap: var(--cc-s-6); } .dc-np-pulse { grid-template-columns: 1fr; } }
+/* Draft review (v4.7.0). */
+.dc-np-review { display: flex; flex-direction: column; gap: var(--cc-s-3); padding: var(--cc-s-4) var(--cc-s-5); margin-bottom: var(--cc-s-6); border: 1px dashed var(--cc-faint); border-radius: var(--cc-r-1); background: var(--cc-paper); }
+.dc-np-review.is-previewing { border: 2px solid var(--cc-rust-text); }
+.dc-np-review-p { margin: 0; font: var(--cc-w-regular) 14.5px/1.5 'Inter', var(--cc-sans); color: var(--cc-body); }
+.dc-np-review-p strong { color: var(--cc-ink); }
+.dc-np-review-actions { display: flex; gap: var(--cc-s-2); flex-wrap: wrap; }
+.dc-draft-edit { display: flex; flex-direction: column; gap: var(--cc-s-4); max-height: 62vh; overflow-y: auto; padding-right: 4px; }
+.dc-draft-edit .is-removed { opacity: .45; }
+.dc-draft-remove { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+/* Sources and the talking point (v4.7.0). */
+.dc-np-sources { margin: 0; font: var(--cc-w-regular) 12.5px/1.5 'Inter', var(--cc-sans); color: var(--cc-muted); }
+.dc-np-sources-k { font-weight: var(--cc-w-semi); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; font-size: 10.5px; }
+.dc-np-sources a { color: var(--cc-ink); text-decoration: underline; text-underline-offset: 2px; }
+.dc-np-sources a:hover { color: var(--cc-rust-text); }
+/* v4.7.1: in the newspaper's own terms, rules and type, no box or fill: a
+   strap under the masthead, label left, the point set like a story. */
+.dc-np-talk { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--cc-s-6); align-items: baseline; padding: var(--cc-s-2) 0 var(--cc-s-6); margin-bottom: var(--cc-s-8); border-bottom: var(--cc-border); }
+.dc-np-talk-body { display: flex; flex-direction: column; gap: var(--cc-s-2); max-width: 76ch; }
+.dc-np-talk-body .dc-np-text { margin: 0; }
+@media (max-width: 720px) { .dc-np-talk { grid-template-columns: 1fr; gap: var(--cc-s-2); } }
 /* Follow-up to earlier coverage (v4.5.0). */
 .dc-np-followup { margin: 0; padding: 8px 0 8px 12px; border-left: 2px solid var(--cc-rust-text); font: var(--cc-w-regular) 13.5px/1.5 'Inter', var(--cc-sans); color: var(--cc-body); }
 .dc-np-followup-k { font-weight: var(--cc-w-semi); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; font-size: 11px; color: var(--cc-rust-text); }
