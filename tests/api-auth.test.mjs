@@ -411,7 +411,7 @@ test('v4.1.0: the public landscape explains the attributes it names, in title ca
 
   const mod = await import('../api/refresh-stay-conscious-newsletter.js');
   const p = mod.landscapePrompt('ANALYSIS TEXT');
-  assert.ok(p.includes('Readers are marketers and business leaders who have never seen the Conscious Compass'));
+  assert.ok(p.includes('Readers are colleagues across Antenna Group, many of whom have never used the Conscious Compass.'), 'staff only since v4.3.0');
   assert.ok(p.includes('explain it in a few plain words in the same sentence'));
   assert.ok(p.includes('Never name an individual brand or company'));
   assert.ok(g.ATTRIBUTE_GLOSSARY.every(a => p.includes(`- ${a.name}: ${a.plain}`)), 'the prompt carries every meaning');
@@ -626,4 +626,153 @@ test('v4.4.0: the copy tells the Compass sign-in and the newsletter sign-in apar
   assert.ok(app.includes('Compass users do not need to register.'));
   assert.ok(app.includes('If you also use the Conscious Compass, this is your Compass password too.'), 'a newsletter reset says it changes the Compass password as well');
   assert.ok(app.includes('audience="newsletter"'));
+});
+
+test('v4.5.0: stories do not repeat earlier issues unless they have moved on, and then they say so and link back', async () => {
+  const sc = await import('../api/refresh-stay-conscious.js');
+  // Repeat detection
+  assert.ok(sc.headlineOverlap('Third-Party Mentions Now Outrank Your Own Site With AI Engines', 'Third-party mentions outrank owned sites in AI engines') >= sc.REPEAT_THRESHOLD);
+  assert.ok(sc.headlineOverlap('API Errors Are the New Broken Window for Brand Experience', 'Monolithic Brand Voice Is Breaking Across Platform Contexts') < sc.REPEAT_THRESHOLD);
+  // History from the live issue and archived editions, newest first, one entry per headline
+  const editions = [
+    { issueNumber: 37, editionAt: '2026-10-11T23:30:00Z', lead: { headline: 'Third-Party Mentions Now Outrank Your Own Site With AI Engines', category: 'AI Visibility', insight: 'Off-site signals now predict citation. More follows.' }, items: [{ headline: 'API Errors Are the New Broken Window', category: 'Digital Experience', insight: 'Errors rose.' }] },
+    { issueNumber: 36, editionAt: '2026-10-04T23:30:00Z', lead: { headline: 'API Errors Are the New Broken Window', insight: 'dup' }, items: [] },
+  ];
+  const past = sc.pastStories(editions);
+  assert.deepEqual(past.map(p => [p.ref, p.issueNumber]), [['P1', 37], ['P2', 37]], 'the same headline counts once');
+  assert.equal(past[0].gist, 'Off-site signals now predict citation.');
+  const block = sc.historyPromptBlock(past);
+  assert.ok(block.includes('- P1 | Issue 37 | Third-Party Mentions Now Outrank Your Own Site With AI Engines'));
+  assert.ok(block.includes('Do not repeat any of these.') && block.includes('"followUp":{"ref":"P3","whatsNew"') && block.includes('Never present a past story as new.'));
+  assert.equal(sc.historyPromptBlock([]), '', 'no history, no block');
+
+  // A real follow-up is kept and resolved; an unmarked repeat is caught; a bad ref is dropped
+  const { items, repeats } = sc.checkAgainstHistory([
+    { headline: 'Third-party mentions outrank owned sites in AI engines', category: 'AI Visibility' },
+    { headline: 'AI Engines Now Weigh Reddit Above Press', category: 'AI Visibility', followUp: { ref: 'P1', whatsNew: 'New data from Muck Rack.' } },
+    { headline: 'A Brand New Story About Packaging', category: 'Brand Strategy', followUp: { ref: 'P99', whatsNew: 'x' } },
+  ], past);
+  assert.deepEqual(repeats.map(r => [r.i, r.match.ref]), [[0, 'P1']]);
+  assert.deepEqual(items[1].followUp, { issueNumber: 37, editionAt: '2026-10-11T23:30:00Z', headline: 'Third-Party Mentions Now Outrank Your Own Site With AI Engines', whatsNew: 'New data from Muck Rack.' });
+  assert.ok(!('followUp' in items[2]), 'a follow-up to a story we never ran is dropped');
+
+  // The job: an unmarked repeat is replaced once, in its category
+  process.env.ANTHROPIC_API_KEY = 'k'; process.env.SUPABASE_URL = 'https://db'; process.env.SUPABASE_SERVICE_ROLE_KEY = 's'; process.env.CRON_SECRET = 'cron';
+  const prompts = []; let saved = null;
+  const reply = (its) => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify({ items: its }) }] }) });
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url);
+    if (u.includes('api.anthropic.com')) {
+      prompts.push(JSON.parse(init.body).messages[0].content);
+      return prompts.length === 1
+        ? reply([{ headline: 'Third-party mentions outrank owned sites in AI engines', category: 'AI Visibility', insight: 'i', whyItMatters: 'w' }, { headline: 'Packaging Claims Face New Scrutiny', category: 'Brand Strategy', insight: 'i', whyItMatters: 'w' }])
+        : reply([{ headline: 'Answer Engines Start Citing Podcasts', category: 'AI Visibility', insight: 'i', whyItMatters: 'w' }]);
+    }
+    if (u.includes('stay_conscious_newsletter_archive')) return { ok: true, json: async () => [{ refreshed_at: '2026-10-04T23:30:00Z', issue_number: 36, lead: { headline: 'Old Archived Story About Carbon Labels' }, items: [] }] };
+    if (u.includes('stay_conscious_newsletter?')) return { ok: true, json: async () => [{ refreshed_at: editions[0].editionAt, issue_number: 37, lead: editions[0].lead, items: editions[0].items }] };
+    if (u.includes('stay_conscious_cache')) { saved = JSON.parse(init.body); return { ok: true, json: async () => ({}) }; }
+    return { ok: true, json: async () => [] };
+  };
+  const res = mockRes();
+  await sc.default({ method: 'GET', headers: { authorization: 'Bearer cron' }, query: {} }, res);
+  delete process.env.CRON_SECRET;
+  assert.equal(res.code, 200, JSON.stringify(res.body));
+  assert.ok(prompts[0].includes('ALREADY COVERED') && prompts[0].includes('Old Archived Story About Carbon Labels'), 'the brief lists the live issue and the archive');
+  assert.ok(prompts[1].includes('Write exactly 1 replacement item(s), for these categories: AI Visibility') && prompts[1].includes('(same as P1)'));
+  assert.deepEqual(saved.items.map(i => i.headline), ['Packaging Claims Face New Scrutiny', 'Answer Engines Start Citing Podcasts']);
+  assert.deepEqual(res.body.history, { pastStories: 3, followUps: 0, repeatsReplaced: 1, repeatsDropped: 0 });
+
+  // The newsletter: a fresh story leads; follow-ups survive the public filter
+  const nlSrc = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(nlSrc.includes('const fresh = intelligenceItems.filter(i => !i.followUp);') && nlSrc.includes('...(leadItem.followUp ? { followUp: leadItem.followUp } : {})'));
+  assert.ok(nlSrc.includes('fetchEarnedCreative(anthropicKey, { featured: await recentlyFeaturedBrands(prevRow) })'), 'earned creative skips recently featured brands');
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const out = pub.publicIssue({ leadStory: { headline: 'h', insight: 'i', followUp: { issueNumber: 37, editionAt: '2026-10-11T23:30:00Z', headline: 'Earlier', whatsNew: 'New data.', secret: 'x' } } }, []);
+  assert.deepEqual(out.leadStory.followUp, { issueNumber: 37, headline: 'Earlier', whatsNew: 'New data.', editionAt: '2026-10-11T23:30:00Z' });
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('{followUpNote(ns.leadStory?.followUp)}') && app.includes('{followUpNote(item.followUp)}'));
+  assert.ok(app.includes('onClick={() => openIssue(id)}>{label}</button>'), 'the earlier edition opens from the note');
+  assert.ok(app.includes('...followUpDocx(ns.leadStory?.followUp)') && app.includes('followUpText(ns.leadStory.followUp)'), 'Word and plain-text exports carry it too');
+});
+
+test('v4.6.0: Prospect pulse (this month, figures only) and Spotlight (one thing to lift the weakest attribute)', async () => {
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const ids = ['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL'];
+  const teaser = (industry, sentient, overall) => ({ industry, brand_name: 'SECRET PROSPECT', result: { overall, scores: Object.fromEntries(ids.map(id => [id, { score: id === 'SENTIENT' ? sentient : id === 'ATTENTIVE' ? 70 : 55 }])) } });
+  const full = (sentient, total) => ({ brand_name: 'x', total_score: total, scores: Object.fromEntries(ids.map(id => [id, id === 'SENTIENT' ? sentient : id === 'VISIONARY' ? 40 : 60])) });
+  const now = new Date('2026-10-22T14:00:00Z');
+  assert.equal(nl.monthStart(now), '2026-10-01T00:00:00.000Z');
+  assert.equal(nl.prospectPulse([teaser('energy', 30, 50), teaser('energy', 40, 52)], [], now), null, 'fewer than three teasers: no pulse');
+  const pulse = nl.prospectPulse([teaser('energy', 30, 50), teaser('energy', 40, 52), teaser('realestate', 35, 54), { industry: 'energy', result: null }], [full(45, 60), full(49, 62)], now);
+  assert.deepEqual(pulse, {
+    month: 'October', count: 3,
+    sectors: [{ name: 'Energy & Utilities', count: 2 }, { name: 'Real Estate & Construction', count: 1 }],
+    averageScore: 52, fullAverage: 61,
+    weakest: { id: 'SENTIENT', name: 'Sentient', avg: 35, fullAvg: 47 },
+    strongest: { id: 'ATTENTIVE', name: 'Attentive', avg: 70, fullAvg: 60 },
+  });
+  assert.ok(!JSON.stringify(pulse).includes('SECRET PROSPECT'), 'no prospect is named');
+
+  // Spotlight: weakest across full assessments, moving on from recent ones
+  const fullRows = [full(45, 60), full(49, 62), full(52, 61)];
+  assert.equal(nl.pickSpotlightAttribute(fullRows, []).attribute.id, 'VISIONARY');
+  assert.equal(nl.pickSpotlightAttribute([], []), null, 'no full assessments, no spotlight: teasers never stand in');
+  const next = nl.pickSpotlightAttribute(fullRows, ['VISIONARY']);
+  assert.equal(next.attribute.id, 'SENTIENT', 'last issue spotlighted Visionary, so the next weakest');
+  assert.deepEqual(next.figures, { avg: 49, brands: 3, belowFifty: 2 });
+  const prompt = nl.spotlightPrompt(next);
+  assert.ok(prompt.includes('This week\'s attribute: Sentient (Emotional Resonance & Creative Distinction)') && prompt.includes('Strong signals: Distinctive creative identity'));
+  assert.ok(prompt.includes('Across 3 brands we have assessed, Sentient averages 49, and 2 score below 50.') && prompt.includes('Name no brand or company.'));
+  const sp = nl.parseSpotlight('Here: {"headline":"Tell one human story","action":"Pick one customer and tell their story — properly.","why":"People feel it.","steps":["a","b","c","d"]}', next);
+  assert.equal(sp.action, 'Pick one customer and tell their story, properly.', 'no em dashes');
+  assert.deepEqual([sp.attribute, sp.name, sp.steps.length], ['SENTIENT', 'Sentient', 3]);
+  assert.equal(nl.parseSpotlight('no json', next), null);
+
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes('teaser_assessments?select=industry,created_at,result&created_at=gte.'), 'this month\'s teasers only, without brand names');
+  assert.ok(src.includes('...(await buildPulseAndSpotlight(prevRow))'));
+
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const out = pub.publicIssue({ prospectPulse: { ...pulse, extra: 'x' }, spotlight: { ...sp, secret: 'y' } }, []);
+  assert.deepEqual(Object.keys(out.prospectPulse).sort(), ['averageScore', 'count', 'fullAverage', 'month', 'sectors', 'strongest', 'weakest']);
+  assert.equal(out.spotlight.headline, 'Tell one human story');
+  assert.ok(!('secret' in out.spotlight));
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('data-field="spotlight"') && app.includes('data-field="prospect-pulse"'));
+  assert.ok(app.indexOf('data-field="spotlight"') < app.indexOf('data-field="prospect-pulse"') && app.indexOf('data-field="prospect-pulse"') < app.indexOf('data-field="earned-creative-news"'), 'after Brand intelligence, before earned creative');
+  const pulseBlock = app.slice(app.indexOf('data-field="prospect-pulse"'), app.indexOf('data-field="earned-creative-news"'));
+  assert.ok(!/earned creative|HOWL/i.test(pulseBlock), 'no earned creative in the teaser block');
+});
+
+test('v4.6.0: Landscape insights change week to week: recent sections, what moved, a rotating focus, and a second draft if it still repeats', async () => {
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  // A different focus each issue, cycling through all six
+  const lenses = [1, 2, 3, 4, 5, 6, 7].map(nl.landscapeLens);
+  assert.equal(new Set(lenses.slice(0, 6)).size, 6);
+  assert.equal(lenses[6], lenses[0]);
+  // What moved, from the scores
+  const ids = ['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL'];
+  const row = (s, t) => ({ total_score: t, scores: Object.fromEntries(ids.map(id => [id, id === 'SENTIENT' ? s : 60])) });
+  const prev = nl.landscapeSnapshot([row(40, 50), row(44, 52)]);
+  const now = nl.landscapeSnapshot([row(40, 50), row(44, 52), row(52, 60)]);
+  assert.deepEqual(nl.landscapeChanges(now, prev), ['Brands assessed: 2 last week, 3 now.', 'Average score: 51 last week, 54 now.', 'Sentient average: 42 last week, 45 now.']);
+  assert.deepEqual(nl.landscapeChanges(now, null), [], 'first week: nothing to compare');
+  // The prompt carries the history, the changes and the focus; the analysis stays last
+  const recent = [{ headline: 'Brands built the infrastructure but skipped the conviction', summary: 'Most brands have the basics.' }];
+  const p = nl.landscapePrompt('ANALYSIS TEXT', { recent, lens: nl.landscapeLens(2), changes: ['Brands assessed: 51 last week, 54 now.'] });
+  assert.ok(p.includes('RECENT LANDSCAPE SECTIONS') && p.includes('HEADLINE: Brands built the infrastructure but skipped the conviction'));
+  assert.ok(p.includes('- Brands assessed: 51 last week, 54 now.') && p.includes('THIS WEEK\'S FOCUS for paragraph 2: Sector contrast'));
+  assert.ok(p.endsWith('ANALYSIS TEXT'));
+  assert.ok(nl.landscapePrompt('A', { changes: [] }).includes('Nothing material changed in the figures since last week'));
+  assert.ok(nl.landscapePrompt('A', { retry: true }).includes('Your last draft was too close to a recent section.'));
+  // The repeat check
+  assert.equal(nl.tooSimilarLandscape({ headline: 'Brands built the infrastructure but skipped conviction', summary: 'x' }, recent), true, 'same headline');
+  assert.equal(nl.tooSimilarLandscape({ headline: 'Energy brands lead on purpose', summary: 'Most brands have the basics.' }, recent), true, 'same paragraph');
+  assert.equal(nl.tooSimilarLandscape({ headline: 'Energy brands lead on purpose but go quiet', summary: 'Energy and utilities sit eight points above the rest on Visionary.' }, recent), false);
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes('if (draft && tooSimilarLandscape(draft, recent)) draft = (await write(true)) || draft;'), 'rewritten once if still too close');
+  assert.ok(src.includes('snapshot, lens,'), 'this week\'s figures are kept for next week');
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const out = pub.publicIssue({ landscapeAnalysis: { headline: 'h', summary: 's', snapshot: { brandCount: 3 }, lens: 'x' } }, []);
+  assert.ok(!('snapshot' in out.landscapeAnalysis) && !('lens' in out.landscapeAnalysis), 'internal fields stay internal');
 });

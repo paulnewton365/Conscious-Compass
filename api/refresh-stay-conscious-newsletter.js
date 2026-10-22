@@ -6,6 +6,8 @@
 
 import { requireUser } from './_auth.js';
 import { glossaryForPrompt, titleCaseAttributes } from '../src/data/attributeGlossary.js';
+import { ATTRIBUTES } from '../src/data/rubric.js';
+import { headlineOverlap } from './refresh-stay-conscious.js';
 // Each brand's latest save only (v3.109.0): every save is kept as a row for
 // history, but a brand must count once in portfolio figures.
 const latestPerBrand = (rows) => {
@@ -19,13 +21,166 @@ const latestPerBrand = (rows) => {
   return [...m.values()];
 };
 
+// ── Prospect pulse and Spotlight (v4.6.0) ─────────────────────
+// Prospect pulse: the teasers run so far this month, in figures only. No
+// brand is named and nothing here feeds the benchmarks, which still count
+// full assessments only. Spotlight: the attribute brands are weakest on,
+// and one thing a brand can do about it, written from the rubric.
+const SECTOR_NAMES = {
+  technology: 'Technology & Software', healthcare: 'Healthcare & Life Sciences', finance: 'Financial Services',
+  energy: 'Energy & Utilities', manufacturing: 'Manufacturing & Industrial', retail: 'Retail & Consumer Goods',
+  food: 'Food & Beverage', media: 'Media & Entertainment', telecom: 'Telecommunications', professional: 'Professional Services',
+  realestate: 'Real Estate & Construction', mobility: 'Mobility & Automotive', transportation: 'Transportation & Logistics',
+  hospitality: 'Hospitality & Travel', education: 'Education', nonprofit: 'Nonprofit & Government',
+};
+export const PULSE_MIN = 3;   // fewer teasers than this and the averages would mislead
+const scoreOf = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : (v && Number.isFinite(Number(v.score)) ? Number(v.score) : null));
+const mean = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
+export const monthStart = (now = new Date()) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+const monthName = (now = new Date()) => now.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+// Per-attribute averages over a set of score maps.
+export function attributeAverages(scoreMaps = []) {
+  const out = {};
+  ATTRIBUTES.forEach(a => {
+    const xs = scoreMaps.map(m => scoreOf(m?.[a.id])).filter(x => x !== null);
+    out[a.id] = { avg: mean(xs), n: xs.length, belowFifty: xs.filter(x => x < 50).length };
+  });
+  return out;
+}
+
+export function prospectPulse(teasers = [], fullRows = [], now = new Date()) {
+  const scored = teasers.filter(t => Number.isFinite(Number(t?.result?.overall)) && t?.result?.scores);
+  if (scored.length < PULSE_MIN) return null;
+  const tAvg = attributeAverages(scored.map(t => t.result.scores));
+  const fAvg = attributeAverages(fullRows.map(r => r.scores));
+  const ranked = ATTRIBUTES.filter(a => tAvg[a.id].avg !== null).sort((x, y) => tAvg[x.id].avg - tAvg[y.id].avg);
+  const sectors = Object.entries(scored.reduce((m, t) => { const k = t.industry || 'other'; m[k] = (m[k] || 0) + 1; return m; }, {}))
+    .filter(([k]) => k !== 'other').sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, 3)
+    .map(([k, n]) => ({ name: SECTOR_NAMES[k] || k, count: n }));
+  const fullTotals = fullRows.map(r => Number(r.total_score)).filter(Number.isFinite);
+  const pick = (a) => (a ? { id: a.id, name: a.name, avg: tAvg[a.id].avg, fullAvg: fAvg[a.id].avg } : null);
+  return {
+    month: monthName(now),
+    count: scored.length,
+    sectors,
+    averageScore: mean(scored.map(t => Number(t.result.overall))),
+    fullAverage: mean(fullTotals),
+    weakest: pick(ranked[0]),
+    strongest: pick(ranked[ranked.length - 1]),
+  };
+}
+
+// The attribute to spotlight: lowest average across full assessments (never
+// teasers), skipping any spotlighted in the last few issues so it moves on.
+export function pickSpotlightAttribute(fullRows = [], recent = []) {
+  const f = attributeAverages(fullRows.map(r => r.scores));
+  const ranked = ATTRIBUTES.filter(a => f[a.id].avg !== null).sort((x, y) => f[x.id].avg - f[y.id].avg);
+  const choice = ranked.find(a => !recent.includes(a.id)) || ranked[0];
+  if (!choice) return null;
+  return { attribute: choice, figures: { avg: f[choice.id].avg, brands: f[choice.id].n, belowFifty: f[choice.id].belowFifty } };
+}
+
+export function spotlightPrompt(pick) {
+  const a = pick.attribute;
+  const sig = a.signals || {};
+  return `You are writing the Spotlight for Stay Conscious, Antenna Group's brand intelligence newsletter for its own staff. It focuses on ONE thing a brand can do to raise one attribute of the Conscious Compass, which scores brands out of 100 from what is publicly visible about them.
+
+This week's attribute: ${a.name} (${a.fullName}). ${a.question}
+What it measures: ${a.description}
+Strong signals: ${(sig.strong || []).join('; ')}
+Weak signals: ${(sig.weak || []).join('; ')}
+Across ${pick.figures.brands} brands we have assessed, ${a.name} averages ${pick.figures.avg}, and ${pick.figures.belowFifty} score below 50.
+
+Choose the single most useful action: concrete, publicly visible, something any brand could start this month, and drawn from the strong signals above. Not a list of tips.
+
+Return JSON only:
+{"headline":"Max 9 words, naming the action","action":"One or two sentences: the one thing to do.","why":"One or two sentences: why it lifts ${a.name}, in terms of what people can see.","steps":["Three short first steps, each under 15 words"]}
+
+Name no brand or company. Plain words, US English, no em dashes or en dashes, no jargon without saying what it means.`;
+}
+
+export function parseSpotlight(text, pick) {
+  const m = String(text || '').match(/\{[\s\S]*\}/);
+  if (!m || !pick) return null;
+  let j; try { j = JSON.parse(m[0]); } catch { return null; }
+  const t = (v, n) => String(v || '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim().slice(0, n);
+  const out = { attribute: pick.attribute.id, name: pick.attribute.name, headline: t(j.headline, 120), action: t(j.action, 400), why: t(j.why, 400),
+    steps: (Array.isArray(j.steps) ? j.steps : []).map(x => t(x, 160)).filter(Boolean).slice(0, 3), figures: pick.figures };
+  return out.headline && out.action ? out : null;
+}
+
 // ── Landscape insights, for any reader (v4.1.0) ────────────────
 // The issue is public, so the landscape text is written for someone who has
 // never seen the Compass: each attribute is explained in plain words where it
 // is first named, and no brand is named (a paragraph naming an assessed brand
 // is dropped from the public issue, which used to leave half a story).
-export function landscapePrompt(analysis) {
-  return `You are writing the landscape section of Stay Conscious, Antenna Group's public brand newsletter. Readers are marketers and business leaders who have never seen the Conscious Compass. Read this analysis and do two things:
+// ── A different landscape each week (v4.6.0) ─────────────────
+// The portfolio analysis barely changes week to week and the rewrite was
+// deterministic, so the section read the same every issue. It now sees the
+// last three landscape sections, what actually moved since last week
+// (computed in code), and a focus that rotates by issue; and a rewrite that
+// still reads like a recent one is done again once.
+export const LANDSCAPE_LENSES = [
+  'The widest gap between two attributes: which pair pulls furthest apart across the portfolio, and what that says about how brands show up.',
+  'Sector contrast: the sector furthest above the portfolio and the one furthest below, and what separates them.',
+  'Maturity: how brands spread across the maturity bands, and what holds the middle back from the top.',
+  'The weakest attribute: what it costs brands to be low on it, and what the brands scoring well on it do differently.',
+  'The strongest attribute: whether that strength is earned in public or only claimed, and where it stops short.',
+  'Consistency: where brands are most uneven across their eight attributes, and why uneven brands read as less credible.',
+];
+export const landscapeLens = (issueNumber) => LANDSCAPE_LENSES[(Math.max(1, Number(issueNumber) || 1) - 1) % LANDSCAPE_LENSES.length];
+
+// The figures the landscape is compared on from week to week.
+export function landscapeSnapshot(fullRows = []) {
+  const totals = fullRows.map(r => Number(r.total_score)).filter(Number.isFinite);
+  const avgs = attributeAverages(fullRows.map(r => r.scores));
+  return { brandCount: totals.length, averageScore: totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : null,
+    attributes: Object.fromEntries(ATTRIBUTES.map(a => [a.id, avgs[a.id].avg])) };
+}
+export function landscapeChanges(now, prev) {
+  if (!now || !prev) return [];
+  const out = [];
+  if (now.brandCount !== prev.brandCount && Number.isFinite(prev.brandCount)) out.push(`Brands assessed: ${prev.brandCount} last week, ${now.brandCount} now.`);
+  if (Number.isFinite(now.averageScore) && Number.isFinite(prev.averageScore) && now.averageScore !== prev.averageScore) out.push(`Average score: ${prev.averageScore} last week, ${now.averageScore} now.`);
+  ATTRIBUTES.forEach(a => {
+    const x = prev.attributes?.[a.id]; const y = now.attributes?.[a.id];
+    if (Number.isFinite(x) && Number.isFinite(y) && Math.abs(y - x) >= 1) out.push(`${a.name} average: ${x} last week, ${y} now.`);
+  });
+  return out;
+}
+const wordSet = (t) => new Set(String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 3));
+// Jaccard overlap of the words in two texts: 1 is the same text.
+export function textOverlap(a, b) {
+  const x = wordSet(a); const y = wordSet(b);
+  if (!x.size || !y.size) return 0;
+  let shared = 0; x.forEach(w => { if (y.has(w)) shared += 1; });
+  return shared / (x.size + y.size - shared);
+}
+export const tooSimilarLandscape = (next, recent = []) => recent.some(r =>
+  (next.headline && r.headline && headlineOverlap(next.headline, r.headline) >= 0.6) || textOverlap(next.summary, r.summary) >= 0.5);
+
+export function landscapePrompt(analysis, { recent = [], lens = '', changes = [], retry = false } = {}) {
+  const history = recent.length ? `
+
+RECENT LANDSCAPE SECTIONS, newest first. Do not repeat them: no reused headline, no reused opening, no paragraph that says the same thing. A theme may come back only from a new angle or with new figures.
+${recent.map((r, i) => `${i + 1}. HEADLINE: ${r.headline || '(none)'}\n${String(r.summary || '').slice(0, 900)}`).join('\n\n')}` : '';
+  const moved = changes.length ? `
+
+WHAT CHANGED SINCE LAST WEEK (computed from the scores; lead with the most telling of these):
+${changes.map(c => `- ${c}`).join('\n')}` : `
+
+Nothing material changed in the figures since last week, so do not report change. Use this week's focus to say something new.`;
+  const focus = lens ? `
+
+THIS WEEK'S FOCUS for paragraph 2: ${lens}` : '';
+  const again = retry ? `
+
+Your last draft was too close to a recent section. Start from a different finding and use different words.` : '';
+  return landscapePromptBase(analysis, history + moved + focus + again);
+}
+
+function landscapePromptBase(analysis, extra = '') {
+  return `You are writing the landscape section of Stay Conscious, Antenna Group's weekly brand newsletter for its staff. Readers are colleagues across Antenna Group, many of whom have never used the Conscious Compass. Read this analysis and do two things:
 
 1. Write a single headline (max 10 words) capturing the most striking finding. Output it on one line starting with exactly "HEADLINE: "
 
@@ -36,7 +191,7 @@ export function landscapePrompt(analysis) {
 Every time you name an attribute for the first time, explain it in a few plain words in the same sentence, for example "Sentient, how much a brand moves people, averages 42". Write attribute names in title case (Sentient, not SENTIENT). Use only these meanings:
 ${glossaryForPrompt()}
 
-Never name an individual brand or company; sectors are fine. Every figure must come from the analysis. Keep the two paragraphs consistent with each other and with the headline, and use one term for each idea throughout (say "score" every time, never "rating" or "grade").
+Never name an individual brand or company; sectors are fine.${extra} Every figure must come from the analysis. Keep the two paragraphs consistent with each other and with the headline, and use one term for each idea throughout (say "score" every time, never "rating" or "grade").
 
 Use plain prose. No bullet points. No headers. No em dashes. Max 230 words across both paragraphs. Short sentences, plain words, lead with the point. No jargon such as "signals", "infrastructure" or "touchpoints" without saying what it means. No throat-clearing, no rule-of-three lists, no "not just X but Y", no motivational closers. US English.
 
@@ -217,11 +372,14 @@ async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline =
 // the article check, and skips every brand already tried (v4.0.2). Always
 // returns a result with a status, which stays internal (the public issue
 // carries only the items), so an empty section can be explained (v4.1.2).
-export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, verify = verifyExample, rounds = 2, budgetMs = 120000, deadlineMs = 200000 } = {}) {
+// featured: brands shown in recent issues, left out so examples do not repeat
+// week to week (v4.5.0). The carry-over below may still show last week's when
+// nothing new is found, and says so.
+export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, verify = verifyExample, rounds = 2, budgetMs = 120000, deadlineMs = 200000, featured = [] } = {}) {
   const started = Date.now();
   const deadline = started + deadlineMs;
   const kept = [];
-  const tried = new Set();
+  const tried = new Set(featured.map(b => String(b || '').trim().toLowerCase()).filter(Boolean));
   const status = { searches: 0, candidates: 0, passed: 0, reasons: [] };
   try {
     for (let round = 0; round < rounds && kept.length < EARNED_CREATIVE_TARGET; round++) {
@@ -318,6 +476,46 @@ export default async function handler(req, res) {
     }
   };
 
+  const sbHeaders = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
+  const getRows = async (path) => { try { const r = await fetch(`${supabaseUrl}/rest/v1/${path}`, { headers: sbHeaders }); return r.ok ? await r.json() : []; } catch { return []; } };
+  // Prospect pulse and Spotlight (v4.6.0). Either is left out on any failure.
+  const buildPulseAndSpotlight = async (live) => {
+    const now = new Date();
+    const [teasers, fullAll, recentArch] = await Promise.all([
+      getRows(`teaser_assessments?select=industry,created_at,result&created_at=gte.${encodeURIComponent(monthStart(now))}`),
+      getRows('compass_results?select=brand_name,total_score,scores,created_at'),
+      getRows('stay_conscious_newsletter_archive?select=sp:newsletter->spotlight->>attribute&order=refreshed_at.desc&limit=2'),
+    ]);
+    const fullRows = latestPerBrand(fullAll);
+    const pulse = prospectPulse(teasers, fullRows, now);
+    const recent = [live?.newsletter?.spotlight?.attribute, ...recentArch.map(r => r?.sp)].filter(Boolean);
+    const pick = pickSpotlightAttribute(fullRows, recent);
+    let spotlight = null;
+    if (pick) {
+      try {
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 700, temperature: 0, messages: [{ role: 'user', content: spotlightPrompt(pick) }] }),
+        });
+        if (r.ok) { const d = await r.json(); spotlight = parseSpotlight((d.content || []).filter(b => b.type === 'text').map(b => b.text).join(''), pick); }
+      } catch { /* the issue goes out without it */ }
+    }
+    return { prospectPulse: pulse, spotlight };
+  };
+
+  // Brands in the earned creative section of the live issue and the last
+  // eight archived editions (v4.5.0).
+  const recentlyFeaturedBrands = async (live) => {
+    const brands = (live?.newsletter?.earnedCreative?.items || []).map(e => e?.brand);
+    try {
+      const r = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter_archive?select=ec:newsletter->earnedCreative->items&order=refreshed_at.desc&limit=8`,
+        { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
+      if (r.ok) (await r.json()).forEach(row => (Array.isArray(row?.ec) ? row.ec : []).forEach(e => brands.push(e?.brand)));
+    } catch { /* no archive yet */ }
+    return [...new Set(brands.filter(Boolean))];
+  };
+
   try {
     // Pull all three caches in parallel
     const [scRow, laRow, iaRow] = await Promise.all([
@@ -336,7 +534,11 @@ export default async function handler(req, res) {
 
     // Pick lead story — prefer AI Visibility or Brand Strategy items, otherwise first
     const leadPriority = ['AI Visibility', 'Brand Strategy', 'Digital Experience'];
-    const leadItem = intelligenceItems.find(i => leadPriority.includes(i.category)) || intelligenceItems[0];
+    // A fresh story leads where there is one; follow-ups to earlier coverage
+    // sit among the other stories (v4.5.0).
+    const fresh = intelligenceItems.filter(i => !i.followUp);
+    const leadItem = fresh.find(i => leadPriority.includes(i.category)) || fresh[0]
+      || intelligenceItems.find(i => leadPriority.includes(i.category)) || intelligenceItems[0];
     const supportingItems = intelligenceItems.filter(i => i !== leadItem);
 
     // Increment issue number from previous cache entry, starting at 1.
@@ -352,29 +554,38 @@ export default async function handler(req, res) {
     let landscapeForNewsletter = null;
     if (landscapeAnalysis?.summary) {
       const combinedText = [landscapeAnalysis.summary, landscapeAnalysis.insights].filter(Boolean).join('\n\n');
-      const headlinePrompt = landscapePrompt(combinedText);
+      // What the last three issues said, and what moved since last week (v4.6.0).
+      const recentArch = await getRows('stay_conscious_newsletter_archive?select=la:newsletter->landscapeAnalysis&order=refreshed_at.desc&limit=2');
+      const recent = [prevRow?.newsletter?.landscapeAnalysis, ...recentArch.map(r => r?.la)].filter(r => r && (r.headline || r.summary)).slice(0, 3);
+      const snapshot = landscapeSnapshot(latestPerBrand(await getRows('compass_results?select=brand_name,total_score,scores,created_at')));
+      const changes = landscapeChanges(snapshot, prevRow?.newsletter?.landscapeAnalysis?.snapshot);
+      const lens = landscapeLens(issueNumber);
 
-      const hlRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 600, temperature: 0, messages: [{ role: 'user', content: headlinePrompt }] }),
-      });
-
-      let headline = '';
-      let twoParaSummary = combinedText;
-
-      if (hlRes.ok) {
+      const write = async (retry) => {
+        const hlRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 700, temperature: 0.4, messages: [{ role: 'user', content: landscapePrompt(combinedText, { recent, lens, changes, retry }) }] }),
+        });
+        if (!hlRes.ok) return null;
         const hlData = await hlRes.json();
         const hlText = (hlData.content?.filter(b => b.type === 'text').map(b => b.text).join('\n') || '').trim();
         const hlMatch = hlText.match(/^HEADLINE:\s*(.+)$/m);
-        if (hlMatch) headline = hlMatch[1].replace(/^["'*#\s]+|["'*#\s]+$/g, '').trim();
-        // Everything after the HEADLINE: line is the two-paragraph summary
-        twoParaSummary = hlText.replace(/^HEADLINE:.*$/m, '').trim();
-      }
+        return {
+          headline: hlMatch ? hlMatch[1].replace(/^["'*#\s]+|["'*#\s]+$/g, '').trim() : '',
+          // Everything after the HEADLINE: line is the two-paragraph summary
+          summary: hlText.replace(/^HEADLINE:.*$/m, '').trim(),
+        };
+      };
+      let draft = await write(false);
+      if (draft && tooSimilarLandscape(draft, recent)) draft = (await write(true)) || draft;
+      const headline = draft?.headline || '';
+      const twoParaSummary = draft?.summary || combinedText;
 
       landscapeForNewsletter = {
         headline: titleCaseAttributes(headline),
         summary: titleCaseAttributes(twoParaSummary),
+        snapshot, lens,   // internal: next week's comparison (v4.6.0)
         brandCount: landscapeAnalysis.brandCount || null,
         sectorCount: landscapeAnalysis.sectorCount || null,
         averageScore: Number.isFinite(landscapeAnalysis.averageScore) ? landscapeAnalysis.averageScore : await portfolioAverage(),
@@ -389,12 +600,14 @@ export default async function handler(req, res) {
         headline: leadItem.headline,
         insight: leadItem.insight,
         whyItMatters: leadItem.whyItMatters,
+        ...(leadItem.followUp ? { followUp: leadItem.followUp } : {}),   // v4.5.0
       },
       intelligenceItems: supportingItems,
       landscapeAnalysis: landscapeForNewsletter,
+      ...(await buildPulseAndSpotlight(prevRow)),   // v4.6.0
       storyOpportunities: storyOpportunities || null,
       // Earned creative in the news (v3.124.0); null when none could be sourced.
-      earnedCreative: withCarryOver(await fetchEarnedCreative(anthropicKey), prevRow?.newsletter?.earnedCreative, prevRow?.newsletter?.issueNumber || null),
+      earnedCreative: withCarryOver(await fetchEarnedCreative(anthropicKey, { featured: await recentlyFeaturedBrands(prevRow) }), prevRow?.newsletter?.earnedCreative, prevRow?.newsletter?.issueNumber || null),
     };
 
     // The Sunday run keeps the issue it replaces (v4.2.0): whatever was live

@@ -18,6 +18,18 @@ const str = (v, n = 4000) => (typeof v === 'string' ? titleCaseAttributes(v.slic
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const fig = (f) => (f && typeof f === 'object' ? { name: str(f.name, 40), avg: num(f.avg), fullAvg: num(f.fullAvg) } : null);
+const pulseOut = (p) => (p && typeof p === 'object' && num(p.count) ? {
+  month: str(p.month, 20), count: num(p.count), averageScore: num(p.averageScore), fullAverage: num(p.fullAverage),
+  sectors: (Array.isArray(p.sectors) ? p.sectors : []).slice(0, 3).map(x => ({ name: str(x?.name, 60), count: num(x?.count) })),
+  weakest: fig(p.weakest), strongest: fig(p.strongest),
+} : null);
+const spotlightOut = (sp) => (sp && typeof sp === 'object' && typeof sp.headline === 'string' ? {
+  attribute: str(sp.attribute, 20), name: str(sp.name, 40), headline: str(sp.headline, 160), action: str(sp.action, 500), why: str(sp.why, 500),
+  steps: (Array.isArray(sp.steps) ? sp.steps : []).slice(0, 3).map(x => str(x, 200)).filter(Boolean),
+  figures: sp.figures && typeof sp.figures === 'object' ? { avg: num(sp.figures.avg), brands: num(sp.figures.brands), belowFifty: num(sp.figures.belowFifty) } : null,
+} : null);
+
 export function publicIssue(newsletter, brandNames = []) {
   if (!newsletter || typeof newsletter !== 'object') return null;
   const names = [...new Set(brandNames.map(n => String(n || '').trim()).filter(n => n.length >= 2))];   // BP, GE, 3M count too
@@ -26,6 +38,11 @@ export function publicIssue(newsletter, brandNames = []) {
   const keepParas = (t) => str(t).split(/\n\s*\n/).filter(p => p.trim() && !mentions(p)).join('\n\n');
   const item = (x) => (x && typeof x === 'object' ? {
     category: str(x.category, 80), headline: str(x.headline, 300), insight: str(x.insight), whyItMatters: str(x.whyItMatters),
+    // A follow-up names the earlier story and edition (v4.5.0).
+    ...(x.followUp && typeof x.followUp === 'object' ? { followUp: {
+      issueNumber: num(x.followUp.issueNumber), headline: str(x.followUp.headline, 300), whatsNew: str(x.followUp.whatsNew, 300),
+      editionAt: typeof x.followUp.editionAt === 'string' && !Number.isNaN(Date.parse(x.followUp.editionAt)) ? x.followUp.editionAt : null,
+    } } : {}),
     ...(x.image && typeof x.image.src === 'string' && /^https:\/\//.test(x.image.src) ? { image: { src: x.image.src, alt: str(x.image.alt, 300), caption: str(x.image.caption, 300) } } : {}),
   } : null);
   const la = newsletter.landscapeAnalysis;
@@ -42,6 +59,9 @@ export function publicIssue(newsletter, brandNames = []) {
         .map(e => ({ brand: str(e.brand, 80), agency: str(e.agency, 80), title: str(e.title, 140), what: str(e.what, 600), coverage: str(e.coverage, 300), outlet: str(e.outlet, 80), published: /^\d{4}-\d{2}-\d{2}$/.test(String(e.published || '')) ? e.published : '', url: e.url.slice(0, 600) }))
         .slice(0, 3),
     } : null,
+    // Prospect pulse (figures only, never a brand) and Spotlight (v4.6.0).
+    prospectPulse: pulseOut(newsletter.prospectPulse),
+    spotlight: spotlightOut(newsletter.spotlight),
     landscapeAnalysis: la && typeof la === 'object' ? {
       brandCount: num(la.brandCount), sectorCount: num(la.sectorCount), averageScore: num(la.averageScore),
       headline: mentions(str(la.headline)) ? '' : str(la.headline, 300),

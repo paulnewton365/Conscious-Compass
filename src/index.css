@@ -1536,6 +1536,26 @@ button { font: inherit; color: inherit; }
   .dc-np-arch-h { font-size: 17px; }
   .dc-np-arch-date { font-size: 10px; }
 }
+/* Spotlight and Prospect pulse (v4.6.0). */
+.dc-np-spot { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--cc-s-10); }
+.dc-np-spot-main, .dc-np-spot-side { display: flex; flex-direction: column; gap: var(--cc-s-3); }
+.dc-np-num.is-sm { font-size: 64px; line-height: .9; }
+.dc-np-spot .dc-np-why { margin-top: var(--cc-s-2); }
+.dc-np-steps { list-style: decimal; margin: 0; padding-left: 1.2em; display: grid; gap: 8px; font: var(--cc-w-regular) 15px/1.45 'Inter', var(--cc-sans); color: var(--cc-body); }
+.dc-np-pulse-lead b { font-weight: var(--cc-w-semi); color: var(--cc-ink); }
+.dc-np-pulse { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--cc-s-6); margin: var(--cc-s-2) 0; padding: var(--cc-s-4) 0; border-top: var(--cc-border); border-bottom: var(--cc-border); }
+.dc-np-pulse > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dc-np-pulse dt { font: var(--cc-w-semi) var(--cc-fs-label)/1.3 var(--cc-sans); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-muted); }
+.dc-np-pulse dd { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.dc-np-pulse-name { font: var(--cc-w-bold) 26px/1.1 'Inter', var(--cc-sans); letter-spacing: -.02em; color: var(--cc-ink); }
+.dc-np-steps li::marker { color: var(--cc-rust-text); font-weight: var(--cc-w-semi); }
+@media (max-width: 1000px) { .dc-np-spot { grid-template-columns: 1fr; gap: var(--cc-s-6); } .dc-np-pulse { grid-template-columns: 1fr; } }
+/* Follow-up to earlier coverage (v4.5.0). */
+.dc-np-followup { margin: 0; padding: 8px 0 8px 12px; border-left: 2px solid var(--cc-rust-text); font: var(--cc-w-regular) 13.5px/1.5 'Inter', var(--cc-sans); color: var(--cc-body); }
+.dc-np-followup-k { font-weight: var(--cc-w-semi); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; font-size: 11px; color: var(--cc-rust-text); }
+.dc-np-followup-link { background: none; border: 0; padding: 0; font: inherit; color: var(--cc-ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; text-align: left; }
+.dc-np-followup-link:hover, .dc-np-followup-link:focus-visible { color: var(--cc-rust-text); }
+.dc-np-followup-ref { color: var(--cc-ink); }
 .dc-np-foot { text-align: center; border-top: var(--cc-border); padding-top: var(--cc-s-4); }
 @media (max-width: 1000px) {
   .dc-np-front { grid-template-columns: 1fr; gap: var(--cc-s-10); }

@@ -89,9 +89,20 @@ test('no full-result function touches teaser_assessments', () => {
 });
 
 test('server jobs behind Landscape, Insights and Stay Conscious never read teasers', () => {
+  // v4.6.0: one exception, the newsletter's Prospect pulse, which reports on
+  // this month's teasers in their own section. It may read them only there.
   for (const f of readdirSync(path.join(root, 'api'))) {
+    if (f === 'refresh-stay-conscious-newsletter.js') continue;
     assert.ok(!read(`api/${f}`).includes('teaser'), `api/${f} references teasers`);
   }
+  const nl = read('api/refresh-stay-conscious-newsletter.js');
+  const pulseFn = nl.slice(nl.indexOf('const buildPulseAndSpotlight = async'), nl.indexOf('// Brands in the earned creative section of the live issue'));
+  const rest = nl.replace(pulseFn, '');
+  const teaserMentions = [...rest.matchAll(/teaser/gi)].map(m => rest.slice(Math.max(0, m.index - 60), m.index + 40));
+  // Outside the pulse builder, "teaser" appears only in comments and the pulse's own pure function names.
+  assert.ok(teaserMentions.every(t => /\/\/|PULSE_MIN|teasers = \[\]|t\?\.result|scored|teasers\.filter/.test(t)), teaserMentions.join('\n---\n'));
+  assert.ok(pulseFn.includes('prospectPulse(teasers, fullRows, now)') && pulseFn.includes('pickSpotlightAttribute(fullRows, recent)'), 'teasers feed the pulse only; the spotlight reads full assessments');
+  assert.ok(/compass_results\?select=brand_name,total_score,created_at/.test(nl), 'the landscape average still reads full results only');
 });
 
 test('full results are written only from the known full-assessment sites', () => {

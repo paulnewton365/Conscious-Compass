@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.4.0';
+const APP_VERSION = '4.6.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12041,6 +12041,8 @@ const issueFromUrl = () => { try { const v = new URLSearchParams(window.location
 // The newsletter is for antennagroup.com addresses (v4.3.0); the server makes
 // the same check, this one only saves a wasted round trip.
 const isStaffEmail = (email) => /^[^@\s]+@antennagroup\.com$/i.test(String(email || '').trim());
+// A follow-up to an earlier story, as one line for the exports (v4.5.0).
+const followUpText = (f) => (f ? `Follow-up to Issue ${f.issueNumber ?? ''}${f.headline ? `, "${f.headline}"` : ''}.${f.whatsNew ? ` What's new: ${f.whatsNew}` : ''}` : '');
 // The archive list is open (?view=archive) (v4.2.1).
 const archiveFromUrl = () => { try { return new URLSearchParams(window.location.search).get('view') === 'archive'; } catch { return false; } };
 
@@ -12197,6 +12199,28 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     finally { setRefreshing(false); }
   };
 
+  // Follow-ups link to the edition that first covered the story (v4.5.0): the
+  // archive list maps that edition's publish time to its address.
+  const hasFollowUps = !!(newsletter?.leadStory?.followUp || (newsletter?.intelligenceItems || []).some(i => i?.followUp));
+  useEffect(() => { if (hasFollowUps && pastIssues === null) loadersRef.current?.loadPastIssues(); }, [hasFollowUps, pastIssues]);
+  const editionId = (at) => {
+    const t = Date.parse(at || '');
+    const hit = Number.isNaN(t) ? null : (pastIssues || []).find(p => Date.parse(p.refreshedAt || '') === t);
+    return hit ? hit.id : null;
+  };
+  const followUpNote = (f) => {
+    if (!f) return null;
+    const id = editionId(f.editionAt);
+    const label = `Issue ${f.issueNumber ?? ''}${f.headline ? `: ${f.headline}` : ''}`;
+    return (
+      <p className="dc-np-followup" data-field="follow-up">
+        <span className="dc-np-followup-k">Follow-up</span>{' '}
+        First covered in {id ? <button type="button" className="dc-np-followup-link" onClick={() => openIssue(id)}>{label}</button> : <span className="dc-np-followup-ref">{label}</span>}.
+        {f.whatsNew && <> What's new: {f.whatsNew}</>}
+      </p>
+    );
+  };
+
   // The effects below run once; they reach the loaders through a ref.
   const loadersRef = useRef(null);
   loadersRef.current = { loadNewsletter, loadPastIssues };
@@ -12240,6 +12264,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       '',
       `LEAD STORY — ${ns.leadStory?.category?.toUpperCase()}`,
       ns.leadStory?.headline,
+      ...(ns.leadStory?.followUp ? [followUpText(ns.leadStory.followUp)] : []),
       '',
       ns.leadStory?.insight,
       '',
@@ -12251,6 +12276,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       '',
       ...(ns.intelligenceItems || []).flatMap(item => [
         `[${item.category?.toUpperCase()}]  ${item.headline}`,
+        ...(item.followUp ? [followUpText(item.followUp)] : []),
         item.insight,
         `Why it matters: ${item.whyItMatters}`,
         '',
@@ -12258,6 +12284,22 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       divider,
       '',
     ];
+    if (ns.spotlight?.headline) {
+      const sp = ns.spotlight;
+      lines.push(`SPOTLIGHT: ONE THING TO LIFT ${String(sp.name || '').toUpperCase()}`, sp.headline, '', sp.action, '');
+      if (sp.why) lines.push(`Why it lifts the score: ${sp.why}`, '');
+      if (sp.figures?.avg != null) lines.push(`Average ${sp.name} score across ${sp.figures.brands} brands we have assessed: ${sp.figures.avg}.`, '');
+      (sp.steps || []).forEach((st, i) => lines.push(`${i + 1}. ${st}`));
+      lines.push('', divider, '');
+    }
+    if (ns.prospectPulse?.count > 0) {
+      const p = ns.prospectPulse;
+      lines.push('PROSPECT PULSE', '', `So far in ${p.month} we have read ${p.count} prospect brands${p.sectors?.length ? `, mostly in ${p.sectors.map(x => x.name).join(', ')}` : ''}.`);
+      if (p.averageScore != null) lines.push(`Average teaser score: ${p.averageScore}${p.fullAverage != null ? ` (fully assessed brands: ${p.fullAverage})` : ''}.`);
+      if (p.weakest) lines.push(`Weakest attribute: ${p.weakest.name}, averaging ${p.weakest.avg}.`);
+      if (p.strongest) lines.push(`Strongest attribute: ${p.strongest.name}, averaging ${p.strongest.avg}.`);
+      lines.push('', divider, '');
+    }
     if (ns.landscapeAnalysis?.summary) {
       lines.push('LANDSCAPE INSIGHTS', '');
       if (ns.landscapeAnalysis.headline) lines.push(ns.landscapeAnalysis.headline, '');
@@ -12321,6 +12363,9 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         new Paragraph({ spacing: { before: 60, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [run('Why it matters for assessment', { size: 15, bold: true, allCaps: true, characterSpacing: 16, color: MUTED })] }),
         new Paragraph({ spacing: { after: 200 }, children: [run(t, { size })] }),
       ] : [];
+      // A follow-up to earlier coverage (v4.5.0), under the headline.
+      const followUpDocx = (f) => (f ? [new Paragraph({ spacing: { after: 140 }, border: { left: { style: BorderStyle.SINGLE, size: 12, color: RUST, space: 8 } },
+        children: [run('FOLLOW-UP  ', { size: 15, bold: true, characterSpacing: 16, color: RUST }), run(followUpText(f).replace(/^Follow-up to /, 'First covered in '), { size: 18 })] })] : []);
       const sechead = (text) => new Paragraph({ spacing: { before: 480, after: 200 }, keepNext: true,
         border: { top: { style: BorderStyle.DOUBLE, size: 6, color: INK, space: 8 } },
         children: [new TextRun({ text, font: SERIF, size: 36, color: INK })] });
@@ -12348,6 +12393,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
             // Lead story
             kicker(`${ns.leadStory?.category || ''} · Lead story`, RUST),
             serif(ns.leadStory?.headline, 60, 200),
+            ...followUpDocx(ns.leadStory?.followUp),
             ...article(ns.leadStory?.insight, 23),
             ...why(ns.leadStory?.whyItMatters, 19),
 
@@ -12369,9 +12415,31 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                 ...(i > 0 ? [itemRule()] : []),
                 kicker(item.category || ''),
                 serif(item.headline, i < 2 ? 40 : 34, 120),
+                ...followUpDocx(item.followUp),
                 ...article(item.insight, 21),
                 ...why(item.whyItMatters),
               ]),
+            ] : []),
+
+            // Spotlight and Prospect pulse (v4.6.0)
+            ...(ns.spotlight?.headline ? [
+              sechead('Spotlight'),
+              kicker(`One thing to lift ${ns.spotlight.name}`, RUST),
+              serif(ns.spotlight.headline, 34, 120),
+              ...article(ns.spotlight.action, 22, 140),
+              ...why(ns.spotlight.why).map((x, i) => (i === 0 ? new Paragraph({ spacing: { before: 60, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [run('Why it lifts the score', { size: 15, bold: true, allCaps: true, characterSpacing: 16, color: MUTED })] }) : x)),
+              ...(ns.spotlight.figures?.avg != null ? [new Paragraph({ spacing: { after: 120 }, children: [run(`Average ${ns.spotlight.name} score across ${ns.spotlight.figures.brands} brands we have assessed: ${ns.spotlight.figures.avg}.${ns.spotlight.figures.belowFifty != null ? ` ${ns.spotlight.figures.belowFifty} score below 50.` : ''}`, { size: 18, color: MUTED })] })] : []),
+              ...(ns.spotlight.steps || []).map((st, i) => new Paragraph({ spacing: { after: 60 }, children: [run(`${i + 1}.  ${st}`)] })),
+            ] : []),
+            ...(ns.prospectPulse?.count > 0 ? [
+              sechead('Prospect pulse'),
+              ...article(`So far in ${ns.prospectPulse.month} we have read ${ns.prospectPulse.count} prospect brands${ns.prospectPulse.sectors?.length ? `, mostly in ${ns.prospectPulse.sectors.map(x => x.name).join(', ')}` : ''}.`, 22, 120),
+              ...[
+                ns.prospectPulse.averageScore != null ? `Average teaser score: ${ns.prospectPulse.averageScore}${ns.prospectPulse.fullAverage != null ? `, against ${ns.prospectPulse.fullAverage} for brands we have fully assessed` : ''}.` : null,
+                ns.prospectPulse.weakest ? `Weakest attribute: ${ns.prospectPulse.weakest.name}, averaging ${ns.prospectPulse.weakest.avg}.` : null,
+                ns.prospectPulse.strongest ? `Strongest attribute: ${ns.prospectPulse.strongest.name}, averaging ${ns.prospectPulse.strongest.avg}.` : null,
+              ].filter(Boolean).map(t => new Paragraph({ spacing: { after: 60 }, children: [run(t)] })),
+              new Paragraph({ spacing: { before: 80, after: 200 }, children: [run('Teasers are quick reads of what is publicly visible. They are kept apart from our benchmarks, which count full assessments only.', { size: 16, color: MUTED })] }),
             ] : []),
 
             // Earned creative in the news (v3.124.0)
@@ -12637,6 +12705,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
             <article className="dc-np-lead">
               <div className="dc-kicker is-accent"><span data-value="category">{ns.leadStory?.category}</span> · Lead story</div>
               <h2 className="dc-np-h is-lead">{ns.leadStory?.headline}</h2>
+              {followUpNote(ns.leadStory?.followUp)}
               {ns.leadStory?.image?.src && (
                 <figure className="dc-np-fig">
                   <img src={ns.leadStory.image.src} alt={ns.leadStory.image.alt || ''} />
@@ -12690,6 +12759,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                     <article key={i} className="dc-np-item">
                       <div className="dc-kicker" data-value="category">{item.category}</div>
                       <h3 className="dc-np-h is-item">{item.headline}</h3>
+                      {followUpNote(item.followUp)}
                       {paras(item.insight).map((t, k) => <p key={k} className="dc-np-text">{t}</p>)}
                       {item.whyItMatters && (
                         <div className="dc-np-why is-sm"><div className="dc-kicker">{whyLabel}</div><p>{item.whyItMatters}</p></div>
@@ -12698,6 +12768,60 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                   ))}
                 </div>
               ))}
+            </section>
+          )}
+
+          {/* Spotlight (v4.6.0): one thing brands can do to lift the attribute
+              they are weakest on, from the assessments. */}
+          {ns.spotlight?.headline && (
+            <section className="dc-np-sec" aria-labelledby="spot-h" data-field="spotlight">
+              <h2 className="dc-np-sechead" id="spot-h">Spotlight</h2>
+              <div className="dc-np-spot">
+                <div className="dc-np-spot-main">
+                  <div className="dc-kicker is-accent">One thing to lift {ns.spotlight.name}</div>
+                  <h3 className="dc-np-h is-card">{ns.spotlight.headline}</h3>
+                  <p className="dc-np-text">{ns.spotlight.action}</p>
+                  {ns.spotlight.why && <div className="dc-np-why is-sm"><div className="dc-kicker">Why it lifts the score</div><p>{ns.spotlight.why}</p></div>}
+                </div>
+                <div className="dc-np-spot-side">
+                  {ns.spotlight.figures?.avg != null && (
+                    <div className="dc-np-figure">
+                      <span className="dc-np-num is-sm">{ns.spotlight.figures.avg}</span>
+                      <span className="dc-meta">Average {ns.spotlight.name} score across {ns.spotlight.figures.brands} brands we have assessed{ns.spotlight.figures.belowFifty != null ? `. ${ns.spotlight.figures.belowFifty} score below 50.` : '.'}</span>
+                    </div>
+                  )}
+                  {ns.spotlight.steps?.length > 0 && (
+                    <>
+                      <div className="dc-kicker">Where to start</div>
+                      <ol className="dc-np-steps">{ns.spotlight.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>
+                    </>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Prospect pulse (v4.6.0): this month's teasers in figures only. No
+              brand is named, and teasers never move the benchmarks. */}
+          {ns.prospectPulse?.count > 0 && (
+            <section className="dc-np-sec" aria-labelledby="pulse-h" data-field="prospect-pulse">
+              <h2 className="dc-np-sechead" id="pulse-h">Prospect pulse</h2>
+              <p className="dc-np-text dc-np-pulse-lead">
+                So far in {ns.prospectPulse.month} we have read <b>{ns.prospectPulse.count} prospect brands</b>
+                {ns.prospectPulse.sectors?.length > 0 && <>, mostly in {ns.prospectPulse.sectors.map(x => x.name).join(ns.prospectPulse.sectors.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')}</>}.
+              </p>
+              <dl className="dc-np-pulse">
+                {ns.prospectPulse.averageScore != null && (
+                  <div><dt>Average teaser score</dt><dd><span className="dc-np-num is-sm">{ns.prospectPulse.averageScore}</span>{ns.prospectPulse.fullAverage != null && <span className="dc-meta">against {ns.prospectPulse.fullAverage} for brands we have fully assessed</span>}</dd></div>
+                )}
+                {ns.prospectPulse.weakest && (
+                  <div><dt>Weakest attribute</dt><dd><span className="dc-np-pulse-name">{ns.prospectPulse.weakest.name}</span><span className="dc-meta">averaging {ns.prospectPulse.weakest.avg}{ns.prospectPulse.weakest.fullAvg != null ? `, against ${ns.prospectPulse.weakest.fullAvg} for assessed brands` : ''}</span></dd></div>
+                )}
+                {ns.prospectPulse.strongest && (
+                  <div><dt>Strongest attribute</dt><dd><span className="dc-np-pulse-name">{ns.prospectPulse.strongest.name}</span><span className="dc-meta">averaging {ns.prospectPulse.strongest.avg}{ns.prospectPulse.strongest.fullAvg != null ? `, against ${ns.prospectPulse.strongest.fullAvg} for assessed brands` : ''}</span></dd></div>
+                )}
+              </dl>
+              <p className="dc-meta">Teasers are quick reads of what is publicly visible. They are kept apart from our benchmarks, which count full assessments only.</p>
             </section>
           )}
 
