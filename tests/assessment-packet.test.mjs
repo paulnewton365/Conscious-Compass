@@ -435,6 +435,7 @@ test('v4.7.0: admins review a draft in the app: preview, hold, publish; readers 
   const talk = container.querySelector('[data-field="talking-point"]');
   assert.equal(talk.querySelector('h2.dc-np-h.is-item').textContent, 'If a client asks about ai search', 'set like a story heading (v4.7.1)');
   assert.equal(talk.querySelector('p.dc-np-text').textContent, 'Point.');
+  assert.ok(talk.closest('.dc-np-lead'), 'under the lead story, in its column (v4.7.5)');
   await act(async () => { btn('Hold').click(); await new Promise(r => setTimeout(r, 0)); });
   window.confirm = () => true;
   await act(async () => { btn('Publish now').click(); await new Promise(r => setTimeout(r, 0)); });

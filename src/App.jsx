@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.7.4';
+const APP_VERSION = '4.7.5';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12353,7 +12353,6 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       `Brand intelligence from Antenna Group · Conscious Compass`,
       divider,
       '',
-      ...(ns.talkingPoint?.point ? [`TALKING POINT OF THE WEEK: If a client asks about ${ns.talkingPoint.topic}: ${ns.talkingPoint.point}`, '', divider, ''] : []),
       `LEAD STORY — ${ns.leadStory?.category?.toUpperCase()}`,
       ns.leadStory?.headline,
       ...(ns.leadStory?.followUp ? [followUpText(ns.leadStory.followUp)] : []),
@@ -12363,6 +12362,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       `Why it matters: ${ns.leadStory?.whyItMatters}`,
       ...sourcesText(ns.leadStory?.sources),
       '',
+      ...(ns.talkingPoint?.point ? [`TALKING POINT OF THE WEEK: If a client asks about ${ns.talkingPoint.topic}: ${ns.talkingPoint.point}`, ''] : []),
       divider,
       '',
       'BRAND INTELLIGENCE',
@@ -12489,13 +12489,6 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
               border: { top: { style: BorderStyle.SINGLE, size: 8, color: INK, space: 6 }, bottom: { style: BorderStyle.DOUBLE, size: 6, color: INK, space: 6 } },
               children: [run([`Issue ${ns.issueNumber}`, refreshedAt ? `Updated ${fmtDate(refreshedAt)}` : null, `Next update ${fmtDate(nextSunday())}`].filter(Boolean).join('     ·     '), { size: 17, color: MUTED })] }),
 
-            // Talking point (v4.7.0)
-            ...(ns.talkingPoint?.point ? [
-              kicker('Talking point of the week', RUST, 60),
-              new Paragraph({ spacing: { after: 60 }, keepNext: true, children: [run(`If a client asks about ${ns.talkingPoint.topic}`, { bold: true, color: INK, size: 26 })] }),
-              ...article(ns.talkingPoint.point, 22, 120),
-              new Paragraph({ spacing: { after: 320 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [] }),
-            ] : []),
             // Lead story
             kicker(`${ns.leadStory?.category || ''} · Lead story`, RUST),
             serif(ns.leadStory?.headline, 60, 200),
@@ -12503,6 +12496,13 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
             ...article(ns.leadStory?.insight, 23),
             ...why(ns.leadStory?.whyItMatters, 19),
             ...sourcesDocx(ns.leadStory?.sources),
+            // Talking point (v4.7.0)
+            ...(ns.talkingPoint?.point ? [
+              kicker('Talking point of the week', RUST, 60),
+              new Paragraph({ spacing: { after: 60 }, keepNext: true, children: [run(`If a client asks about ${ns.talkingPoint.topic}`, { bold: true, color: INK, size: 26 })] }),
+              ...article(ns.talkingPoint.point, 22, 120),
+              new Paragraph({ spacing: { after: 320 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [] }),
+            ] : []),
 
             // Landscape insights
             ...(la?.summary ? [
@@ -12837,17 +12837,6 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
 
       {!recovering && !gate && !showArchive && ns && !loading && !refreshing && (
         <>
-          {/* Talking point (v4.7.0): one line to use with clients this week. */}
-          {ns.talkingPoint?.point && (
-            <aside className="dc-np-talk" aria-labelledby="talk-h" data-field="talking-point">
-              <div className="dc-kicker is-accent">Talking point of the week</div>
-              <div className="dc-np-talk-body">
-                <h2 className="dc-np-h is-item" id="talk-h">If a client asks about {ns.talkingPoint.topic}</h2>
-                <p className="dc-np-text">{ns.talkingPoint.point}</p>
-              </div>
-            </aside>
-          )}
-
           <section className="dc-np-front">
             <article className="dc-np-lead">
               <div className="dc-kicker is-accent"><span data-value="category">{ns.leadStory?.category}</span> · Lead story</div>
@@ -12867,6 +12856,14 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                 </aside>
               )}
               {sourcesNote(ns.leadStory?.sources)}
+              {/* Talking point (v4.7.0), under the lead story since v4.7.5. */}
+              {ns.talkingPoint?.point && (
+                <aside className="dc-np-talk" aria-labelledby="talk-h" data-field="talking-point">
+                  <div className="dc-kicker is-accent">Talking point of the week</div>
+                  <h2 className="dc-np-h is-item" id="talk-h">If a client asks about {ns.talkingPoint.topic}</h2>
+                  <p className="dc-np-text">{ns.talkingPoint.point}</p>
+                </aside>
+              )}
               {/* House image (v3.116.0; rotates by edition since v3.122.0): fills
                   the lead column down to the foot of the rail when the story
                   brings no image of its own. */}

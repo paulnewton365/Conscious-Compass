@@ -1564,12 +1564,10 @@ button { font: inherit; color: inherit; }
 .dc-np-sources-k { font-weight: var(--cc-w-semi); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; font-size: 10.5px; }
 .dc-np-sources a { color: var(--cc-ink); text-decoration: underline; text-underline-offset: 2px; }
 .dc-np-sources a:hover { color: var(--cc-rust-text); }
-/* v4.7.1: in the newspaper's own terms, rules and type, no box or fill: a
-   strap under the masthead, label left, the point set like a story. */
-.dc-np-talk { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--cc-s-6); align-items: baseline; padding: var(--cc-s-2) 0 var(--cc-s-6); margin-bottom: var(--cc-s-8); border-bottom: var(--cc-border); }
-.dc-np-talk-body { display: flex; flex-direction: column; gap: var(--cc-s-2); max-width: 76ch; }
-.dc-np-talk-body .dc-np-text { margin: 0; }
-@media (max-width: 720px) { .dc-np-talk { grid-template-columns: 1fr; gap: var(--cc-s-2); } }
+/* v4.7.1: in the newspaper's own terms, rules and type, no box or fill.
+   v4.7.5: under the lead story, in its column, set off by a rule above. */
+.dc-np-talk { display: flex; flex-direction: column; gap: var(--cc-s-2); padding-top: var(--cc-s-4); border-top: var(--cc-border-strong); }
+.dc-np-talk .dc-np-text { margin: 0; }
 /* Follow-up to earlier coverage (v4.5.0). */
 .dc-np-followup { margin: 0; padding: 8px 0 8px 12px; border-left: 2px solid var(--cc-rust-text); font: var(--cc-w-regular) 13.5px/1.5 'Inter', var(--cc-sans); color: var(--cc-body); }
 .dc-np-followup-k { font-weight: var(--cc-w-semi); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; font-size: 11px; color: var(--cc-rust-text); }

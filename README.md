@@ -4,7 +4,7 @@
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-4.7.4-blue)
+![Version](https://img.shields.io/badge/version-4.7.5-blue)
 ![Framework](https://img.shields.io/badge/framework-v2.13-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
 
@@ -583,6 +583,8 @@ Evidence is gathered automatically and in parallel: website pages, a social scan
 **Stage and sector calibration (v3.56, method 2.4).** Two rubric assumptions were breaking smaller and non-cleantech brands. Company stage is now a required field on the teaser, using Antenna's six-stage framework (`src/data/stages.js`): Startup, Scaleup, Market Leader, Multinational, Conglomerate, Global Brand. Each stage names what a company at it would not yet have (Glassdoor, employee advocacy, analyst recognition, Wikipedia, share of voice, impact reporting, candour about litigation), which then counts neither for nor against, and what to judge instead (founder visibility, named early customers, a findable entity, candour about what is unproven). Stage also steers which services are worth naming. Sector profiles (`src/data/sectorProfiles.js`) give Real Estate & Construction and Energy & Utilities their own audiences, proof, channels, weak indicators and tone; other sectors get guidance to read their own conventions rather than borrowing cleantech's. Both change interpretation only: attribute weights and the overall calculation are untouched, so baselines stay comparable. The export separates Maturity (the band the score falls into) from Stage (where the company is in its evolution).
 
 **The old stylesheet removed (v3.77).** The app had been carrying its entire pre-restyle stylesheet underneath the design system: 653 lines defining 52 of the same classes, including every button, and setting properties the new rules never reset. That is where the stray button colours, the header underlines and the alignment came from. It is gone; eight rules the system does not cover were carried forward. Nineteen of my own earlier patches were also removed, since they predated the system and were overriding it. The header is rebuilt to the export: a 64px shell, the `.dc-wordmark`, a text nav marked with `aria-current` rather than a class, and a Menu button below 900px.
+
+**The talking point under the lead story, and a team post that fits phones (v4.7.5).** The talking point moves from a strap above the front page into the lead column, straight after the lead story and its sources, set off by the same strong rule as "Why it matters" and before the photo; the Word and plain-text exports follow the same order. In the team post, the Fully Conscious badge and the Stay Conscious wordmark were given fixed pixel widths and were cut off on narrow phone screens. They are now sized as a share of the card's width (the badge a fifth, the wordmark two thirds), so they shrink on a phone and look as before on a desktop.
 
 **A heavier masthead on the team post (v4.7.4).** Card text in Teams tops out at its ExtraLarge size and Bolder weight, which read lighter and smaller than the newsletter's masthead. The post now shows "Stay Conscious" as the wordmark itself, in Inter Bold as on the page, from public/newsletter/stay-conscious-wordmark.png (1007 by 174 pixels, within Teams' image limit), shown 380 pixels wide. Upload it to public/newsletter with the two resized house photos. Slack keeps a text header.
 

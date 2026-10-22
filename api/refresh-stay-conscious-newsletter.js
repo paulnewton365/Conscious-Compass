@@ -508,12 +508,19 @@ export function channelPayload(url, { title, badge = null, masthead = null, mast
   }
   // The Fully Conscious badge from the Compass home page sits above the
   // masthead (v4.7.3).
+  // v4.7.5: the badge and the wordmark are sized as a share of the card's
+  // width, not in pixels, so they shrink on a phone instead of being cut off.
+  // A weighted column beside an empty one sets the share.
+  const share = (image, weight, rest, spacing) => ({ type: 'ColumnSet', spacing, columns: [
+    { type: 'Column', width: weight, verticalContentAlignment: 'Center', items: [image] },
+    { type: 'Column', width: rest, items: [{ type: 'TextBlock', text: ' ', size: 'Small' }] },
+  ] });
   const head = masthead ? [
-    ...(badge ? [{ type: 'Image', url: badge.url, altText: badge.alt || 'Fully Conscious', width: '88px', horizontalAlignment: 'Left', spacing: 'None' }] : []),
+    ...(badge ? [share({ type: 'Image', url: badge.url, altText: badge.alt || 'Fully Conscious', size: 'Stretch' }, 1, 4, 'None')] : []),
     // The wordmark in Inter Bold, as on the page (v4.7.4): card text tops out
     // at ExtraLarge and Bolder, which is lighter and smaller than the masthead.
     mastheadImage
-      ? { type: 'Image', url: mastheadImage.url, altText: masthead, width: '380px', horizontalAlignment: 'Left', spacing: badge ? 'Medium' : 'None' }
+      ? share({ type: 'Image', url: mastheadImage.url, altText: masthead, size: 'Stretch' }, 2, 1, badge ? 'Medium' : 'None')
       : { type: 'TextBlock', text: masthead, weight: 'Bolder', size: 'ExtraLarge', wrap: true, spacing: badge ? 'Small' : 'None' },
     ...(dateline ? [{ type: 'TextBlock', text: dateline, size: 'Small', isSubtle: true, weight: 'Bolder', spacing: 'None', wrap: true }] : []),
   ] : [{ type: 'TextBlock', text: title, weight: 'Bolder', size: 'Large', wrap: true }];

@@ -825,8 +825,11 @@ test('v4.7.0: sources, talking point, draft and review, Monday publish, and the 
   assert.equal(teams.attachments[0].contentType, 'application/vnd.microsoft.card.adaptive');
   assert.equal(teams.summary, 'Stay Conscious, Issue 38 is out', 'the notification preview');
   assert.deepEqual(card.msteams, { width: 'Full' });
-  assert.deepEqual([card.body[0].type, card.body[0].url, card.body[0].width], ['Image', 'https://conscious-compass.vercel.app/fully-conscious-badge.png', '88px'], 'the Fully Conscious badge above the masthead (v4.7.3)');
-  assert.deepEqual([card.body[1].type, card.body[1].url, card.body[1].altText, card.body[1].width], ['Image', 'https://conscious-compass.vercel.app/newsletter/stay-conscious-wordmark.png', 'Stay Conscious', '380px'], 'the masthead as the Inter Bold wordmark (v4.7.4)');
+  // v4.7.5: sized as a share of the card, so nothing is cut off on a phone
+  const imgIn = (b) => b.columns[0].items[0];
+  assert.deepEqual([card.body[0].type, imgIn(card.body[0]).url, imgIn(card.body[0]).size, card.body[0].columns.map(c => c.width)], ['ColumnSet', 'https://conscious-compass.vercel.app/fully-conscious-badge.png', 'Stretch', [1, 4]], 'the badge, a fifth of the card wide');
+  assert.deepEqual([imgIn(card.body[1]).url, imgIn(card.body[1]).altText, card.body[1].columns.map(c => c.width)], ['https://conscious-compass.vercel.app/newsletter/stay-conscious-wordmark.png', 'Stay Conscious', [2, 1]], 'the wordmark, two thirds of the card wide');
+  assert.ok(!JSON.stringify(card).match(/"width":"\d+px"/), 'no fixed pixel widths');
   assert.equal(card.body[2].text, 'ISSUE 38  ·  WEEK OF OCTOBER 25, 2026');
   assert.equal(nl.channelPayload('https://x.example.com/hook', { ...note, mastheadImage: null }).attachments[0].content.body[1].text, 'Stay Conscious', 'text masthead without the image');
   assert.deepEqual([card.body[3].backgroundImage, card.body[3].minHeight], [{ url: 'https://conscious-compass.vercel.app/newsletter/house-6.jpg', fillMode: 'Cover', horizontalAlignment: 'Center', verticalAlignment: 'Center' }, '190px'], 'the photo as a cropped band, as on the page');
