@@ -381,15 +381,17 @@ test('v4.0.2: six candidates over three months, a top-up search for new brands, 
   ];
   const fetchImpl = async (_u, init) => { prompts.push(JSON.parse(init.body).messages[0].content); return reply(rounds[prompts.length - 1]); };
   const pass = new Set(['A', 'D', 'E']);
-  const out = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async (e) => pass.has(e.brand) });
+  const factCheck = async (e) => ({ item: { ...e, factChecked: true }, report: { brand: e.brand, outcome: 'kept', removed: [] } });   // checked in its own test
+  const out = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async (e) => pass.has(e.brand), factCheck });
   assert.equal(prompts.length, 2, 'a second search ran because only one passed');
+  assert.ok(prompts[1].includes('Look back up to twelve months'), 'v4.10.0: the second search looks further back');
   assert.ok(prompts[1].includes('already covered: a, b, c'), 'the top-up skips brands already tried');
   assert.deepEqual(out.items.map(i => i.brand), ['A', 'D', 'E'], 'three kept, most recent first, undated last');
   assert.ok(!('searchTitle' in out.items[0]));
 
   // Three pass in the first round: no second search.
   prompts.length = 0;
-  const one = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async () => true });
+  const one = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async () => true, factCheck });
   assert.equal(prompts.length, 1);
   assert.deepEqual(one.items.map(i => i.brand), ['B', 'A', 'C']);
   // Nothing found at all: the section is left out.
@@ -440,12 +442,13 @@ test('v4.1.2: a paused search is resumed, the reason for a short section is save
     { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ examples: [ex('A'), ex('B'), ex('C')] }) }] },
   ];
   const fetchImpl = async (_u, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, json: async () => replies[bodies.length - 1] }; };
-  const out = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async () => true });
+  const factCheck = async (e) => ({ item: { ...e, factChecked: true }, report: { brand: e.brand, outcome: 'kept', removed: [] } });
+  const out = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async () => true, factCheck });
   assert.equal(bodies.length, 2, 'the paused turn was resumed');
   assert.equal(bodies[1].messages[1].role, 'assistant', 'resumed with the paused content');
   assert.deepEqual(out.items.map(i => i.brand), ['A', 'B', 'C'], 'links from the paused turn count as searched');
   assert.ok(out.items.every(i => i.verified === true));
-  assert.deepEqual(out.status, { searches: 1, candidates: 3, passed: 3, reasons: [] });
+  assert.deepEqual(out.status, { searches: 1, candidates: 3, passed: 3, reasons: [], factCheck: ['A', 'B', 'C'].map(brand => ({ brand, outcome: 'kept', removed: [] })) });
 
   // A failed request: no items, and the reason is saved.
   const failed = await mod.fetchEarnedCreative('k', { fetchImpl: async () => ({ ok: false, status: 429 }) });
@@ -454,9 +457,9 @@ test('v4.1.2: a paused search is resumed, the reason for a short section is save
 
   // Nothing new: last issue's checked examples stay up for four weeks, never unchecked ones.
   const now = Date.parse('2026-10-09T12:00:00Z');
-  const prev = { items: [{ ...ex('A'), verified: true }, { ...ex('Old'), url: url('old') }], generatedAt: '2026-10-04T23:30:00Z' };
+  const prev = { items: [{ ...ex('A'), verified: true, factChecked: true }, { ...ex('Old'), url: url('old') }, { ...ex('Unchecked'), url: url('unchecked'), verified: true }], generatedAt: '2026-10-04T23:30:00Z' };
   const carried = mod.withCarryOver(failed, prev, 34, now);
-  assert.deepEqual(carried.items.map(i => i.brand), ['A']);
+  assert.deepEqual(carried.items.map(i => i.brand), ['A'], 'v4.10.0: only fact-checked examples carry over');
   assert.equal(carried.carriedFrom, 34);
   assert.equal(mod.withCarryOver(failed, { ...prev, generatedAt: '2026-08-01T00:00:00Z' }, 34, now), failed, 'too old: not carried');
   assert.equal(mod.withCarryOver(out, prev, 34, now), out, 'fresh examples win');
@@ -469,7 +472,7 @@ test('v4.1.2: a paused search is resumed, the reason for a short section is save
 
   const { ecStatusNote } = await import('../src/lib/newsletter.js');
   assert.equal(ecStatusNote(out), null, 'three fresh: no note');
-  assert.match(ecStatusNote(failed), /no section this issue \(2 searches, 0 candidates, 0 passed the article check; search request failed \(429\)\)/);
+  assert.match(ecStatusNote(failed), /no section this issue \(3 searches, 0 candidates, 0 passed the article check; search request failed \(429\)\)/);
   assert.match(ecStatusNote(carried), /examples from issue 34 are shown again/);
   assert.equal(ecStatusNote({ items: [] }), null, 'older issues have no status');
 });
@@ -662,19 +665,31 @@ test('v4.5.0: stories do not repeat earlier issues unless they have moved on, an
 
   // The job: an unmarked repeat is replaced once, in its category
   process.env.ANTHROPIC_API_KEY = 'k'; process.env.SUPABASE_URL = 'https://db'; process.env.SUPABASE_SERVICE_ROLE_KEY = 's'; process.env.CRON_SECRET = 'cron';
-  const prompts = []; let saved = null;
-  const reply = (its) => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify({ items: its }) }] }) });
+  const prompts = []; const saved = {}; const checks = [];
+  // v4.10.0: each story cites a page the search returned, and is fact-checked against it.
+  const SRC = 'https://adweek.com/story';
+  const QUOTE = 'Packaging claims face new scrutiny from regulators across Europe this autumn, the report says';
+  const reply = (its) => ({ ok: true, json: async () => ({ content: [
+    { type: 'web_search_tool_result', content: [{ type: 'web_search_result', url: SRC, title: 'Story' }] },
+    { type: 'text', text: JSON.stringify({ items: its.map(it => ({ ...it, sources: [{ url: SRC, outlet: 'Adweek', title: 'Story' }] })) }) }] }) });
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
+    if (u === SRC) return { ok: true, text: async () => `<p>${QUOTE}. ${'More reporting follows here. '.repeat(30)}</p>` };
     if (u.includes('api.anthropic.com')) {
-      prompts.push(JSON.parse(init.body).messages[0].content);
+      const content = JSON.parse(init.body).messages[0].content;
+      if (content.startsWith('You are the fact checker')) {
+        checks.push(content);
+        const n = (content.match(/^\d+\. \[/gm) || []).length;
+        return { ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify({ verdicts: Array.from({ length: n }, (_, i) => ({ n: i + 1, verdict: 'supported', quote: QUOTE })) }) }] }) };
+      }
+      prompts.push(content);
       return prompts.length === 1
         ? reply([{ headline: 'Third-party mentions outrank owned sites in AI engines', category: 'AI Visibility', insight: 'i', whyItMatters: 'w' }, { headline: 'Packaging Claims Face New Scrutiny', category: 'Brand Strategy', insight: 'i', whyItMatters: 'w' }])
         : reply([{ headline: 'Answer Engines Start Citing Podcasts', category: 'AI Visibility', insight: 'i', whyItMatters: 'w' }]);
     }
     if (u.includes('stay_conscious_newsletter_archive')) return { ok: true, json: async () => [{ refreshed_at: '2026-10-04T23:30:00Z', issue_number: 36, lead: { headline: 'Old Archived Story About Carbon Labels' }, items: [] }] };
     if (u.includes('stay_conscious_newsletter?')) return { ok: true, json: async () => [{ refreshed_at: editions[0].editionAt, issue_number: 37, lead: editions[0].lead, items: editions[0].items }] };
-    if (u.includes('stay_conscious_cache')) { saved = JSON.parse(init.body); return { ok: true, json: async () => ({}) }; }
+    if (u.includes('stay_conscious_cache')) { const b = JSON.parse(init.body); saved[b.id] = b; return { ok: true, json: async () => ({}) }; }
     return { ok: true, json: async () => [] };
   };
   const res = mockRes();
@@ -683,7 +698,11 @@ test('v4.5.0: stories do not repeat earlier issues unless they have moved on, an
   assert.equal(res.code, 200, JSON.stringify(res.body));
   assert.ok(prompts[0].includes('ALREADY COVERED') && prompts[0].includes('Old Archived Story About Carbon Labels'), 'the brief lists the live issue and the archive');
   assert.ok(prompts[1].includes('Write exactly 1 replacement item(s), for these categories: AI Visibility') && prompts[1].includes('(same as P1)'));
-  assert.deepEqual(saved.items.map(i => i.headline), ['Packaging Claims Face New Scrutiny', 'Answer Engines Start Citing Podcasts']);
+  assert.deepEqual(saved[1].items.map(i => i.headline), ['Packaging Claims Face New Scrutiny', 'Answer Engines Start Citing Podcasts']);
+  assert.ok(saved[1].items.every(i => i.checked === true), 'v4.10.0: every saved story was fact-checked');
+  assert.equal(checks.length, 2, 'one check per story');
+  assert.ok(prompts[2].includes('WIDER SEARCH') && prompts[2].includes('Write exactly 4 more item(s)'), 'fewer than six passed, so a wider search ran');
+  assert.deepEqual([saved[2].items[0].passed, saved[2].refreshed_at === saved[1].refreshed_at], [2, true], 'the report sits beside the stories, with their timestamp');
   assert.deepEqual(res.body.history, { pastStories: 3, followUps: 0, repeatsReplaced: 1, repeatsDropped: 0 });
 
   // The newsletter: a fresh story leads; follow-ups survive the public filter
@@ -789,8 +808,8 @@ test('v4.7.0: sources, talking point, draft and review, Monday publish, and the 
   assert.deepEqual(withSrc[0].sources, [{ url: 'https://adweek.com/real-page', title: 'Real page title', outlet: 'adweek.com' }], 'invented links are dropped; outlet falls back to the host');
   assert.deepEqual(withSrc[1].sources, []);
   const four = [1, 2, 3, 4].map(i => ({ headline: `S${i}`, sources: [{ url: 'u' }] }));
-  assert.deepEqual(sc.keepSourced([...four, { headline: 'none', sources: [] }]).items.map(i => i.headline), ['S1', 'S2', 'S3', 'S4'], 'unsourced stories go when four sourced remain');
-  assert.equal(sc.keepSourced([four[0], { headline: 'none', sources: [] }]).items.length, 2, 'below four, kept so the issue still goes out');
+  assert.deepEqual(sc.keepSourced([...four, { headline: 'none', sources: [] }]).items.map(i => i.headline), ['S1', 'S2', 'S3', 'S4'], 'unsourced stories go');
+  assert.deepEqual(sc.keepSourced([four[0], { headline: 'none', sources: [] }]), { items: [four[0]], dropped: 1 }, 'v4.10.0: unsourced stories always go');
   assert.ok(sc.STAY_CONSCIOUS_PROMPT.includes('never invent or reconstruct a link'));
 
   // Talking point
@@ -991,4 +1010,124 @@ test('no em dashes anywhere in the newsletter, past issues included (v4.9.0)', a
   assert.ok(app.includes("const clean = (t) => noDashes(t || '');") && app.includes("return clean(lines.join('\\n'));") && app.includes('`LEAD STORY: ${'), 'Word and plain-text exports');
   const nl = await import('../api/refresh-stay-conscious-newsletter.js');
   assert.equal(nl.applyDraftEdits({ leadStory: { headline: 'H' } }, [{ path: 'leadStory.headline', value: 'From 2019\u20132024 \u2014 a shift' }]).leadStory.headline, 'From 2019\u20132024, a shift', 'edits drop dashes but keep ranges');
+});
+
+test('v4.10.0: every story is checked against its source page, sentence by sentence, and code has the last word', async () => {
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const PAGE = 'Regulators in the EU fined three packaging makers a combined 12 million euros this month for unproven recycling claims, the commission said on Tuesday. The fines are the first under the new green claims rules.';
+  const SRC = 'https://www.ft.com/content/fines';
+  const page = `<html><body><article><p>${PAGE}</p>${'<p>Further unrelated reporting continues here.</p>'.repeat(20)}</article></body></html>`;
+  const story = { headline: 'EU fines packaging makers over recycling claims', category: 'Purpose & Sustainability',
+    insight: 'The EU fined three packaging makers 12 million euros for unproven recycling claims. Sales of recycled packaging fell 30% after the ruling.\n\nThe fines are the first under the new rules.',
+    whyItMatters: 'Green claims now carry a price. Brands should check every claim before it ships. Experts expect 50 more cases next year.',
+    sources: [{ url: SRC, outlet: 'Financial Times', title: 'Fines' }] };
+  // The checker's replies, in statement order: 1 headline, 2-4 insight, 5-7 why it matters
+  const verdicts = (list) => async (url, init) => {
+    if (String(url) === SRC) return { ok: true, text: async () => page };
+    return { ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify({ verdicts: list.map((v, i) => ({ n: i + 1, ...v })) }) }] }) };
+  };
+  const Q1 = 'Regulators in the EU fined three packaging makers a combined 12 million euros this month';
+  const Q2 = 'The fines are the first under the new green claims rules';
+  const out = await nl.factCheckStory(story, { anthropicKey: 'k', fetchImpl: verdicts([
+    { verdict: 'supported', quote: Q1 },
+    { verdict: 'supported', quote: Q1 },
+    { verdict: 'supported', quote: 'Sales of recycled packaging fell 30 percent after the ruling, the data shows' },   // not on the page
+    { verdict: 'supported', quote: Q2 },
+    { verdict: 'opinion' },
+    { verdict: 'opinion' },
+    { verdict: 'opinion' },   // an "opinion" with a figure the page does not have
+  ]) });
+  assert.equal(out.report.outcome, 'kept');
+  assert.equal(out.item.insight, 'The EU fined three packaging makers 12 million euros for unproven recycling claims.\n\nThe fines are the first under the new rules.', 'the unsupported sentence goes; paragraphs stay');
+  assert.equal(out.item.whyItMatters, 'Green claims now carry a price. Brands should check every claim before it ships.');
+  assert.equal(out.item.checked, true);
+  assert.deepEqual(out.report.removed.map(r => [r.field, r.reason]), [['insight', 'the checker could not point to it in the source'], ['whyItMatters', 'the figure 50 is not in the source']]);
+
+  // A "supported" verdict whose figure is not on the page still fails, even with a real quote
+  const fig = await nl.factCheckStory({ ...story, insight: 'The EU fined three packaging makers 15 million euros.', whyItMatters: '' }, { anthropicKey: 'k', fetchImpl: verdicts([{ verdict: 'supported', quote: Q1 }, { verdict: 'supported', quote: Q1 }]) });
+  assert.equal(fig.item, null, 'nothing left in the story');
+  assert.equal(fig.report.removed[0].reason, 'the figure 15 is not in the source');
+  // Opinion is never enough for a fact, and a headline the page does not support drops the story
+  const op = await nl.factCheckStory({ ...story, insight: 'The EU fined three packaging makers.', whyItMatters: '' }, { anthropicKey: 'k', fetchImpl: verdicts([{ verdict: 'supported', quote: Q1 }, { verdict: 'opinion' }]) });
+  assert.match(op.report.reason, /nothing in it could be confirmed/);
+  const hl = await nl.factCheckStory(story, { anthropicKey: 'k', fetchImpl: verdicts([{ verdict: 'unsupported' }, { verdict: 'supported', quote: Q1 }]) });
+  assert.equal(hl.item, null);
+  assert.match(hl.report.reason, /^its headline could not be confirmed/);
+  // No source, an unreadable page with nothing from the search, a failed check: dropped, never kept unchecked
+  assert.equal((await nl.factCheckStory({ ...story, sources: [] }, { anthropicKey: 'k' })).report.reason, 'it had no source the search returned');
+  const blocked = await nl.factCheckStory(story, { anthropicKey: 'k', fetchImpl: async () => ({ ok: false, status: 403 }) });
+  assert.equal(blocked.item, null);
+  assert.match(blocked.report.reason, /could not be read/);
+  const down = await nl.factCheckStory(story, { anthropicKey: 'k', fetchImpl: async (u) => (String(u) === SRC ? { ok: true, text: async () => page } : { ok: false, status: 529 }) });
+  assert.match(down.report.reason, /could not run/);
+  const late = await nl.factCheckStory(story, { anthropicKey: 'k', fetchImpl: verdicts([]), deadline: Date.now() - 1 });
+  assert.match(late.report.reason, /no time left/);
+  // A paywalled page: what the search returned about it is the evidence instead
+  const found = new Map([[nl.normUrl(SRC), `${PAGE} ${PAGE}`]]);
+  const paywalled = await nl.factCheckStory({ ...story, insight: 'The EU fined three packaging makers 12 million euros for unproven recycling claims.', whyItMatters: '' },
+    { anthropicKey: 'k', found, fetchImpl: async (u) => (String(u) === SRC ? { ok: false, status: 402 } : (await verdicts([{ verdict: 'supported', quote: Q1 }, { verdict: 'supported', quote: Q1 }])(u))) });
+  assert.equal(paywalled.report.outcome, 'kept');
+  // Our earlier coverage is context for a follow-up, never a source on its own
+  const fu = { ...story, followUp: { issueNumber: 40, headline: 'EU proposes green claims rules' } };
+  assert.equal((await nl.factCheckStory(fu, { anthropicKey: 'k', fetchImpl: async () => ({ ok: false }) })).item, null);
+  let seen = '';
+  await nl.factCheckStory(fu, { anthropicKey: 'k', fetchImpl: async (u, init) => { if (String(u) === SRC) return { ok: true, text: async () => page }; seen = JSON.parse(init.body).messages[0].content; return { ok: false }; } });
+  assert.ok(seen.includes('Our earlier coverage, Stay Conscious Issue 40') && seen.includes('Do not use your own knowledge'), 'the checker reads only the evidence');
+
+  // Earned creative: "what" must be confirmed by the article; an unconfirmed coverage line is removed
+  const EC = 'https://adweek.com/the-work';
+  const ecPage = `<p>Acme turned its billboards into working solar chargers in Lisbon, and the stunt was covered by more than 40 outlets in a week.</p>${'<p>Other news.</p>'.repeat(60)}`;
+  const ecFetch = (list) => async (u) => (String(u) === EC ? { ok: true, text: async () => ecPage } : { ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify({ verdicts: list.map((v, i) => ({ n: i + 1, ...v })) }) }] }) });
+  const ex = { brand: 'Acme', title: 'Solar billboards', what: 'Acme turned billboards into solar chargers in Lisbon.', coverage: 'It was covered by 400 outlets.', url: EC };
+  const ecq = 'Acme turned its billboards into working solar chargers in Lisbon';
+  const e1 = await nl.factCheckExample(ex, { anthropicKey: 'k', fetchImpl: ecFetch([{ verdict: 'supported', quote: ecq }, { verdict: 'supported', quote: 'the stunt was covered by more than 40 outlets in a week' }]) });
+  assert.deepEqual([e1.item.what, e1.item.coverage, e1.item.factChecked], ['Acme turned billboards into solar chargers in Lisbon.', '', true], '400 is not 40');
+  const e2 = await nl.factCheckExample(ex, { anthropicKey: 'k', fetchImpl: ecFetch([{ verdict: 'unsupported' }, { verdict: 'supported', quote: ecq }]) });
+  assert.equal(e2.item, null);
+
+  // The job: unsourced stories are always dropped, a wider search runs when fewer than six pass
+  const sc = await import('../api/refresh-stay-conscious.js');
+  const wp = sc.widerPrompt('', { need: 3, kept: [{ category: 'Earned Creative' }], tried: [{ headline: 'Old one' }] });
+  assert.ok(wp.includes('Look across the last month') && !wp.includes('- Use any of these topics, one per item: Earned Creative,') && wp.includes('"Old one"') && wp.includes('Write exactly 3 more item(s)'));
+});
+
+test('v4.10.0: figures from our own scores are checked in code; the issue goes out with the stories that passed, and nothing is posted about a short one', async () => {
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const ids = ['AWAKE', 'AWARE', 'REFLECTIVE', 'ATTENTIVE', 'COGENT', 'SENTIENT', 'VISIONARY', 'INTENTIONAL'];
+  const row = (industry, total, s) => ({ industry, total_score: total, scores: Object.fromEntries(ids.map((id, i) => [id, s + i])) });
+  const allowed = nl.landscapeFigures([row('energy', 60, 50), row('energy', 70, 60), row('health', 41, 30)]);
+  for (const n of ['3', '2', '57', '100', '8', '55', '35']) assert.ok(allowed.has(n), `computed: ${n}`);
+  assert.ok(!allowed.has('93'));
+  assert.deepEqual(nl.unsupportedNumbers('Average 57 across 3 brands; 93% lag.', allowed), ['93'], 'a percentage nobody computed');
+  assert.deepEqual(nl.unsupportedNumbers('Average 57 across 1,200 brands.', new Set(['57', '1200'])), []);
+  // The prompts say which figures may be used
+  assert.ok(nl.landscapePrompt('A', { figures: '3, 57' }).includes('FIGURES YOU MAY USE (computed from the scores): 3, 57. Use no other number.'));
+  const pick = { attribute: { id: 'SENTIENT', name: 'Sentient', fullName: 'Emotional Connection', question: 'q', description: 'd', signals: {} }, figures: { avg: 42, brands: 30, belowFifty: 19 } };
+  assert.deepEqual([...nl.spotlightFigures(pick)].sort(), ['100', '19', '30', '42', '50']);
+  assert.ok(nl.spotlightPrompt(pick).includes('Use no figure except these, which come from our own scores: 19, 30, 42, 50, 100.'));
+  assert.ok(nl.spotlightPrompt(pick, { strict: true }).includes('Your last answer used a figure'));
+  assert.ok(nl.talkingPointPrompt([], { strict: true }).includes('Use only facts and figures that appear in the story you choose. Your last answer used a figure'));
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes("figureReport.push({ section: 'Landscape', outcome, figures: first });") && src.includes("section: 'Talking point'") && src.includes("section: 'Spotlight'"));
+
+  // Only checked stories go in, however few; the draft is never held for it
+  const checked = (n) => Array.from({ length: n }, (_, i) => ({ headline: `S${i}`, checked: true }));
+  const at = '2026-10-25T22:05:00Z';
+  const rep = { refreshed_at: at, items: [{ passed: 5, stories: [] }] };
+  const ok = nl.storyCheckState({ refreshed_at: at, items: [...checked(5), { headline: 'old, unchecked' }] }, rep);
+  assert.deepEqual([ok.items.length, ok.unchecked, ok.report.passed], [5, 1, 5]);
+  assert.deepEqual(Object.keys(nl.storyCheckState({ refreshed_at: at, items: checked(2) }, rep)).sort(), ['items', 'report', 'unchecked'], 'no hold');
+  assert.equal(nl.storyCheckState({ refreshed_at: at, items: checked(6) }, { ...rep, refreshed_at: '2026-10-18T22:05:00Z' }).report, null, 'a report from another run does not count');
+  assert.equal(nl.storyCheckState({ refreshed_at: at, items: [{ headline: 'cached before v4.10.0' }] }, null).items.length, 0, 'stories cached before the check are never used');
+  assert.ok(src.includes('_draft: { weekly, held: false, check,'), 'the draft carries the report, never an automatic hold');
+  assert.ok(!/on hold|no draft this week|holdReason/.test(src), 'nothing is posted about a short or failed edition');
+  // The report never reaches readers: it lives in _draft, which publishing strips
+  assert.equal(nl.stripDraft({ issueNumber: 1, _draft: { check: {} } })._draft, undefined);
+
+  // Earned creative looks further back when recent work does not yield three
+  assert.equal(nl.EARNED_CREATIVE_WINDOWS.length, 3);
+  assert.ok(nl.earnedCreativePrompt({ window: 2 }).startsWith('Find 6 examples of earned creative that cut through. Look back up to three years.'));
+  assert.ok(nl.earnedCreativePrompt().includes('nothing older'), 'the first search is still recent work');
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('<FactCheckReport check={draftState.meta.check} />') && !app.includes('Held by the fact check.'));
 });

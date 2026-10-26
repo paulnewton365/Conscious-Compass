@@ -4,7 +4,7 @@
 
 import { requireUser } from './_auth.js';
 import { headlineOverlap } from '../src/lib/newsletter.js';
-import { searchedResults, normUrl } from './refresh-stay-conscious-newsletter.js';
+import { searchedResults, normUrl, factCheckStories } from './refresh-stay-conscious-newsletter.js';
 // ── The weekly brief (v4.8.0) ─────────────────────────────────
 // Until 4.8.0 the stories were written for brand assessors, in six fixed
 // categories led by AI Visibility, and the lead was chosen from AI first, so
@@ -49,10 +49,9 @@ US English. No em dashes or en dashes.`;
 // ── Sources (v4.7.0) ──────────────────────────────────────────
 // Staff repeat these stories to clients, so each must carry the pages behind
 // it. A source counts only if the web search itself returned that page, the
-// same rule as earned creative: the model cannot invent a link. Stories with
-// no source are dropped while at least MIN_SOURCED sourced stories remain;
-// below that they are kept, marked as unsourced, so the issue still goes out.
-export const MIN_SOURCED = 4;
+// same rule as earned creative: the model cannot invent a link.
+// v4.10.0: a story with no source is always dropped, and every story left is
+// fact-checked against its pages (factCheckStories).
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 export function attachSources(items = [], content = []) {
   const found = searchedResults(content);
@@ -69,8 +68,30 @@ export function attachSources(items = [], content = []) {
 }
 export function keepSourced(items = []) {
   const sourced = items.filter(i => i.sources?.length);
-  return sourced.length >= MIN_SOURCED ? { items: sourced, dropped: items.length - sourced.length } : { items, dropped: 0 };
+  return { items: sourced, dropped: items.length - sourced.length };
 }
+// The wider net (v4.10.0): six stories is the aim; a second, wider search
+// runs when fewer pass the fact check, if it can start within two minutes
+// twenty of the job's five.
+export const WIDER_TARGET = 6;
+export const WIDER_START_BY_MS = 140000;
+export function widerPrompt(history, { need, kept = [], tried = [] }) {
+  const used = new Set(kept.map(i => i.category));
+  const open = STORY_CATEGORIES.filter(c => !used.has(c));
+  return `${STAY_CONSCIOUS_PROMPT}${history}
+
+WIDER SEARCH. Only ${kept.length} of this week's stories could be confirmed by their sources. Write exactly ${need} more item(s), with these changes to the rules above:
+- Look across the last month, not just the last two weeks.
+- Use any of these topics, one per item: ${open.join(', ')}.
+- Any sector will do; the sector rule is relaxed for these.
+- Choose stories you can source well: every fact and figure in the insight must be on the page you cite. A strong, well-sourced story beats a fresh, thin one.
+Do not repeat any of these stories: ${tried.map(it => `"${it.headline}"`).join('; ')}.`;
+}
+
+// The fact-check report is kept in row 2 of the cache, beside the stories in
+// row 1, with the same timestamp so the newsletter can tell it belongs to them.
+export const STORY_ROW = 1;
+export const REPORT_ROW = 2;
 
 // ── No repeats (v4.5.0) ───────────────────────────────────────
 // Each week's stories are written knowing what earlier issues covered: the
@@ -187,8 +208,12 @@ export default async function handler(req, res) {
       }
       const data = await claudeRes.json();
       // Sources are checked against this call's own search results (v4.7.0).
+      searchedResults(data.content || []).forEach((v, k) => found.set(k, [found.get(k), v].filter(Boolean).join(' ')));
       return attachSources(parseItems(data), data.content || []);
     };
+    // Everything the searches returned, for the fact check when a page cannot be opened (v4.10.0).
+    const found = new Map();
+    const started = Date.now();
 
     // What earlier issues covered (v4.5.0).
     const past = pastStories(await loadEditions(supabaseUrl, supabaseKey));
@@ -212,10 +237,33 @@ Write exactly ${repeats.length} replacement item(s), for these categories: ${rep
     }
     if (!items.length) throw new Error('Every story repeated earlier coverage');
     const sourcing = keepSourced(items);
-    const parsed = { items: sourcing.items };
+    // Every story is checked against its pages (v4.10.0); one with no source
+    // is dropped by the check. The job has five minutes; the check starts no
+    // new work after four.
+    const checkOpts = { anthropicKey, found, deadline: started + 260000 };
+    let checked = await factCheckStories(items, checkOpts);
+    // A wider net (v4.10.0): when fewer than six pass, one more search over the
+    // last month, in any topic not used this week and any sector, and those
+    // stories are checked the same way. Only if there is time for it.
+    let widened = 0;
+    if (checked.items.length < WIDER_TARGET && Date.now() - started < WIDER_START_BY_MS) {
+      const need = WIDER_TARGET - checked.items.length;
+      const more = await ask(widerPrompt(history, { need, kept: checked.items, tried: items })).catch(() => []);
+      const fresh = checkAgainstHistory(more, past);
+      const usable = fresh.items
+        .filter((_, i) => !fresh.repeats.some(r => r.i === i))
+        .filter(it => !items.some(x => headlineOverlap(it.headline, x.headline) >= REPEAT_THRESHOLD))
+        .slice(0, need);
+      const extra = await factCheckStories(usable, checkOpts);
+      widened = extra.items.length;
+      checked = { items: [...checked.items, ...extra.items], reports: [...checked.reports, ...extra.reports.map(r => ({ ...r, wider: true }))] };
+    }
+    const parsed = { items: checked.items };
+    const refreshedAt = new Date().toISOString();
+    const report = { checkedAt: refreshedAt, stories: checked.reports, passed: parsed.items.length };
 
-    // Upsert into Supabase — single row (id=1), overwrite previous week
-    const upsertRes = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_cache`, {
+    // Upsert into Supabase: the stories in row 1, the fact-check report in row 2.
+    const upsert = (id, rowItems) => fetch(`${supabaseUrl}/rest/v1/stay_conscious_cache`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -223,22 +271,20 @@ Write exactly ${repeats.length} replacement item(s), for these categories: ${rep
         'Authorization': `Bearer ${supabaseKey}`,
         'Prefer': 'resolution=merge-duplicates',
       },
-      body: JSON.stringify({
-        id: 1,
-        items: parsed.items,
-        refreshed_at: new Date().toISOString(),
-      }),
+      body: JSON.stringify({ id, items: rowItems, refreshed_at: refreshedAt }),
     });
-
+    const upsertRes = await upsert(STORY_ROW, parsed.items);
     if (!upsertRes.ok) {
       const err = await upsertRes.json().catch(() => ({}));
       throw new Error(err.message || `Supabase upsert error ${upsertRes.status}`);
     }
+    await upsert(REPORT_ROW, [report]).catch(() => null);   // for the draft panel; the issue does not depend on it
 
     return res.status(200).json({
       success: true,
       itemCount: parsed.items.length,
-      sources: { sourced: parsed.items.filter(i => i.sources?.length).length, droppedUnsourced: sourcing.dropped },
+      sources: { sourced: items.length - sourcing.dropped, droppedUnsourced: sourcing.dropped },
+      factCheck: { widened, passed: report.passed, dropped: report.stories.filter(r => r.outcome === 'dropped').length, sentencesRemoved: report.stories.reduce((n, r) => n + r.removed.length, 0) },
       history: { pastStories: past.length, followUps: parsed.items.filter(i => i.followUp).length, repeatsReplaced: replaced, repeatsDropped: repeats.length - replaced },
       refreshedAt: new Date().toISOString(),
     });

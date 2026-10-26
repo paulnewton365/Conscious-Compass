@@ -80,7 +80,8 @@ export function pickSpotlightAttribute(fullRows = [], recent = []) {
   return { attribute: choice, figures: { avg: f[choice.id].avg, brands: f[choice.id].n, belowFifty: f[choice.id].belowFifty } };
 }
 
-export function spotlightPrompt(pick) {
+export const spotlightFigures = (pick) => new Set(['100', '50', String(pick?.figures?.avg), String(pick?.figures?.brands), String(pick?.figures?.belowFifty)].filter(x => x !== 'undefined' && x !== 'null'));
+export function spotlightPrompt(pick, { strict = false } = {}) {
   const a = pick.attribute;
   const sig = a.signals || {};
   return `You are writing the Spotlight for Stay Conscious, Antenna Group's brand intelligence newsletter for its own staff. It focuses on ONE thing a brand can do to raise one attribute of the Conscious Compass, which scores brands out of 100 from what is publicly visible about them.
@@ -96,7 +97,7 @@ Choose the single most useful action: concrete, publicly visible, something any 
 Return JSON only:
 {"headline":"Max 9 words, naming the action","action":"One or two sentences: the one thing to do.","why":"One or two sentences: why it lifts ${a.name}, in terms of what people can see.","steps":["Three short first steps, each under 15 words"]}
 
-Name no brand or company. Plain words, US English, no em dashes or en dashes, no jargon without saying what it means.`;
+Name no brand or company. Use no figure except these, which come from our own scores: ${figureListForPrompt(spotlightFigures(pick))}. No statistics from anywhere else.${strict ? ' Your last answer used a figure that is not on that list. Use none of them, or only those listed.' : ''} Plain words, US English, no em dashes or en dashes, no jargon without saying what it means.`;
 }
 
 export function parseSpotlight(text, pick) {
@@ -122,7 +123,7 @@ export function pickLead(items = [], recentLeadCategories = []) {
 // ── Talking point (v4.7.0) ───────────────────────────────────
 // One line an account lead can use with a client this week, drawn from this
 // issue's stories, so reading turns into using.
-export function talkingPointPrompt(stories = []) {
+export function talkingPointPrompt(stories = [], { strict = false } = {}) {
   return `You are writing the Talking point for Stay Conscious, Antenna Group's weekly brand newsletter for its staff. Account leads use it in client conversations.
 
 From this week's stories below, choose the one a client is most likely to ask about, and write the single point an account lead should make about it.
@@ -132,7 +133,7 @@ ${stories.map((st, i) => `${i + 1}. [${st.category || ''}] ${st.headline}\n${Str
 Return JSON only:
 {"topic":"What the client might ask about, 2 to 5 words, lower case except names and acronyms, e.g. AI search or green claims on packaging","point":"The point to make, one or two sentences, under 40 words, in plain words a client would understand, with a figure from the story if it has one.","story":"The exact headline of the story it draws on"}
 
-Name no client. Use only facts from the stories. US English, no em dashes or en dashes.`;
+Name no client. Use only facts and figures that appear in the story you choose.${strict ? ' Your last answer used a figure that is not in that story. Use only its figures, or none.' : ''} US English, no em dashes or en dashes.`;
 }
 export function parseTalkingPoint(text, stories = []) {
   const m = String(text || '').match(/\{[\s\S]*\}/);
@@ -195,7 +196,7 @@ export function textOverlap(a, b) {
 export const tooSimilarLandscape = (next, recent = []) => recent.some(r =>
   (next.headline && r.headline && headlineOverlap(next.headline, r.headline) >= 0.6) || textOverlap(next.summary, r.summary) >= 0.5);
 
-export function landscapePrompt(analysis, { recent = [], lens = '', changes = [], retry = false } = {}) {
+export function landscapePrompt(analysis, { recent = [], lens = '', changes = [], retry = false, figures = '', strict = false } = {}) {
   const history = recent.length ? `
 
 RECENT LANDSCAPE SECTIONS, newest first. Do not repeat them: no reused headline, no reused opening, no paragraph that says the same thing. A theme may come back only from a new angle or with new figures.
@@ -212,7 +213,11 @@ THIS WEEK'S FOCUS for paragraph 2: ${lens}` : '';
   const again = retry ? `
 
 Your last draft was too close to a recent section. Start from a different finding and use different words.` : '';
-  return landscapePromptBase(analysis, history + moved + focus + again);
+  // The figures it may use, all computed from the scores (v4.10.0).
+  const allowed = figures ? `
+
+FIGURES YOU MAY USE (computed from the scores): ${figures}. Use no other number. If the analysis states a figure that is not on this list, it is out of date: leave it out.${strict ? ' Your last draft used a number that is not on this list.' : ''}` : '';
+  return landscapePromptBase(analysis, history + moved + focus + again + allowed);
 }
 
 function landscapePromptBase(analysis, extra = '') {
@@ -244,9 +249,18 @@ ${analysis}`;
 // v4.0.2: six candidates over the last three months, because each must pass
 // the article check and three asked-for examples were leaving one standing.
 // A top-up search names the brands already tried so it finds new ones.
-export function earnedCreativePrompt({ count = 6, exclude = [] } = {}) {
+// How far back each search looks (v4.10.0). Three examples is the aim, and
+// there are hundreds of strong ones, so when recent work does not yield three
+// that pass the checks, the search looks further back for work that cut through.
+export const EARNED_CREATIVE_WINDOWS = [
+  'Prefer work from the last 30 days; if there is not enough, go back up to three months, but nothing older.',
+  'Look back up to twelve months. Choose work that clearly cut through: widely covered, awarded, or still talked about.',
+  'Look back up to three years. Choose standout work that clearly cut through: widely covered, awarded at Cannes Lions or a similar show, or still cited as a benchmark.',
+];
+export function earnedCreativePrompt({ count = 6, exclude = [], window = 0 } = {}) {
   const skip = exclude.length ? `\n\nDo not include work by these brands, already covered: ${exclude.join(', ')}.` : '';
-  return `Find ${count} recent examples of earned creative that are catching headlines. Prefer work from the last 30 days; if there is not enough, go back up to three months, but nothing older. Earned creative is an idea designed to be talked about rather than paid to be seen: a brand DID something in the world (a stunt, an installation, a product intervention, a data release, a public act, a partnership) and journalists, creators or the public carried it. Not paid ads, not sponsorships, not press releases on their own.
+  const w = Math.min(Math.max(0, window), EARNED_CREATIVE_WINDOWS.length - 1);
+  return `Find ${count} ${w ? 'examples of earned creative that cut through' : 'recent examples of earned creative that are catching headlines'}. ${EARNED_CREATIVE_WINDOWS[w]} Earned creative is an idea designed to be talked about rather than paid to be seen: a brand DID something in the world (a stunt, an installation, a product intervention, a data release, a public act, a partnership) and journalists, creators or the public carried it. Not paid ads, not sponsorships, not press releases on their own.
 
 Prefer work by brands with a purpose, climate, energy, health or social angle, but any strong example will do. Search the trade and business press (for example Adweek, Ad Age, The Drum, Campaign, Fast Company, Marketing Week, Business Insider, Muse by Clio, LBBOnline). One example per brand.${skip}
 
@@ -376,8 +390,8 @@ export const byRecency = (items) => items
 // resumed, up to three times, instead of being read as "nothing found"
 // (v4.1.2: this emptied the section for several issues). Returns the
 // candidates and, when there are none, why.
-async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline = Infinity) {
-  const prompt = earnedCreativePrompt({ exclude });
+async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline = Infinity, window = 0) {
+  const prompt = earnedCreativePrompt({ exclude, window });
   let content = [];
   let stop = '';
   for (let turn = 0; turn < 4; turn++) {
@@ -411,17 +425,18 @@ async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline =
 // featured: brands shown in recent issues, left out so examples do not repeat
 // week to week (v4.5.0). The carry-over below may still show last week's when
 // nothing new is found, and says so.
-export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, verify = verifyExample, rounds = 2, budgetMs = 120000, deadlineMs = 200000, featured = [] } = {}) {
+export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, verify = verifyExample, factCheck = factCheckExample, rounds = EARNED_CREATIVE_WINDOWS.length, budgetMs = 120000, deadlineMs = 200000, featured = [] } = {}) {
   const started = Date.now();
   const deadline = started + deadlineMs;
   const kept = [];
   const tried = new Set(featured.map(b => String(b || '').trim().toLowerCase()).filter(Boolean));
-  const status = { searches: 0, candidates: 0, passed: 0, reasons: [] };
+  const status = { searches: 0, candidates: 0, passed: 0, reasons: [], factCheck: [] };
   try {
     for (let round = 0; round < rounds && kept.length < EARNED_CREATIVE_TARGET; round++) {
       if (round > 0 && Date.now() - started > budgetMs) break;   // leave time for the rest of the issue
       status.searches += 1;
-      const found = await searchEarnedCreative(anthropicKey, [...tried], fetchImpl, deadline);
+      // Each round looks further back (v4.10.0).
+      const found = await searchEarnedCreative(anthropicKey, [...tried], fetchImpl, deadline, round);
       if (found.reason) status.reasons.push(found.reason);
       const candidates = found.candidates.filter(e => !tried.has(e.brand.toLowerCase()));
       if (!candidates.length) continue;
@@ -429,13 +444,17 @@ export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, ver
       status.candidates += candidates.length;
       // Each link is opened and must name the brand and the work (v4.0.1).
       const checks = await Promise.all(candidates.map(e => Promise.resolve(verify(e)).catch(() => false)));
-      candidates.forEach((e, i) => { if (checks[i]) kept.push(e); });
+      // Then what it says is checked against the article (v4.10.0).
+      const passed = candidates.filter((_, i) => checks[i]);
+      const facts = await Promise.all(passed.map(e => Promise.resolve(factCheck(e, { anthropicKey, fetchImpl, deadline }))
+        .catch(() => ({ item: null, report: { brand: e.brand, outcome: 'dropped', reason: 'the check could not run', removed: [] } }))));
+      facts.forEach(f => { status.factCheck.push(f.report); if (f.item) kept.push(f.item); });
     }
   } catch (err) {
     status.reasons.push(`error: ${String(err?.message || err).slice(0, 120)}`);
   }
   status.passed = kept.length;
-  if (status.candidates && !kept.length) status.reasons.push('no example passed the article check');
+  if (status.candidates && !kept.length) status.reasons.push('no example passed the article check and the fact check');
   const items = byRecency(kept).slice(0, EARNED_CREATIVE_TARGET).map((e) => { const out = { ...e, verified: true }; delete out.searchTitle; return out; });
   return { items, generatedAt: new Date().toISOString(), status };
 }
@@ -446,11 +465,221 @@ export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, ver
 // Carried examples are dropped once they were found more than four weeks ago.
 export function withCarryOver(fresh, previous, previousIssue = null, now = Date.now()) {
   if (fresh?.items?.length) return fresh;
-  const kept = (previous?.items || []).filter(e => e && e.verified === true && typeof e.url === 'string');
+  const kept = (previous?.items || []).filter(e => e && e.verified === true && e.factChecked === true && typeof e.url === 'string');   // fact-checked ones only (v4.10.0)
   const foundAt = previous?.foundAt || previous?.generatedAt || '';
   const age = now - Date.parse(foundAt);
   if (!kept.length || !(age <= 28 * 24 * 3600 * 1000)) return fresh;
   return { ...fresh, items: kept, foundAt, carriedFrom: previous?.carriedFrom || previousIssue || null };
+}
+
+// ── Fact check (v4.10.0) ─────────────────────────────────────
+// Staff repeat what the newsletter says to clients, so every factual claim
+// must be one its cited page actually makes. Until now a story only had to
+// cite a page the search returned; nothing checked that the page said what
+// the story said. Now each source page is opened and every sentence is
+// checked against it, by Claude reading only that page (never its own
+// knowledge), then again in code: a "supported" verdict must quote the page,
+// the quote must be found on the page, and every figure in the sentence must
+// appear on the page. Sentences that fail are removed. A story whose headline
+// fails, or with nothing left to say, is dropped. When the check cannot run
+// (no readable page, an API error, no time left), the claims count as
+// unsupported: nothing unchecked reaches readers.
+const ENTITY = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', rsquo: "'", lsquo: "'", rdquo: '"', ldquo: '"', ndash: '–', mdash: '—', hellip: '…', pound: '£', euro: '€' };
+export const htmlToText = (html) => String(html || '')
+  .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<noscript[\s\S]*?<\/noscript>/gi, ' ')
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : (ENTITY[e.toLowerCase()] ?? m)))
+  .replace(/\s+/g, ' ').trim();
+// The readable text of a page, or '' when it cannot be read.
+export async function pageText(url, { fetchImpl = fetch, timeoutMs = 8000 } = {}) {
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    const r = await fetchImpl(url, { signal: ctl.signal, redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ConsciousCompass/4.0; +https://conscious-compass.vercel.app)', Accept: 'text/html' } });
+    clearTimeout(timer);
+    if (!r.ok) return '';
+    const text = htmlToText(await r.text());
+    return text.length > 500 ? text.slice(0, 60000) : '';
+  } catch { return ''; }
+}
+// Sentences, keeping paragraphs: [[s, s], [s]]. Abbreviations and decimals
+// do not end a sentence.
+export const paragraphsOf = (t) => String(t || '').split(/\n\s*\n/).map(p => p.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  .map(p => p.split(/(?<!\b(?:U\.S|U\.K|E\.U|Inc|Corp|Co|Ltd|Mr|Ms|Mrs|Dr|St|vs|e\.g|i\.e|No)\.)(?<=[.!?]["'”’)\]]?)\s+(?=["'“‘(]?[A-Z0-9])/).map(s => s.trim()).filter(Boolean));
+const NUM_WORD = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100 };
+const normNum = (n) => String(parseFloat(String(n).replace(/,/g, '')));
+// The figures in a text, as plain numbers: "1,200" and "1200" are the same.
+export const numbersIn = (t) => [...new Set((String(t || '').match(/\d[\d,]*(?:\.\d+)?/g) || []).map(normNum).filter(n => n !== 'NaN'))];
+export function figuresIn(t) {
+  const out = new Set(numbersIn(t));
+  (String(t || '').toLowerCase().match(/\b[a-z]+\b/g) || []).forEach(w => { if (NUM_WORD[w]) out.add(String(NUM_WORD[w])); });
+  return out;
+}
+// Figures in a text that are not in the allowed set.
+export const unsupportedNumbers = (text, allowed) => { const ok = new Set([...allowed].map(normNum)); return numbersIn(text).filter(n => !ok.has(n)); };
+const words = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[‘’]/g, "'").replace(/[^a-z0-9'%$.]+/g, ' ').replace(/(\D)\.|\.(\D|$)/g, '$1 $2').replace(/\s+/g, ' ').trim();
+// Is the quote on the page? Exactly, after tidying, or nearly every word of it
+// in order (pages split text with markup the tidy-up cannot always undo).
+export function quoteFound(quote, evidence) {
+  const q = words(quote); const e = words(evidence);
+  if (q.split(' ').length < 4) return false;   // two or three words prove nothing
+  if (e.includes(q)) return true;
+  const qs = q.split(' ').filter(w => w.length > 2);
+  if (qs.length < 3) return false;
+  let at = 0; let hits = 0;
+  for (const w of qs) { const i = e.indexOf(` ${w}`, at); if (i >= 0) { hits += 1; at = i + w.length; } }
+  return hits / qs.length >= 0.85;
+}
+export function factCheckPrompt(statements, evidence) {
+  return `You are the fact checker for Stay Conscious, a newsletter whose readers repeat what it says to clients. Check each numbered statement against the EVIDENCE below and nothing else. Do not use your own knowledge, even if you are sure.
+
+Verdicts:
+- "supported": every fact, name, figure, date and claim in the statement is stated in the evidence. Wording may differ; meaning may not. A figure that differs at all is not supported.
+- "opinion": allowed only for statements marked [view]. It interprets the facts, says why they matter or what to do, and states no fact, name, figure or claim about the world that the evidence does not.
+- "unsupported": anything else, including statements that are partly supported, or that go further than the evidence.
+
+For each "supported" verdict, copy the words from the evidence that support it, exactly as they appear, 4 to 30 words.
+
+Return JSON only:
+{"verdicts":[{"n":1,"verdict":"supported","quote":"..."}]}
+
+STATEMENTS
+${statements.map((s, i) => `${i + 1}. [${s.kind}] ${s.text}`).join('\n')}
+
+EVIDENCE
+${evidence.map((e, i) => `[Source ${i + 1}] ${e.label}\n${e.text.slice(0, 14000)}`).join('\n\n')}`;
+}
+export function parseVerdicts(text, count) {
+  const m = String(text || '').match(/\{[\s\S]*\}/);
+  let j = null; try { j = m ? JSON.parse(m[0]) : null; } catch { j = null; }
+  const list = Array.isArray(j?.verdicts) ? j.verdicts : [];
+  return Array.from({ length: count }, (_, i) => {
+    const v = list.find(x => Number(x?.n) === i + 1) || {};
+    return { verdict: ['supported', 'opinion', 'unsupported'].includes(v.verdict) ? v.verdict : 'unsupported', quote: String(v.quote || '') };
+  });
+}
+// Claude reads; code decides. Returns { ok, reason } for each statement.
+// context: our own earlier coverage, which a follow-up may refer to. It is
+// read alongside a real source, never instead of one.
+export async function checkStatements(statements, evidence, { anthropicKey, fetchImpl = fetch, deadline = Infinity, context = [] } = {}) {
+  const fail = (reason) => statements.map(() => ({ ok: false, reason }));
+  const readable = evidence.filter(e => e.text && e.text.length >= 200);
+  if (!readable.length) return fail('its source page could not be read');
+  const sources = [...readable, ...context.filter(c => c.text)];
+  if (Date.now() > deadline) return fail('there was no time left to check it');
+  let verdicts;
+  try {
+    const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2500, temperature: 0, messages: [{ role: 'user', content: factCheckPrompt(statements, sources) }] }),
+    });
+    if (!r.ok) return fail('the check could not run');
+    const d = await r.json();
+    verdicts = parseVerdicts((d.content || []).filter(b => b.type === 'text').map(b => b.text).join(''), statements.length);
+  } catch { return fail('the check could not run'); }
+  const all = sources.map(e => e.text).join(' \n ');
+  const allowed = figuresIn(all);
+  return statements.map((s, i) => {
+    const v = verdicts[i];
+    const bad = unsupportedNumbers(s.text, allowed);
+    if (v.verdict === 'supported') {
+      if (!quoteFound(v.quote, all)) return { ok: false, reason: 'the checker could not point to it in the source' };
+      if (bad.length) return { ok: false, reason: `the figure ${bad.join(', ')} is not in the source` };
+      return { ok: true };
+    }
+    if (v.verdict === 'opinion' && s.kind === 'view') return bad.length ? { ok: false, reason: `the figure ${bad.join(', ')} is not in the source` } : { ok: true };
+    return { ok: false, reason: 'the source does not say this' };
+  });
+}
+const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+// The evidence for a set of links: each page's text, or what the search
+// returned about it when the page cannot be read (paywalls, blocks).
+async function evidenceFor(links, { found = new Map(), fetchImpl = fetch } = {}) {
+  return Promise.all(links.map(async (l) => {
+    const text = await pageText(l.url, { fetchImpl });
+    return { label: `${l.outlet || hostOf(l.url)} ${l.url}`, text: text || String(found.get(normUrl(l.url)) || l.searchTitle || '') };
+  }));
+}
+// One story: the headline must be supported, the insight keeps its supported
+// sentences (at least one), "why it matters" keeps supported sentences and
+// opinion that adds no new facts.
+export async function factCheckStory(item, { anthropicKey, fetchImpl = fetch, found, deadline } = {}) {
+  const headline = String(item?.headline || '');
+  if (!Array.isArray(item?.sources) || !item.sources.length) return { item: null, report: { headline, outcome: 'dropped', reason: 'it had no source the search returned', removed: [] } };
+  const evidence = await evidenceFor(item.sources, { found, fetchImpl });
+  const context = item.followUp?.headline ? [{ label: `Our earlier coverage, Stay Conscious Issue ${item.followUp.issueNumber ?? ''}`, text: `Stay Conscious reported: ${item.followUp.headline}.` }] : [];
+  const ins = paragraphsOf(item.insight);
+  const why = paragraphsOf(item.whyItMatters);
+  const statements = [{ kind: 'headline', field: 'headline', text: headline },
+    ...ins.flatMap((p, pi) => p.map((text, si) => ({ kind: 'fact', field: 'insight', pi, si, text }))),
+    ...why.flatMap((p, pi) => p.map((text, si) => ({ kind: 'view', field: 'whyItMatters', pi, si, text })))];
+  const results = await checkStatements(statements, evidence, { anthropicKey, fetchImpl, deadline, context });
+  const removed = statements.map((s, i) => ({ s, r: results[i] })).filter(x => !x.r.ok).map(x => ({ field: x.s.field, text: x.s.text, reason: x.r.reason }));
+  const keep = (field, paras) => paras.map((p, pi) => p.filter((_, si) => results[statements.findIndex(s => s.field === field && s.pi === pi && s.si === si)].ok).join(' ')).filter(Boolean).join('\n\n');
+  if (!results[0].ok) return { item: null, report: { headline, outcome: 'dropped', reason: `its headline could not be confirmed: ${results[0].reason}`, removed } };
+  const insight = keep('insight', ins);
+  if (!insight) return { item: null, report: { headline, outcome: 'dropped', reason: 'nothing in it could be confirmed by its source', removed } };
+  return { item: { ...item, insight, whyItMatters: keep('whyItMatters', why), checked: true }, report: { headline, outcome: 'kept', removed } };
+}
+export async function factCheckStories(items = [], opts = {}) {
+  const checked = await Promise.all(items.map(it => factCheckStory(it, opts)));
+  return { items: checked.map(c => c.item).filter(Boolean), reports: checked.map(c => c.report) };
+}
+// One earned creative example: "what" keeps its supported sentences (at least
+// one, or the example goes); an unsupported "coverage" line is removed.
+export async function factCheckExample(e, { anthropicKey, fetchImpl = fetch, deadline } = {}) {
+  const evidence = await evidenceFor([e], { fetchImpl });
+  const what = paragraphsOf(e.what).flat();
+  const cov = paragraphsOf(e.coverage).flat();
+  const statements = [...what.map(text => ({ kind: 'fact', field: 'what', text })), ...cov.map(text => ({ kind: 'fact', field: 'coverage', text }))];
+  if (!statements.length) return { item: null, report: { brand: e.brand, outcome: 'dropped', reason: 'it said nothing to check', removed: [] } };
+  const results = await checkStatements(statements, evidence, { anthropicKey, fetchImpl, deadline });
+  const removed = statements.map((s, i) => ({ s, r: results[i] })).filter(x => !x.r.ok).map(x => ({ field: x.s.field, text: x.s.text, reason: x.r.reason }));
+  const kept = (field) => statements.filter((s, i) => s.field === field && results[i].ok).map(s => s.text).join(' ');
+  if (!kept('what')) return { item: null, report: { brand: e.brand, outcome: 'dropped', reason: 'what it did could not be confirmed by the article', removed } };
+  return { item: { ...e, what: kept('what'), coverage: kept('coverage'), factChecked: true }, report: { brand: e.brand, outcome: 'kept', removed } };
+}
+
+// Figures in the sections written from our own data (v4.10.0): every number
+// must be one the code computed. A section that fails is written again once,
+// told which figures it may use, and left out if it still fails.
+export function landscapeFigures(rows = []) {
+  const out = new Set(['100', '8']);
+  [0, 25, 26, 39, 40, 55, 56, 69, 70, 84, 85].forEach(n => out.add(String(n)));   // the maturity bands
+  if (!rows.length) return out;
+  const avg = (xs) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+  const grouped = {};
+  rows.forEach(r => { (grouped[r.industry || 'other'] ||= []).push(r); });
+  const sectors = Object.values(grouped);
+  [rows.length, sectors.length, avg(rows.map(r => r.total_score || 0))].forEach(n => out.add(String(n)));
+  const overall = {};
+  ATTRIBUTES.forEach(a => { overall[a.id] = avg(rows.map(r => r.scores?.[a.id] || 0)); out.add(String(overall[a.id])); });
+  const secAvgs = sectors.map(bs => {
+    out.add(String(bs.length)); out.add(String(avg(bs.map(b => b.total_score || 0))));
+    const m = {}; ATTRIBUTES.forEach(a => { m[a.id] = avg(bs.map(b => b.scores?.[a.id] || 0)); out.add(String(m[a.id])); });
+    return m;
+  });
+  ATTRIBUTES.forEach(a => {
+    const vals = secAvgs.map(m => m[a.id]);
+    const min = Math.min(...vals); const max = Math.max(...vals);
+    const sd = Math.round(Math.sqrt(vals.reduce((s, v) => s + (v - overall[a.id]) ** 2, 0) / vals.length));
+    [min, max, max - min, sd].forEach(n => out.add(String(n)));
+    // Gaps between any two attributes' portfolio averages, which the focus asks about.
+    ATTRIBUTES.forEach(b => out.add(String(Math.abs(overall[a.id] - overall[b.id]))));
+  });
+  return out;
+}
+export const figureListForPrompt = (allowed) => [...allowed].map(Number).sort((a, b) => a - b).join(', ');
+
+// Which stories may go in the issue (v4.10.0): only those the Sunday job
+// fact-checked, with that run's report when it is there. However few pass,
+// the issue goes out with them; an unchecked story never does.
+export function storyCheckState(scRow, reportRow) {
+  const all = Array.isArray(scRow?.items) ? scRow.items : [];
+  const items = all.filter(i => i && i.checked === true);
+  const report = reportRow && scRow && reportRow.refreshed_at === scRow.refreshed_at && Array.isArray(reportRow.items) ? (reportRow.items[0] || null) : null;
+  return { items, report, unchecked: all.length - items.length };
 }
 
 // ── Draft, review, publish (v4.7.0) ──────────────────────────
@@ -670,9 +899,9 @@ export default async function handler(req, res) {
     }
   }
 
-  const fetchTable = async (table) => {
+  const fetchTable = async (table, id = null) => {
     const r = await fetch(
-      `${supabaseUrl}/rest/v1/${table}?select=*&order=refreshed_at.desc&limit=1`,
+      `${supabaseUrl}/rest/v1/${table}?select=*${id ? `&id=eq.${id}` : ''}&order=refreshed_at.desc&limit=1`,
       { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
     );
     if (!r.ok) return null;
@@ -698,6 +927,18 @@ export default async function handler(req, res) {
   };
 
   const sbHeaders = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
+  // What the figure checks found, for the draft panel (v4.10.0).
+  const figureReport = [];
+  const ask = async (prompt, maxTokens, temperature = 0) => {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: maxTokens, temperature, messages: [{ role: 'user', content: prompt }] }),
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  };
   const getRows = async (path) => { try { const r = await fetch(`${supabaseUrl}/rest/v1/${path}`, { headers: sbHeaders }); return r.ok ? await r.json() : []; } catch { return []; } };
   // Prospect pulse and Spotlight (v4.6.0). Either is left out on any failure.
   const buildPulseAndSpotlight = async (live) => {
@@ -714,27 +955,41 @@ export default async function handler(req, res) {
     let spotlight = null;
     if (pick) {
       try {
-        const r = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 700, temperature: 0, messages: [{ role: 'user', content: spotlightPrompt(pick) }] }),
-        });
-        if (r.ok) { const d = await r.json(); spotlight = parseSpotlight((d.content || []).filter(b => b.type === 'text').map(b => b.text).join(''), pick); }
-      } catch { /* the issue goes out without it */ }
+        // Every figure must be one of ours (v4.10.0): written again once, then left out.
+        const allowed = spotlightFigures(pick);
+        const bad = (sp) => unsupportedNumbers([sp.headline, sp.action, sp.why, ...(sp.steps || [])].join(' '), allowed);
+        spotlight = parseSpotlight(await ask(spotlightPrompt(pick), 700), pick);
+        let outcome = spotlight ? 'kept' : 'not written';
+        if (spotlight && bad(spotlight).length) {
+          const first = bad(spotlight);
+          spotlight = parseSpotlight(await ask(spotlightPrompt(pick, { strict: true }), 700), pick);
+          outcome = spotlight && !bad(spotlight).length ? 'rewritten' : 'dropped';
+          if (outcome === 'dropped') spotlight = null;
+          figureReport.push({ section: 'Spotlight', outcome, figures: first });
+        } else if (outcome === 'kept') figureReport.push({ section: 'Spotlight', outcome, figures: [] });
+      } catch { spotlight = null; }
     }
     return { prospectPulse: pulse, spotlight };
   };
 
+  // Every figure in the talking point must be in the story it draws on (v4.10.0).
   const writeTalkingPoint = async (stories) => {
     try {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 300, temperature: 0, messages: [{ role: 'user', content: talkingPointPrompt(stories) }] }),
-      });
-      if (!r.ok) return null;
-      const d = await r.json();
-      return parseTalkingPoint((d.content || []).filter(b => b.type === 'text').map(b => b.text).join(''), stories);
+      const bad = (tp) => {
+        const st = stories.find(s => s.headline === tp.story);
+        const source = (st ? [st] : stories).map(s => [s.headline, s.insight, s.whyItMatters].join(' ')).join(' ');
+        return unsupportedNumbers(tp.point, figuresIn(source));
+      };
+      let tp = parseTalkingPoint(await ask(talkingPointPrompt(stories), 300), stories);
+      if (tp && bad(tp).length) {
+        const first = bad(tp);
+        tp = parseTalkingPoint(await ask(talkingPointPrompt(stories, { strict: true }), 300), stories);
+        const ok = tp && !bad(tp).length;
+        figureReport.push({ section: 'Talking point', outcome: ok ? 'rewritten' : 'dropped', figures: first });
+        return ok ? tp : null;
+      }
+      if (tp) figureReport.push({ section: 'Talking point', outcome: 'kept', figures: [] });
+      return tp;
     } catch { return null; }
   };
 
@@ -759,17 +1014,22 @@ export default async function handler(req, res) {
 
   try {
     // Pull all three caches in parallel
-    const [scRow, laRow, iaRow] = await Promise.all([
-      fetchTable('stay_conscious_cache'),
+    const [scRow, reportRow, laRow, iaRow] = await Promise.all([
+      fetchTable('stay_conscious_cache', 1),
+      fetchTable('stay_conscious_cache', 2),   // the fact-check report (v4.10.0)
       fetchTable('landscape_analysis_cache'),
       fetchTable('insights_analysis_cache'),
     ]);
 
-    if (!scRow?.items?.length) {
-      return res.status(200).json({ success: false, error: 'The Stay Conscious cache is empty. Run the other refreshes first.' });
+    // Only fact-checked stories go in (v4.10.0). With none, there is no draft
+    // and nothing is posted; the current issue simply stays up.
+    const storyCheck = storyCheckState(scRow, reportRow);
+    if (!storyCheck.items.length) {
+      const error = scRow?.items?.length ? 'No fact-checked stories yet, so there is no draft. The current issue stays up.' : 'The Stay Conscious cache is empty. Run the other refreshes first.';
+      return res.status(200).json({ success: false, error, factCheck: storyCheck.report || null });
     }
 
-    const intelligenceItems = scRow.items;
+    const intelligenceItems = storyCheck.items;
     const landscapeAnalysis = laRow?.analysis || null;
     const storyOpportunities = iaRow?.stories || null;
 
@@ -800,15 +1060,22 @@ export default async function handler(req, res) {
       // What the last three issues said, and what moved since last week (v4.6.0).
       const recentArch = await getRows('stay_conscious_newsletter_archive?select=la:newsletter->landscapeAnalysis&order=refreshed_at.desc&limit=2');
       const recent = [prevRow?.newsletter?.landscapeAnalysis, ...recentArch.map(r => r?.la)].filter(r => r && (r.headline || r.summary)).slice(0, 3);
-      const snapshot = landscapeSnapshot(latestPerBrand(await getRows('compass_results?select=brand_name,total_score,scores,created_at')));
+      const scored = latestPerBrand(await getRows('compass_results?select=brand_name,industry,total_score,scores,created_at'));
+      const snapshot = landscapeSnapshot(scored);
       const changes = landscapeChanges(snapshot, prevRow?.newsletter?.landscapeAnalysis?.snapshot);
       const lens = landscapeLens(issueNumber);
+      // The figures the landscape may use, all computed from the scores (v4.10.0).
+      const allowed = landscapeFigures(scored);
+      [snapshot.brandCount, snapshot.averageScore, ...Object.values(snapshot.attributes || {}), landscapeAnalysis.brandCount, landscapeAnalysis.sectorCount, landscapeAnalysis.averageScore]
+        .filter(Number.isFinite).forEach(n => allowed.add(String(n)));
+      changes.forEach(c => numbersIn(c).forEach(n => allowed.add(n)));
+      const figures = figureListForPrompt(allowed);
 
-      const write = async (retry) => {
+      const write = async (retry, strict = false) => {
         const hlRes = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 700, temperature: 0.4, messages: [{ role: 'user', content: landscapePrompt(combinedText, { recent, lens, changes, retry }) }] }),
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 700, temperature: 0.4, messages: [{ role: 'user', content: landscapePrompt(combinedText, { recent, lens, changes, retry, figures, strict }) }] }),
         });
         if (!hlRes.ok) return null;
         const hlData = await hlRes.json();
@@ -822,8 +1089,20 @@ export default async function handler(req, res) {
       };
       let draft = await write(false);
       if (draft && tooSimilarLandscape(draft, recent)) draft = (await write(true)) || draft;
+      // Any figure the code did not compute: written again once, then left out (v4.10.0).
+      const offList = (d) => unsupportedNumbers(`${d?.headline || ''} ${d?.summary || ''}`, allowed);
+      let outcome = 'kept'; const first = draft ? offList(draft) : [];
+      if (draft && first.length) {
+        draft = await write(true, true);
+        outcome = draft && !offList(draft).length ? 'rewritten' : 'dropped';
+        if (outcome === 'dropped') draft = { headline: '', summary: '' };
+      }
+      // With no draft at all, the analysis itself, if its figures are ours.
+      const fallback = !draft && !unsupportedNumbers(combinedText, allowed).length ? combinedText : '';
+      if (!draft) outcome = fallback ? 'kept' : 'dropped';
+      figureReport.push({ section: 'Landscape', outcome, figures: first });
       const headline = draft?.headline || '';
-      const twoParaSummary = draft?.summary || combinedText;
+      const twoParaSummary = draft ? draft.summary : fallback;
 
       landscapeForNewsletter = {
         headline: titleCaseAttributes(headline),
@@ -861,7 +1140,14 @@ export default async function handler(req, res) {
     // archived when a weekly draft is published, not now (v4.2.0 rule kept:
     // one edition a week, as it stood at the end of the week).
     // No em dashes in anything the issue says (v4.9.0).
-    await writeIssueRow(DRAFT_ID, { ...withoutDashes(newsletter), _draft: { weekly, held: false, createdAt: new Date().toISOString(), by: caller.cron ? 'schedule' : (caller.email || 'admin') } });
+    // The fact-check report rides with the draft for the review panel; it is
+    // removed on publish with the rest of _draft (v4.10.0).
+    const check = {
+      stories: storyCheck.report?.stories || [], passed: storyCheck.items.length,
+      earnedCreative: newsletter.earnedCreative?.carriedFrom ? [] : (newsletter.earnedCreative?.status?.factCheck || []),
+      figures: figureReport,
+    };
+    await writeIssueRow(DRAFT_ID, { ...withoutDashes(newsletter), _draft: { weekly, held: false, check, createdAt: new Date().toISOString(), by: caller.cron ? 'schedule' : (caller.email || 'admin') } });
     const reviewPosted = caller.cron ? await postToChannel(process.env.NEWSLETTER_REVIEW_WEBHOOK_URL, {
       title: `Stay Conscious, Issue ${issueNumber} is ready for review`,
       sections: [{ text: 'It publishes on Monday morning unless it is held. Review it on the newsletter page in the Compass.' }],
@@ -873,6 +1159,7 @@ export default async function handler(req, res) {
       draft: true,
       weekly,
       issueNumber,
+      factCheck: { storiesPassed: check.passed, earnedCreativeKept: check.earnedCreative.filter(r => r.outcome === 'kept').length, figures: figureReport },
       reviewPosted,
       refreshedAt: new Date().toISOString(),
     });

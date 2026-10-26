@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.9.0';
+const APP_VERSION = '4.10.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -27,6 +27,58 @@ const ecMonth = (d) => {
 
 // The house images and their rotation live in src/lib/newsletter.js (v4.7.2),
 // so the Teams card shows the same photo as the page.
+
+// The fact check behind a draft, for whoever reviews it (v4.10.0): what
+// passed, what was removed or dropped, and why. Admins only; it rides in the
+// draft's review notes, which never reach readers or any channel.
+const CHECK_FIELD = { headline: 'the headline', insight: 'the story', whyItMatters: 'Why it matters', what: 'what they did', coverage: 'the coverage line' };
+const CHECK_OUTCOME = { kept: 'Kept', rewritten: 'Rewritten', dropped: 'Left out', 'not written': 'Not written' };
+function FactCheckReport({ check }) {
+  const stories = Array.isArray(check?.stories) ? check.stories : [];
+  const examples = Array.isArray(check?.earnedCreative) ? check.earnedCreative : [];
+  const figures = Array.isArray(check?.figures) ? check.figures : [];
+  const removed = [...stories, ...examples].reduce((n, r) => n + (r.outcome === 'kept' ? (r.removed?.length || 0) : 0), 0);
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const Removed = ({ list }) => (list?.length ? (
+    <ul className="dc-np-check-rm">
+      {list.map((x, k) => <li key={k}>Removed from {CHECK_FIELD[x.field] || x.field}: “{x.text}” ({x.reason})</li>)}
+    </ul>
+  ) : null);
+  return (
+    <details className="dc-np-check" data-field="fact-check">
+      <summary>
+        Fact check: {check?.passed ?? stories.filter(s => s.outcome === 'kept').length} of {plural(stories.length, 'story', 'stories')} passed, {plural(removed, 'sentence', 'sentences')} removed,
+        {' '}{plural(examples.filter(e => e.outcome === 'kept').length, 'earned creative example', 'earned creative examples')} kept.
+      </summary>
+      {stories.length > 0 && <h4 className="dc-np-check-h">Stories</h4>}
+      <ul className="dc-np-check-list">
+        {stories.map((s, k) => (
+          <li key={k} data-outcome={s.outcome}>
+            <strong>{s.outcome === 'kept' ? 'Kept' : 'Left out'}</strong>{s.wider ? ' (wider search)' : ''}: {s.headline}{s.reason ? `. ${s.reason.charAt(0).toUpperCase()}${s.reason.slice(1)}.` : ''}
+            {s.outcome === 'kept' && <Removed list={s.removed} />}
+          </li>
+        ))}
+      </ul>
+      {examples.length > 0 && <h4 className="dc-np-check-h">Earned creative</h4>}
+      <ul className="dc-np-check-list">
+        {examples.map((e, k) => (
+          <li key={k} data-outcome={e.outcome}>
+            <strong>{e.outcome === 'kept' ? 'Kept' : 'Left out'}</strong>: {e.brand}{e.reason ? `. ${e.reason.charAt(0).toUpperCase()}${e.reason.slice(1)}.` : ''}
+            {e.outcome === 'kept' && <Removed list={e.removed} />}
+          </li>
+        ))}
+      </ul>
+      {figures.length > 0 && <h4 className="dc-np-check-h">Figures</h4>}
+      <ul className="dc-np-check-list">
+        {figures.map((f, k) => (
+          <li key={k} data-outcome={f.outcome}>
+            <strong>{f.section}</strong>: {CHECK_OUTCOME[f.outcome] || f.outcome}{f.figures?.length ? `, because it used ${f.figures.length === 1 ? 'a figure' : 'figures'} ${f.section === 'Talking point' ? 'not in its story' : 'we did not calculate'} (${f.figures.join(', ')})` : ', every figure checked'}.
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 
 // If an image is missing (the folder not uploaded yet), the frame stays empty
 // rather than showing a broken image.
@@ -12671,6 +12723,8 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                 {!draftState.meta?.weekly && ' It revises the current issue.'}
                 {draftState.meta?.editedAt && ' It has been edited.'}
               </p>
+              {/* The fact check behind the draft, for admins (v4.10.0). */}
+              {draftState.meta?.check && <FactCheckReport check={draftState.meta.check} />}
               <div className="dc-np-review-actions">
                 <button type="button" className="btn-secondary btn-sm" onClick={() => setViewingDraft(v => !v)} disabled={draftBusy}>{viewingDraft ? 'Back to the live issue' : 'Preview the draft'}</button>
                 <button type="button" className="btn-secondary btn-sm" onClick={() => { setViewingDraft(true); setEditOpen(true); }} disabled={draftBusy}>Edit text</button>
