@@ -5,21 +5,46 @@
 import { requireUser } from './_auth.js';
 import { headlineOverlap } from '../src/lib/newsletter.js';
 import { searchedResults, normUrl } from './refresh-stay-conscious-newsletter.js';
-export const STAY_CONSCIOUS_PROMPT = `You are a brand intelligence analyst advising consultants who use the Conscious Compass framework to evaluate brands based purely on publicly available signals — what audiences, prospects, and partners actually encounter. The framework measures eight attributes: Awake (narrative leadership), Aware (audience understanding), Reflective (authenticity), Attentive (experience quality), Cogent (strategic intelligence), Sentient (emotional resonance), Visionary (purpose), and Intentional (credibility).
+// ── The weekly brief (v4.8.0) ─────────────────────────────────
+// Until 4.8.0 the stories were written for brand assessors, in six fixed
+// categories led by AI Visibility, and the lead was chosen from AI first, so
+// AI led almost every issue. The brief now covers conscious marketing as a
+// whole, for the people Antenna Group and HOWL work with, weighted to the
+// sectors Antenna serves; stories come back ranked by significance, and the
+// newsletter picks a lead whose topic has not led recently.
+export const STORY_CATEGORIES = [
+  'AI & Search', 'Earned Creative', 'Media Relations', 'Paid Media', 'Social & Influencer', 'Integrated Marketing',
+  'Creativity', 'Trust & Reputation', 'Measurement & Attribution', 'Purpose & Sustainability', 'B2B & B2C', 'Agency & Industry',
+];
+export const PRIORITY_SECTORS = ['climate tech', 'placemaking and real estate', 'OEMs and manufacturers', 'data centers', 'consumer brands that want to be on the right side of history and grow commercially'];
 
-Generate exactly 6 "Stay Conscious" intelligence items that brand assessors should be aware of right now. These should be emerging trends, platform changes, new signals, shifting standards, or evolving best practices that affect how a brand is publicly experienced or how it should be rigorously assessed. Be specific and current. Avoid generic marketing platitudes. Write with conviction.
+export const STAY_CONSCIOUS_PROMPT = `You are the editor of Stay Conscious, Antenna Group's weekly briefing on conscious marketing. Antenna Group is an integrated marketing and communications agency for climate, energy, real estate, health and B2B technology brands; HOWL is its earned creative studio. Readers are Antenna Group staff, and the people they advise: CMOs, chief sustainability officers, CEOs, communications leaders and marketing professionals.
 
-Cover a spread across these categories — use each at most once: AI Visibility, Digital Experience, Brand Strategy, Earned Media, Social Signals, Assessment Practice.
+Conscious marketing is marketing that earns attention, trust and growth by being credible, purposeful and well made: brands that want to be on the right side of history and grow commercially as well.
 
-Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
+Find exactly 6 stories from the last two weeks that these readers should know about: the main announcements, research, rulings, platform changes, campaigns, deals and trends that change how brands build reputation, influence and growth. Be specific and current. No generic marketing advice. Write with conviction.
+
+Topics to draw from, each story in a different one:
+${STORY_CATEGORIES.map(c => `- ${c}`).join('\n')}
+(Trust & Reputation covers authenticity, credibility and influence. Purpose & Sustainability covers purpose marketing, sustainability claims and climate communications. Agency & Industry covers developments in the agency, PR and earned creative world that matter to Antenna Group and HOWL's clients.)
+
+Rules for the spread:
+- Six different topics. At most one story about AI.
+- At least three of the six should be grounded in these sectors: ${PRIORITY_SECTORS.join('; ')}. Name the sector in the story.
+- Mix business-to-business and consumer stories, and say which a story is about when it matters.
+- List the stories in order of significance to these readers, most significant first. Significance means how much it changes what a CMO, CSO, CEO or communications leader should do, not how much it is being talked about.
+
+Return ONLY valid JSON, no preamble, no explanation, no markdown fences:
 {"items":[{"headline":"...","category":"...","insight":"...","whyItMatters":"...","sources":[{"title":"...","outlet":"...","url":"https://..."}]}]}
 
 Each item:
 - headline: punchy, specific, max 12 words
-- category: exactly one of: AI Visibility | Digital Experience | Brand Strategy | Earned Media | Social Signals | Assessment Practice
-- insight: 2-3 sentences. What is actually happening, with specifics where possible.
-- whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.
-- sources: one or two pages your searches returned that support the specific facts and figures in this item: the page title, the publication, and its url. Use only pages you actually found; never invent or reconstruct a link. Every figure in the insight must come from one of these pages. If you cannot source an item, replace it with one you can.`;
+- category: exactly one of: ${STORY_CATEGORIES.join(' | ')}
+- insight: 2-3 sentences. What is actually happening, with specifics and figures where possible.
+- whyItMatters: 1-2 sentences. What it means for a brand that wants to be trusted and to grow, and what a leader should do or watch.
+- sources: one or two pages your searches returned that support the specific facts and figures in this item: the page title, the publication, and its url. Use only pages you actually found; never invent or reconstruct a link. Every figure in the insight must come from one of these pages. If you cannot source an item, replace it with one you can.
+
+US English. No em dashes or en dashes.`;
 
 // ── Sources (v4.7.0) ──────────────────────────────────────────
 // Staff repeat these stories to clients, so each must carry the pages behind
@@ -151,8 +176,8 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 2500,
-          tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
+          max_tokens: 4000,
+          tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 9 }],   // six topics, sourced (v4.8.0)
           messages: [{ role: 'user', content: prompt }],
         }),
       });

@@ -425,7 +425,7 @@ test('v4.1.0: the public landscape explains the attributes it names, in title ca
 
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes('publicView && la?.summary && landscapeTerms.length > 0') && app.includes("{landscapeKey('is-beside')}") && app.includes("{landscapeKey('is-stacked')}"), 'the key shows on the public page only, under the photo or after the text when stacked');
-  assert.ok(app.includes("publicView ? 'Why it matters for brands' : 'Why it matters for assessment'"));
+  assert.ok(app.includes("const whyLabel = 'Why it matters';"), 'v4.8.0: one label, for leaders');
   assert.ok(app.includes("'Average Conscious Compass score out of 100'"));
 });
 
@@ -688,7 +688,7 @@ test('v4.5.0: stories do not repeat earlier issues unless they have moved on, an
 
   // The newsletter: a fresh story leads; follow-ups survive the public filter
   const nlSrc = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
-  assert.ok(nlSrc.includes('const fresh = intelligenceItems.filter(i => !i.followUp);') && nlSrc.includes('...(leadItem.followUp ? { followUp: leadItem.followUp } : {})'));
+  assert.ok(nlSrc.includes('const fresh = items.filter(i => !i.followUp);') && nlSrc.includes('...(leadItem.followUp ? { followUp: leadItem.followUp } : {})'));
   assert.ok(nlSrc.includes('fetchEarnedCreative(anthropicKey, { featured: await recentlyFeaturedBrands(prevRow) })'), 'earned creative skips recently featured brands');
   const pub = await import('../api/stay-conscious-newsletter.js');
   const out = pub.publicIssue({ leadStory: { headline: 'h', insight: 'i', followUp: { issueNumber: 37, editionAt: '2026-10-11T23:30:00Z', headline: 'Earlier', whatsNew: 'New data.', secret: 'x' } } }, []);
@@ -894,4 +894,28 @@ test('v4.7.0: sources, talking point, draft and review, Monday publish, and the 
   assert.ok(read.includes('stay_conscious_newsletter?select=newsletter,refreshed_at&id=eq.1&limit=1'));
   assert.ok(read.includes("if (!(await isAdmin(user.id))) return res.status(403).json({ error: 'Admins only.' });"), 'the draft is for admins only');
   assert.ok(readFileSync(new URL('refresh-stay-conscious.js', API), 'utf8').includes('&id=eq.1&limit=1`),   // the live issue, never a draft'));
+});
+
+test('v4.8.0: the brief covers conscious marketing for leaders, and the lead rotates by significance', async () => {
+  const sc = await import('../api/refresh-stay-conscious.js');
+  const p = sc.STAY_CONSCIOUS_PROMPT;
+  for (const c of ['Earned Creative', 'Media Relations', 'Paid Media', 'Social & Influencer', 'Measurement & Attribution', 'Purpose & Sustainability', 'B2B & B2C', 'Agency & Industry', 'Trust & Reputation'])
+    assert.ok(sc.STORY_CATEGORIES.includes(c) && p.includes(c), c);
+  assert.ok(/At most one story about AI/.test(p) && /HOWL/.test(p) && /chief sustainability officers/.test(p) && /order of significance/.test(p));
+  for (const s of ['climate tech', 'placemaking and real estate', 'data centers', 'OEMs']) assert.ok(p.includes(s), s);
+  assert.ok(!/brand assessors/.test(p) && !/—/.test(p), 'not for assessors; no em dashes');
+
+  const { pickLead } = await import('../api/refresh-stay-conscious-newsletter.js');
+  const items = [
+    { headline: 'A', category: 'AI & Search', followUp: { issueNumber: 3 } },
+    { headline: 'B', category: 'AI & Search' },
+    { headline: 'C', category: 'Paid Media' },
+    { headline: 'D', category: 'Earned Creative' },
+  ];
+  assert.equal(pickLead(items, []).headline, 'B', 'most significant fresh story');
+  assert.equal(pickLead(items, ['ai & search']).headline, 'C', 'skips a topic that led recently');
+  assert.equal(pickLead(items, ['AI & Search', 'Paid Media', 'Earned Creative']).headline, 'B', 'falls back to the first fresh story');
+  assert.equal(pickLead([items[0]], []).headline, 'A');
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(!app.includes('STAY_CONSCIOUS_CATEGORIES') && !app.includes('CATEGORY_META'), 'the unused copy in the app is gone');
 });

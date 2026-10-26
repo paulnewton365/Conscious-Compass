@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.7.5';
+const APP_VERSION = '4.8.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -11982,32 +11982,8 @@ function SharedReportView({ report, onClose }) {
   );
 }
 
-// Stay Conscious Page — brand intelligence feed powered by Claude
-const STAY_CONSCIOUS_CATEGORIES = ['AI Visibility', 'Digital Experience', 'Brand Strategy', 'Earned Media', 'Social Signals', 'Assessment Practice'];
-
-const CATEGORY_META = {
-  'AI Visibility':      { color: '#5B6068', bg: '#5B606815' },
-  'Digital Experience': { color: '#0EA5E9', bg: '#0EA5E915' },
-  'Brand Strategy':     { color: '#C23B22', bg: '#C23B2215' },
-  'Earned Media':       { color: '#8C5A0B', bg: '#8C5A0B15' },
-  'Social Signals':     { color: '#2F6B55', bg: '#10B98115' },
-  'Assessment Practice':{ color: '#15171A', bg: '#8B5CF615' },
-};
-
-const STAY_CONSCIOUS_PROMPT = `You are a brand intelligence analyst advising consultants who use the Conscious Compass framework to evaluate brands based purely on publicly available signals — what audiences, prospects, and partners actually encounter. The framework measures eight attributes: Awake (narrative leadership), Aware (audience understanding), Reflective (authenticity), Attentive (experience quality), Cogent (strategic intelligence), Sentient (emotional resonance), Visionary (purpose), and Intentional (credibility).
-
-Generate exactly 6 "Stay Conscious" intelligence items that brand assessors should be aware of right now. These should be emerging trends, platform changes, new signals, shifting standards, or evolving best practices that affect how a brand is publicly experienced or how it should be rigorously assessed. Be specific and current. Avoid generic marketing platitudes. Write with conviction.
-
-Cover a spread across these categories — use each at most once: AI Visibility, Digital Experience, Brand Strategy, Earned Media, Social Signals, Assessment Practice.
-
-Return ONLY valid JSON — no preamble, no explanation, no markdown fences:
-{"items":[{"headline":"...","category":"...","insight":"...","whyItMatters":"..."}]}
-
-Each item:
-- headline: punchy, specific, max 12 words
-- category: exactly one of: AI Visibility | Digital Experience | Brand Strategy | Earned Media | Social Signals | Assessment Practice
-- insight: 2-3 sentences. What is actually happening, with specifics where possible.
-- whyItMatters: 1-2 sentences. Why this matters specifically for assessing or building conscious brands from public signals.`;
+// The weekly brief lives on the server, in api/refresh-stay-conscious.js (v4.8.0:
+// the unused copy that sat here was removed).
 
 // The reader issue (v3.120.0) is this page with publicView: no tools beyond
 // Archive and Share link, and only what the server's publicIssue() sends.
@@ -12454,7 +12430,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       const serif = (text, size, after = 120, o = {}) => new Paragraph({ spacing: { after, line: 240, lineRule: 'auto' }, keepNext: true, children: [new TextRun({ text: txt(text), font: SERIF, size, color: INK, ...o })] });
       const article = (t, size = 22, after = 140) => paras(t).map(x => new Paragraph({ spacing: { after, line: 300, lineRule: 'auto' }, children: [new TextRun({ text: txt(x), font: SERIF, size, color: BODY })] }));
       const why = (t, size = 18) => t ? [
-        new Paragraph({ spacing: { before: 60, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [run('Why it matters for assessment', { size: 15, bold: true, allCaps: true, characterSpacing: 16, color: MUTED })] }),
+        new Paragraph({ spacing: { before: 60, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [run('Why it matters', { size: 15, bold: true, allCaps: true, characterSpacing: 16, color: MUTED })] }),
         new Paragraph({ spacing: { after: 200 }, children: [run(t, { size })] }),
       ] : [];
       // The pages behind a story, as links (v4.7.0).
@@ -12633,7 +12609,8 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   const la = ns?.landscapeAnalysis;
   const landscapeTerms = attributesMentioned(la?.headline, la?.summary, la?.insights);
   // Public readers are not assessors (v4.1.0).
-  const whyLabel = publicView ? 'Why it matters for brands' : 'Why it matters for assessment';
+  // v4.8.0: the stories are for brand and marketing leaders, not assessors.
+  const whyLabel = 'Why it matters';
   // The attributes the landscape names, for readers new to the Compass
   // (v4.1.0). Side by side it sits under the photo, not in the rail (v4.1.1):
   // in the rail it made the rail taller and the photo grew to match. Stacked

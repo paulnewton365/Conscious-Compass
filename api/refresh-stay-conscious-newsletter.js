@@ -109,6 +109,16 @@ export function parseSpotlight(text, pick) {
   return out.headline && out.action ? out : null;
 }
 
+// ── Choosing the lead (v4.8.0) ───────────────────────────────
+// Stories arrive ranked by significance. The lead is the first that is not a
+// follow-up and whose topic has not led recently; failing that, the first
+// fresh story; failing that, the first story.
+export function pickLead(items = [], recentLeadCategories = []) {
+  const recent = new Set(recentLeadCategories.map(c => String(c || '').toLowerCase()));
+  const fresh = items.filter(i => !i.followUp);
+  return fresh.find(i => !recent.has(String(i.category || '').toLowerCase())) || fresh[0] || items[0];
+}
+
 // ── Talking point (v4.7.0) ───────────────────────────────────
 // One line an account lead can use with a client this week, drawn from this
 // issue's stories, so reading turns into using.
@@ -728,6 +738,13 @@ export default async function handler(req, res) {
     } catch { return null; }
   };
 
+  // The topics that led the live issue and the two before it (v4.8.0).
+  const recentLeadCategories = async () => {
+    const live = await readIssueRow(LIVE_ID);
+    const arch = await getRows('stay_conscious_newsletter_archive?select=c:newsletter->leadStory->>category&order=refreshed_at.desc&limit=2');
+    return [live?.newsletter?.leadStory?.category, ...arch.map(r => r?.c)].filter(Boolean);
+  };
+
   // Brands in the earned creative section of the live issue and the last
   // eight archived editions (v4.5.0).
   const recentlyFeaturedBrands = async (live) => {
@@ -756,13 +773,11 @@ export default async function handler(req, res) {
     const landscapeAnalysis = laRow?.analysis || null;
     const storyOpportunities = iaRow?.stories || null;
 
-    // Pick lead story — prefer AI Visibility or Brand Strategy items, otherwise first
-    const leadPriority = ['AI Visibility', 'Brand Strategy', 'Digital Experience'];
-    // A fresh story leads where there is one; follow-ups to earlier coverage
-    // sit among the other stories (v4.5.0).
-    const fresh = intelligenceItems.filter(i => !i.followUp);
-    const leadItem = fresh.find(i => leadPriority.includes(i.category)) || fresh[0]
-      || intelligenceItems.find(i => leadPriority.includes(i.category)) || intelligenceItems[0];
+    // The lead (v4.8.0): the most significant fresh story (the stories come
+    // ranked) whose topic has not led any of the last three issues. Follow-ups
+    // to earlier coverage sit among the other stories (v4.5.0).
+    const recentLeads = await recentLeadCategories();
+    const leadItem = pickLead(intelligenceItems, recentLeads);
     const supportingItems = intelligenceItems.filter(i => i !== leadItem);
 
     // The live issue (row 1, never the draft) and any draft waiting (v4.7.0).
