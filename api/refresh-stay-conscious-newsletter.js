@@ -7,7 +7,7 @@
 import { requireUser } from './_auth.js';
 import { glossaryForPrompt, titleCaseAttributes } from '../src/data/attributeGlossary.js';
 import { ATTRIBUTES } from '../src/data/rubric.js';
-import { headlineOverlap, NEWSLETTER_HOUSE_IMAGES, houseImageIndex } from '../src/lib/newsletter.js';
+import { headlineOverlap, houseImageFor, houseImageForDraft, withoutDashes, noDashes } from '../src/lib/newsletter.js';
 // Each brand's latest save only (v3.109.0): every save is kept as a row for
 // history, but a brand must count once in portfolio figures.
 const latestPerBrand = (rows) => {
@@ -103,7 +103,7 @@ export function parseSpotlight(text, pick) {
   const m = String(text || '').match(/\{[\s\S]*\}/);
   if (!m || !pick) return null;
   let j; try { j = JSON.parse(m[0]); } catch { return null; }
-  const t = (v, n) => String(v || '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim().slice(0, n);
+  const t = (v, n) => noDashes(v || '').replace(/\s+/g, ' ').trim().slice(0, n);
   const out = { attribute: pick.attribute.id, name: pick.attribute.name, headline: t(j.headline, 120), action: t(j.action, 400), why: t(j.why, 400),
     steps: (Array.isArray(j.steps) ? j.steps : []).map(x => t(x, 160)).filter(Boolean).slice(0, 3), figures: pick.figures };
   return out.headline && out.action ? out : null;
@@ -138,7 +138,7 @@ export function parseTalkingPoint(text, stories = []) {
   const m = String(text || '').match(/\{[\s\S]*\}/);
   if (!m) return null;
   let j; try { j = JSON.parse(m[0]); } catch { return null; }
-  const t = (v, n) => String(v || '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim().slice(0, n);
+  const t = (v, n) => noDashes(v || '').replace(/\s+/g, ' ').trim().slice(0, n);
   const topic = t(j.topic, 60).replace(/[.?!]+$/, '');
   const point = t(j.point, 300);
   const story = stories.find(st => st.headline === t(j.story, 300)) ? t(j.story, 300) : '';
@@ -285,7 +285,7 @@ export function searchedResults(content = []) {
 }
 export const searchedUrls = (content = []) => new Set(searchedResults(content).keys());
 
-const tidy = (v) => String(v ?? '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim();
+const tidy = (v) => noDashes(v).replace(/\s+/g, ' ').trim();
 const cleanText = (v, n) => tidy(v).slice(0, n);
 // Longer text is cut at the last whole sentence that fits, never mid-sentence
 // (v4.0.1: descriptions were being cut off mid-word).
@@ -485,7 +485,7 @@ export function applyDraftEdits(newsletter, edits = []) {
     const keys = path.split('.');
     let node = out;
     for (let i = 0; i < keys.length - 1; i++) { node = node?.[keys[i]]; if (!node || typeof node !== 'object') return; }
-    node[keys[keys.length - 1]] = e.value.replace(/\s*[—–]\s*/g, ', ').slice(0, 4000);
+    node[keys[keys.length - 1]] = noDashes(e.value).slice(0, 4000);
   });
   if (removeItems.length && Array.isArray(out.intelligenceItems)) out.intelligenceItems = out.intelligenceItems.filter((_, i) => !removeItems.includes(i));
   return out;
@@ -558,7 +558,7 @@ const leadSentence = (t) => { const v = String(t || '').split(/\n\s*\n/)[0].repl
 export function issueImage(nl) {
   const own = nl?.leadStory?.image?.src;
   if (typeof own === 'string' && /^https:\/\//.test(own)) return { url: own, alt: nl.leadStory.image.alt || '' };
-  return { url: `${SITE_URL()}${NEWSLETTER_HOUSE_IMAGES[houseImageIndex(nl?.issueNumber)].src}`, alt: 'Stay Conscious' };
+  return { url: `${SITE_URL()}${houseImageFor(nl).src}`, alt: 'Stay Conscious' };
 }
 export function publishedNote(nl) {
   const tp = nl?.talkingPoint;
@@ -645,7 +645,7 @@ export default async function handler(req, res) {
         if (caller.cron && meta.held) return res.status(200).json({ success: true, published: false, reason: 'The draft is held.' });
         const liveRow = await readIssueRow(LIVE_ID);
         const archived = meta.weekly ? await archiveIssue(liveRow, { supabaseUrl, supabaseKey }) : null;
-        const published = stripDraft(draftRow.newsletter);
+        const published = withoutDashes(stripDraft(draftRow.newsletter));   // no em dashes, edits included (v4.9.0)
         await writeIssueRow(LIVE_ID, published);
         await deleteIssueRow(DRAFT_ID);
         const posted = await postToChannel(process.env.NEWSLETTER_WEBHOOK_URL, publishedNote(published));
@@ -766,7 +766,7 @@ export default async function handler(req, res) {
     ]);
 
     if (!scRow?.items?.length) {
-      return res.status(200).json({ success: false, error: 'Stay Conscious cache is empty — run other refreshes first.' });
+      return res.status(200).json({ success: false, error: 'The Stay Conscious cache is empty. Run the other refreshes first.' });
     }
 
     const intelligenceItems = scRow.items;
@@ -837,6 +837,8 @@ export default async function handler(req, res) {
 
     const newsletter = {
       issueNumber,
+      // Saved with the issue so it never changes later (v4.9.0).
+      houseImage: houseImageForDraft(issueNumber, [waiting?.newsletter, prevRow?.newsletter]),
       weekOf: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),   // US English (v3.103.0)
       leadStory: {
         category: leadItem.category,
@@ -858,7 +860,8 @@ export default async function handler(req, res) {
     // Written as a draft for review (v4.7.0). The issue it will replace is
     // archived when a weekly draft is published, not now (v4.2.0 rule kept:
     // one edition a week, as it stood at the end of the week).
-    await writeIssueRow(DRAFT_ID, { ...newsletter, _draft: { weekly, held: false, createdAt: new Date().toISOString(), by: caller.cron ? 'schedule' : (caller.email || 'admin') } });
+    // No em dashes in anything the issue says (v4.9.0).
+    await writeIssueRow(DRAFT_ID, { ...withoutDashes(newsletter), _draft: { weekly, held: false, createdAt: new Date().toISOString(), by: caller.cron ? 'schedule' : (caller.email || 'admin') } });
     const reviewPosted = caller.cron ? await postToChannel(process.env.NEWSLETTER_REVIEW_WEBHOOK_URL, {
       title: `Stay Conscious, Issue ${issueNumber} is ready for review`,
       sections: [{ text: 'It publishes on Monday morning unless it is held. Review it on the newsletter page in the Compass.' }],

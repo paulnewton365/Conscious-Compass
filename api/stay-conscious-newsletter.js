@@ -12,9 +12,11 @@
 
 import { requireUser, requireStaff, isAdmin } from './_auth.js';
 import { titleCaseAttributes } from '../src/data/attributeGlossary.js';
+import { isHouseImage, noDashes, withoutDashes } from '../src/lib/newsletter.js';
 
 // Attribute codes read as names publicly: SENTIENT becomes Sentient (v4.1.0).
-const str = (v, n = 4000) => (typeof v === 'string' ? titleCaseAttributes(v.slice(0, n)) : '');
+// No em dashes, in this issue or any past one (v4.9.0).
+const str = (v, n = 4000) => (typeof v === 'string' ? titleCaseAttributes(noDashes(v.slice(0, n))) : '');
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -51,6 +53,8 @@ export function publicIssue(newsletter, brandNames = []) {
   const la = newsletter.landscapeAnalysis;
   return {
     issueNumber: num(newsletter.issueNumber),
+    // The house image the issue was drafted with, only if it is a listed one (v4.9.0).
+    houseImage: isHouseImage(newsletter.houseImage) ? newsletter.houseImage : null,
     weekOf: str(newsletter.weekOf, 60),
     leadStory: item(newsletter.leadStory),
     intelligenceItems: Array.isArray(newsletter.intelligenceItems) ? newsletter.intelligenceItems.map(item).filter(Boolean) : [],
@@ -88,11 +92,12 @@ const isPublicRequest = (req) => req.method === 'GET' && param(req, 'public') ==
 export const ARCHIVE_TABLE = 'stay_conscious_newsletter_archive';
 export const archiveId = (req) => (/^\d{1,9}$/.test(param(req, 'issue')) ? Number(param(req, 'issue')) : null);
 export const wantsArchiveList = (req) => param(req, 'archive') === 'list';
-const ARCHIVE_LIST_SELECT = 'id,issue_number,refreshed_at,week_of:newsletter->>weekOf,headline:newsletter->leadStory->>headline,image:newsletter->leadStory->image->>src';
+const ARCHIVE_LIST_SELECT = 'id,issue_number,refreshed_at,week_of:newsletter->>weekOf,headline:newsletter->leadStory->>headline,image:newsletter->leadStory->image->>src,house:newsletter->>houseImage';
 export const archiveListRow = (r) => ({
   id: r.id, issueNumber: num(r.issue_number), weekOf: str(r.week_of, 60), refreshedAt: r.refreshed_at || null, headline: str(r.headline, 300),
   // The lead story's own image, https only; without one the page shows that edition's house image (v4.2.1).
   image: typeof r.image === 'string' && /^https:\/\//.test(r.image) ? r.image.slice(0, 600) : null,
+  houseImage: isHouseImage(r.house) ? r.house : null,   // v4.9.0
 });
 // The current issue, or one archived edition.
 const issueUrl = (base, id) => (id
@@ -170,7 +175,7 @@ export default async function handler(req, res) {
       const r = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?select=newsletter,refreshed_at&id=eq.2&limit=1`, { headers });
       const rows = r.ok ? await r.json() : [];
       const d = rows?.[0];
-      return res.status(200).json(d?.newsletter ? { draft: d.newsletter, meta: d.newsletter._draft || {}, refreshedAt: d.refreshed_at } : { draft: null });
+      return res.status(200).json(d?.newsletter ? { draft: withoutDashes(d.newsletter), meta: d.newsletter._draft || {}, refreshedAt: d.refreshed_at } : { draft: null });
     }
     const id = archiveId(req);
     const response = await fetch(issueUrl(supabaseUrl, id), { headers });
@@ -186,7 +191,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({
-      newsletter: rows[0].newsletter || null,
+      newsletter: rows[0].newsletter ? withoutDashes(rows[0].newsletter) : null,   // no em dashes (v4.9.0)
       refreshedAt: rows[0].refreshed_at,
       ...(id ? { archived: true, archiveId: id } : {}),
     });

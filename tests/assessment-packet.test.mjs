@@ -274,7 +274,7 @@ test('the issue takes the packet structure: tools, masthead, front page, section
   await act(async () => root.unmount());
 });
 
-test('the house image moves on one with each edition and wraps after eight (v3.122.0; one file each since v3.123.0)', async () => {
+test('an issue from before v4.9.0 keeps the image it went out with: the eight-image rotation (v3.122.0; one file each since v3.123.0)', async () => {
   for (const [issue, want] of [[1, '1'], [2, '2'], [8, '8'], [9, '1'], [30, '6'], [undefined, '1']]) {
     const nl = ISSUE(); nl.issueNumber = issue;
     const { container, root } = await mountIssue(nl);
@@ -284,12 +284,32 @@ test('the house image moves on one with each edition and wraps after eight (v3.1
   }
   // The list lives in the shared library since v4.7.2, used by the page and the Teams card.
   const src = readFileSync(new URL('../src/lib/newsletter.js', import.meta.url), 'utf8');
-  for (let i = 1; i <= 8; i++) assert.ok(src.includes(`src: '/newsletter/house-${i}.jpg'`), `image ${i} is listed`);
+  for (let i = 1; i <= 23; i++) assert.ok(src.includes(`src: '/newsletter/house-${i}.jpg'`), `image ${i} is listed`);
   // The folder is uploaded to the repo once and left out of build ZIPs (v3.123.0),
   // so it is only checked where it exists.
   if (existsSync(new URL('../public/newsletter/', import.meta.url))) {
-    for (let i = 1; i <= 8; i++) assert.ok(existsSync(new URL(`../public/newsletter/house-${i}.jpg`, import.meta.url)), `house-${i}.jpg`);
+    for (let i = 1; i <= 23; i++) assert.ok(existsSync(new URL(`../public/newsletter/house-${i}.jpg`, import.meta.url)), `house-${i}.jpg`);
   }
+});
+
+test('an issue shows the house image it was drafted with, from all 23 (v4.9.0)', async () => {
+  for (const [saved, number, want, focus] of [
+    ['/newsletter/house-17.jpg', 45, '17', '0% 40%'],
+    ['/newsletter/house-22.jpg', 3, '22', '80% 65%'],
+    ['/newsletter/house-2.jpg', 40, '2', '34% 51%'],
+    ['https://elsewhere.example.com/x.jpg', 30, '6', '50% 50%'],   // not a listed image: the old rotation
+  ]) {
+    const nl = ISSUE(); nl.issueNumber = number; nl.houseImage = saved;
+    const { container, root } = await mountIssue(nl);
+    const fig = container.querySelector('[data-field="lead-fill"]');
+    assert.equal(fig.dataset.edition, want, saved);
+    assert.equal(fig.querySelector('img').getAttribute('src'), `/newsletter/house-${want}.jpg`);
+    assert.equal(fig.querySelector('img').style.objectPosition, focus);
+    await act(async () => root.unmount());
+  }
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('<NewsletterHouseImage issue={ns} />') && app.includes('<ArchiveThumb image={p.image} issue={p} />'), 'the page and the archive both read the saved image');
+  assert.ok(!app.includes('houseImageIndex('), 'nothing works the image out from the number alone');
 });
 
 test('a lead story with its own image shows that, not the house image', async () => {

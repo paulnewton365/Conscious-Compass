@@ -497,7 +497,7 @@ test('v4.2.0: the Sunday run keeps the issue it replaces; past issues can be lis
   assert.equal(pub.archiveId({ query: { issue: '12; drop table' } }), null, 'only a plain number reaches the query');
   assert.equal(pub.wantsArchiveList({ query: { archive: 'list' } }), true);
   assert.deepEqual(pub.archiveListRow({ id: 3, issue_number: 37, refreshed_at: 'x', week_of: 'October 9, 2026', headline: 'SENTIENT lags' }),
-    { id: 3, issueNumber: 37, weekOf: 'October 9, 2026', refreshedAt: 'x', headline: 'Sentient lags', image: null });
+    { id: 3, issueNumber: 37, weekOf: 'October 9, 2026', refreshedAt: 'x', headline: 'Sentient lags', image: null, houseImage: null });
 
   // A public request for a past issue reads the archive and still goes through publicIssue().
   const seen = [];
@@ -537,7 +537,7 @@ test('v4.2.1: one Archive button opens past issues newest first, each with its l
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes("{showArchive ? 'Back to issue' : 'Archive'}"), 'one button at the top');
   assert.ok(app.includes("localeCompare(String(x.refreshedAt || ''))"), 'newest first by publish date');
-  assert.ok(app.includes('<ArchiveThumb image={p.image} issueNumber={p.issueNumber} />'));
+  assert.ok(app.includes('<ArchiveThumb image={p.image} issue={p} />'));
   assert.ok(!app.includes('data-field="past-issues"'), 'the list at the foot of the issue is gone');
 });
 
@@ -866,7 +866,7 @@ test('v4.7.0: sources, talking point, draft and review, Monday publish, and the 
   let res = mockRes(); await nl.default(cron({ action: 'publish' }), res);
   assert.equal(res.body.published, false);
   // A held weekly draft is skipped by the schedule
-  rows[2] = { id: 2, newsletter: { issueNumber: 38, leadStory: { headline: 'New' }, _draft: { weekly: true, held: true } }, refreshed_at: '2026-10-18T23:30:00Z' };
+  rows[2] = { id: 2, newsletter: { issueNumber: 38, houseImage: '/newsletter/house-15.jpg', leadStory: { headline: 'New' }, _draft: { weekly: true, held: true } }, refreshed_at: '2026-10-18T23:30:00Z' };
   res = mockRes(); await nl.default(cron({ action: 'publish' }), res);
   assert.deepEqual([res.body.published, res.body.reason, rows[1].newsletter.issueNumber], [false, 'The draft is held.', 37]);
   // The schedule cannot hold, edit or discard
@@ -879,13 +879,14 @@ test('v4.7.0: sources, talking point, draft and review, Monday publish, and the 
   assert.deepEqual([res.body.published, res.body.issueNumber, res.body.posted], [true, 38, true]);
   assert.equal(rows[1].newsletter.leadStory.headline, 'New');
   assert.ok(!('_draft' in rows[1].newsletter), 'review notes never reach readers');
+  assert.equal(rows[1].newsletter.houseImage, '/newsletter/house-15.jpg', 'the draft\'s house image is published with it (v4.9.0)');
   assert.equal(rows[2], undefined, 'the draft is cleared');
   assert.ok(calls.some(c => c.startsWith('POST https://db/rest/v1/stay_conscious_newsletter_archive')), 'the replaced issue was archived');
   assert.ok(calls.findIndex(c => c.includes('_archive')) < calls.findIndex(c => c === 'POST https://db/rest/v1/stay_conscious_newsletter'), 'archived before it was overwritten');
   delete process.env.CRON_SECRET; delete process.env.NEWSLETTER_WEBHOOK_URL;
 
   const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
-  assert.ok(src.includes('await writeIssueRow(DRAFT_ID, { ...newsletter, _draft: { weekly,'), 'the Sunday run writes a draft, not the live issue');
+  assert.ok(src.includes('await writeIssueRow(DRAFT_ID, { ...withoutDashes(newsletter), _draft: { weekly,'), 'the Sunday run writes a draft, not the live issue');
   assert.ok(src.includes('const issueNumber = weekly || !prevIssue ? prevIssue + 1 : prevIssue;'), 'a mid-week revision keeps its number');
   const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
   assert.ok(vercel.crons.some(c => c.path === '/api/refresh-stay-conscious-newsletter?action=publish' && c.schedule === '0 12 * * 1'), 'Monday 12:00 UTC');
@@ -918,4 +919,76 @@ test('v4.8.0: the brief covers conscious marketing for leaders, and the lead rot
   assert.equal(pickLead([items[0]], []).headline, 'A');
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(!app.includes('STAY_CONSCIOUS_CATEGORIES') && !app.includes('CATEGORY_META'), 'the unused copy in the app is gone');
+});
+
+test('each issue keeps the house image it was drafted with (v4.9.0)', async () => {
+  const lib = await import('../src/lib/newsletter.js');
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  assert.equal(lib.NEWSLETTER_HOUSE_IMAGES.length, 23);
+  // Issues from before v4.9.0 saved no image: the eight-image rotation they went out with
+  for (const [n, want] of [[1, 1], [8, 8], [9, 1], [38, 6], [44, 4], [undefined, 1]]) assert.equal(lib.houseImageFor({ issueNumber: n }).src, `/newsletter/house-${want}.jpg`, `issue ${n}`);
+  // A saved image wins, but only a listed one
+  assert.equal(lib.houseImageFor({ issueNumber: 38, houseImage: '/newsletter/house-20.jpg' }).src, '/newsletter/house-20.jpg');
+  assert.equal(lib.houseImageFor({ issueNumber: 38, houseImage: 'https://evil.example.com/x.jpg' }).src, '/newsletter/house-6.jpg');
+  assert.equal(lib.houseImageFor({ issueNumber: 38, houseImage: '/newsletter/../secret.jpg' }).src, '/newsletter/house-6.jpg');
+  // A new issue takes the next image by number across all 23, wrapping after 23
+  for (const [n, want] of [[45, 22], [46, 23], [47, 1], [23, 23], [24, 1]]) assert.equal(lib.houseImageForDraft(n, []), `/newsletter/house-${want}.jpg`, `new issue ${n}`);
+  // A redraft of a waiting draft keeps its image; a revision of the live issue keeps the live image
+  assert.equal(lib.houseImageForDraft(45, [{ issueNumber: 45, houseImage: '/newsletter/house-3.jpg' }, { issueNumber: 44 }]), '/newsletter/house-3.jpg');
+  assert.equal(lib.houseImageForDraft(44, [null, { issueNumber: 44 }]), '/newsletter/house-4.jpg', 'a pre-v4.9.0 live issue revised mid-week keeps its old image');
+  assert.equal(lib.houseImageForDraft(45, [null, { issueNumber: 44 }]), '/newsletter/house-22.jpg', 'the next week is a new issue');
+  // The draft saves it, from the waiting draft and the live issue
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes('houseImage: houseImageForDraft(issueNumber, [waiting?.newsletter, prevRow?.newsletter]),'));
+  assert.ok(src.indexOf('const waiting = await readIssueRow(DRAFT_ID);') < src.indexOf('houseImage: houseImageForDraft('), 'the waiting draft is read first');
+  // The Teams card shows the same saved image as the page
+  assert.equal(nl.issueImage({ issueNumber: 45, houseImage: '/newsletter/house-22.jpg' }).url, 'https://conscious-compass.vercel.app/newsletter/house-22.jpg');
+  assert.equal(nl.issueImage({ issueNumber: 38 }).url, 'https://conscious-compass.vercel.app/newsletter/house-6.jpg');
+  // Readers and the archive list get it, only when it is a listed image
+  assert.equal(pub.publicIssue({ issueNumber: 45, houseImage: '/newsletter/house-22.jpg' }, []).houseImage, '/newsletter/house-22.jpg');
+  assert.equal(pub.publicIssue({ issueNumber: 45, houseImage: 'javascript:alert(1)' }, []).houseImage, null);
+  assert.equal(pub.publicIssue({ issueNumber: 30 }, []).houseImage, null);
+  assert.equal(pub.archiveListRow({ id: 9, issue_number: 45, house: '/newsletter/house-22.jpg' }).houseImage, '/newsletter/house-22.jpg');
+  assert.equal(pub.archiveListRow({ id: 9, issue_number: 45, house: '/x.jpg' }).houseImage, null);
+});
+
+test('no em dashes anywhere in the newsletter, past issues included (v4.9.0)', async () => {
+  const { noDashes, withoutDashes } = await import('../src/lib/newsletter.js');
+  const cases = [
+    ['Brands win \u2014 and fast.', 'Brands win, and fast.'],
+    ['The brand \u2014 a leader \u2014 said so.', 'The brand, a leader, said so.'],
+    ['Word\u2014word', 'Word, word'],
+    ['Ends with one \u2014', 'Ends with one'],
+    ['Line one \u2014\nLine two', 'Line one\nLine two'],
+    ['\u2014 Starts with one', 'Starts with one'],
+    ['Why\u2014? Because', 'Why? Because'],
+    ['A spaced \u2013 en dash', 'A spaced, en dash'],
+    ['A range 2019\u20132024 stays', 'A range 2019\u20132024 stays'],
+    ['STAY  |  Issue', 'STAY  |  Issue'],
+    ['First.\n\n\u2014 Second.', 'First.\n\nSecond.'],
+  ];
+  for (const [input, want] of cases) assert.equal(noDashes(input), want, input);
+  assert.deepEqual(withoutDashes({ issueNumber: 45, houseImage: '/newsletter/house-22.jpg', leadStory: { headline: 'A \u2014 B', sources: [{ url: 'https://x.com/a\u2014b', title: 'T \u2014 U' }] }, intelligenceItems: [{ insight: 'X\u2014Y' }] }),
+    { issueNumber: 45, houseImage: '/newsletter/house-22.jpg', leadStory: { headline: 'A, B', sources: [{ url: 'https://x.com/a\u2014b', title: 'T, U' }] }, intelligenceItems: [{ insight: 'X, Y' }] }, 'text cleaned, links and numbers untouched');
+
+  // Readers: the public issue and the archive list, for any issue already stored with dashes
+  const pub = await import('../api/stay-conscious-newsletter.js');
+  const out = pub.publicIssue({ issueNumber: 30, leadStory: { category: 'Trust', headline: 'Proof \u2014 not promises', insight: 'One \u2014 two.\n\nThree.', whyItMatters: 'Because \u2014 yes.' },
+    intelligenceItems: [{ headline: 'Item \u2014 one', insight: 'x' }], landscapeAnalysis: { headline: 'Gap \u2014 widening', summary: 'A \u2014 b.' },
+    talkingPoint: { topic: 'AI', point: 'Say \u2014 this.', story: 's' }, earnedCreative: { items: [{ brand: 'B', what: 'Did \u2014 it', url: 'https://e.com' }] } }, []);
+  assert.ok(!JSON.stringify(out).includes('\u2014'), JSON.stringify(out));
+  assert.equal(out.leadStory.insight, 'One, two.\n\nThree.', 'paragraphs kept');
+  assert.equal(pub.archiveListRow({ id: 1, headline: 'Old \u2014 headline' }).headline, 'Old, headline');
+
+  // Writers: the draft, publishing, the signed-in reader, the admin preview, and the exports
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes('const published = withoutDashes(stripDraft(draftRow.newsletter));'), 'the live issue is cleaned as it is published');
+  assert.ok(!/replace\(\/\\s\*\[\u2014\u2013\]/.test(src), 'the older cleanups use the shared rule, which keeps number ranges');
+  const reader = readFileSync(new URL('stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(reader.includes('draft: withoutDashes(d.newsletter)') && reader.includes('newsletter: rows[0].newsletter ? withoutDashes(rows[0].newsletter) : null'));
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes("const clean = (t) => noDashes(t || '');") && app.includes("return clean(lines.join('\\n'));") && app.includes('`LEAD STORY: ${'), 'Word and plain-text exports');
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  assert.equal(nl.applyDraftEdits({ leadStory: { headline: 'H' } }, [{ path: 'leadStory.headline', value: 'From 2019\u20132024 \u2014 a shift' }]).leadStory.headline, 'From 2019\u20132024, a shift', 'edits drop dashes but keep ranges');
 });
