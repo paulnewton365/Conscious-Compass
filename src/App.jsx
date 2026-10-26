@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { attributesMentioned } from './data/attributeGlossary.js';
-import { ecStatusNote, nextIssueAt, NEWSLETTER_HOUSE_IMAGES, houseImageFor, noDashes, NEWSLETTER_EC_COPY, followUpText, newsletterDocument, newsletterDocxName, plural as countOf, readMinutes, SIGNALS_AUTHOR, SIGNALS_CLOSE, signalsLayout, signalsRuns, signalsHtml, signalsDocument, signalsDocxName } from './lib/newsletter.js';
+import { ecStatusNote, nextIssueAt, NEWSLETTER_HOUSE_IMAGES, houseImageFor, noDashes, NEWSLETTER_EC_COPY, followUpText, newsletterDocument, newsletterDocxName, plural as countOf, readMinutes, SIGNALS_AUTHOR, SIGNALS_SERIES, SIGNALS_CLOSE, signalsLayout, signalsRuns, signalsHtml, signalsDocument, signalsDocxName } from './lib/newsletter.js';
 import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.12.0';
+const APP_VERSION = '4.13.3';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -2328,7 +2328,7 @@ function MaturityContinuum({ score, hideTitle = false }) {
 // App header, to the design brief: brand left, nav centred on the page,
 // session right. Admin is a nav link for admins, Sign out lives in the account
 // menu, and "Draft saved" has moved to the assessment step bar.
-function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResults, onComparison, onStayConscious, onTeaser, activePage, user, profile, onLogout, onAdmin }) {
+function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResults, onComparison, onStayConscious, onTeaser, onSignals, activePage, user, profile, onLogout, onAdmin }) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isReadonly = profile?.is_readonly && !profile?.is_admin;
@@ -2354,6 +2354,7 @@ function Header({ onNewAssessment, onGoHome, onSavedAssessments, onCompassResult
     ['results', 'Results', onCompassResults],
     ['saved', 'Saved', onSavedAssessments],
     ...(canTeaser(profile) && onTeaser ? [['teaser', 'Teaser', onTeaser]] : []),
+    ...(profile?.is_admin && onSignals ? [['signals', 'Signals', onSignals]] : []),
     ...(profile?.is_admin ? [['admin', 'Admin', onAdmin]] : []),
   ];
   const go = (fn) => (e) => { e.preventDefault(); setDrawerOpen(false); fn?.(); };
@@ -12069,7 +12070,7 @@ function ArchiveThumb({ image, issue }) {
 // Draft editor (v4.7.0): the text the server accepts in a draft, and nothing
 // else. Each story can also be taken out of the issue.
 // ── Signals draft (v4.12.0): the monthly post for antennagroup.com/signals ──
-// Admins only, on the newsletter page. The server writes and checks it; here
+// Admins only, on its own page (v4.13.0). The server writes and checks it; here
 // it is previewed, edited, copied into Webflow or downloaded as Word.
 const SignalsRuns = ({ text }) => signalsRuns(text).map((r, k) => (r.link
   ? <a key={k} href={r.link} target="_blank" rel="noopener noreferrer">{r.text}</a>
@@ -12077,9 +12078,11 @@ const SignalsRuns = ({ text }) => signalsRuns(text).map((r, k) => (r.link
 function SignalsArticle({ draft }) {
   return (
     <article className="dc-sig-article" data-field="signals-preview">
+      <p className="dc-kicker dc-sig-series">{SIGNALS_SERIES.name} | {draft.month}</p>
       <h1 className="dc-sig-title">{draft.title || 'Untitled'}</h1>
       {draft.dek && <p className="dc-sig-dek">{draft.dek}</p>}
       <p className="dc-meta">By {SIGNALS_AUTHOR} · {countOf(draft.words, 'word')} · about {Math.max(1, Math.round(draft.words / 220))} min read</p>
+      <p className="dc-sig-about">{SIGNALS_SERIES.about}</p>
       {signalsLayout(draft).map((b, i) => (b.type === 'h2' ? <h2 key={i}>{b.text}</h2>
         : b.type === 'ul' ? <ul key={i}>{b.items.map((it, k) => <li key={k}><SignalsRuns text={it} /></li>)}</ul>
         : b.type === 'quote' ? <blockquote key={i} className="dc-sig-pull">{b.text}</blockquote>
@@ -12109,6 +12112,19 @@ function SignalsEditor({ draft, onSave, onClose, busy }) {
     </Dialog>
   );
 }
+// The Signals page (v4.13.0): admins only, reached from the nav or #signals.
+function SignalsPage() {
+  return (
+    <div className="dc-wrap dc-page">
+      <div className="dc-page-head">
+        <h1 className="dc-display">Signals</h1>
+        <p className="dc-standfirst">Fully Conscious, the monthly round-up for antennagroup.com/signals: trends, announcements and insights from the last 30 days for conscious brands, written in Paul's voice from the news in the last four editions of Stay Conscious.</p>
+      </div>
+      <SignalsPanel />
+    </div>
+  );
+}
+
 function SignalsPanel() {
   const [draft, setDraft] = useState(undefined);   // undefined while loading, null when none
   const [busy, setBusy] = useState(false);
@@ -12154,6 +12170,7 @@ function SignalsPanel() {
       {draft && (
         <details className="dc-np-check" data-field="signals-check">
           <summary>Checks: {countOf(c.links ?? 0, 'source link')}, {countOf(c.quotes ?? 0, 'quote')} checked word for word, {countOf(c.cited?.length ?? 0, 'citation')} added, {countOf(c.removed?.length ?? 0, 'sentence')} removed.</summary>
+          {c.coverage && <p className="dc-meta" data-field="signals-coverage">Brand Intelligence coverage: stories from {countOf(c.coverage.covered.length, 'category', 'categories')} of the {c.coverage.covered.length + c.coverage.missing.length} this month (at least {c.coverage.target} needed){c.coverage.covered.length ? `: ${c.coverage.covered.join(', ')}` : ''}. {countOf(c.coverage.otherStories, 'supporting story', 'supporting stories')} and {countOf(c.coverage.leadStories, 'lead story', 'lead stories')} cited.</p>}
           {c.voice?.firstPass?.length > 0 && <p className="dc-meta">First draft: {c.voice.firstPass.join('; ')}.{c.voice.rewritten ? ' It was rewritten once.' : ''}{c.voice.after?.length ? ` Still to fix by hand: ${c.voice.after.join('; ')}.` : ''}</p>}
           {c.removed?.length > 0 && <><h4 className="dc-np-check-h">Removed</h4><ul className="dc-np-check-list">{c.removed.map((x, k) => <li key={k} data-outcome="dropped">{/^["\u201c]/.test(x.text) ? x.text : `\u201c${x.text}\u201d`} ({x.reason})</li>)}</ul></>}
           {c.cited?.length > 0 && <><h4 className="dc-np-check-h">Citations added</h4><ul className="dc-np-check-list">{c.cited.map((x, k) => <li key={k}>“{x.text}” now links to {x.source}</li>)}</ul></>}
@@ -12391,25 +12408,6 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     } catch (e) { setDraftMsg(`That did not work: ${e.message}`); }
     finally { setDraftBusy(false); }
   };
-  // Past issues to Smartsheet (v4.11.0): a few per call, repeated until done.
-  const [copyingSheet, setCopyingSheet] = useState(false);
-  const copyToSmartsheet = async () => {
-    setCopyingSheet(true); setDraftMsg('Copying past issues to Smartsheet…');
-    try {
-      let copied = 0;
-      for (let round = 0; round < 40; round++) {
-        const r = await fetch('/api/refresh-stay-conscious-newsletter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'smartsheet-backfill' }) });
-        const d = await r.json();
-        if (!r.ok || d.error) throw new Error(d.error || `${r.status}`);
-        copied += d.copied || 0;
-        if (d.failed?.length) throw new Error(`Issue ${d.failed[0].issue} could not be copied: ${d.failed[0].reason}`);
-        setDraftMsg(`Copied ${copied} ${copied === 1 ? 'issue' : 'issues'} to Smartsheet${d.remaining ? `, ${d.remaining} to go…` : '.'}`);
-        if (!d.remaining || !d.copied) break;
-      }
-      if (!copied) setDraftMsg('Every issue is already in Smartsheet.');
-    } catch (e) { setDraftMsg(`Copying to Smartsheet did not finish: ${e.message}`); }
-    finally { setCopyingSheet(false); }
-  };
   // Force refresh writes a new draft for review, never straight to readers (v4.7.0).
   const forceRefresh = async () => {
     setRefreshing(true); setError(null); setDraftMsg('');
@@ -12523,6 +12521,14 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       divider,
       '',
     ];
+    // Earned creative straight after Brand intelligence (v4.13.3).
+    if (ns.earnedCreative?.items?.length) {
+      lines.push(NEWSLETTER_EC_COPY.title.toUpperCase(), '', NEWSLETTER_EC_COPY.reminder, '');
+      ns.earnedCreative.items.forEach(e => {
+        lines.push(`${[e.brand, e.agency].filter(Boolean).join(' / ')}: ${e.title || e.brand}`, e.what, e.coverage ? `Coverage: ${e.coverage}` : '', `${e.outlet || 'Source'}: ${e.url}`, '');
+      });
+      lines.push(NEWSLETTER_EC_COPY.offer, NEWSLETTER_EC_COPY.link, '', divider, '');
+    }
     if (ns.spotlight?.headline) {
       const sp = ns.spotlight;
       lines.push(`SPOTLIGHT: ONE THING TO LIFT ${String(sp.name || '').toUpperCase()}`, sp.headline, '', sp.action, '');
@@ -12547,13 +12553,6 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
         lines.push(ns.landscapeAnalysis.insights, '');
       }
       lines.push(divider, '');
-    }
-    if (ns.earnedCreative?.items?.length) {
-      lines.push(NEWSLETTER_EC_COPY.title.toUpperCase(), '', NEWSLETTER_EC_COPY.reminder, '');
-      ns.earnedCreative.items.forEach(e => {
-        lines.push(`${[e.brand, e.agency].filter(Boolean).join(' / ')}: ${e.title || e.brand}`, e.what, e.coverage ? `Coverage: ${e.coverage}` : '', `${e.outlet || 'Source'}: ${e.url}`, '');
-      });
-      lines.push(NEWSLETTER_EC_COPY.offer, NEWSLETTER_EC_COPY.link, '', divider, '');
     }
     if (ns.storyOpportunities?.length) {
       lines.push('STORY OPPORTUNITIES', '');
@@ -12675,11 +12674,6 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
               {refreshing ? 'Writing draft…' : 'New draft'}
             </button>
           )}
-          {isAdmin && !publicView && !issueId && !showArchive && (
-            <button className="btn-secondary" type="button" title="Copy every past issue to the Stay Conscious sheet in Smartsheet. New issues are copied when they publish." onClick={copyToSmartsheet} disabled={copyingSheet} aria-busy={copyingSheet || undefined}>
-              {copyingSheet ? 'Copying…' : 'Copy to Smartsheet'}
-            </button>
-          )}
         </div>
       </div>
 
@@ -12722,8 +12716,6 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       {editOpen && draftState?.draft && (
         <DraftEditor draft={draftState.draft} busy={draftBusy} onClose={() => setEditOpen(false)} onSave={(edits) => draftAction('save-draft', { edits })} />
       )}
-      {/* The monthly Signals post (v4.12.0): admins, on the current issue. */}
-      {canReview && !issueId && !showArchive && <SignalsPanel />}
 
       {recovering && (
         <section className="dc-np-gate" aria-labelledby="reset-h" data-field="reset-gate">
@@ -12934,6 +12926,36 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
             </section>
           )}
 
+          {/* Earned creative sits straight after the five Brand Intelligence
+              stories (v4.13.3), before Spotlight and Prospect pulse. */}
+          {ns.earnedCreative?.items?.length > 0 && (
+            <section className="dc-np-sec" aria-labelledby="ec-h" data-field="earned-creative-news">
+              <h2 className="dc-np-sechead" id="ec-h">{NEWSLETTER_EC_COPY.title}</h2>
+              <p className="dc-np-text dc-np-ec-lead">{NEWSLETTER_EC_COPY.reminder}</p>
+              <div className={`dc-np-grid ${ns.earnedCreative.items.length === 3 ? 'is-3' : 'is-2'}`}>
+                {ns.earnedCreative.items.map((e, i) => (
+                  <article key={i} className="dc-np-item">
+                    <div className="dc-kicker" data-value="brand">{[e.brand, e.agency].filter(Boolean).join(' \u00b7 ')}</div>
+                    <h3 className="dc-np-h is-item">{e.title || e.brand}</h3>
+                    <p className="dc-np-text">{e.what}</p>
+                    {e.coverage && <div className="dc-np-why is-sm"><div className="dc-kicker">Coverage</div><p>{e.coverage}</p></div>}
+                    <a className="dc-np-source" href={e.url} target="_blank" rel="noopener noreferrer">Read it{e.outlet ? ` in ${e.outlet}` : ''}{ecMonth(e.published) ? `, ${ecMonth(e.published)}` : ''} {'\u2197'}</a>
+                  </article>
+                ))}
+              </div>
+              <div className="dc-np-ec-offer">
+                <div className="dc-eco-lockup"><img src="/howl-logo.svg" alt="HOWL" /><span>by Antenna</span></div>
+                <p className="dc-np-text">{NEWSLETTER_EC_COPY.offer} <a href={NEWSLETTER_EC_COPY.link} target="_blank" rel="noopener noreferrer">{NEWSLETTER_EC_COPY.linkLabel}</a></p>
+              </div>
+            </section>
+          )}
+
+          {/* For admins only (v4.1.2): why the earned creative section is short,
+              carried over or missing, from the status the refresh saved. */}
+          {isAdmin && !publicView && ecStatusNote(ns.earnedCreative) && (
+            <p className="dc-meta" data-field="earned-creative-status">{ecStatusNote(ns.earnedCreative)}</p>
+          )}
+
           {/* Spotlight (v4.6.0): one thing brands can do to lift the attribute
               they are weakest on, from the assessments. */}
           {ns.spotlight?.headline && (
@@ -12986,34 +13008,6 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
               </dl>
               <p className="dc-meta">Teasers are quick reads of what is publicly visible. They are kept apart from our benchmarks, which count full assessments only.</p>
             </section>
-          )}
-
-          {ns.earnedCreative?.items?.length > 0 && (
-            <section className="dc-np-sec" aria-labelledby="ec-h" data-field="earned-creative-news">
-              <h2 className="dc-np-sechead" id="ec-h">{NEWSLETTER_EC_COPY.title}</h2>
-              <p className="dc-np-text dc-np-ec-lead">{NEWSLETTER_EC_COPY.reminder}</p>
-              <div className={`dc-np-grid ${ns.earnedCreative.items.length === 3 ? 'is-3' : 'is-2'}`}>
-                {ns.earnedCreative.items.map((e, i) => (
-                  <article key={i} className="dc-np-item">
-                    <div className="dc-kicker" data-value="brand">{[e.brand, e.agency].filter(Boolean).join(' \u00b7 ')}</div>
-                    <h3 className="dc-np-h is-item">{e.title || e.brand}</h3>
-                    <p className="dc-np-text">{e.what}</p>
-                    {e.coverage && <div className="dc-np-why is-sm"><div className="dc-kicker">Coverage</div><p>{e.coverage}</p></div>}
-                    <a className="dc-np-source" href={e.url} target="_blank" rel="noopener noreferrer">Read it{e.outlet ? ` in ${e.outlet}` : ''}{ecMonth(e.published) ? `, ${ecMonth(e.published)}` : ''} {'\u2197'}</a>
-                  </article>
-                ))}
-              </div>
-              <div className="dc-np-ec-offer">
-                <div className="dc-eco-lockup"><img src="/howl-logo.svg" alt="HOWL" /><span>by Antenna</span></div>
-                <p className="dc-np-text">{NEWSLETTER_EC_COPY.offer} <a href={NEWSLETTER_EC_COPY.link} target="_blank" rel="noopener noreferrer">{NEWSLETTER_EC_COPY.linkLabel}</a></p>
-              </div>
-            </section>
-          )}
-
-          {/* For admins only (v4.1.2): why the earned creative section is short,
-              carried over or missing, from the status the refresh saved. */}
-          {isAdmin && !publicView && ecStatusNote(ns.earnedCreative) && (
-            <p className="dc-meta" data-field="earned-creative-status">{ecStatusNote(ns.earnedCreative)}</p>
           )}
 
           {!publicView && ns.storyOpportunities?.length > 0 && (
@@ -14338,22 +14332,25 @@ function AppContent() {
   const [showStayConsciousPage, setShowStayConsciousPage] = useState(false);
   const [showTeaserPage, setShowTeaserPage] = useState(false);
   const [showUIKit, setShowUIKit] = useState(false);
+  const [showSignalsPage, setShowSignalsPage] = useState(false);
   const [compareInitialTab, setCompareInitialTab] = useState('brands');
   // Guards against the sync effect wiping an inbound hash before the parse effect reads it on mount
   const initialHashHandled = useRef(false);
 
   // Hash-based deep link routing
   const HASH_ROUTES = {
-    'newsletter':        () => { setShowStayConsciousPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
-    'compare':           () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
-    'compare/landscape': () => { setShowComparisonPage(true); setCompareInitialTab('landscape'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
+    'newsletter':        () => { setShowStayConsciousPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); setShowSignalsPage(false); },
+    'compare':           () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); setShowSignalsPage(false); },
+    'compare/landscape': () => { setShowComparisonPage(true); setCompareInitialTab('landscape'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); setShowSignalsPage(false); },
     // The Insights tab was removed (v3.117.0); old links open Compare.
-    'compare/insights':  () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
-    'results':           () => { setShowResultsPage(true); setShowComparisonPage(false); setShowStayConsciousPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); },
-    'saved':             () => { setShowSavedPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowStayConsciousPage(false); setShowTeaserPage(false); setShowUIKit(false); },
+    'compare/insights':  () => { setShowComparisonPage(true); setCompareInitialTab('brands'); setShowStayConsciousPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); setShowSignalsPage(false); },
+    'results':           () => { setShowResultsPage(true); setShowComparisonPage(false); setShowStayConsciousPage(false); setShowSavedPage(false); setShowTeaserPage(false); setShowUIKit(false); setShowSignalsPage(false); },
+    'saved':             () => { setShowSavedPage(true); setShowComparisonPage(false); setShowResultsPage(false); setShowStayConsciousPage(false); setShowTeaserPage(false); setShowUIKit(false); setShowSignalsPage(false); },
     // Admin only: the render gate below checks is_admin before showing it.
-    'uikit':             () => { setShowUIKit(true); setShowTeaserPage(false); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
-    'teaser':            () => { setShowUIKit(false); setShowTeaserPage(true); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
+    'uikit':             () => { setShowUIKit(true); setShowTeaserPage(false); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowSignalsPage(false); },
+    'teaser':            () => { setShowUIKit(false); setShowTeaserPage(true); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); setShowSignalsPage(false); },
+    // Admin only, like the UI kit (v4.13.0): the monthly Signals post.
+    'signals':           () => { setShowSignalsPage(true); setShowUIKit(false); setShowTeaserPage(false); setShowStayConsciousPage(false); setShowComparisonPage(false); setShowResultsPage(false); setShowSavedPage(false); },
   };
 
 
@@ -14364,6 +14361,7 @@ function AppContent() {
     setShowSavedPage(false);
     setShowTeaserPage(false);
     setShowUIKit(false);
+    setShowSignalsPage(false);
     setCurrentStep(0);
     window.history.pushState(null, '', window.location.pathname + window.location.search);
   };
@@ -14388,11 +14386,12 @@ function AppContent() {
     else if (showSavedPage) hash = 'saved';
     else if (showTeaserPage) hash = 'teaser';
     else if (showUIKit) hash = 'uikit';
+    else if (showSignalsPage) hash = 'signals';
     const current = window.location.hash.replace('#', '');
     if (hash !== current) {
       window.history.replaceState(null, '', hash ? `#${hash}` : window.location.pathname + window.location.search);
     }
-  }, [showStayConsciousPage, showComparisonPage, showResultsPage, showSavedPage, showTeaserPage, showUIKit, compareInitialTab]);
+  }, [showStayConsciousPage, showComparisonPage, showResultsPage, showSavedPage, showTeaserPage, showUIKit, showSignalsPage, compareInitialTab]);
 
   // Parse hash on mount and on popstate
   useEffect(() => {
@@ -14594,6 +14593,7 @@ function AppContent() {
       setCurrentStep(0);
       setShowSavedPage(false);
       setShowTeaserPage(false);
+      setShowSignalsPage(false);
       setProject({ brandName: '', websiteUrl: '', businessModel: 'b2b', industry: 'other', companyStage: '', date: new Date().toISOString().split('T')[0], assessorContext: '', additionalProperties: [], primaryLanguage: '' });
       setAssessments({
         website: { status: 'pending', content: '', observations: '', images: [], pagesReviewed: '', websiteContent: '', credentialsContent: '', seoAssessment: '', techAudit: null },
@@ -15002,8 +15002,35 @@ function AppContent() {
           profile={profile}
           onLogout={handleLogout}
           onAdmin={() => setShowAdminPage(true)}
+          onSignals={() => HASH_ROUTES.signals()}
         />
         <UIKitPage />
+      </div>
+    );
+  }
+
+  // The Signals page (v4.13.0): admins only, like the UI kit. Anyone else
+  // who lands on #signals sees the normal shell, and the API refuses them.
+  if (showSignalsPage && profile?.is_admin) {
+    return (
+      <div className="min-h-screen bg-[#FBFAF7]">
+        <Header
+          onNewAssessment={handleNewAssessment}
+          onGoHome={handleGoHome}
+          onSavedAssessments={() => HASH_ROUTES.saved()}
+          onCompassResults={() => HASH_ROUTES.results()}
+          onComparison={() => HASH_ROUTES.compare()}
+          onStayConscious={() => HASH_ROUTES.newsletter()}
+          onTeaser={goTeaser}
+          onSignals={() => HASH_ROUTES.signals()}
+          activePage="signals"
+          lastAutoSave={lastAutoSave}
+          user={user}
+          profile={profile}
+          onLogout={handleLogout}
+          onAdmin={() => setShowAdminPage(true)}
+        />
+        <SignalsPage />
       </div>
     );
   }
@@ -15027,6 +15054,7 @@ function AppContent() {
           profile={profile}
           onLogout={handleLogout}
           onAdmin={() => setShowAdminPage(true)}
+          onSignals={() => HASH_ROUTES.signals()}
         />
         <TeaserPage user={user} profile={profile} apiKey={apiKey} onConvert={handleConvertTeaser} />
       </div>
@@ -15051,6 +15079,7 @@ function AppContent() {
           profile={profile}
           onLogout={handleLogout}
           onAdmin={() => setShowAdminPage(true)}
+          onSignals={() => HASH_ROUTES.signals()}
         />
         <StayConsciousPage
           onBack={() => setShowStayConsciousPage(false)}
@@ -15078,6 +15107,7 @@ function AppContent() {
           profile={profile}
           onLogout={handleLogout}
           onAdmin={() => setShowAdminPage(true)}
+          onSignals={() => HASH_ROUTES.signals()}
         />
         <ComparisonPage 
           results={latestResults}
@@ -15111,6 +15141,7 @@ function AppContent() {
           profile={profile}
           onLogout={handleLogout}
           onAdmin={() => setShowAdminPage(true)}
+          onSignals={() => HASH_ROUTES.signals()}
         />
         <CompassResultsPage 
           results={compassResults}
@@ -15144,6 +15175,7 @@ function AppContent() {
           profile={profile}
           onLogout={handleLogout}
           onAdmin={() => setShowAdminPage(true)}
+          onSignals={() => HASH_ROUTES.signals()}
         />
         <SavedAssessmentsPage 
           assessments={savedAssessments} 
@@ -15187,6 +15219,7 @@ function AppContent() {
         profile={profile}
         onLogout={handleLogout}
         onAdmin={() => setShowAdminPage(true)}
+        onSignals={() => HASH_ROUTES.signals()}
       />
       
       {/* Read-only users see simplified welcome page, unless they've loaded a report */}

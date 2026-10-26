@@ -218,6 +218,24 @@ export function newsletterDocument(docx, ns, { refreshedAt = null, nextUpdate = 
           ]),
         ] : []),
 
+        // Earned creative in the news (v3.124.0), straight after Brand intelligence (v4.13.3)
+        ...(ns.earnedCreative?.items?.length ? [
+          sechead(NEWSLETTER_EC_COPY.title),
+          ...article(NEWSLETTER_EC_COPY.reminder, 22, 200),
+          ...ns.earnedCreative.items.flatMap((e, i) => [
+            ...(i > 0 ? [itemRule()] : []),
+            kicker([e.brand, e.agency].filter(Boolean).join(' \u00b7 ')),
+            serif(e.title || e.brand, 34, 120),
+            ...article(e.what, 21),
+            ...why(e.coverage ? `Coverage: ${e.coverage}` : ''),
+            new Paragraph({ spacing: { after: 160 }, children: [new ExternalHyperlink({ link: e.url, children: [run(`Read it${e.outlet ? ` in ${e.outlet}` : ''}`, { size: 18, color: RUST, underline: {} })] })] }),
+          ]),
+          new Paragraph({ spacing: { before: 200, after: 160 }, children: [
+            run(`${NEWSLETTER_EC_COPY.offer} `, { size: 20 }),
+            new ExternalHyperlink({ link: NEWSLETTER_EC_COPY.link, children: [run(NEWSLETTER_EC_COPY.linkLabel, { size: 20, color: RUST, underline: {} })] }),
+          ] }),
+        ] : []),
+
         // Spotlight and Prospect pulse (v4.6.0)
         ...(ns.spotlight?.headline ? [
           sechead('Spotlight'),
@@ -237,24 +255,6 @@ export function newsletterDocument(docx, ns, { refreshedAt = null, nextUpdate = 
             ns.prospectPulse.strongest ? `Strongest attribute: ${ns.prospectPulse.strongest.name}, averaging ${ns.prospectPulse.strongest.avg}.` : null,
           ].filter(Boolean).map(t => new Paragraph({ spacing: { after: 60 }, children: [run(t)] })),
           new Paragraph({ spacing: { before: 80, after: 200 }, children: [run('Teasers are quick reads of what is publicly visible. They are kept apart from our benchmarks, which count full assessments only.', { size: 16, color: MUTED })] }),
-        ] : []),
-
-        // Earned creative in the news (v3.124.0)
-        ...(ns.earnedCreative?.items?.length ? [
-          sechead(NEWSLETTER_EC_COPY.title),
-          ...article(NEWSLETTER_EC_COPY.reminder, 22, 200),
-          ...ns.earnedCreative.items.flatMap((e, i) => [
-            ...(i > 0 ? [itemRule()] : []),
-            kicker([e.brand, e.agency].filter(Boolean).join(' \u00b7 ')),
-            serif(e.title || e.brand, 34, 120),
-            ...article(e.what, 21),
-            ...why(e.coverage ? `Coverage: ${e.coverage}` : ''),
-            new Paragraph({ spacing: { after: 160 }, children: [new ExternalHyperlink({ link: e.url, children: [run(`Read it${e.outlet ? ` in ${e.outlet}` : ''}`, { size: 18, color: RUST, underline: {} })] })] }),
-          ]),
-          new Paragraph({ spacing: { before: 200, after: 160 }, children: [
-            run(`${NEWSLETTER_EC_COPY.offer} `, { size: 20 }),
-            new ExternalHyperlink({ link: NEWSLETTER_EC_COPY.link, children: [run(NEWSLETTER_EC_COPY.linkLabel, { size: 20, color: RUST, underline: {} })] }),
-          ] }),
         ] : []),
 
         // Story opportunities
@@ -286,14 +286,21 @@ export function newsletterDocument(docx, ns, { refreshedAt = null, nextUpdate = 
 // The server writes and checks the draft; this module holds what the page
 // and the server share: the voice, the fixed close, and the renderers.
 export const SIGNALS_AUTHOR = 'Paul Newton';
+// Every post is a Fully Conscious round-up (v4.13.1): the series name sits
+// above the title and the fixed line below says what the series is. Fixed
+// copy, like the close, so it is never rewritten or left out.
+export const SIGNALS_SERIES = {
+  name: 'Fully Conscious',
+  about: 'Fully Conscious is a monthly overview of trends, announcements and insights from the last 30 days for conscious brands.',
+};
 // The close is fixed copy, so the call to action never says anything unchecked.
-// The link is the Conscious Compass self-assessment named in the launch
-// release; change it here if the destination moves.
+// The link is the Conscious Compass page on antennagroup.com (v4.13.1);
+// change it here if the destination moves.
 export const SIGNALS_CLOSE = {
   heading: 'How conscious is your brand?',
   text: 'Every shift in this month\'s news comes back to one question: does what you say match what people can see? It is the question I built the Conscious Compass to answer. It reads a brand the way the market does, from what is publicly visible, across eight attributes of a conscious brand, and shows where you are earning trust and where you are leaving it on the table.',
   linkLabel: 'Find out how conscious your brand is',
-  link: 'https://www.fullyconscious.com',
+  link: 'https://www.antennagroup.com/conscious-compass',
 };
 export const SIGNALS_WORDS = { min: 1600, max: 1900, target: '1,650 to 1,850' };
 // The voice, from Paul's HOWL posts, weighted to the two most recent
@@ -383,7 +390,7 @@ const htmlRuns = (t) => signalsRuns(t).map(r => (r.link ? `<a href="${escHtml(r.
 // HTML to paste into the Webflow rich text field.
 export function signalsHtml(draft) {
   const body = signalsLayout(draft).map(b => (b.type === 'h2' ? `<h2>${escHtml(b.text)}</h2>` : b.type === 'ul' ? `<ul>${b.items.map(i => `<li>${htmlRuns(i)}</li>`).join('')}</ul>` : b.type === 'quote' ? `<blockquote>${escHtml(b.text)}</blockquote>` : `<p>${htmlRuns(b.text)}</p>`)).join('\n');
-  return `<h1>${escHtml(draft?.title || '')}</h1>\n<p><em>${escHtml(draft?.dek || '')}</em></p>\n${body}\n<h2>${escHtml(SIGNALS_CLOSE.heading)}</h2>\n<p>${escHtml(SIGNALS_CLOSE.text)}</p>\n<p><a href="${escHtml(SIGNALS_CLOSE.link)}" target="_blank" rel="noopener">${escHtml(SIGNALS_CLOSE.linkLabel)}</a></p>`;
+  return `<p><strong>${escHtml(SIGNALS_SERIES.name)}</strong> | ${escHtml(draft?.month || '')}</p>\n<h1>${escHtml(draft?.title || '')}</h1>\n<p><em>${escHtml(draft?.dek || '')}</em></p>\n<p>${escHtml(SIGNALS_SERIES.about)}</p>\n${body}\n<h2>${escHtml(SIGNALS_CLOSE.heading)}</h2>\n<p>${escHtml(SIGNALS_CLOSE.text)}</p>\n<p><a href="${escHtml(SIGNALS_CLOSE.link)}" target="_blank" rel="noopener">${escHtml(SIGNALS_CLOSE.linkLabel)}</a></p>`;
 }
 export const signalsDocxName = (draft) => `Signals_${String(draft?.month || '').replace(/\s+/g, '_')}_draft.docx`;
 // The draft as a Word document, in the report's type, for review and Smartsheet.
@@ -398,9 +405,11 @@ export function signalsDocument(docx, draft) {
   const words = wordCount(draft?.body);
   const children = [
     new Paragraph({ spacing: { after: 120 }, children: [new TextRun({ text: `SIGNALS DRAFT  ·  ${t(draft?.month)}  ·  ${words} WORDS, ABOUT ${Math.max(1, Math.round(words / 220))} MIN READ`, font: SANS, size: 16, bold: true, color: MUTED, characterSpacing: 16 })] }),
+    new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: SIGNALS_SERIES.name.toUpperCase(), font: SANS, size: 18, bold: true, color: RUST, characterSpacing: 16 })] }),
     new Paragraph({ spacing: { after: 160, line: 240, lineRule: 'auto' }, children: [new TextRun({ text: t(draft?.title), font: SERIF, size: 56, color: INK })] }),
     new Paragraph({ spacing: { after: 160 }, children: [new TextRun({ text: t(draft?.dek), font: SERIF, size: 26, italics: true, color: BODY })] }),
-    new Paragraph({ spacing: { after: 360 }, children: [new TextRun({ text: `By ${SIGNALS_AUTHOR}`, font: SANS, size: 18, color: MUTED })] }),
+    new Paragraph({ spacing: { after: 160 }, children: [new TextRun({ text: `By ${SIGNALS_AUTHOR}`, font: SANS, size: 18, color: MUTED })] }),
+    new Paragraph({ spacing: { after: 360, line: 300, lineRule: 'auto' }, children: [new TextRun({ text: SIGNALS_SERIES.about, font: SERIF, size: 22, italics: true, color: MUTED })] }),
     ...signalsLayout(draft).flatMap(b => {
       if (b.type === 'h2') return [new Paragraph({ spacing: { before: 360, after: 160 }, keepNext: true, children: [new TextRun({ text: t(b.text), font: SERIF, size: 34, color: INK })] })];
       if (b.type === 'ul') return b.items.map(i => new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: runs(i) }));

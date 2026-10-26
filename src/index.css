@@ -1568,6 +1568,8 @@ button { font: inherit; color: inherit; }
 .dc-sig-article a { color: var(--cc-rust-text); text-decoration: underline; text-underline-offset: 2px; }
 .dc-sig-title { font: var(--cc-w-bold) 34px/1.15 'Inter', var(--cc-sans); letter-spacing: -.02em; color: var(--cc-ink); margin: 0 0 var(--cc-s-2); }
 .dc-sig-dek { font-size: 20px; font-style: italic; }
+.dc-sig-series { margin: 0 0 var(--cc-s-2); color: var(--cc-rust-text); }
+.dc-sig-about { font-style: italic; color: var(--cc-muted); }
 .dc-sig-pull { margin: var(--cc-s-4) 0; padding-left: var(--cc-s-4); border-left: 3px solid var(--cc-rust-text); font-size: 23px; line-height: 1.35; font-style: italic; color: var(--cc-ink); }
 .dc-np-check-rm { margin: 4px 0 0; padding-left: 18px; color: var(--cc-muted); font-size: 12.5px; }
 .dc-draft-edit { display: flex; flex-direction: column; gap: var(--cc-s-4); max-height: 62vh; overflow-y: auto; padding-right: 4px; }

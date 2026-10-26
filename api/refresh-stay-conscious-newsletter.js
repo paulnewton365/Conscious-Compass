@@ -816,14 +816,35 @@ export function signalsStories(editions = []) {
   const out = []; const seen = new Set();
   editions.forEach(ed => {
     const nl = ed?.newsletter; if (!nl) return;
-    [nl.leadStory, ...(Array.isArray(nl.intelligenceItems) ? nl.intelligenceItems : [])].filter(Boolean).forEach(st => {
+    [nl.leadStory, ...(Array.isArray(nl.intelligenceItems) ? nl.intelligenceItems : [])].filter(Boolean).forEach((st, pos) => {
       const sources = (st.sources || []).filter(x => x && typeof x.url === 'string' && /^https:\/\//.test(x.url));
       const k = String(st.headline || '').toLowerCase().trim();
       if (!sources.length || !k || seen.has(k)) return;
       seen.add(k);
-      out.push({ headline: st.headline, category: st.category || '', insight: st.insight || '', whyItMatters: st.whyItMatters || '', issue: nl.issueNumber, week: nl.weekOf, sources });
+      out.push({ headline: st.headline, category: st.category || '', lead: pos === 0 && st === nl.leadStory, insight: st.insight || '', whyItMatters: st.whyItMatters || '', issue: nl.issueNumber, week: nl.weekOf, sources });
     });
   });
+  return out;
+}
+// The round-up draws on the whole Brand Intelligence column, not only the
+// lead stories (v4.13.1): the categories in play this month, how many the
+// post must cite, and which it actually cites (through the links it uses).
+export const signalsCategories = (stories = []) => [...new Set(stories.map(st => String(st.category || '').trim()).filter(Boolean))];
+export const signalsCategoryTarget = (stories = []) => Math.min(6, signalsCategories(stories).length);
+export function signalsCoverage(body, stories = []) {
+  const linked = new Set([...String(body || '').matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)].map(m => normUrl(m[1])));
+  const cited = stories.filter(st => st.sources.some(x => linked.has(normUrl(x.url))));
+  const covered = signalsCategories(cited);
+  return { covered, missing: signalsCategories(stories).filter(c => !covered.includes(c)), target: signalsCategoryTarget(stories),
+    leadStories: cited.filter(st => st.lead).length, otherStories: cited.filter(st => !st.lead).length };
+}
+// Sources in turn by story (each story's first source, then each one's
+// second...), so a cap never cuts off the later stories or editions.
+export function signalsSourceOrder(stories = []) {
+  const out = []; const seen = new Set();
+  for (let k = 0; stories.some(st => st.sources[k]); k++) {
+    stories.forEach(st => { const x = st.sources[k]; const key = x && normUrl(x.url); if (key && !seen.has(key)) { seen.add(key); out.push({ x, st }); } });
+  }
   return out;
 }
 // The parts of a page most about the story, so the writer sees the figures and quotable lines.
@@ -842,11 +863,13 @@ export const namedPattern = (names = []) => {
 };
 export const SIGNALS_INTERNAL = /\b(Conscious Compass|Stay Conscious|Compass scores?|our assessments?|(brands|companies) (we|I) (have )?(assessed|scored)|(we|I) (have )?(assessed|scored))\b/i;
 export function signalsPrompt({ month, stories, sources, blocked = [], notes = '' }) {
-  return `You are writing this month's Signals post for antennagroup.com/signals, as Paul Newton. Signals is read by marketing, communications and sustainability leaders outside the agency. It is an eight-minute read on what happened in our industry this month and what it means: the main themes, the ideas behind them, and what a leader should learn and do.
+  return `You are writing this month's Fully Conscious round-up for antennagroup.com/signals, as Paul Newton. Fully Conscious is a monthly overview of trends, announcements and insights from the last 30 days for conscious brands. It is read by marketing, communications and sustainability leaders outside the agency. It is an eight-minute read on what happened in the last 30 days and what it means for brands that want to be conscious: the trends that moved, the announcements that matter, the insights behind them, and what a leader should learn and do. The series name and a line describing it are added above your text, so do not introduce the series yourself.
 
 ${SIGNALS_STYLE}
 
-THE MONTH: ${month}. Your raw material is the news below: ${stories.length} stories from the last four weeks, with the sources behind them and excerpts from those sources. Find the two to four themes that matter most to these readers and build one argument from them. Do not write a round-up of stories; lead with your point of view and use the stories as evidence.
+THE MONTH: ${month}. Your raw material is the news below: ${stories.length} stories from the last 30 days, with the sources behind them and excerpts from those sources. Find the two to four trends that matter most to these readers and round them up, each with the announcements behind it and your read on what it means. Do not walk through the stories one by one; group them by trend, lead each section with your point of view and use the stories as evidence.
+
+Draw from across the whole month, not just the lead stories. Most of the stories below are the supporting Brand Intelligence items, tagged by category; treat them as equal sources. The round-up must cite stories from at least ${signalsCategoryTarget(stories)} of these ${signalsCategories(stories).length} categories: ${signalsCategories(stories).join(', ')}. These stories were first written for brand assessors; write them up for brand, marketing and communications leaders: what changed and what it means for their brand, never how to assess one.
 
 RULES
 - Use only facts, figures, names and quotes that appear in the SOURCES below. Do not use your own knowledge for any fact.
@@ -867,7 +890,7 @@ BODY:
 The post in Markdown: short paragraphs separated by blank lines, "## " subheads, links as above.
 
 STORIES
-${stories.map((s, i) => `${i + 1}. [${s.category}] ${s.headline} (${s.week})\n${s.insight}\nWhy it matters: ${s.whyItMatters}\nSources: ${s.sources.map(x => `S${sources.findIndex(y => normUrl(y.url) === normUrl(x.url)) + 1}`).join(', ')}`).join('\n\n')}
+${stories.map((s, i) => `${i + 1}. [${s.lead ? 'Lead story, ' : ''}${s.category || 'Brand intelligence'}] ${s.headline} (${s.week})\n${s.insight}\nWhy it matters: ${s.whyItMatters}\nSources: ${s.sources.map(x => `S${sources.findIndex(y => normUrl(y.url) === normUrl(x.url)) + 1}`).join(', ')}`).join('\n\n')}
 
 SOURCES
 ${sources.map((s, i) => `S${i + 1}. ${s.outlet || s.title || ''} ${s.url}\n${s.excerpt || '(page could not be read; use only what the story says about it)'}`).join('\n\n')}`;
@@ -998,13 +1021,14 @@ export async function writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, fet
   const blockedRe = namedPattern(blocked);
   // The month's sources, read once.
   const seen = new Map();
-  stories.forEach(st => st.sources.forEach(x => { const k = normUrl(x.url); if (k && !seen.has(k)) seen.set(k, { url: x.url, outlet: x.outlet || '', title: x.title || '', about: `${st.headline} ${st.insight}` }); }));
+  signalsSourceOrder(stories).forEach(({ x, st }) => seen.set(normUrl(x.url), { url: x.url, outlet: x.outlet || '', title: x.title || '', about: `${st.headline} ${st.insight}` }));
   const sources = await Promise.all([...seen.values()].slice(0, 36).map(async s => { const text = await pageText(s.url, { fetchImpl }); return { ...s, text, excerpt: text ? excerptFor(text, s.about) : '' }; }));
   const month = signalsMonth(now);
   let draft = parseSignalsDraft(await askClaude(anthropicKey, signalsPrompt({ month, stories, sources, blocked }), { fetchImpl }));
   const problems = (d) => [...signalsTells(`${d.title} ${d.dek} ${d.body}`).map(t => `remove "${t}"`),
     ...(wordCount(d.body) < SIGNALS_WORDS.min || wordCount(d.body) > SIGNALS_WORDS.max ? [`the body is ${wordCount(d.body)} words; it must be ${SIGNALS_WORDS.target}`] : []),
-    ...(d.pullQuotes.length < 3 ? ['give three pull quotes'] : []), ...(!d.body ? ['the body is missing'] : [])];
+    ...(d.pullQuotes.length < 3 ? ['give three pull quotes'] : []), ...(!d.body ? ['the body is missing'] : []),
+    ...((cov) => (d.body && cov.covered.length < cov.target ? [`cite stories from at least ${cov.target} categories; it cites ${cov.covered.length}, so draw on ${cov.missing.slice(0, cov.target - cov.covered.length + 2).join(', ')}`] : []))(signalsCoverage(d.body, stories))];
   const first = problems(draft);
   let rewritten = false;
   if (first.length && Date.now() - started < 150000) {
@@ -1025,7 +1049,7 @@ export async function writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, fet
   const voice = { firstPass: first, rewritten, after: problems(final).filter(x => x !== 'give three pull quotes' || (final.pullQuotes || []).length < 2) };
   const record = { signals: true, month, ...final, words: wordCount(final.body),
     editions: editions.map(e => e.newsletter.issueNumber), sources: sources.map(s => ({ url: s.url, outlet: s.outlet, title: s.title })),
-    check: { ...checked.report, voice, wordsBefore: wordCount(draft.body), wordsAfter: wordCount(final.body) }, createdAt: new Date().toISOString() };
+    check: { ...checked.report, voice, coverage: signalsCoverage(final.body, stories), wordsBefore: wordCount(draft.body), wordsAfter: wordCount(final.body) }, createdAt: new Date().toISOString() };
   return { success: true, record };
 }
 
@@ -1177,10 +1201,15 @@ export async function archiveIssue(row, { supabaseUrl, supabaseKey, fetchImpl = 
   }
 }
 
+// How long a publish may spend copying missing past issues to Smartsheet,
+// counted from the start of the call (the function's limit is 300 seconds).
+export const SMARTSHEET_BACKFILL_MS = 180000;
+
 export default async function handler(req, res) {
   // Callers must be signed in (v3.100.1); see api/_auth.js.
   const caller = await requireUser(req, res, { admin: true, allowCron: true });   // admins or the scheduled run only (v3.124.2)
   if (!caller) return;
+  const startedAt = Date.now();   // the Smartsheet copy's time budget counts from here
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -1217,7 +1246,9 @@ export default async function handler(req, res) {
   };
   // Past issues to Smartsheet (v4.11.0): the archive, oldest first, then the
   // live issue. An issue already in the sheet with its Word file is skipped.
-  const smartsheetBackfill = async ({ batch = 6 } = {}) => {
+  // Runs on its own after every publish (v4.13.0), copying as many missing
+  // issues as fit before the deadline; the next publish picks up the rest.
+  const smartsheetBackfill = async ({ batch = Infinity, deadline = Infinity } = {}) => {
     const token = process.env.SMARTSHEET_API_TOKEN; const sheetId = process.env.SMARTSHEET_SHEET_ID;
     if (!token || !sheetId) return { success: false, error: 'Smartsheet is not set up. Add SMARTSHEET_API_TOKEN and SMARTSHEET_SHEET_ID in Vercel, then redeploy.' };
     const ss = ssFetch(token, fetch);
@@ -1235,6 +1266,7 @@ export default async function handler(req, res) {
     const todo = [...byIssue.values()].filter(x => !done.has(Number(x.nl.issueNumber)));
     const results = [];
     for (const x of todo.slice(0, batch)) {
+      if (Date.now() > deadline) break;
       const r = await syncIssueToSmartsheet(x.nl, { publishedAt: x.publishedAt, link: x.link, token, sheetId });
       results.push({ issue: Number(x.nl.issueNumber), ok: r.ok, reason: r.reason });
     }
@@ -1246,12 +1278,6 @@ export default async function handler(req, res) {
   if (action) {
     if (caller.cron && action !== 'publish' && action !== 'signals-draft') return res.status(403).json({ error: 'The schedule can only publish and write the Signals draft.' });
     try {
-      // Copy past issues to Smartsheet (v4.11.0): admins, a few at a time so
-      // each call stays well inside the time limit. The page repeats it until
-      // nothing is left; issues already there with their file are skipped.
-      if (action === 'smartsheet-backfill') {
-        return res.status(200).json(await smartsheetBackfill({ batch: 6 }));
-      }
       // The monthly Signals draft (v4.12.0). The schedule runs every Monday
       // and writes only on the one in the last seven days of the month; an
       // admin can write one at any time. The draft lives in row 3.
@@ -1263,8 +1289,8 @@ export default async function handler(req, res) {
         await writeIssueRow(SIGNALS_ID, rec);
         const reviewPosted = caller.cron ? await postToChannel(process.env.NEWSLETTER_REVIEW_WEBHOOK_URL, {
           title: `Signals draft for ${rec.month} is ready`,
-          sections: [{ text: `${rec.title || 'Untitled'}. About ${readMinutes(rec.words)}, ${plural(rec.check.links, 'source link')}. Review it on the newsletter page in the Compass.` }],
-          link: SITE_URL(), linkLabel: 'Review the draft',
+          sections: [{ text: `${rec.title || 'Untitled'}. About ${readMinutes(rec.words)}, ${plural(rec.check.links, 'source link')}. Review it on the Signals page in the Compass.` }],
+          link: `${SITE_URL()}/#signals`, linkLabel: 'Review the draft',
         }) : null;
         return res.status(200).json({ success: true, month: rec.month, title: rec.title, words: rec.words, check: { links: rec.check.links, quotes: rec.check.quotes, cited: rec.check.cited.length, removed: rec.check.removed.length }, reviewPosted });
       }
@@ -1306,6 +1332,13 @@ export default async function handler(req, res) {
         if (archived && !smartsheet.skipped) {
           const id = await archivedEditionId(liveRow.refreshed_at);
           if (id) await syncIssueToSmartsheet(liveRow.newsletter, { link: `${SITE_URL()}/newsletter?issue=${id}`, attach: false });
+        }
+        // Then any past issue the sheet is still missing, automatically
+        // (v4.13.0, replacing the Copy to Smartsheet button). Bounded so the
+        // publish always finishes inside the function's time limit.
+        if (!smartsheet.skipped) {
+          try { smartsheet.backfill = await smartsheetBackfill({ deadline: startedAt + SMARTSHEET_BACKFILL_MS }); }
+          catch (e) { smartsheet.backfill = { success: false, error: String(e?.message || e).slice(0, 200) }; }
         }
         return res.status(200).json({ success: true, published: true, issueNumber: published.issueNumber, archived, posted, smartsheet });
       }

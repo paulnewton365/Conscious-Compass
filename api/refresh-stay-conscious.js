@@ -13,9 +13,12 @@ import { searchedResults, normUrl, factCheckStories } from './refresh-stay-consc
 // sectors Antenna serves; stories come back ranked by significance, and the
 // newsletter picks a lead whose topic has not led recently.
 export const STORY_CATEGORIES = [
-  'AI & Search', 'Earned Creative', 'Media Relations', 'Paid Media', 'Social & Influencer', 'Integrated Marketing',
+  'AI & Search', 'Media Relations', 'Thought Leadership', 'Paid Media', 'Social & Influencer', 'Integrated Marketing',
   'Creativity', 'Trust & Reputation', 'Measurement & Attribution', 'Purpose & Sustainability', 'B2B & B2C', 'Agency & Industry',
 ];
+// v4.13.2: Earned Creative is no longer a story topic, because every issue
+// has its own earned creative section; Thought Leadership takes its place,
+// and Media Relations covers earned media of every kind.
 export const PRIORITY_SECTORS = ['climate tech', 'placemaking and real estate', 'OEMs and manufacturers', 'data centers', 'consumer brands that want to be on the right side of history and grow commercially'];
 
 export const STAY_CONSCIOUS_PROMPT = `You are the editor of Stay Conscious, Antenna Group's weekly briefing on conscious marketing. Antenna Group is an integrated marketing and communications agency for climate, energy, real estate, health and B2B technology brands; HOWL is its earned creative studio. Readers are Antenna Group staff, and the people they advise: CMOs, chief sustainability officers, CEOs, communications leaders and marketing professionals.
@@ -26,7 +29,8 @@ Find exactly 6 stories from the last two weeks that these readers should know ab
 
 Topics to draw from, each story in a different one:
 ${STORY_CATEGORIES.map(c => `- ${c}`).join('\n')}
-(Trust & Reputation covers authenticity, credibility and influence. Purpose & Sustainability covers purpose marketing, sustainability claims and climate communications. Agency & Industry covers developments in the agency, PR and earned creative world that matter to Antenna Group and HOWL's clients.)
+(Media Relations covers earned media of every kind: press coverage, journalists and newsrooms, PR, and how coverage is won and measured. Thought Leadership covers executive visibility, bylines, original research, speaking and points of view that build a brand's authority. Trust & Reputation covers authenticity, credibility and influence. Purpose & Sustainability covers purpose marketing, sustainability claims and climate communications. Agency & Industry covers developments in the agency and PR world that matter to Antenna Group and HOWL's clients.)
+Earned creative campaigns have their own section in the newsletter, so no story should be about an earned creative stunt or activation.
 
 Rules for the spread:
 - Six different topics. At most one story about AI.

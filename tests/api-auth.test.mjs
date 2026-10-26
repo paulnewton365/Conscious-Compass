@@ -763,7 +763,8 @@ test('v4.6.0: Prospect pulse (this month, figures only) and Spotlight (one thing
   assert.ok(!('secret' in out.spotlight));
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes('data-field="spotlight"') && app.includes('data-field="prospect-pulse"'));
-  assert.ok(app.indexOf('data-field="spotlight"') < app.indexOf('data-field="prospect-pulse"') && app.indexOf('data-field="prospect-pulse"') < app.indexOf('data-field="earned-creative-news"'), 'after Brand intelligence, before earned creative');
+  // v4.13.3: earned creative now comes straight after Brand intelligence, then Spotlight and Prospect pulse
+  assert.ok(app.indexOf('data-field="earned-creative-news"') < app.indexOf('data-field="spotlight"') && app.indexOf('data-field="spotlight"') < app.indexOf('data-field="prospect-pulse"'), 'after earned creative, Spotlight then Prospect pulse');
   const pulseBlock = app.slice(app.indexOf('data-field="prospect-pulse"'), app.indexOf('data-field="earned-creative-news"'));
   assert.ok(!/earned creative|HOWL/i.test(pulseBlock), 'no earned creative in the teaser block');
 });
@@ -920,7 +921,10 @@ test('v4.7.0: sources, talking point, draft and review, Monday publish, and the 
 test('v4.8.0: the brief covers conscious marketing for leaders, and the lead rotates by significance', async () => {
   const sc = await import('../api/refresh-stay-conscious.js');
   const p = sc.STAY_CONSCIOUS_PROMPT;
-  for (const c of ['Earned Creative', 'Media Relations', 'Paid Media', 'Social & Influencer', 'Measurement & Attribution', 'Purpose & Sustainability', 'B2B & B2C', 'Agency & Industry', 'Trust & Reputation'])
+  // v4.13.2: Earned Creative has its own section, so it is not a story topic; Thought Leadership is, and Media Relations covers earned media
+  assert.ok(!sc.STORY_CATEGORIES.includes('Earned Creative') && sc.STORY_CATEGORIES.length === 12);
+  assert.ok(/Media Relations covers earned media of every kind/.test(p) && /Thought Leadership covers executive visibility/.test(p) && /no story should be about an earned creative stunt/.test(p));
+  for (const c of ['Thought Leadership', 'Media Relations', 'Paid Media', 'Social & Influencer', 'Measurement & Attribution', 'Purpose & Sustainability', 'B2B & B2C', 'Agency & Industry', 'Trust & Reputation'])
     assert.ok(sc.STORY_CATEGORIES.includes(c) && p.includes(c), c);
   assert.ok(/At most one story about AI/.test(p) && /HOWL/.test(p) && /chief sustainability officers/.test(p) && /order of significance/.test(p));
   for (const s of ['climate tech', 'placemaking and real estate', 'data centers', 'OEMs']) assert.ok(p.includes(s), s);
@@ -1088,8 +1092,8 @@ test('v4.10.0: every story is checked against its source page, sentence by sente
 
   // The job: unsourced stories are always dropped, a wider search runs when fewer than six pass
   const sc = await import('../api/refresh-stay-conscious.js');
-  const wp = sc.widerPrompt('', { need: 3, kept: [{ category: 'Earned Creative' }], tried: [{ headline: 'Old one' }] });
-  assert.ok(wp.includes('Look across the last month') && !wp.includes('- Use any of these topics, one per item: Earned Creative,') && wp.includes('"Old one"') && wp.includes('Write exactly 3 more item(s)'));
+  const wp = sc.widerPrompt('', { need: 3, kept: [{ category: 'Paid Media' }], tried: [{ headline: 'Old one' }] });
+  assert.ok(wp.includes('Look across the last month') && !wp.includes('- Use any of these topics, one per item: Paid Media,') && !wp.includes('Paid Media,') && wp.includes('Thought Leadership') && wp.includes('"Old one"') && wp.includes('Write exactly 3 more item(s)'));
 });
 
 test('v4.10.0: figures from our own scores are checked in code; the issue goes out with the stories that passed, and nothing is posted about a short one', async () => {
@@ -1221,13 +1225,35 @@ test('v4.11.0: each published issue is copied to Smartsheet, with its Word file,
   assert.ok(pub.indexOf('await writeIssueRow(LIVE_ID, published, publishedAt);') < pub.indexOf('syncIssueToSmartsheet(published, { publishedAt, link: `${SITE_URL()}/newsletter`, check: meta.check || null })'), 'copied after it is live');
   assert.ok(pub.includes('if (id) await syncIssueToSmartsheet(liveRow.newsletter, { link: `${SITE_URL()}/newsletter?issue=${id}`, attach: false });'), 'the replaced issue links to its archived edition');
   assert.ok(pub.includes('return res.status(200).json({ success: true, published: true, issueNumber: published.issueNumber, archived, posted, smartsheet });'));
-  assert.ok(src.includes("if (action === 'smartsheet-backfill') {") && src.indexOf("if (action === 'smartsheet-backfill') {") < src.indexOf("const draftRow = await readIssueRow(DRAFT_ID);"), 'the backfill does not need a draft');
+  // v4.13.0: no button and no separate action; every publish copies any past issue the sheet is missing, within a time budget
+  assert.ok(!src.includes("'smartsheet-backfill'"), 'the manual backfill action is gone');
+  assert.ok(pub.indexOf('if (id) await syncIssueToSmartsheet(liveRow.newsletter') < pub.indexOf('smartsheet.backfill = await smartsheetBackfill({ deadline: startedAt + SMARTSHEET_BACKFILL_MS })'), 'after this issue and the replaced issue');
+  assert.ok(pub.includes('if (!smartsheet.skipped) {'), 'only when Smartsheet is set up');
+  assert.ok(src.includes('if (Date.now() > deadline) break;'), 'the copy stops at the deadline and the next publish carries on');
+  assert.ok(nl.SMARTSHEET_BACKFILL_MS > 0 && nl.SMARTSHEET_BACKFILL_MS <= 200000, 'well inside the 300 second limit');
   assert.ok(src.includes("if (caller.cron && action !== 'publish' && action !== 'signals-draft') return res.status(403)"), 'and the schedule cannot run it (it may publish and write the Signals draft only)');
   // The page and the server build the same Word document
   const docx = await import('docx');
   assert.ok(newsletterDocument(docx, issue, {}) instanceof docx.Document);
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  assert.ok(app.includes("{copyingSheet ? 'Copying…' : 'Copy to Smartsheet'}") && app.includes("action: 'smartsheet-backfill'"));
+  assert.ok(!app.includes('Copy to Smartsheet') && !app.includes('smartsheet-backfill'), 'no button: copying happens on publish (v4.13.0)');
+});
+
+test('v4.13.3: earned creative sits straight after the five Brand Intelligence stories, on the page, in Copy and in Word', async () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const at = (k) => app.indexOf(k);
+  assert.ok(at('id="intel-h"') < at('id="ec-h"') && at('id="ec-h"') < at('id="spot-h"') && at('id="spot-h"') < at('id="pulse-h"') && at('id="pulse-h"') < at('id="opps-h"'), 'page order');
+  const copy = app.slice(at("'BRAND INTELLIGENCE',"), at('const handleCopyText'));
+  assert.ok(copy.indexOf("'BRAND INTELLIGENCE',") === 0 && 0 < copy.indexOf('NEWSLETTER_EC_COPY.title.toUpperCase()') && copy.indexOf('NEWSLETTER_EC_COPY.title.toUpperCase()') < copy.indexOf('SPOTLIGHT: ONE THING TO LIFT'), 'copy order');
+  const docx = await import('docx');
+  const { newsletterDocument, NEWSLETTER_EC_COPY } = await import('../src/lib/newsletter.js');
+  const doc = newsletterDocument(docx, { issueNumber: 50, weekOf: 'Nov 2', leadStory: { headline: 'L', insight: 'i' }, intelligenceItems: [{ category: 'Media Relations', headline: 'BI one', insight: 'x' }],
+    spotlight: { name: 'Awake', headline: 'SPOT', action: 'a' }, earnedCreative: { items: [{ brand: 'B', title: 'EC one', what: 'w', url: 'https://e.com' }] }, storyOpportunities: [{ headline: 'OPP', body: 'b' }] }, {});
+  const blob = await docx.Packer.toBuffer(doc);
+  const { default: JSZip } = await import('jszip');
+  const xml = (await (await JSZip.loadAsync(blob)).file('word/document.xml').async('string')).replace(/<[^>]+>/g, '');
+  const pos = ['BI one', NEWSLETTER_EC_COPY.title, 'EC one', 'SPOT', 'OPP'].map(k => xml.indexOf(k));
+  assert.ok(pos.every(p => p >= 0) && pos.every((p, i) => i === 0 || p > pos[i - 1]), `Word order ${pos}`);
 });
 
 test('v4.12.0: the monthly Signals draft is Paul\'s, in the first person, from the news only, and checked in code before anyone sees it', async () => {
@@ -1240,6 +1266,40 @@ test('v4.12.0: the monthly Signals draft is Paul\'s, in the first person, from t
   // The voice: Paul's, first person
   assert.ok(lib.SIGNALS_STYLE.startsWith('VOICE: Paul Newton') && lib.SIGNALS_STYLE.includes('"I" throughout, never the company\'s "we"'));
   assert.ok(lib.SIGNALS_CLOSE.text.includes('the question I built the Conscious Compass to answer'), 'the close is his too');
+  // v4.13.1: every post is a Fully Conscious round-up, and the close links to the Compass page on antennagroup.com
+  assert.equal(lib.SIGNALS_CLOSE.link, 'https://www.antennagroup.com/conscious-compass');
+  assert.equal(lib.SIGNALS_SERIES.name, 'Fully Conscious');
+  assert.ok(lib.SIGNALS_SERIES.about.includes('a monthly overview of trends, announcements and insights from the last 30 days for conscious brands'));
+  const framed = lib.signalsHtml({ month: 'October 2026', title: 'T', dek: 'D', body: 'Para.', pullQuotes: [] });
+  assert.ok(framed.startsWith('<p><strong>Fully Conscious</strong> | October 2026</p>\n<h1>T</h1>') && framed.includes(`<p>${lib.SIGNALS_SERIES.about}</p>`) && framed.includes('href="https://www.antennagroup.com/conscious-compass"'));
+  assert.ok(!nl.SIGNALS_INTERNAL.test(lib.SIGNALS_SERIES.about), 'the series line passes the internal-name check');
+  const sp = nl.signalsPrompt({ month: 'October 2026', stories: [], sources: [] });
+  assert.ok(sp.includes('Fully Conscious round-up') && !/\bissue of Fully Conscious\b/.test(sp) && sp.includes('from the last 30 days for conscious brands') && sp.includes('do not introduce the series yourself'));
+  assert.ok(!/fullyconscious\.com/.test(readFileSync(new URL('../src/lib/newsletter.js', import.meta.url), 'utf8')));
+  // v4.13.1: the round-up draws on the whole Brand Intelligence column, not only the lead stories
+  const bi = (n, cats) => ({ newsletter: { issueNumber: n, weekOf: `W${n}`,
+    leadStory: { headline: `Lead ${n}`, category: cats[0], insight: 'i', sources: [{ url: `https://l.com/${n}/a` }, { url: `https://l.com/${n}/b` }, { url: `https://l.com/${n}/c` }] },
+    intelligenceItems: cats.slice(1).map((c, k) => ({ headline: `Item ${n}.${k}`, category: c, insight: 'i', sources: [{ url: `https://i.com/${n}/${k}/a` }, { url: `https://i.com/${n}/${k}/b` }] })) } });
+  const month = nl.signalsStories([bi(45, ['Trust & Reputation', 'Media Relations', 'Social & Influencer', 'Measurement & Attribution']), bi(44, ['AI & Search', 'Thought Leadership', 'Paid Media', 'Social & Influencer'])]);
+  assert.deepEqual(month.filter(st => st.lead).map(st => st.headline), ['Lead 45', 'Lead 44']);
+  assert.equal(nl.signalsCategories(month).length, 7);
+  assert.equal(nl.signalsCategoryTarget(month), 6);
+  assert.equal(nl.signalsCategoryTarget(month.slice(0, 2)), 2, 'never more than the categories there are');
+  // Sources go in turn by story, so a cap keeps every story's first source
+  const order = nl.signalsSourceOrder(month).map(o => o.x.url);
+  assert.deepEqual(order.slice(0, month.length), month.map(st => st.sources[0].url));
+  assert.equal(new Set(order).size, order.length);
+  // Coverage comes from the links the body uses
+  const leadsOnly = nl.signalsCoverage('[a](https://l.com/45/a) and [b](https://l.com/44/b).', month);
+  assert.deepEqual([leadsOnly.covered, leadsOnly.leadStories, leadsOnly.otherStories], [['Trust & Reputation', 'AI & Search'], 2, 0]);
+  assert.ok(leadsOnly.missing.includes('Social & Influencer') && leadsOnly.missing.includes('Media Relations'));
+  const wide = nl.signalsCoverage(month.filter(st => !st.lead).map(st => `[x](${st.sources[1].url})`).join(' '), month);
+  assert.deepEqual([wide.leadStories, wide.otherStories, wide.covered.length], [0, 6, 5]);
+  const wp = nl.signalsPrompt({ month: 'October 2026', stories: month, sources: [] });
+  assert.ok(wp.includes('not just the lead stories') && wp.includes('at least 6 of these 7 categories') && wp.includes('[Lead story, Trust & Reputation] Lead 45') && wp.includes('[Media Relations] Item 45.0') && wp.includes('never how to assess one'));
+  const wsrc = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(wsrc.includes('cite stories from at least ${cov.target} categories') && wsrc.includes('coverage: signalsCoverage(final.body, stories)'), 'too narrow a draft is rewritten once, and the coverage is reported');
+  assert.ok(readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8').includes('data-field="signals-coverage"'));
   assert.deepEqual(lib.signalsTells('At Antenna we believe our clients win.'), ["not in Paul's voice: the company is speaking"]);
   assert.ok(lib.signalsTells('We think we can. Our view is our own, and we know us.').includes('not in Paul\'s voice: "we" where it should be "I"'));
   assert.deepEqual(lib.signalsTells('I see this every week. You know it.'), []);
@@ -1329,5 +1389,14 @@ test('v4.12.0: the monthly Signals draft is Paul\'s, in the first person, from t
   const reads = reader.match(/stay_conscious_newsletter\?[^`'"]*/g) || [];
   assert.ok(reads.length >= 2 && reads.every(r => /id=eq\.[12]\b/.test(r)), reads.join('\n'));
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  assert.ok(app.includes('{canReview && !issueId && !showArchive && <SignalsPanel />}'), 'admins only, on the current issue');
+  // v4.13.0: its own page, admins only, not on the newsletter page
+  const scPage = app.slice(app.indexOf('function StayConsciousPage('), app.indexOf('\nfunction ', app.indexOf('function StayConsciousPage(') + 10));
+  assert.ok(scPage.length > 1000 && !scPage.includes('<SignalsPanel'), 'not on the newsletter page');
+  assert.equal(app.match(/<SignalsPanel \/>/g).length, 1);
+  assert.ok(app.includes('if (showSignalsPage && profile?.is_admin) {') && app.includes('<SignalsPage />'), 'the page is behind the admin check');
+  assert.ok(app.includes("...(profile?.is_admin && onSignals ? [['signals', 'Signals', onSignals]] : []),"), 'the nav link is for admins only');
+  assert.ok(/'signals':\s+\(\) => \{ setShowSignalsPage\(true\);/.test(app) && app.includes("else if (showSignalsPage) hash = 'signals';"), 'reached at #signals');
+  const routes = app.slice(app.indexOf('const HASH_ROUTES = {'), app.indexOf('};', app.indexOf('const HASH_ROUTES = {')));
+  for (const r of routes.split('\n').filter(l => /^\s+'[a-z/]+':/.test(l) && !l.includes("'signals'"))) assert.ok(r.includes('setShowSignalsPage(false)'), r);
+  assert.ok(src.includes('link: `${SITE_URL()}/#signals`'), 'the review post links to the page');
 });
