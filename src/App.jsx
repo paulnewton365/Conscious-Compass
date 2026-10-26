@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { attributesMentioned } from './data/attributeGlossary.js';
-import { ecStatusNote, nextIssueAt, NEWSLETTER_HOUSE_IMAGES, houseImageFor, noDashes } from './lib/newsletter.js';
+import { ecStatusNote, nextIssueAt, NEWSLETTER_HOUSE_IMAGES, houseImageFor, noDashes, NEWSLETTER_EC_COPY, followUpText, newsletterDocument, newsletterDocxName } from './lib/newsletter.js';
 import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.10.0';
+const APP_VERSION = '4.11.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12043,23 +12043,13 @@ function SharedReportView({ report, onClose }) {
 // Staff only since v4.3.0: readers sign in with their Antenna Google account.
 const NEWSLETTER_PUBLIC_PATH = '/newsletter';
 
-// Earned creative in the news (v3.124.0). The framing is fixed copy; the
-// examples come from the weekly job, each with a link its search returned.
-const NEWSLETTER_EC_COPY = {
-  title: 'Earned creative in the news',
-  reminder: 'Earned creative is an idea designed to be talked about rather than paid to be seen. Instead of announcing something, a brand does something in the world, and journalists, creators and communities carry it for them. Here is who is getting it right.',
-  offer: 'Antenna Group creates work like this through HOWL, our earned creative studio. Talk to us about what it could look like for your brand.',
-  link: 'https://www.howlagency.com/',
-  linkLabel: 'howlagency.com',
-};
+// NEWSLETTER_EC_COPY and followUpText live in src/lib/newsletter.js (v4.11.0).
 const publicNewsletterUrl = (issueId = null) => `${window.location.origin}${NEWSLETTER_PUBLIC_PATH}${issueId ? `?issue=${issueId}` : ''}`;
 // An archived edition named in the address (?issue=36), or null (v4.2.0).
 const issueFromUrl = () => { try { const v = new URLSearchParams(window.location.search).get('issue'); return /^\d{1,9}$/.test(v || '') ? Number(v) : null; } catch { return null; } };
 // The newsletter is for antennagroup.com addresses (v4.3.0); the server makes
 // the same check, this one only saves a wasted round trip.
 const isStaffEmail = (email) => /^[^@\s]+@antennagroup\.com$/i.test(String(email || '').trim());
-// A follow-up to an earlier story, as one line for the exports (v4.5.0).
-const followUpText = (f) => (f ? `Follow-up to Issue ${f.issueNumber ?? ''}${f.headline ? `, "${f.headline}"` : ''}.${f.whatsNew ? ` What's new: ${f.whatsNew}` : ''}` : '');
 // The archive list is open (?view=archive) (v4.2.1).
 const archiveFromUrl = () => { try { return new URLSearchParams(window.location.search).get('view') === 'archive'; } catch { return false; } };
 
@@ -12295,6 +12285,25 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     } catch (e) { setDraftMsg(`That did not work: ${e.message}`); }
     finally { setDraftBusy(false); }
   };
+  // Past issues to Smartsheet (v4.11.0): a few per call, repeated until done.
+  const [copyingSheet, setCopyingSheet] = useState(false);
+  const copyToSmartsheet = async () => {
+    setCopyingSheet(true); setDraftMsg('Copying past issues to Smartsheet…');
+    try {
+      let copied = 0;
+      for (let round = 0; round < 40; round++) {
+        const r = await fetch('/api/refresh-stay-conscious-newsletter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'smartsheet-backfill' }) });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || `${r.status}`);
+        copied += d.copied || 0;
+        if (d.failed?.length) throw new Error(`Issue ${d.failed[0].issue} could not be copied: ${d.failed[0].reason}`);
+        setDraftMsg(`Copied ${copied} ${copied === 1 ? 'issue' : 'issues'} to Smartsheet${d.remaining ? `, ${d.remaining} to go…` : '.'}`);
+        if (!d.remaining || !d.copied) break;
+      }
+      if (!copied) setDraftMsg('Every issue is already in Smartsheet.');
+    } catch (e) { setDraftMsg(`Copying to Smartsheet did not finish: ${e.message}`); }
+    finally { setCopyingSheet(false); }
+  };
   // Force refresh writes a new draft for review, never straight to readers (v4.7.0).
   const forceRefresh = async () => {
     setRefreshing(true); setError(null); setDraftMsg('');
@@ -12473,153 +12482,15 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     if (!newsletter) return;
     setExportingDocx(true);
     try {
-      const { Document, Packer, Paragraph, TextRun, BorderStyle, AlignmentType, Footer: DocxFooter, ExternalHyperlink } = await import('docx');   // on demand
+      const docx = await import('docx');   // on demand
+      const { Packer } = docx;
       const ns = shownIssue;
-      const SANS = 'Hanken Grotesk', SERIF = 'Newsreader';
-      const INK = '15171A', BODY = '2E3238', MUTED = '5B6068', RUST = 'C23B22', RULE = 'DEDAD2';
-      const txt = (t) => clean(String(t || ''));
-      const paras = (t) => String(t || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
-      const run = (text, o = {}) => new TextRun({ text: txt(text), font: SANS, size: 20, color: BODY, ...o });
-      const kicker = (text, color = MUTED, after = 80) => new Paragraph({ spacing: { after }, children: [run(text, { size: 16, bold: true, allCaps: true, characterSpacing: 16, color })] });
-      const serif = (text, size, after = 120, o = {}) => new Paragraph({ spacing: { after, line: 240, lineRule: 'auto' }, keepNext: true, children: [new TextRun({ text: txt(text), font: SERIF, size, color: INK, ...o })] });
-      const article = (t, size = 22, after = 140) => paras(t).map(x => new Paragraph({ spacing: { after, line: 300, lineRule: 'auto' }, children: [new TextRun({ text: txt(x), font: SERIF, size, color: BODY })] }));
-      const why = (t, size = 18) => t ? [
-        new Paragraph({ spacing: { before: 60, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [run('Why it matters', { size: 15, bold: true, allCaps: true, characterSpacing: 16, color: MUTED })] }),
-        new Paragraph({ spacing: { after: 200 }, children: [run(t, { size })] }),
-      ] : [];
-      // The pages behind a story, as links (v4.7.0).
-      const sourcesDocx = (list) => (Array.isArray(list) && list.length ? [new Paragraph({ spacing: { after: 200 }, children: [
-        run(list.length > 1 ? 'SOURCES  ' : 'SOURCE  ', { size: 15, bold: true, characterSpacing: 16, color: MUTED }),
-        ...list.flatMap((src, k) => [...(k ? [run(', ', { size: 18 })] : []), new ExternalHyperlink({ link: src.url, children: [run(src.outlet || src.title || src.url, { size: 18, color: RUST, underline: {} })] })]),
-      ] })] : []);
-      // A follow-up to earlier coverage (v4.5.0), under the headline.
-      const followUpDocx = (f) => (f ? [new Paragraph({ spacing: { after: 140 }, border: { left: { style: BorderStyle.SINGLE, size: 12, color: RUST, space: 8 } },
-        children: [run('FOLLOW-UP  ', { size: 15, bold: true, characterSpacing: 16, color: RUST }), run(followUpText(f).replace(/^Follow-up to /, 'First covered in '), { size: 18 })] })] : []);
-      const sechead = (text) => new Paragraph({ spacing: { before: 480, after: 200 }, keepNext: true,
-        border: { top: { style: BorderStyle.DOUBLE, size: 6, color: INK, space: 8 } },
-        children: [new TextRun({ text, font: SERIF, size: 36, color: INK })] });
-      const itemRule = () => new Paragraph({ spacing: { before: 120, after: 160 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 1 } } });
-      const la = ns.landscapeAnalysis;
-      const avg = la && Number.isFinite(la.averageScore) ? la.averageScore : null;
-
-      const doc = new Document({
-        background: { color: 'FBFAF7' },
-        styles: { default: { document: { run: { font: SANS, size: 20, color: BODY }, paragraph: { spacing: { line: 276, lineRule: 'auto' } } } } },
-        sections: [{
-          properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1080, right: 1080, bottom: 1440, left: 1080 } } },
-          footers: { default: new DocxFooter({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [
-            run(`Stay Conscious  |  Issue ${ns.issueNumber}  |  Week of ${ns.weekOf}  |  Antenna Group  |  Conscious Compass`, { size: 16, color: MUTED }),
-          ] })] }) },
-          children: [
-            // Masthead: 4pt ink rule, italic tagline, the title, a ruled dateline
-            new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 120 }, border: { top: { style: BorderStyle.SINGLE, size: 32, color: INK, space: 10 } },
-              children: [new TextRun({ text: "Brand intelligence for assessors. What's shifting, why it matters.", font: SERIF, italics: true, size: 24, color: BODY })] }),
-            new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160, line: 240, lineRule: 'auto' }, children: [new TextRun({ text: 'Stay Conscious', font: SERIF, size: 120, color: INK })] }),
-            new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 360 },
-              border: { top: { style: BorderStyle.SINGLE, size: 8, color: INK, space: 6 }, bottom: { style: BorderStyle.DOUBLE, size: 6, color: INK, space: 6 } },
-              children: [run([`Issue ${ns.issueNumber}`, refreshedAt ? `Updated ${fmtDate(refreshedAt)}` : null, `Next update ${fmtDate(nextSunday())}`].filter(Boolean).join('     ·     '), { size: 17, color: MUTED })] }),
-
-            // Lead story
-            kicker(`${ns.leadStory?.category || ''} · Lead story`, RUST),
-            serif(ns.leadStory?.headline, 60, 200),
-            ...followUpDocx(ns.leadStory?.followUp),
-            ...article(ns.leadStory?.insight, 23),
-            ...why(ns.leadStory?.whyItMatters, 19),
-            ...sourcesDocx(ns.leadStory?.sources),
-            // Talking point (v4.7.0)
-            ...(ns.talkingPoint?.point ? [
-              kicker('Talking point of the week', RUST, 60),
-              new Paragraph({ spacing: { after: 60 }, keepNext: true, children: [run(`If a client asks about ${ns.talkingPoint.topic}`, { bold: true, color: INK, size: 26 })] }),
-              ...article(ns.talkingPoint.point, 22, 120),
-              new Paragraph({ spacing: { after: 320 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [] }),
-            ] : []),
-
-            // Landscape insights
-            ...(la?.summary ? [
-              sechead('Landscape insights'),
-              ...(avg !== null ? [new Paragraph({ spacing: { after: 60, line: 240, lineRule: 'auto' }, children: [new TextRun({ text: String(avg), font: SERIF, size: 96, color: INK })] })] : []),
-              ...(avg !== null || la.brandCount ? [new Paragraph({ spacing: { after: 200 }, children: [run(
-                [avg !== null ? 'Average score out of 100' : null, la.brandCount ? `Based on ${la.brandCount} brands across ${la.sectorCount} sectors` : null].filter(Boolean).join(' · '), { size: 17, color: MUTED })] })] : []),
-              ...(la.headline ? [serif(la.headline, 40, 160)] : []),
-              ...article(la.summary),
-              ...article(la.insights),
-            ] : []),
-
-            // Brand intelligence
-            ...(ns.intelligenceItems?.length ? [
-              sechead('Brand intelligence'),
-              ...ns.intelligenceItems.flatMap((item, i) => [
-                ...(i > 0 ? [itemRule()] : []),
-                kicker(item.category || ''),
-                serif(item.headline, i < 2 ? 40 : 34, 120),
-                ...followUpDocx(item.followUp),
-                ...article(item.insight, 21),
-                ...why(item.whyItMatters),
-                ...sourcesDocx(item.sources),
-              ]),
-            ] : []),
-
-            // Spotlight and Prospect pulse (v4.6.0)
-            ...(ns.spotlight?.headline ? [
-              sechead('Spotlight'),
-              kicker(`One thing to lift ${ns.spotlight.name}`, RUST),
-              serif(ns.spotlight.headline, 34, 120),
-              ...article(ns.spotlight.action, 22, 140),
-              ...why(ns.spotlight.why).map((x, i) => (i === 0 ? new Paragraph({ spacing: { before: 60, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 6 } }, children: [run('Why it lifts the score', { size: 15, bold: true, allCaps: true, characterSpacing: 16, color: MUTED })] }) : x)),
-              ...(ns.spotlight.figures?.avg != null ? [new Paragraph({ spacing: { after: 120 }, children: [run(`Average ${ns.spotlight.name} score across ${ns.spotlight.figures.brands} brands we have assessed: ${ns.spotlight.figures.avg}.${ns.spotlight.figures.belowFifty != null ? ` ${ns.spotlight.figures.belowFifty} score below 50.` : ''}`, { size: 18, color: MUTED })] })] : []),
-              ...(ns.spotlight.steps || []).map((st, i) => new Paragraph({ spacing: { after: 60 }, children: [run(`${i + 1}.  ${st}`)] })),
-            ] : []),
-            ...(ns.prospectPulse?.count > 0 ? [
-              sechead('Prospect pulse'),
-              ...article(`So far in ${ns.prospectPulse.month} we have read ${ns.prospectPulse.count} prospect brands${ns.prospectPulse.sectors?.length ? `, mostly in ${ns.prospectPulse.sectors.map(x => x.name).join(', ')}` : ''}.`, 22, 120),
-              ...[
-                ns.prospectPulse.averageScore != null ? `Average teaser score: ${ns.prospectPulse.averageScore}${ns.prospectPulse.fullAverage != null ? `, against ${ns.prospectPulse.fullAverage} for brands we have fully assessed` : ''}.` : null,
-                ns.prospectPulse.weakest ? `Weakest attribute: ${ns.prospectPulse.weakest.name}, averaging ${ns.prospectPulse.weakest.avg}.` : null,
-                ns.prospectPulse.strongest ? `Strongest attribute: ${ns.prospectPulse.strongest.name}, averaging ${ns.prospectPulse.strongest.avg}.` : null,
-              ].filter(Boolean).map(t => new Paragraph({ spacing: { after: 60 }, children: [run(t)] })),
-              new Paragraph({ spacing: { before: 80, after: 200 }, children: [run('Teasers are quick reads of what is publicly visible. They are kept apart from our benchmarks, which count full assessments only.', { size: 16, color: MUTED })] }),
-            ] : []),
-
-            // Earned creative in the news (v3.124.0)
-            ...(ns.earnedCreative?.items?.length ? [
-              sechead(NEWSLETTER_EC_COPY.title),
-              ...article(NEWSLETTER_EC_COPY.reminder, 22, 200),
-              ...ns.earnedCreative.items.flatMap((e, i) => [
-                ...(i > 0 ? [itemRule()] : []),
-                kicker([e.brand, e.agency].filter(Boolean).join(' \u00b7 ')),
-                serif(e.title || e.brand, 34, 120),
-                ...article(e.what, 21),
-                ...why(e.coverage ? `Coverage: ${e.coverage}` : ''),
-                new Paragraph({ spacing: { after: 160 }, children: [new ExternalHyperlink({ link: e.url, children: [run(`Read it${e.outlet ? ` in ${e.outlet}` : ''}`, { size: 18, color: RUST, underline: {} })] })] }),
-              ]),
-              new Paragraph({ spacing: { before: 200, after: 160 }, children: [
-                run(`${NEWSLETTER_EC_COPY.offer} `, { size: 20 }),
-                new ExternalHyperlink({ link: NEWSLETTER_EC_COPY.link, children: [run(NEWSLETTER_EC_COPY.linkLabel, { size: 20, color: RUST, underline: {} })] }),
-              ] }),
-            ] : []),
-
-            // Story opportunities
-            ...(ns.storyOpportunities?.length ? [
-              sechead('Story opportunities'),
-              ...ns.storyOpportunities.flatMap((st, i) => [
-                ...(i > 0 ? [itemRule()] : []),
-                new Paragraph({ spacing: { after: 80, line: 240, lineRule: 'auto' }, keepNext: true, children: [
-                  new TextRun({ text: `${i + 1}   `, font: SERIF, size: 40, color: RUST }),
-                  new TextRun({ text: txt(st.headline), font: SERIF, size: 32, color: INK }),
-                ] }),
-                ...article(st.body, 21, 120),
-              ]),
-            ] : []),
-
-            new Paragraph({ spacing: { before: 480 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: RULE, space: 8 } },
-              children: [run('Insights generated by Claude. Always apply your own professional judgment.', { size: 16, color: MUTED })] }),
-          ],
-        }],
-      });
+      // The builder is shared with the server's Smartsheet copy (v4.11.0).
+      const doc = newsletterDocument(docx, ns, { refreshedAt, nextUpdate: nextSunday(), fmtDate });
 
       // Hanken Grotesk and Newsreader travel inside the file, as in the report.
       const blob = await embedReportFonts(await Packer.toBlob(doc), { JSZip: await loadJSZip() });
-      saveAs(blob, `Stay_Conscious_Issue_${ns.issueNumber}_${ns.weekOf.replace(/[\s,]+/g, '_')}.docx`);
+      saveAs(blob, newsletterDocxName(ns));
     } catch (e) {
       alert('DOCX error: ' + e.message);
     } finally {
@@ -12696,6 +12567,11 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
           {isAdmin && !publicView && !issueId && !showArchive && (
             <button className="btn-secondary" type="button" title="Write a new draft for review. Readers see nothing until it is published." onClick={confirmRefresh} disabled={refreshing || loading} aria-busy={refreshing || undefined}>
               {refreshing ? 'Writing draft…' : 'New draft'}
+            </button>
+          )}
+          {isAdmin && !publicView && !issueId && !showArchive && (
+            <button className="btn-secondary" type="button" title="Copy every past issue to the Stay Conscious sheet in Smartsheet. New issues are copied when they publish." onClick={copyToSmartsheet} disabled={copyingSheet} aria-busy={copyingSheet || undefined}>
+              {copyingSheet ? 'Copying…' : 'Copy to Smartsheet'}
             </button>
           )}
         </div>

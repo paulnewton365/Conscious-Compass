@@ -7,7 +7,7 @@
 import { requireUser } from './_auth.js';
 import { glossaryForPrompt, titleCaseAttributes } from '../src/data/attributeGlossary.js';
 import { ATTRIBUTES } from '../src/data/rubric.js';
-import { headlineOverlap, houseImageFor, houseImageForDraft, withoutDashes, noDashes } from '../src/lib/newsletter.js';
+import { headlineOverlap, houseImageFor, houseImageForDraft, withoutDashes, noDashes, newsletterDocument, newsletterDocxName, nextIssueAt } from '../src/lib/newsletter.js';
 // Each brand's latest save only (v3.109.0): every save is kept as a row for
 // history, but a brand must count once in portfolio figures.
 const latestPerBrand = (rows) => {
@@ -682,6 +682,116 @@ export function storyCheckState(scRow, reportRow) {
   return { items, report, unchecked: all.length - items.length };
 }
 
+// ── A copy of every published issue in Smartsheet (v4.11.0) ────────────────
+// Supabase stays the record the app reads; Smartsheet gets one row per issue,
+// with its key fields and the issue as a Word file (the same file as the
+// page's DOCX button). The copy never blocks or fails a publish: without
+// SMARTSHEET_API_TOKEN and SMARTSHEET_SHEET_ID it is skipped, and any error
+// is reported back and left for the next publish or the backfill to repair.
+// Rows are found by issue number, so a mid-week revision updates its row and
+// re-running the backfill never duplicates one. Columns are matched by title,
+// so they can be reordered or widened in Smartsheet freely.
+export const SMARTSHEET_API = 'https://api.smartsheet.com/2.0';
+export const SMARTSHEET_COLUMNS = [
+  { title: 'Issue', type: 'TEXT_NUMBER', primary: true },
+  { title: 'Week of', type: 'TEXT_NUMBER' },
+  { title: 'Published', type: 'DATE' },
+  { title: 'Lead topic', type: 'TEXT_NUMBER' },
+  { title: 'Lead headline', type: 'TEXT_NUMBER' },
+  { title: 'Other stories', type: 'TEXT_NUMBER' },
+  { title: 'Talking point', type: 'TEXT_NUMBER' },
+  { title: 'Earned creative', type: 'TEXT_NUMBER' },
+  { title: 'Sources', type: 'TEXT_NUMBER' },
+  { title: 'Edition link', type: 'TEXT_NUMBER' },
+  { title: 'Fact check', type: 'TEXT_NUMBER' },
+];
+const CELL_MAX = 4000;   // Smartsheet's limit per cell
+const capCell = (v) => { const t = String(v ?? ''); return t.length > CELL_MAX ? `${t.slice(0, CELL_MAX - 1)}…` : t; };
+// A one-line summary of the fact check, for the internal column.
+export function factCheckSummary(check) {
+  if (!check) return '';
+  const stories = check.stories || []; const ec = check.earnedCreative || []; const figs = check.figures || [];
+  const removed = [...stories, ...ec].reduce((n, r) => n + (r.outcome === 'kept' ? (r.removed?.length || 0) : 0), 0);
+  const parts = [`${check.passed ?? stories.filter(s => s.outcome === 'kept').length} of ${stories.length} stories passed`, `${removed} ${removed === 1 ? 'sentence' : 'sentences'} removed`];
+  const left = stories.filter(s => s.outcome !== 'kept').map(s => s.headline).filter(Boolean);
+  if (left.length) parts.push(`Left out: ${left.join('; ')}`);
+  if (ec.length) parts.push(`Earned creative: ${ec.filter(e => e.outcome === 'kept').length} of ${ec.length} kept`);
+  figs.filter(f => f.outcome !== 'kept').forEach(f => parts.push(`${f.section}: ${f.outcome === 'dropped' ? 'left out' : f.outcome}`));
+  return `${parts.join('. ')}.`;
+}
+// The row's values, by column title. undefined means "leave as it is".
+export function smartsheetValues(nl, { publishedAt, link, check } = {}) {
+  const items = Array.isArray(nl?.intelligenceItems) ? nl.intelligenceItems : [];
+  const stories = [nl?.leadStory, ...items].filter(Boolean);
+  const sources = [...new Set(stories.flatMap(s => (s.sources || []).map(x => x?.url)).concat((nl?.earnedCreative?.items || []).map(e => e?.url)).filter(u => typeof u === 'string' && /^https:\/\//.test(u)))];
+  const tp = nl?.talkingPoint;
+  return {
+    'Issue': Number(nl?.issueNumber) || null,
+    'Week of': nl?.weekOf || '',
+    'Published': publishedAt ? new Date(publishedAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) : undefined,   // YYYY-MM-DD
+    'Lead topic': nl?.leadStory?.category || '',
+    'Lead headline': nl?.leadStory?.headline || '',
+    'Other stories': items.map(i => `${i.headline}${i.category ? ` (${i.category})` : ''}`).join('\n'),
+    'Talking point': tp?.point ? `If a client asks about ${tp.topic}: ${tp.point}` : '',
+    'Earned creative': (nl?.earnedCreative?.items || []).map(e => `${e.brand}${e.title ? `: ${e.title}` : ''}`).join('\n'),
+    'Sources': sources.join('\n'),
+    'Edition link': link,
+    'Fact check': check === undefined ? undefined : factCheckSummary(check),
+  };
+}
+const ssFetch = (token, fetchImpl) => async (path, init = {}) => {
+  const r = await fetchImpl(`${SMARTSHEET_API}${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init.headers || {}) } });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`Smartsheet ${r.status}${body?.message ? `: ${body.message}` : ''}`);
+  return body;
+};
+// The Word file for an issue, built by the shared builder, with the report
+// fonts embedded as the page does.
+export async function issueDocxBytes(nl, { refreshedAt = null, fetchImpl = fetch } = {}) {
+  const docx = await import('docx');
+  const { default: JSZip } = await import('jszip');
+  const { embedReportFonts } = await import('../src/lib/docxFonts.js');
+  const fmtDate = (d) => { const x = new Date(d); return `${x.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/New_York' })} at ${x.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' })}`; };
+  const doc = newsletterDocument(docx, nl, { refreshedAt, nextUpdate: nextIssueAt(refreshedAt ? new Date(refreshedAt) : new Date()), fmtDate });
+  const blob = await docx.Packer.toBlob(doc);
+  const withFonts = await embedReportFonts(blob, { JSZip, fetchImpl: (u) => fetchImpl(`${SITE_URL()}${u}`) });
+  return new Uint8Array(await withFonts.arrayBuffer());
+}
+// Adds or updates the issue's row and attaches its Word file. Never throws.
+export async function syncIssueToSmartsheet(nl, { publishedAt, link, check, attach = true, token = process.env.SMARTSHEET_API_TOKEN, sheetId = process.env.SMARTSHEET_SHEET_ID, fetchImpl = fetch, sheet = null } = {}) {
+  if (!token || !sheetId) return { ok: false, skipped: true, reason: 'Smartsheet is not set up (SMARTSHEET_API_TOKEN and SMARTSHEET_SHEET_ID).' };
+  const issue = Number(nl?.issueNumber);
+  if (!issue) return { ok: false, reason: 'the issue has no number' };
+  const ss = ssFetch(token, fetchImpl);
+  try {
+    const s = sheet || await ss(`/sheets/${sheetId}`);
+    const col = Object.fromEntries((s.columns || []).map(c => [c.title, c.id]));
+    if (!col.Issue) return { ok: false, reason: 'the sheet has no Issue column' };
+    const existing = (s.rows || []).find(r => (r.cells || []).some(c => c.columnId === col.Issue && Number(c.value) === issue));
+    const values = smartsheetValues(nl, { publishedAt, link, check });
+    const cells = Object.entries(values).filter(([t, v]) => v !== undefined && col[t]).map(([t, v]) => ({ columnId: col[t], value: typeof v === 'number' ? v : capCell(v) }));
+    let rowId;
+    if (existing) {
+      await ss(`/sheets/${sheetId}/rows`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ id: existing.id, cells }]) });
+      rowId = existing.id;
+    } else {
+      const added = await ss(`/sheets/${sheetId}/rows`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ toTop: true, cells }]) });
+      rowId = (Array.isArray(added?.result) ? added.result[0] : added?.result)?.id;
+    }
+    if (!attach || !rowId) return { ok: true, rowId, added: !existing, attached: false };
+    const name = newsletterDocxName(nl);
+    const bytes = await issueDocxBytes(nl, { refreshedAt: publishedAt, fetchImpl });
+    const upload = { method: 'POST', headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'Content-Disposition': `attachment; filename="${encodeURIComponent(name)}"`, 'Content-Length': String(bytes.length) }, body: bytes };
+    // A revision of the issue is a new version of the same file, not a second file.
+    const listed = existing ? await ss(`/sheets/${sheetId}/rows/${rowId}/attachments`) : { data: [] };
+    const same = (listed.data || []).find(a => a.name === name);
+    await ss(same ? `/sheets/${sheetId}/attachments/${same.id}/versions` : `/sheets/${sheetId}/rows/${rowId}/attachments`, upload);
+    return { ok: true, rowId, added: !existing, attached: true };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e).slice(0, 200) };
+  }
+}
+
 // ── Draft, review, publish (v4.7.0) ──────────────────────────
 // The Sunday run writes a draft (row 2) instead of going live; the live issue
 // stays in row 1. Admins can preview, edit the text, hold or publish it, and
@@ -861,12 +971,50 @@ export default async function handler(req, res) {
     if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.message || `Supabase upsert error ${r.status}`); }
   };
   const deleteIssueRow = async (id) => fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?id=eq.${id}`, { method: 'DELETE', headers: sbJson }).then(r => r.ok).catch(() => false);
+  // The archive id of the edition published at a given time, for its link (v4.11.0).
+  const archivedEditionId = async (refreshedAt) => {
+    try {
+      const r = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter_archive?select=id&refreshed_at=eq.${encodeURIComponent(refreshedAt)}&limit=1`, { headers: sbJson });
+      return r.ok ? ((await r.json())?.[0]?.id ?? null) : null;
+    } catch { return null; }
+  };
+  // Past issues to Smartsheet (v4.11.0): the archive, oldest first, then the
+  // live issue. An issue already in the sheet with its Word file is skipped.
+  const smartsheetBackfill = async ({ batch = 6 } = {}) => {
+    const token = process.env.SMARTSHEET_API_TOKEN; const sheetId = process.env.SMARTSHEET_SHEET_ID;
+    if (!token || !sheetId) return { success: false, error: 'Smartsheet is not set up. Add SMARTSHEET_API_TOKEN and SMARTSHEET_SHEET_ID in Vercel, then redeploy.' };
+    const ss = ssFetch(token, fetch);
+    let sheet;
+    try { sheet = await ss(`/sheets/${sheetId}?include=attachments`); } catch (e) { return { success: false, error: String(e.message).slice(0, 200) }; }
+    const col = Object.fromEntries((sheet.columns || []).map(c => [c.title, c.id]));
+    const done = new Set((sheet.rows || []).filter(r => (r.attachments || []).length).map(r => Number((r.cells || []).find(c => c.columnId === col.Issue)?.value)).filter(Boolean));
+    const arch = await fetch(`${supabaseUrl}/rest/v1/stay_conscious_newsletter_archive?select=id,refreshed_at,newsletter&order=refreshed_at.asc`, { headers: sbJson }).then(r => (r.ok ? r.json() : [])).catch(() => []);
+    const live = await readIssueRow(LIVE_ID);
+    const all = [...arch.map(r => ({ nl: r.newsletter, publishedAt: r.refreshed_at, link: `${SITE_URL()}/newsletter?issue=${r.id}` })),
+      ...(live?.newsletter ? [{ nl: live.newsletter, publishedAt: live.refreshed_at, link: `${SITE_URL()}/newsletter` }] : [])]
+      .filter(x => Number(x.nl?.issueNumber));
+    // One row per issue: when an issue number appears twice, the latest copy wins.
+    const byIssue = new Map(); all.forEach(x => byIssue.set(Number(x.nl.issueNumber), x));
+    const todo = [...byIssue.values()].filter(x => !done.has(Number(x.nl.issueNumber)));
+    const results = [];
+    for (const x of todo.slice(0, batch)) {
+      const r = await syncIssueToSmartsheet(x.nl, { publishedAt: x.publishedAt, link: x.link, token, sheetId });
+      results.push({ issue: Number(x.nl.issueNumber), ok: r.ok, reason: r.reason });
+    }
+    return { success: results.every(r => r.ok), copied: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok), remaining: Math.max(0, todo.length - results.filter(r => r.ok).length), total: byIssue.size };
+  };
 
   // Review actions on the draft (v4.7.0). The schedule may only publish.
   const action = String(req.query?.action || req.body?.action || '').toLowerCase();
   if (action) {
     if (caller.cron && action !== 'publish') return res.status(403).json({ error: 'The schedule can only publish.' });
     try {
+      // Copy past issues to Smartsheet (v4.11.0): admins, a few at a time so
+      // each call stays well inside the time limit. The page repeats it until
+      // nothing is left; issues already there with their file are skipped.
+      if (action === 'smartsheet-backfill') {
+        return res.status(200).json(await smartsheetBackfill({ batch: 6 }));
+      }
       const draftRow = await readIssueRow(DRAFT_ID);
       if (!draftRow?.newsletter) return res.status(200).json({ success: true, draft: false, published: false, reason: 'There is no draft.' });
       const meta = draftRow.newsletter._draft || {};
@@ -875,10 +1023,18 @@ export default async function handler(req, res) {
         const liveRow = await readIssueRow(LIVE_ID);
         const archived = meta.weekly ? await archiveIssue(liveRow, { supabaseUrl, supabaseKey }) : null;
         const published = withoutDashes(stripDraft(draftRow.newsletter));   // no em dashes, edits included (v4.9.0)
-        await writeIssueRow(LIVE_ID, published);
+        const publishedAt = new Date().toISOString();
+        await writeIssueRow(LIVE_ID, published, publishedAt);
         await deleteIssueRow(DRAFT_ID);
         const posted = await postToChannel(process.env.NEWSLETTER_WEBHOOK_URL, publishedNote(published));
-        return res.status(200).json({ success: true, published: true, issueNumber: published.issueNumber, archived, posted });
+        // The Smartsheet copy (v4.11.0): this issue's row, then the replaced
+        // issue's link moves to its archived edition. Never blocks the publish.
+        const smartsheet = await syncIssueToSmartsheet(published, { publishedAt, link: `${SITE_URL()}/newsletter`, check: meta.check || null });
+        if (archived && !smartsheet.skipped) {
+          const id = await archivedEditionId(liveRow.refreshed_at);
+          if (id) await syncIssueToSmartsheet(liveRow.newsletter, { link: `${SITE_URL()}/newsletter?issue=${id}`, attach: false });
+        }
+        return res.status(200).json({ success: true, published: true, issueNumber: published.issueNumber, archived, posted, smartsheet });
       }
       if (action === 'hold' || action === 'release') {
         await writeIssueRow(DRAFT_ID, { ...draftRow.newsletter, _draft: { ...meta, held: action === 'hold' } }, draftRow.refreshed_at);

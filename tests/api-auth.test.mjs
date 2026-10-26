@@ -493,7 +493,7 @@ test('v4.2.0: the Sunday run keeps the issue it replaces; past issues can be lis
   // v4.7.0: the week's issue is archived when the weekly draft is published,
   // just before the live issue is overwritten; revisions archive nothing.
   assert.ok(src.includes('const archived = meta.weekly ? await archiveIssue(liveRow, { supabaseUrl, supabaseKey }) : null;'), 'only a weekly issue archives the one it replaces');
-  assert.ok(src.indexOf('archiveIssue(liveRow') < src.indexOf('await writeIssueRow(LIVE_ID, published);'), 'archived before it is overwritten');
+  assert.ok(src.indexOf('archiveIssue(liveRow') < src.indexOf('await writeIssueRow(LIVE_ID, published, publishedAt);'), 'archived before it is overwritten');
 
   const pub = await import('../api/stay-conscious-newsletter.js');
   assert.equal(pub.archiveId({ query: { issue: '12' } }), 12);
@@ -715,7 +715,8 @@ test('v4.5.0: stories do not repeat earlier issues unless they have moved on, an
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes('{followUpNote(ns.leadStory?.followUp)}') && app.includes('{followUpNote(item.followUp)}'));
   assert.ok(app.includes('onClick={() => openIssue(id)}>{label}</button>'), 'the earlier edition opens from the note');
-  assert.ok(app.includes('...followUpDocx(ns.leadStory?.followUp)') && app.includes('followUpText(ns.leadStory.followUp)'), 'Word and plain-text exports carry it too');
+  const libSrc = readFileSync(new URL('../src/lib/newsletter.js', import.meta.url), 'utf8');   // the Word builder is shared since v4.11.0
+  assert.ok(libSrc.includes('...followUpDocx(ns.leadStory?.followUp)') && app.includes('followUpText(ns.leadStory.followUp)'), 'Word and plain-text exports carry it too');
 });
 
 test('v4.6.0: Prospect pulse (this month, figures only) and Spotlight (one thing to lift the weakest attribute)', async () => {
@@ -1130,4 +1131,101 @@ test('v4.10.0: figures from our own scores are checked in code; the issue goes o
   assert.ok(nl.earnedCreativePrompt().includes('nothing older'), 'the first search is still recent work');
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes('<FactCheckReport check={draftState.meta.check} />') && !app.includes('Held by the fact check.'));
+});
+
+test('v4.11.0: each published issue is copied to Smartsheet, with its Word file, without ever blocking the publish', async () => {
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const { default: JSZip } = await import('jszip');
+  const { noDashes, newsletterDocument } = await import('../src/lib/newsletter.js');
+  // The dash rule no longer eats a comma it did not make (it removed the ", " between source links)
+  assert.equal(noDashes(', '), ', ');
+  assert.equal(noDashes(', and more'), ', and more');
+  // A tiny Smartsheet: one sheet, rows, attachments, and a log of calls
+  const make = () => {
+    const sheet = { id: 77, columns: nl.SMARTSHEET_COLUMNS.map((c, i) => ({ id: 100 + i, title: c.title })), rows: [] };
+    const att = []; const calls = [];
+    const fetchImpl = async (url, init = {}) => {
+      const u = new URL(String(url)); const m = init.method || 'GET';
+      calls.push(`${m} ${u.pathname}`);
+      const ok = (body) => ({ ok: true, status: 200, json: async () => body });
+      if (u.hostname !== 'api.smartsheet.com') return { ok: false, status: 404, json: async () => ({}) };   // the fonts: the file still builds without them
+      if (init.headers?.Authorization !== 'Bearer tok') return { ok: false, status: 401, json: async () => ({ message: 'bad token' }) };
+      const p = u.pathname.replace('/2.0', '');
+      if (m === 'GET' && p === '/sheets/77') return ok({ ...sheet, rows: sheet.rows.map(r => ({ ...r, attachments: att.filter(a => a.rowId === r.id) })) });
+      if (m === 'POST' && p === '/sheets/77/rows') { const rows = JSON.parse(init.body).map((r, i) => ({ id: 900 + sheet.rows.length + i, cells: r.cells })); sheet.rows.unshift(...rows); return ok({ result: rows }); }
+      if (m === 'PUT' && p === '/sheets/77/rows') { JSON.parse(init.body).forEach(r => { const row = sheet.rows.find(x => x.id === r.id); r.cells.forEach(c => { const k = row.cells.findIndex(x => x.columnId === c.columnId); if (k >= 0) row.cells[k] = c; else row.cells.push(c); }); }); return ok({ result: [] }); }
+      let a = p.match(/^\/sheets\/77\/rows\/(\d+)\/attachments$/);
+      if (a && m === 'GET') return ok({ data: att.filter(x => x.rowId === Number(a[1])) });
+      if (a && m === 'POST') { att.push({ id: 5000 + att.length, rowId: Number(a[1]), name: decodeURIComponent(init.headers['Content-Disposition'].match(/filename="(.+)"/)[1]), bytes: init.body, versions: 1, headers: init.headers }); return ok({ result: {} }); }
+      a = p.match(/^\/sheets\/77\/attachments\/(\d+)\/versions$/);
+      if (a && m === 'POST') { const x = att.find(y => y.id === Number(a[1])); x.versions += 1; x.bytes = init.body; return ok({ result: {} }); }
+      return { ok: false, status: 400, json: async () => ({ message: `unhandled ${m} ${p}` }) };
+    };
+    const cell = (row, title) => row.cells.find(c => c.columnId === sheet.columns.find(x => x.title === title).id)?.value;
+    return { sheet, att, calls, fetchImpl, cell };
+  };
+  const issue = { issueNumber: 45, weekOf: 'October 26, 2026',
+    leadStory: { category: 'AI & Search', headline: 'AI answers now cite news publishers', insight: 'x', whyItMatters: 'y', sources: [{ url: 'https://a.com/1', outlet: 'Outlet A' }, { url: 'https://b.com/2', outlet: 'Outlet B' }] },
+    intelligenceItems: [{ category: 'Paid Media', headline: 'CMOs cut paid social', insight: 'z', sources: [{ url: 'https://a.com/1' }] }],
+    talkingPoint: { topic: 'AI search', point: 'Say this.' },
+    earnedCreative: { items: [{ brand: 'Volvo', title: 'Crash Test Library', what: 'w', url: 'https://adweek.com/v' }] } };
+  const check = { passed: 4, stories: [{ headline: 'A', outcome: 'kept', removed: [{ field: 'insight' }] }, { headline: 'Dropped one', outcome: 'dropped', removed: [] }], earnedCreative: [{ brand: 'Volvo', outcome: 'kept', removed: [] }], figures: [{ section: 'Landscape', outcome: 'rewritten', figures: ['97'] }] };
+
+  // Not set up: skipped, and nothing is called
+  const off = make();
+  assert.deepEqual(await nl.syncIssueToSmartsheet(issue, { fetchImpl: off.fetchImpl, token: '', sheetId: '' }), { ok: false, skipped: true, reason: 'Smartsheet is not set up (SMARTSHEET_API_TOKEN and SMARTSHEET_SHEET_ID).' });
+  assert.equal(off.calls.length, 0);
+
+  // A new issue: one row, by column title, and its Word file attached
+  const s = make();
+  const r1 = await nl.syncIssueToSmartsheet(issue, { publishedAt: '2026-10-26T12:00:00Z', link: 'https://conscious-compass.vercel.app/newsletter', check, token: 'tok', sheetId: '77', fetchImpl: s.fetchImpl });
+  assert.deepEqual([r1.ok, r1.added, r1.attached], [true, true, true], JSON.stringify(r1));
+  const row = s.sheet.rows[0];
+  assert.equal(s.cell(row, 'Issue'), 45);
+  assert.equal(s.cell(row, 'Published'), '2026-10-26', 'the date in New York');
+  assert.equal(s.cell(row, 'Lead headline'), 'AI answers now cite news publishers');
+  assert.equal(s.cell(row, 'Other stories'), 'CMOs cut paid social (Paid Media)');
+  assert.equal(s.cell(row, 'Sources'), 'https://a.com/1\nhttps://b.com/2\nhttps://adweek.com/v', 'every source once');
+  assert.equal(s.cell(row, 'Talking point'), 'If a client asks about AI search: Say this.');
+  assert.equal(s.cell(row, 'Edition link'), 'https://conscious-compass.vercel.app/newsletter');
+  assert.equal(s.cell(row, 'Fact check'), '4 of 2 stories passed. 1 sentence removed. Left out: Dropped one. Earned creative: 1 of 1 kept. Landscape: rewritten.');
+  assert.equal(s.att.length, 1);
+  assert.equal(s.att[0].name, 'Stay_Conscious_Issue_45_October_26_2026.docx');
+  assert.equal(s.att[0].headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  assert.equal(Number(s.att[0].headers['Content-Length']), s.att[0].bytes.length);
+  const doc = await (await JSZip.loadAsync(s.att[0].bytes)).file('word/document.xml').async('string');
+  assert.ok(doc.includes('AI answers now cite news publishers') && doc.includes('Stay Conscious'), 'a real Word file of the issue');
+  assert.ok(doc.includes('<w:t xml:space="preserve">, </w:t>'), 'with the comma between source links');
+
+  // A revision of the same issue: the row is updated and the file gets a new version, never a duplicate
+  const r2 = await nl.syncIssueToSmartsheet({ ...issue, leadStory: { ...issue.leadStory, headline: 'Revised headline' } }, { publishedAt: '2026-10-27T12:00:00Z', link: 'L', token: 'tok', sheetId: '77', fetchImpl: s.fetchImpl });
+  assert.deepEqual([r2.ok, r2.added, s.sheet.rows.length, s.att.length, s.att[0].versions], [true, false, 1, 1, 2]);
+  assert.equal(s.cell(s.sheet.rows[0], 'Lead headline'), 'Revised headline');
+  assert.equal(s.cell(s.sheet.rows[0], 'Fact check'), '4 of 2 stories passed. 1 sentence removed. Left out: Dropped one. Earned creative: 1 of 1 kept. Landscape: rewritten.', 'a value not given is left as it was');
+  // Only a link change, no file: the archived edition's link
+  await nl.syncIssueToSmartsheet(issue, { link: 'https://conscious-compass.vercel.app/newsletter?issue=12', attach: false, token: 'tok', sheetId: '77', fetchImpl: s.fetchImpl });
+  assert.deepEqual([s.cell(s.sheet.rows[0], 'Edition link'), s.att[0].versions], ['https://conscious-compass.vercel.app/newsletter?issue=12', 2]);
+
+  // Smartsheet's 4,000-character cell limit
+  const long = await nl.syncIssueToSmartsheet({ ...issue, issueNumber: 46, intelligenceItems: Array.from({ length: 80 }, (_, i) => ({ headline: `${'Long headline '.repeat(6)}${i}` })) }, { link: 'L', attach: false, token: 'tok', sheetId: '77', fetchImpl: s.fetchImpl });
+  assert.ok(long.ok);
+  assert.equal(s.cell(s.sheet.rows[0], 'Other stories').length, 4000);
+  // Errors are reported, never thrown
+  const bad = await nl.syncIssueToSmartsheet(issue, { link: 'L', token: 'wrong', sheetId: '77', fetchImpl: s.fetchImpl });
+  assert.deepEqual([bad.ok, bad.reason], [false, 'Smartsheet 401: bad token']);
+  assert.equal((await nl.syncIssueToSmartsheet(issue, { link: 'L', token: 'tok', sheetId: '77', fetchImpl: async () => { throw new Error('network down'); } })).reason, 'network down');
+
+  // Publishing: the live row gets the copy after the channel post; the Smartsheet result is reported, and a failure does not stop the publish
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  const pub = src.slice(src.indexOf("if (action === 'publish') {"));
+  assert.ok(pub.indexOf('await writeIssueRow(LIVE_ID, published, publishedAt);') < pub.indexOf('syncIssueToSmartsheet(published, { publishedAt, link: `${SITE_URL()}/newsletter`, check: meta.check || null })'), 'copied after it is live');
+  assert.ok(pub.includes('if (id) await syncIssueToSmartsheet(liveRow.newsletter, { link: `${SITE_URL()}/newsletter?issue=${id}`, attach: false });'), 'the replaced issue links to its archived edition');
+  assert.ok(pub.includes('return res.status(200).json({ success: true, published: true, issueNumber: published.issueNumber, archived, posted, smartsheet });'));
+  assert.ok(src.includes("if (action === 'smartsheet-backfill') {") && src.indexOf("if (action === 'smartsheet-backfill') {") < src.indexOf("const draftRow = await readIssueRow(DRAFT_ID);"), 'the backfill does not need a draft');
+  assert.ok(src.includes("if (caller.cron && action !== 'publish') return res.status(403)"), 'and the schedule cannot run it');
+  // The page and the server build the same Word document
+  const docx = await import('docx');
+  assert.ok(newsletterDocument(docx, issue, {}) instanceof docx.Document);
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes("{copyingSheet ? 'Copying…' : 'Copy to Smartsheet'}") && app.includes("action: 'smartsheet-backfill'"));
 });

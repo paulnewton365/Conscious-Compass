@@ -371,11 +371,15 @@ test('the weekly jobs store the portfolio average and date the issue in US Engli
 test('the newsletter Word export uses the newspaper system and embeds the fonts', () => {
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   const at = app.indexOf("const handleExportDocx = async () => {\n    if (!newsletter) return;");
-  const gen = app.slice(at, app.indexOf('\n  };\n', at));
+  const page = app.slice(at, app.indexOf('\n  };\n', at));
+  // The builder is shared with the server's Smartsheet copy since v4.11.0.
+  const lib = readFileSync(new URL('../src/lib/newsletter.js', import.meta.url), 'utf8');
+  const gen = lib.slice(lib.indexOf('export function newsletterDocument('));
+  assert.ok(page.includes('const doc = newsletterDocument(docx, ns, { refreshedAt, nextUpdate: nextSunday(), fmtDate });'));
   assert.ok(!gen.includes("'Inter'") && !gen.includes('E8FF00') && !gen.includes('catColor'), 'old font, lime and category colours gone');
   assert.ok(gen.includes("const SANS = 'Hanken Grotesk', SERIF = 'Newsreader';"));
   assert.ok(gen.includes('BorderStyle.DOUBLE'), 'double rules under the dateline and section heads');
-  assert.ok(gen.includes('embedReportFonts(await Packer.toBlob(doc)'));
+  assert.ok(page.includes('embedReportFonts(await Packer.toBlob(doc)'));
 });
 
 // ── The public issue (v3.120.0) ──────────────────────────────
