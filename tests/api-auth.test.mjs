@@ -1222,10 +1222,112 @@ test('v4.11.0: each published issue is copied to Smartsheet, with its Word file,
   assert.ok(pub.includes('if (id) await syncIssueToSmartsheet(liveRow.newsletter, { link: `${SITE_URL()}/newsletter?issue=${id}`, attach: false });'), 'the replaced issue links to its archived edition');
   assert.ok(pub.includes('return res.status(200).json({ success: true, published: true, issueNumber: published.issueNumber, archived, posted, smartsheet });'));
   assert.ok(src.includes("if (action === 'smartsheet-backfill') {") && src.indexOf("if (action === 'smartsheet-backfill') {") < src.indexOf("const draftRow = await readIssueRow(DRAFT_ID);"), 'the backfill does not need a draft');
-  assert.ok(src.includes("if (caller.cron && action !== 'publish') return res.status(403)"), 'and the schedule cannot run it');
+  assert.ok(src.includes("if (caller.cron && action !== 'publish' && action !== 'signals-draft') return res.status(403)"), 'and the schedule cannot run it (it may publish and write the Signals draft only)');
   // The page and the server build the same Word document
   const docx = await import('docx');
   assert.ok(newsletterDocument(docx, issue, {}) instanceof docx.Document);
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes("{copyingSheet ? 'Copying…' : 'Copy to Smartsheet'}") && app.includes("action: 'smartsheet-backfill'"));
+});
+
+test('v4.12.0: the monthly Signals draft is Paul\'s, in the first person, from the news only, and checked in code before anyone sees it', async () => {
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const lib = await import('../src/lib/newsletter.js');
+  // The schedule: every Monday, but it writes only on the Monday in the last seven days of the month (New York)
+  assert.deepEqual(['2026-10-26T18:00:00Z', '2026-10-19T18:00:00Z', '2026-11-30T18:00:00Z', '2026-02-23T18:00:00Z', '2026-08-31T03:00:00Z'].map(d => lib.isSignalsDay(new Date(d))), [true, false, true, true, false], 'the last case is still Sunday in New York');
+  const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  assert.ok(vercel.crons.some(c => c.path === '/api/refresh-stay-conscious-newsletter?action=signals-draft' && c.schedule === '0 14 * * 1'), 'Mondays, after the 12:00 publish');
+  // The voice: Paul's, first person
+  assert.ok(lib.SIGNALS_STYLE.startsWith('VOICE: Paul Newton') && lib.SIGNALS_STYLE.includes('"I" throughout, never the company\'s "we"'));
+  assert.ok(lib.SIGNALS_CLOSE.text.includes('the question I built the Conscious Compass to answer'), 'the close is his too');
+  assert.deepEqual(lib.signalsTells('At Antenna we believe our clients win.'), ["not in Paul's voice: the company is speaking"]);
+  assert.ok(lib.signalsTells('We think we can. Our view is our own, and we know us.').includes('not in Paul\'s voice: "we" where it should be "I"'));
+  assert.deepEqual(lib.signalsTells('I see this every week. You know it.'), []);
+  assert.deepEqual(lib.signalsTells('Not just a brand, but a movement — in today\'s market!').sort(), ['dash', 'exclamation mark', "in today's", 'not just X but Y'].sort());
+  // The news only: lead and supporting stories with https sources, once each; nothing internal
+  const ed = (n, extra = {}) => ({ newsletter: { issueNumber: n, weekOf: `W${n}`, leadStory: { headline: `Lead ${n}`, insight: 'i', sources: [{ url: `https://a.com/${n}` }] }, intelligenceItems: [{ headline: `Item ${n}`, sources: [{ url: 'javascript:x' }] }, { headline: 'Shared story', sources: [{ url: 'https://b.com/s' }] }],
+    landscapeAnalysis: { summary: 'SECRET LANDSCAPE' }, talkingPoint: { point: 'SECRET POINT' }, storyOpportunities: [{ headline: 'SECRET OPP' }], earnedCreative: { items: [{ brand: 'SECRET EC' }] }, ...extra } });
+  const stories = nl.signalsStories([ed(45), ed(44)]);
+  assert.deepEqual(stories.map(s => s.headline), ['Lead 45', 'Shared story', 'Lead 44'], 'unsourced items go, repeats count once');
+  const p = nl.signalsPrompt({ month: 'October 2026', stories, sources: [{ url: 'https://a.com/45', outlet: 'A', excerpt: 'Ex' }], blocked: ['Acme Solar'] });
+  assert.ok(!/SECRET/.test(p), 'nothing internal reaches the writer');
+  assert.ok(p.includes('as Paul Newton') && p.includes('Never name, describe or hint at these companies, which are clients or prospects: Acme Solar.') && p.includes('Use two to four short direct quotes') && p.includes('Three pull quotes'));
+  assert.deepEqual(nl.parseSignalsDraft('TITLE: T\nDEK: D\nPULL QUOTE: "One"\nPULL QUOTE: Two\nBODY:\nPara.\n\n## Head\n\nMore.'), { title: 'T', dek: 'D', pullQuotes: ['One', 'Two'], body: 'Para.\n\n## Head\n\nMore.' });
+
+  // The checks, against two source pages and a stand-in checker that reads them
+  const PAGE1 = 'Regulators fined three packaging makers a combined 12 million euros for unproven recycling claims, the commission said. "Green claims must be proven before they are made," the commissioner told reporters. It is the first penalty under the new rules on environmental marketing.';
+  const PAGE2 = 'A survey of 500 chief marketing officers found most plan to cut paid social budgets next year, citing falling trust in platforms. The findings follow a year of platform policy changes that marketers say made results harder to measure.';
+  const sources = [{ url: 'https://ft.com/fines', outlet: 'FT', text: PAGE1, excerpt: PAGE1 }, { url: 'https://adage.com/cmos', outlet: 'Ad Age', text: PAGE2, excerpt: PAGE2 }];
+  const words = (t) => String(t).toLowerCase().match(/[a-z0-9]+/g) || [];
+  const checker = async (_u, init) => {
+    const prompt = JSON.parse(init.body).messages[0].content;
+    const st = [...prompt.matchAll(/^(\d+)\. \[(\w+)\] (.+)$/gm)];
+    const ev = prompt.split('\nEVIDENCE\n')[1];
+    const evw = new Set(words(ev));
+    const sentences = ev.split(/(?<=[.!?"])\s+/);
+    return { ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify({ verdicts: st.map(m => {
+      const w = words(m[3]); const share = w.filter(x => evw.has(x)).length / w.length;
+      if (share >= 0.75) return { n: Number(m[1]), verdict: 'supported', quote: sentences.map(s => ({ s, h: words(s).filter(x => w.includes(x)).length })).sort((a, b) => b.h - a.h)[0].s.replace(/^\[Source \d+\][^\n]*\n/, '') };
+      return { n: Number(m[1]), verdict: m[2] === 'view' ? 'opinion' : 'unsupported' };
+    }) }) }] }) };
+  };
+  const draft = { title: 'Proof travels', dek: 'The month.', pullQuotes: ['I see it every week.', 'Sales rose 99 percent.', 'Proof is the new reach.'], body: [
+    'If your brand waits to be noticed, you are behind. I see it every week.',
+    '## Show the proof',
+    '[Regulators fined three packaging makers](https://ft.com/fines) a combined 12 million euros for unproven recycling claims. "Green claims must be proven before they are made," the commissioner told reporters.',
+    'Sales rose 99 percent, [the survey found](https://adage.com/cmos).',
+    '[Regulators fined three packaging makers](https://ft.com/fines) a combined 15 million euros for unproven recycling claims, the commission said.',
+    '"Brands are winning big," [the commission said](https://ft.com/fines).',
+    '## Name the change',
+    'A survey of 500 chief marketing officers found most plan to cut paid social budgets next year.',
+    'Acme Solar showed how.',
+    'The Conscious Compass sees the same gap.',
+    '[Some say](https://made-up.example.com/x) the tide has turned.',
+    '## Act',
+    'Proof is the new reach.',
+  ].join('\n\n') };
+  const out = await nl.checkSignalsDraft(draft, { sources, blockedRe: nl.namedPattern(['Acme Solar']), anthropicKey: 'k', fetchImpl: checker });
+  const why = Object.fromEntries(out.report.removed.map(r => [r.text.slice(0, 16), r.reason]));
+  assert.deepEqual(why, {
+    'Sales rose 99 pe': 'the source does not say this',
+    'Regulators fined': 'the figure 15 is not in the source',   // the checker passed it; the figure check in code did not
+    '"Brands are winn': 'the quote is not word for word in its source',
+    'Acme Solar showe': 'it names a client or a brand we have assessed',
+    'The Conscious Co': 'it refers to our internal tools, scores or newsletter',
+    'Some say the tid': 'it links to a page that was not one of the month\'s sources',
+  }, JSON.stringify(out.report.removed));
+  assert.ok(out.draft.body.includes('"Green claims must be proven before they are made," the commissioner told reporters.'), 'a real quote stays, without a second link to a page the paragraph already cites');
+  assert.equal(out.report.quotes, 1);
+  assert.ok(out.draft.body.includes('A survey of 500 chief marketing officers found most plan to cut paid social budgets next year ([Ad Age](https://adage.com/cmos)).'), 'a supported fact with no link gets one');
+  assert.deepEqual(out.report.cited, [{ text: 'A survey of 500 chief marketing officers found most plan to cut paid social budgets next year.', source: 'https://adage.com/cmos' }]);
+  assert.ok(out.draft.body.startsWith('If your brand waits to be noticed, you are behind. I see it every week.'), 'his view stays');
+  assert.deepEqual(out.draft.pullQuotes, ['I see it every week.', 'Proof is the new reach.'], 'a pull quote whose line was removed goes too');
+  assert.equal(out.report.links, 2);
+  // With no readable source at all, facts cannot pass
+  const blind = await nl.checkSignalsDraft({ ...draft, body: '[Regulators fined three packaging makers](https://ft.com/fines) 12 million euros.' }, { sources: [{ url: 'https://ft.com/fines', text: '', excerpt: '' }], anthropicKey: 'k', fetchImpl: checker });
+  assert.equal(blind.draft.body, '');
+  assert.equal(blind.report.removed[0].reason, 'its source page could not be read');
+
+  // Renderers: pull quotes spread through the body; Webflow HTML; Word
+  const layout = lib.signalsLayout({ pullQuotes: ['Q1', 'Q2', 'Q3'], body: 'A.\n\n## One\n\nB.\n\nC.\n\n## Two\n\nD.\n\n## Three\n\nE.\n\nF.\n\nG.' });
+  const types = layout.map(b => (b.type === 'quote' ? b.text : b.type === 'h2' ? '#' : 'p'));
+  assert.deepEqual(types, ['p', '#', 'p', 'Q1', 'p', '#', 'p', 'Q2', '#', 'p', 'p', 'Q3', 'p'], 'never after the opening or the last paragraph');
+  const html = lib.signalsHtml({ title: 'T & co', dek: 'D', pullQuotes: ['Q'], body: 'A [link](https://a.com/x?y=1&z=2) and **bold**.\n\n## H\n\nB.\n\nC.' });
+  assert.ok(html.includes('<a href="https://a.com/x?y=1&amp;z=2" target="_blank" rel="noopener">link</a>') && html.includes('<strong>bold</strong>') && html.includes('<h1>T &amp; co</h1>') && html.includes('<blockquote>Q</blockquote>') && html.includes(lib.SIGNALS_CLOSE.link));
+  const docx = await import('docx');
+  assert.ok(lib.signalsDocument(docx, { month: 'October 2026', title: 'T', body: 'A.' }) instanceof docx.Document);
+  assert.equal(lib.signalsDocxName({ month: 'October 2026' }), 'Signals_October_2026_draft.docx');
+
+  // The actions: the schedule may write it (only on the day), admins read, edit and discard; never in Smartsheet
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes("if (caller.cron && !isSignalsDay(new Date())) return res.status(200).json({ success: true, skipped: true"));
+  assert.ok(src.includes('await writeIssueRow(SIGNALS_ID, rec);') && nl.SIGNALS_ID === 3);
+  assert.ok(!/syncSignalsToSmartsheet|SMARTSHEET_SIGNALS/.test(src), 'Signals drafts are not stored in Smartsheet');
+  assert.ok(src.includes("rec.title = str(e.title, 200)") && src.includes('noDashes(v).slice(0, n)'), 'edits keep to the text fields, without dashes');
+  // Row 3 never reaches readers: every reader asks for row 1 (or the admin's row 2)
+  const reader = readFileSync(new URL('stay-conscious-newsletter.js', API), 'utf8');
+  const reads = reader.match(/stay_conscious_newsletter\?[^`'"]*/g) || [];
+  assert.ok(reads.length >= 2 && reads.every(r => /id=eq\.[12]\b/.test(r)), reads.join('\n'));
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('{canReview && !issueId && !showArchive && <SignalsPanel />}'), 'admins only, on the current issue');
 });

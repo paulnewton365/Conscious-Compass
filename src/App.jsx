@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { attributesMentioned } from './data/attributeGlossary.js';
-import { ecStatusNote, nextIssueAt, NEWSLETTER_HOUSE_IMAGES, houseImageFor, noDashes, NEWSLETTER_EC_COPY, followUpText, newsletterDocument, newsletterDocxName } from './lib/newsletter.js';
+import { ecStatusNote, nextIssueAt, NEWSLETTER_HOUSE_IMAGES, houseImageFor, noDashes, NEWSLETTER_EC_COPY, followUpText, newsletterDocument, newsletterDocxName, plural as countOf, readMinutes, SIGNALS_AUTHOR, SIGNALS_CLOSE, signalsLayout, signalsRuns, signalsHtml, signalsDocument, signalsDocxName } from './lib/newsletter.js';
 import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from './data/serviceMapping';
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.11.0';
+const APP_VERSION = '4.12.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12068,6 +12068,112 @@ function ArchiveThumb({ image, issue }) {
 
 // Draft editor (v4.7.0): the text the server accepts in a draft, and nothing
 // else. Each story can also be taken out of the issue.
+// ── Signals draft (v4.12.0): the monthly post for antennagroup.com/signals ──
+// Admins only, on the newsletter page. The server writes and checks it; here
+// it is previewed, edited, copied into Webflow or downloaded as Word.
+const SignalsRuns = ({ text }) => signalsRuns(text).map((r, k) => (r.link
+  ? <a key={k} href={r.link} target="_blank" rel="noopener noreferrer">{r.text}</a>
+  : r.bold ? <strong key={k}>{r.text}</strong> : <React.Fragment key={k}>{r.text}</React.Fragment>));
+function SignalsArticle({ draft }) {
+  return (
+    <article className="dc-sig-article" data-field="signals-preview">
+      <h1 className="dc-sig-title">{draft.title || 'Untitled'}</h1>
+      {draft.dek && <p className="dc-sig-dek">{draft.dek}</p>}
+      <p className="dc-meta">By {SIGNALS_AUTHOR} · {countOf(draft.words, 'word')} · about {Math.max(1, Math.round(draft.words / 220))} min read</p>
+      {signalsLayout(draft).map((b, i) => (b.type === 'h2' ? <h2 key={i}>{b.text}</h2>
+        : b.type === 'ul' ? <ul key={i}>{b.items.map((it, k) => <li key={k}><SignalsRuns text={it} /></li>)}</ul>
+        : b.type === 'quote' ? <blockquote key={i} className="dc-sig-pull">{b.text}</blockquote>
+        : <p key={i}><SignalsRuns text={b.text} /></p>))}
+      <h2>{SIGNALS_CLOSE.heading}</h2>
+      <p>{SIGNALS_CLOSE.text}</p>
+      <p><a href={SIGNALS_CLOSE.link} target="_blank" rel="noopener noreferrer"><strong>{SIGNALS_CLOSE.linkLabel}</strong></a></p>
+    </article>
+  );
+}
+function SignalsEditor({ draft, onSave, onClose, busy }) {
+  const [v, setV] = useState(() => ({ title: draft.title || '', dek: draft.dek || '', body: draft.body || '', pullQuotes: [0, 1, 2].map(i => draft.pullQuotes?.[i] || '') }));
+  return (
+    <Dialog title="Edit the Signals draft" subtitle="The body is Markdown: ## for subheads, [words](link) for sources. Your edits are not re-checked." onClose={onClose} busy={busy}>
+      <div className="dc-draft-edit">
+        <div className="dc-field"><label className="dc-label" htmlFor="sg-title">Title</label><input id="sg-title" type="text" value={v.title} onChange={e => setV(x => ({ ...x, title: e.target.value }))} /></div>
+        <div className="dc-field"><label className="dc-label" htmlFor="sg-dek">Dek</label><input id="sg-dek" type="text" value={v.dek} onChange={e => setV(x => ({ ...x, dek: e.target.value }))} /></div>
+        {v.pullQuotes.map((q, i) => (
+          <div key={i} className="dc-field"><label className="dc-label" htmlFor={`sg-pq${i}`}>Pull quote {i + 1}</label><input id={`sg-pq${i}`} type="text" value={q} onChange={e => setV(x => ({ ...x, pullQuotes: x.pullQuotes.map((y, k) => (k === i ? e.target.value : y)) }))} /></div>
+        ))}
+        <div className="dc-field"><label className="dc-label" htmlFor="sg-body">Body</label><textarea id="sg-body" rows={18} value={v.body} onChange={e => setV(x => ({ ...x, body: e.target.value }))} /></div>
+      </div>
+      <div className="dc-dialog-actions">
+        <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+        <button type="button" className="btn-primary" onClick={() => onSave({ ...v, pullQuotes: v.pullQuotes.filter(Boolean) })} disabled={busy} aria-busy={busy || undefined}>{busy ? 'Saving\u2026' : 'Save draft'}</button>
+      </div>
+    </Dialog>
+  );
+}
+function SignalsPanel() {
+  const [draft, setDraft] = useState(undefined);   // undefined while loading, null when none
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const call = async (action, extra = {}) => {
+    const r = await fetch('/api/refresh-stay-conscious-newsletter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...extra }) });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || `${r.status}`);
+    return d;
+  };
+  // Reading is a GET; only changes are POSTed.
+  const load = async () => { try { const r = await fetch('/api/refresh-stay-conscious-newsletter?action=signals-read'); const d = r.ok ? await r.json() : {}; setDraft(d.draft || null); } catch { setDraft(null); } };
+  const loadRef = useRef(load); loadRef.current = load;
+  useEffect(() => { loadRef.current(); }, []);
+  const run = async (fn, done) => { setBusy(true); setMsg(''); try { await fn(); if (done) setMsg(done); } catch (e) { setMsg(`That did not work: ${e.message}`); } finally { setBusy(false); } };
+  const write = () => {
+    if (!window.confirm(`Write ${draft ? 'a new' : "this month's"} Signals draft from the last four editions? It takes three or four minutes${draft ? ' and replaces the current draft' : ''}.`)) return;
+    run(async () => { setMsg('Writing and checking the draft. This takes three or four minutes\u2026'); const d = await call('signals-draft'); await load(); setOpen(true); setMsg(`The ${d.month} draft is ready: ${countOf(d.words, 'word')}, ${countOf(d.check.links, 'source link')}, ${countOf(d.check.quotes, 'quote')} checked word for word, ${countOf(d.check.removed, 'sentence')} removed.`); });
+  };
+  const copyHtml = () => run(async () => {
+    const html = signalsHtml(draft);
+    const plain = html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+    if (window.ClipboardItem && navigator.clipboard?.write) await navigator.clipboard.write([new window.ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })]);
+    else await navigator.clipboard.writeText(html);
+  }, 'Copied. Paste it into the post body in Webflow; the title and dek go in their own fields.');
+  const downloadWord = () => run(async () => {
+    const docx = await import('docx');
+    const blob = await embedReportFonts(await docx.Packer.toBlob(signalsDocument(docx, draft)), { JSZip: await loadJSZip() });
+    saveAs(blob, signalsDocxName(draft));
+  });
+  if (draft === undefined) return null;
+  const c = draft?.check || {};
+  return (
+    <section className="dc-np-review dc-sig-panel" aria-label="Signals draft" data-field="signals">
+      <p className="dc-np-review-p">
+        <strong>Signals draft.</strong>{' '}
+        {draft
+          ? <>{draft.month}: {draft.title || 'Untitled'}. {countOf(draft.words, 'word')}, about {readMinutes(draft.words)}. Written {new Date(draft.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} from Issues {(draft.editions || []).slice().sort((a, b) => a - b).join(', ')}.{draft.editedAt ? ' Edited by hand.' : ''}</>
+          : 'None yet. The schedule writes one on the last Monday of each month, from the last four editions.'}
+      </p>
+      {draft && (
+        <details className="dc-np-check" data-field="signals-check">
+          <summary>Checks: {countOf(c.links ?? 0, 'source link')}, {countOf(c.quotes ?? 0, 'quote')} checked word for word, {countOf(c.cited?.length ?? 0, 'citation')} added, {countOf(c.removed?.length ?? 0, 'sentence')} removed.</summary>
+          {c.voice?.firstPass?.length > 0 && <p className="dc-meta">First draft: {c.voice.firstPass.join('; ')}.{c.voice.rewritten ? ' It was rewritten once.' : ''}{c.voice.after?.length ? ` Still to fix by hand: ${c.voice.after.join('; ')}.` : ''}</p>}
+          {c.removed?.length > 0 && <><h4 className="dc-np-check-h">Removed</h4><ul className="dc-np-check-list">{c.removed.map((x, k) => <li key={k} data-outcome="dropped">{/^["\u201c]/.test(x.text) ? x.text : `\u201c${x.text}\u201d`} ({x.reason})</li>)}</ul></>}
+          {c.cited?.length > 0 && <><h4 className="dc-np-check-h">Citations added</h4><ul className="dc-np-check-list">{c.cited.map((x, k) => <li key={k}>“{x.text}” now links to {x.source}</li>)}</ul></>}
+        </details>
+      )}
+      <div className="dc-np-review-actions">
+        {draft && <button type="button" className="btn-secondary btn-sm" onClick={() => setOpen(o => !o)} disabled={busy}>{open ? 'Hide the draft' : 'Preview the draft'}</button>}
+        {draft && <button type="button" className="btn-secondary btn-sm" onClick={() => setEditing(true)} disabled={busy}>Edit text</button>}
+        {draft && <button type="button" className="btn-secondary btn-sm" onClick={copyHtml} disabled={busy}>Copy for Webflow</button>}
+        {draft && <button type="button" className="btn-secondary btn-sm" onClick={downloadWord} disabled={busy}>Download Word</button>}
+        {draft && <button type="button" className="btn-secondary btn-sm" onClick={() => { if (window.confirm('Discard this Signals draft?')) run(async () => { await call('signals-discard'); setDraft(null); setOpen(false); }, 'The Signals draft was discarded.'); }} disabled={busy}>Discard</button>}
+        <button type="button" className="btn-primary btn-sm" onClick={write} disabled={busy} aria-busy={busy || undefined}>{busy ? 'Working\u2026' : draft ? 'Write it again' : 'Write Signals draft'}</button>
+      </div>
+      {msg && <p className="dc-meta" role="status">{msg}</p>}
+      {draft && open && <SignalsArticle draft={draft} />}
+      {editing && draft && <SignalsEditor draft={draft} busy={busy} onClose={() => setEditing(false)} onSave={(edits) => run(async () => { await call('signals-save', { edits }); await load(); setEditing(false); }, 'Your changes are saved to the Signals draft.')} />}
+    </section>
+  );
+}
+
 function DraftEditor({ draft, onSave, onClose, busy }) {
   const fields = [];
   const add = (path, label, value, long = false) => { if (typeof value === 'string') fields.push({ path, label, value, long }); };
@@ -12616,6 +12722,8 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       {editOpen && draftState?.draft && (
         <DraftEditor draft={draftState.draft} busy={draftBusy} onClose={() => setEditOpen(false)} onSave={(edits) => draftAction('save-draft', { edits })} />
       )}
+      {/* The monthly Signals post (v4.12.0): admins, on the current issue. */}
+      {canReview && !issueId && !showArchive && <SignalsPanel />}
 
       {recovering && (
         <section className="dc-np-gate" aria-labelledby="reset-h" data-field="reset-gate">

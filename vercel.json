@@ -51,6 +51,10 @@
     {
       "path": "/api/refresh-stay-conscious-newsletter?action=publish",
       "schedule": "0 12 * * 1"
+    },
+    {
+      "path": "/api/refresh-stay-conscious-newsletter?action=signals-draft",
+      "schedule": "0 14 * * 1"
     }
   ]
 }

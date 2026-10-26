@@ -276,3 +276,147 @@ export function newsletterDocument(docx, ns, { refreshedAt = null, nextUpdate = 
     }],
   });
 }
+
+// ── Signals: a monthly post for Antenna's blog (v4.12.0) ───────────────────
+// Once a month, the news from the last four editions of Stay Conscious
+// becomes a draft for antennagroup.com/signals: an eight-minute read for an
+// outside audience, in Paul Newton's voice. Only the news stories are used;
+// nothing internal (landscape, Spotlight, Prospect pulse, talking point,
+// story opportunities, earned creative) and no client or score is named.
+// The server writes and checks the draft; this module holds what the page
+// and the server share: the voice, the fixed close, and the renderers.
+export const SIGNALS_AUTHOR = 'Paul Newton';
+// The close is fixed copy, so the call to action never says anything unchecked.
+// The link is the Conscious Compass self-assessment named in the launch
+// release; change it here if the destination moves.
+export const SIGNALS_CLOSE = {
+  heading: 'How conscious is your brand?',
+  text: 'Every shift in this month\'s news comes back to one question: does what you say match what people can see? It is the question I built the Conscious Compass to answer. It reads a brand the way the market does, from what is publicly visible, across eight attributes of a conscious brand, and shows where you are earning trust and where you are leaving it on the table.',
+  linkLabel: 'Find out how conscious your brand is',
+  link: 'https://www.fullyconscious.com',
+};
+export const SIGNALS_WORDS = { min: 1600, max: 1900, target: '1,650 to 1,850' };
+// The voice, from Paul's HOWL posts, weighted to the two most recent
+// ("Your inside voice", August 2026; "Read the room", July 2026), and his
+// standing voice rules.
+export const SIGNALS_STYLE = `VOICE: Paul Newton, EVP at Antenna Group, writing in the first person as himself. This is his column, his view, his read of the month: "I" throughout, never the company's "we", never "Antenna believes" or "our team". He may mention what he sees in his work with brands as his own experience ("I see this every week", "In my experience"). Direct, confident, a little provocative. He writes to the reader as "you" and argues a position; he does not survey a topic.
+
+OPENING: Start on the reader's problem or a one-line verdict, never on a statistic or throat-clearing. Then put the reader's own brand in the frame: a short run of "If your brand..." or the objections they hear inside their own company, which the rest of the piece answers. Two things can be true at the same time is the kind of line he uses to turn an argument.
+
+STRUCTURE: Four to six sections under short subheads of two to four words that read as a progression of the argument, often imperatives ("Show the stakes", "Frame the conversation"). Inside a section, a bold lead-in such as **Brand differentiation.** can introduce a point. At most one short list in the whole piece, each item starting with a verb.
+
+SENTENCES AND PARAGRAPHS: Short paragraphs of one to four sentences, with one-line paragraphs for emphasis. Mostly short declarative sentences of 10 to 15 words, with the odd fragment for rhythm and the occasional longer sentence that stacks an argument. Verdict before evidence: make the claim, then prove it.
+
+EVIDENCE: Every fact is specific and named: who found it, what the figure is. Cite it with a link on the words that carry it. Use two to four short direct quotes from the sources, copied exactly, to let a named source make the point for you.
+
+QUESTIONS: Rare. Use them only to diagnose where the reader stands, never as a hook.
+
+CLOSE: End the argument on the path forward: what a leader should do now, in plain words. Turn toward being a conscious brand: one whose purpose, proof and presence line up, and that earns trust by being seen to do what it says. Do not write a sign-off or a sales pitch; a fixed closing section follows your text.
+
+NEVER: em dashes or en dashes; "not just X but Y"; "in today's" anything; "delve"; "landscape" as a metaphor; "navigate"; "unlock"; "game-changer"; "ever-evolving"; "it's worth noting"; rule-of-three lists for rhythm; motivational closers; rhetorical scaffolding ("Here's the thing", "Let's be clear"); exclamation marks.`;
+// Phrases that read as machine-written, checked in code (v4.12.0).
+export const SIGNALS_TELLS = [
+  [/\bnot (just|only|merely) [^.]{1,80}?,? but\b/i, 'not just X but Y'],
+  [/\bin today'?s\b/i, "in today's"], [/\bdelv(e|es|ing)\b/i, 'delve'], [/\bnavigat(e|es|ing)\b/i, 'navigate'],
+  [/\bunlock(s|ing)?\b/i, 'unlock'], [/\bgame[- ]chang/i, 'game-changer'], [/\bever[- ]evolving\b/i, 'ever-evolving'],
+  [/\bit'?s worth noting\b/i, "it's worth noting"], [/\bhere'?s the thing\b/i, "here's the thing"], [/\blet'?s be clear\b/i, "let's be clear"],
+  [/\btapestry\b/i, 'tapestry'], [/\bseamless(ly)?\b/i, 'seamless'], [/\bin conclusion\b/i, 'in conclusion'], [/\bfast[- ]paced\b/i, 'fast-paced'],
+  [/!/, 'exclamation mark'], [/[\u2014\u2013]/, 'dash'],
+  // Paul's voice check (v4.12.0): the post is his, in the first person, never the company's.
+  [/\b(at Antenna|Antenna (Group )?(believes|thinks|sees|knows)|our (team|clients|agency|work)|we at)\b/i, "not in Paul's voice: the company is speaking"],
+];
+export const signalsTells = (text) => {
+  const t = String(text || '');
+  const found = SIGNALS_TELLS.filter(([re]) => re.test(t)).map(([, name]) => name);
+  if ((t.match(/\b(we|our|us)\b/gi) || []).length > 5) found.push('not in Paul\'s voice: "we" where it should be "I"');
+  return [...new Set(found)];
+};
+export const wordCount = (t) => (String(t || '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').match(/[A-Za-z0-9À-ɏ'%$]+/g) || []).length;
+// The month a draft covers, in New York time, e.g. "October 2026".
+const nyParts = (d) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }).formatToParts(d).map(p => [p.type, p.value]));
+export const signalsMonth = (d = new Date()) => d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/New_York' });
+// The schedule runs every Monday; it writes on the one Monday in the last
+// seven days of the month (New York time), so there is one draft a month.
+export function isSignalsDay(d = new Date()) {
+  const p = nyParts(d);
+  const last = new Date(Date.UTC(Number(p.year), Number(p.month), 0)).getUTCDate();
+  return p.weekday === 'Mon' && Number(p.day) > last - 7;
+}
+// The body is Markdown: "## " subheads, paragraphs, [words](https://...) links,
+// **bold** lead-ins and "- " list items.
+export function signalsBlocks(md) {
+  const blocks = [];
+  String(md || '').split(/\n\s*\n/).map(b => b.trim()).filter(Boolean).forEach(b => {
+    if (/^##\s+/.test(b)) blocks.push({ type: 'h2', text: b.replace(/^##\s+/, '').trim() });
+    else if (b.split('\n').every(l => /^\s*[-*]\s+/.test(l))) blocks.push({ type: 'ul', items: b.split('\n').map(l => l.replace(/^\s*[-*]\s+/, '').trim()) });
+    else blocks.push({ type: 'p', text: b.replace(/\s*\n\s*/g, ' ') });
+  });
+  return blocks;
+}
+// Inline runs: text, links and bold, for every renderer.
+export function signalsRuns(text) {
+  const out = [];
+  const re = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*/g;
+  let at = 0; let m;
+  while ((m = re.exec(String(text || '')))) {
+    if (m.index > at) out.push({ text: text.slice(at, m.index) });
+    out.push(m[1] ? { text: m[1], link: m[2] } : { text: m[3], bold: true });
+    at = m.index + m[0].length;
+  }
+  if (at < String(text || '').length) out.push({ text: text.slice(at) });
+  return out;
+}
+// Where the pull quotes sit: after the first paragraph of every other section.
+export function signalsLayout(draft) {
+  const blocks = signalsBlocks(draft?.body);
+  const quotes = (draft?.pullQuotes || []).slice(0, 3);
+  // Spread evenly through the body: never after the opening paragraph or the last one.
+  const ps = blocks.map((b, i) => (b.type === 'p' ? i : -1)).filter(i => i >= 0);
+  const pool = ps.length > 2 ? ps.slice(1, -1) : ps;
+  const slots = [...new Set(quotes.map((_, k) => pool[Math.floor(((k + 0.5) * pool.length) / quotes.length)]))].filter(i => i !== undefined);
+  const out = [];
+  blocks.forEach((b, i) => { out.push(b); const q = slots.indexOf(i); if (q >= 0) out.push({ type: 'quote', text: quotes[q] }); });
+  return out;
+}
+const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const htmlRuns = (t) => signalsRuns(t).map(r => (r.link ? `<a href="${escHtml(r.link)}" target="_blank" rel="noopener">${escHtml(r.text)}</a>` : r.bold ? `<strong>${escHtml(r.text)}</strong>` : escHtml(r.text))).join('');
+// HTML to paste into the Webflow rich text field.
+export function signalsHtml(draft) {
+  const body = signalsLayout(draft).map(b => (b.type === 'h2' ? `<h2>${escHtml(b.text)}</h2>` : b.type === 'ul' ? `<ul>${b.items.map(i => `<li>${htmlRuns(i)}</li>`).join('')}</ul>` : b.type === 'quote' ? `<blockquote>${escHtml(b.text)}</blockquote>` : `<p>${htmlRuns(b.text)}</p>`)).join('\n');
+  return `<h1>${escHtml(draft?.title || '')}</h1>\n<p><em>${escHtml(draft?.dek || '')}</em></p>\n${body}\n<h2>${escHtml(SIGNALS_CLOSE.heading)}</h2>\n<p>${escHtml(SIGNALS_CLOSE.text)}</p>\n<p><a href="${escHtml(SIGNALS_CLOSE.link)}" target="_blank" rel="noopener">${escHtml(SIGNALS_CLOSE.linkLabel)}</a></p>`;
+}
+export const signalsDocxName = (draft) => `Signals_${String(draft?.month || '').replace(/\s+/g, '_')}_draft.docx`;
+// The draft as a Word document, in the report's type, for review and Smartsheet.
+export function signalsDocument(docx, draft) {
+  const { Document, Paragraph, TextRun, BorderStyle, ExternalHyperlink } = docx;
+  const SANS = 'Hanken Grotesk', SERIF = 'Newsreader';
+  const INK = '15171A', BODY = '2E3238', MUTED = '5B6068', RUST = 'C23B22';
+  const t = (s) => noDashes(String(s || ''));
+  const runs = (text, size = 22) => signalsRuns(t(text)).map(r => (r.link
+    ? new ExternalHyperlink({ link: r.link, children: [new TextRun({ text: r.text, font: SERIF, size, color: RUST, underline: {} })] })
+    : new TextRun({ text: r.text, font: SERIF, size, color: BODY, bold: !!r.bold })));
+  const words = wordCount(draft?.body);
+  const children = [
+    new Paragraph({ spacing: { after: 120 }, children: [new TextRun({ text: `SIGNALS DRAFT  ·  ${t(draft?.month)}  ·  ${words} WORDS, ABOUT ${Math.max(1, Math.round(words / 220))} MIN READ`, font: SANS, size: 16, bold: true, color: MUTED, characterSpacing: 16 })] }),
+    new Paragraph({ spacing: { after: 160, line: 240, lineRule: 'auto' }, children: [new TextRun({ text: t(draft?.title), font: SERIF, size: 56, color: INK })] }),
+    new Paragraph({ spacing: { after: 160 }, children: [new TextRun({ text: t(draft?.dek), font: SERIF, size: 26, italics: true, color: BODY })] }),
+    new Paragraph({ spacing: { after: 360 }, children: [new TextRun({ text: `By ${SIGNALS_AUTHOR}`, font: SANS, size: 18, color: MUTED })] }),
+    ...signalsLayout(draft).flatMap(b => {
+      if (b.type === 'h2') return [new Paragraph({ spacing: { before: 360, after: 160 }, keepNext: true, children: [new TextRun({ text: t(b.text), font: SERIF, size: 34, color: INK })] })];
+      if (b.type === 'ul') return b.items.map(i => new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: runs(i) }));
+      if (b.type === 'quote') return [new Paragraph({ spacing: { before: 200, after: 240 }, indent: { left: 400 }, border: { left: { style: BorderStyle.SINGLE, size: 18, color: RUST, space: 12 } }, children: [new TextRun({ text: t(b.text), font: SERIF, size: 32, italics: true, color: INK })] })];
+      return [new Paragraph({ spacing: { after: 160, line: 300, lineRule: 'auto' }, children: runs(b.text) })];
+    }),
+    new Paragraph({ spacing: { before: 360, after: 160 }, keepNext: true, children: [new TextRun({ text: SIGNALS_CLOSE.heading, font: SERIF, size: 34, color: INK })] }),
+    new Paragraph({ spacing: { after: 120, line: 300, lineRule: 'auto' }, children: [new TextRun({ text: SIGNALS_CLOSE.text, font: SERIF, size: 22, color: BODY })] }),
+    new Paragraph({ spacing: { after: 360 }, children: [new ExternalHyperlink({ link: SIGNALS_CLOSE.link, children: [new TextRun({ text: SIGNALS_CLOSE.linkLabel, font: SANS, size: 20, bold: true, color: RUST, underline: {} })] })] }),
+  ];
+  return new Document({
+    styles: { default: { document: { run: { font: SERIF, size: 22, color: BODY } } } },
+    sections: [{ properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1080, right: 1200, bottom: 1440, left: 1200 } } }, children }],
+  });
+}
+
+// "1 source link", "2 source links" (v4.12.0).
+export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+export const readMinutes = (words) => plural(Math.max(1, Math.round((Number(words) || 0) / 220)), 'minute');

@@ -97,7 +97,12 @@ test('server jobs behind Landscape, Insights and Stay Conscious never read tease
   }
   const nl = read('api/refresh-stay-conscious-newsletter.js');
   const pulseFn = nl.slice(nl.indexOf('const buildPulseAndSpotlight = async'), nl.indexOf('// Brands in the earned creative section of the live issue'));
-  const rest = nl.replace(pulseFn, '');
+  // v4.12.0: a second exception, the Signals blocklist, which reads prospect
+  // brand NAMES only, so the public post never mentions a brand we teased.
+  const blockFn = nl.slice(nl.indexOf('// Every brand we have assessed or teased stays out of the post.'), nl.indexOf('const blockedRe = namedPattern(blocked);'));
+  assert.ok(blockFn.includes("get('teaser_assessments?select=brand_name')") && !/teaser_assessments\?select=(?!brand_name')/.test(blockFn), 'names only');
+  assert.equal((nl.match(/teaser_assessments\?select=brand_name'/g) || []).length, 1, 'and only there');
+  const rest = nl.replace(pulseFn, '').replace(blockFn, '');
   const teaserMentions = [...rest.matchAll(/teaser/gi)].map(m => rest.slice(Math.max(0, m.index - 60), m.index + 40));
   // Outside the pulse builder, "teaser" appears only in comments and the pulse's own pure function names.
   assert.ok(teaserMentions.every(t => /\/\/|PULSE_MIN|teasers = \[\]|t\?\.result|scored|teasers\.filter/.test(t)), teaserMentions.join('\n---\n'));

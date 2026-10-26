@@ -7,7 +7,7 @@
 import { requireUser } from './_auth.js';
 import { glossaryForPrompt, titleCaseAttributes } from '../src/data/attributeGlossary.js';
 import { ATTRIBUTES } from '../src/data/rubric.js';
-import { headlineOverlap, houseImageFor, houseImageForDraft, withoutDashes, noDashes, newsletterDocument, newsletterDocxName, nextIssueAt } from '../src/lib/newsletter.js';
+import { headlineOverlap, houseImageFor, houseImageForDraft, withoutDashes, noDashes, newsletterDocument, newsletterDocxName, nextIssueAt, SIGNALS_STYLE, SIGNALS_WORDS, signalsTells, wordCount, signalsMonth, signalsBlocks, isSignalsDay, plural, readMinutes } from '../src/lib/newsletter.js';
 // Each brand's latest save only (v3.109.0): every save is kept as a row for
 // history, but a brand must count once in portfolio figures.
 const latestPerBrand = (rows) => {
@@ -586,9 +586,10 @@ export async function checkStatements(statements, evidence, { anthropicKey, fetc
     if (v.verdict === 'supported') {
       if (!quoteFound(v.quote, all)) return { ok: false, reason: 'the checker could not point to it in the source' };
       if (bad.length) return { ok: false, reason: `the figure ${bad.join(', ')} is not in the source` };
-      return { ok: true };
+      // Which source holds it (v4.12.0), so a supported fact can carry its link.
+      return { ok: true, verdict: 'supported', source: sources.findIndex(e => quoteFound(v.quote, e.text)) };
     }
-    if (v.verdict === 'opinion' && s.kind === 'view') return bad.length ? { ok: false, reason: `the figure ${bad.join(', ')} is not in the source` } : { ok: true };
+    if (v.verdict === 'opinion' && s.kind === 'view') return bad.length ? { ok: false, reason: `the figure ${bad.join(', ')} is not in the source` } : { ok: true, verdict: 'opinion' };
     return { ok: false, reason: 'the source does not say this' };
   });
 }
@@ -749,26 +750,20 @@ const ssFetch = (token, fetchImpl) => async (path, init = {}) => {
 // fonts embedded as the page does.
 export async function issueDocxBytes(nl, { refreshedAt = null, fetchImpl = fetch } = {}) {
   const docx = await import('docx');
-  const { default: JSZip } = await import('jszip');
-  const { embedReportFonts } = await import('../src/lib/docxFonts.js');
   const fmtDate = (d) => { const x = new Date(d); return `${x.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/New_York' })} at ${x.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' })}`; };
-  const doc = newsletterDocument(docx, nl, { refreshedAt, nextUpdate: nextIssueAt(refreshedAt ? new Date(refreshedAt) : new Date()), fmtDate });
-  const blob = await docx.Packer.toBlob(doc);
-  const withFonts = await embedReportFonts(blob, { JSZip, fetchImpl: (u) => fetchImpl(`${SITE_URL()}${u}`) });
-  return new Uint8Array(await withFonts.arrayBuffer());
+  return docxBytes(newsletterDocument(docx, nl, { refreshedAt, nextUpdate: nextIssueAt(refreshedAt ? new Date(refreshedAt) : new Date()), fmtDate }), fetchImpl);
 }
-// Adds or updates the issue's row and attaches its Word file. Never throws.
-export async function syncIssueToSmartsheet(nl, { publishedAt, link, check, attach = true, token = process.env.SMARTSHEET_API_TOKEN, sheetId = process.env.SMARTSHEET_SHEET_ID, fetchImpl = fetch, sheet = null } = {}) {
-  if (!token || !sheetId) return { ok: false, skipped: true, reason: 'Smartsheet is not set up (SMARTSHEET_API_TOKEN and SMARTSHEET_SHEET_ID).' };
-  const issue = Number(nl?.issueNumber);
-  if (!issue) return { ok: false, reason: 'the issue has no number' };
+// Adds or updates one row, found by its key column, and attaches a file:
+// a new version when a file of that name is already on the row. Never throws.
+// Used for the issue copies, keyed by Issue.
+export async function upsertSmartsheetRow({ token, sheetId, keyTitle, keyValue, values, file = null, fetchImpl = fetch }) {
   const ss = ssFetch(token, fetchImpl);
   try {
-    const s = sheet || await ss(`/sheets/${sheetId}`);
+    const s = await ss(`/sheets/${sheetId}`);
     const col = Object.fromEntries((s.columns || []).map(c => [c.title, c.id]));
-    if (!col.Issue) return { ok: false, reason: 'the sheet has no Issue column' };
-    const existing = (s.rows || []).find(r => (r.cells || []).some(c => c.columnId === col.Issue && Number(c.value) === issue));
-    const values = smartsheetValues(nl, { publishedAt, link, check });
+    if (!col[keyTitle]) return { ok: false, reason: `the sheet has no ${keyTitle} column` };
+    const key = String(keyValue).trim();
+    const existing = (s.rows || []).find(r => (r.cells || []).some(c => c.columnId === col[keyTitle] && String(c.value ?? '').trim() === key));
     const cells = Object.entries(values).filter(([t, v]) => v !== undefined && col[t]).map(([t, v]) => ({ columnId: col[t], value: typeof v === 'number' ? v : capCell(v) }));
     let rowId;
     if (existing) {
@@ -778,18 +773,260 @@ export async function syncIssueToSmartsheet(nl, { publishedAt, link, check, atta
       const added = await ss(`/sheets/${sheetId}/rows`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([{ toTop: true, cells }]) });
       rowId = (Array.isArray(added?.result) ? added.result[0] : added?.result)?.id;
     }
-    if (!attach || !rowId) return { ok: true, rowId, added: !existing, attached: false };
-    const name = newsletterDocxName(nl);
-    const bytes = await issueDocxBytes(nl, { refreshedAt: publishedAt, fetchImpl });
-    const upload = { method: 'POST', headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'Content-Disposition': `attachment; filename="${encodeURIComponent(name)}"`, 'Content-Length': String(bytes.length) }, body: bytes };
-    // A revision of the issue is a new version of the same file, not a second file.
+    if (!file || !rowId) return { ok: true, rowId, added: !existing, attached: false };
+    const bytes = await file.bytes();
+    const upload = { method: 'POST', headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'Content-Disposition': `attachment; filename="${encodeURIComponent(file.name)}"`, 'Content-Length': String(bytes.length) }, body: bytes };
     const listed = existing ? await ss(`/sheets/${sheetId}/rows/${rowId}/attachments`) : { data: [] };
-    const same = (listed.data || []).find(a => a.name === name);
+    const same = (listed.data || []).find(a => a.name === file.name);
     await ss(same ? `/sheets/${sheetId}/attachments/${same.id}/versions` : `/sheets/${sheetId}/rows/${rowId}/attachments`, upload);
     return { ok: true, rowId, added: !existing, attached: true };
   } catch (e) {
     return { ok: false, reason: String(e?.message || e).slice(0, 200) };
   }
+}
+// Adds or updates the issue's row and attaches its Word file. Never throws.
+export async function syncIssueToSmartsheet(nl, { publishedAt, link, check, attach = true, token = process.env.SMARTSHEET_API_TOKEN, sheetId = process.env.SMARTSHEET_SHEET_ID, fetchImpl = fetch } = {}) {
+  if (!token || !sheetId) return { ok: false, skipped: true, reason: 'Smartsheet is not set up (SMARTSHEET_API_TOKEN and SMARTSHEET_SHEET_ID).' };
+  const issue = Number(nl?.issueNumber);
+  if (!issue) return { ok: false, reason: 'the issue has no number' };
+  return upsertSmartsheetRow({ token, sheetId, keyTitle: 'Issue', keyValue: issue, values: smartsheetValues(nl, { publishedAt, link, check }), fetchImpl,
+    file: attach ? { name: newsletterDocxName(nl), bytes: () => issueDocxBytes(nl, { refreshedAt: publishedAt, fetchImpl }) } : null });
+}
+// Word bytes for any document the shared builders make, with the report fonts.
+async function docxBytes(doc, fetchImpl = fetch) {
+  const docx = await import('docx');
+  const { default: JSZip } = await import('jszip');
+  const { embedReportFonts } = await import('../src/lib/docxFonts.js');
+  const withFonts = await embedReportFonts(await docx.Packer.toBlob(doc), { JSZip, fetchImpl: (u) => fetchImpl(`${SITE_URL()}${u}`) });
+  return new Uint8Array(await withFonts.arrayBuffer());
+}
+// ── Signals: the monthly draft (v4.12.0) ───────────────────────────────────
+// Writes a draft post for antennagroup.com/signals from the news in the last
+// four editions, in Paul's voice, then checks it in code before anyone sees
+// it: every link must be one of the month's sources, every quote must be on
+// its source page word for word, every factual sentence is fact-checked
+// against the pages it cites (a supported fact with no link gets one), no
+// sentence may name a brand we have assessed or teased, or refer to the
+// Compass, scores or Stay Conscious, and the pull quotes must be lines the
+// body still contains. The draft is kept in row 3 of stay_conscious_newsletter
+// (no database change); every reader of that table asks for row 1 or 2.
+export const SIGNALS_ID = 3;
+export const SIGNALS_EDITIONS = 4;
+export function signalsStories(editions = []) {
+  const out = []; const seen = new Set();
+  editions.forEach(ed => {
+    const nl = ed?.newsletter; if (!nl) return;
+    [nl.leadStory, ...(Array.isArray(nl.intelligenceItems) ? nl.intelligenceItems : [])].filter(Boolean).forEach(st => {
+      const sources = (st.sources || []).filter(x => x && typeof x.url === 'string' && /^https:\/\//.test(x.url));
+      const k = String(st.headline || '').toLowerCase().trim();
+      if (!sources.length || !k || seen.has(k)) return;
+      seen.add(k);
+      out.push({ headline: st.headline, category: st.category || '', insight: st.insight || '', whyItMatters: st.whyItMatters || '', issue: nl.issueNumber, week: nl.weekOf, sources });
+    });
+  });
+  return out;
+}
+// The parts of a page most about the story, so the writer sees the figures and quotable lines.
+export function excerptFor(text, about, { windows = 4, size = 600 } = {}) {
+  const t = String(text || ''); if (t.length <= windows * size) return t;
+  const want = new Set(String(about || '').toLowerCase().match(/[a-z0-9]{4,}/g) || []);
+  const parts = [];
+  for (let i = 0; i < t.length; i += size) parts.push({ i, s: t.slice(i, i + size) });
+  parts.forEach(p => { p.score = (p.s.toLowerCase().match(/[a-z0-9]{4,}/g) || []).filter(w => want.has(w)).length + (/\d/.test(p.s) ? 1 : 0); });
+  return parts.sort((a, b) => b.score - a.score).slice(0, windows).sort((a, b) => a.i - b.i).map(p => p.s.trim()).join(' [...] ');
+}
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export const namedPattern = (names = []) => {
+  const list = [...new Set(names.map(n => String(n || '').trim()).filter(n => n.length >= 2))];
+  return list.length ? new RegExp(`(^|[^\\p{L}\\p{N}])(${list.map(escRe).join('|')})(?=$|[^\\p{L}\\p{N}])`, 'iu') : null;
+};
+export const SIGNALS_INTERNAL = /\b(Conscious Compass|Stay Conscious|Compass scores?|our assessments?|(brands|companies) (we|I) (have )?(assessed|scored)|(we|I) (have )?(assessed|scored))\b/i;
+export function signalsPrompt({ month, stories, sources, blocked = [], notes = '' }) {
+  return `You are writing this month's Signals post for antennagroup.com/signals, as Paul Newton. Signals is read by marketing, communications and sustainability leaders outside the agency. It is an eight-minute read on what happened in our industry this month and what it means: the main themes, the ideas behind them, and what a leader should learn and do.
+
+${SIGNALS_STYLE}
+
+THE MONTH: ${month}. Your raw material is the news below: ${stories.length} stories from the last four weeks, with the sources behind them and excerpts from those sources. Find the two to four themes that matter most to these readers and build one argument from them. Do not write a round-up of stories; lead with your point of view and use the stories as evidence.
+
+RULES
+- Use only facts, figures, names and quotes that appear in the SOURCES below. Do not use your own knowledge for any fact.
+- Every fact, figure and quote must carry a link to the source it comes from, as Markdown on the words that carry it: [the words](https://...). Use only the URLs listed below, exactly as written.
+- Use two to four short direct quotes from the sources, in quotation marks, copied word for word from the excerpts, with their link, to substantiate the argument.
+- Never name, describe or hint at these companies, which are clients or prospects: ${blocked.length ? blocked.join(', ') : '(none)'}.
+- Never mention the Conscious Compass, scores, assessments, Stay Conscious or anything internal. The fixed closing section after your text introduces the Compass; you do not.
+- Length: ${SIGNALS_WORDS.target} words in the body.
+- Three pull quotes: lines copied exactly from your body, each under 20 words, that carry the argument. No links in them.
+${notes ? `\nFIX THESE IN THIS DRAFT: ${notes}\n` : ''}
+Reply in exactly this format and nothing else:
+TITLE: a sentence-case, declarative title, under 12 words
+DEK: one sentence under the title
+PULL QUOTE: the first pull quote
+PULL QUOTE: the second
+PULL QUOTE: the third
+BODY:
+The post in Markdown: short paragraphs separated by blank lines, "## " subheads, links as above.
+
+STORIES
+${stories.map((s, i) => `${i + 1}. [${s.category}] ${s.headline} (${s.week})\n${s.insight}\nWhy it matters: ${s.whyItMatters}\nSources: ${s.sources.map(x => `S${sources.findIndex(y => normUrl(y.url) === normUrl(x.url)) + 1}`).join(', ')}`).join('\n\n')}
+
+SOURCES
+${sources.map((s, i) => `S${i + 1}. ${s.outlet || s.title || ''} ${s.url}\n${s.excerpt || '(page could not be read; use only what the story says about it)'}`).join('\n\n')}`;
+}
+export function parseSignalsDraft(text) {
+  const t = String(text || '').replace(/\r/g, '');
+  const at = t.search(/^BODY:\s*$/m);
+  const head = at >= 0 ? t.slice(0, at) : t;
+  const body = at >= 0 ? t.slice(at).replace(/^BODY:\s*\n/, '').trim() : '';
+  const line = (k) => (head.match(new RegExp(`^${k}:\\s*(.+)$`, 'm')) || [])[1]?.trim() || '';
+  const pullQuotes = [...head.matchAll(/^PULL QUOTE:\s*(.+)$/gm)].map(m => m[1].trim().replace(/^["“]|["”]$/g, '')).filter(Boolean);
+  return { title: line('TITLE'), dek: line('DEK'), pullQuotes, body };
+}
+const plainText = (md) => String(md || '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*/g, '').replace(/^##\s+/gm, '').replace(/^\s*[-*]\s+/gm, '');
+const linksIn = (s) => [...String(s || '').matchAll(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g)].map(m => m[2]);
+const quotesIn = (s) => [...plainText(s).matchAll(/[“"]([^”"]{3,300})[”"]/g)].map(m => m[1].trim());
+const normWords = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[‘’]/g, "'").replace(/[^a-z0-9%$'.]+/g, ' ').replace(/(\D)\.|\.(\D|$)/g, '$1 $2').replace(/\s+/g, ' ').trim();
+export const onPage = (quote, text) => { const q = normWords(quote); return q.length > 0 && normWords(text).includes(q); };
+// Adds a source link before a sentence's closing punctuation.
+const cite = (sentence, src) => { const m = sentence.match(/^(.*?)([.!?]["'”’)]*)?$/s); return `${m[1]} ([${src.outlet || hostName(src.url)}](${src.url}))${m[2] || '.'}`; };
+const hostName = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'source'; } };
+// The checks. sources: [{url, outlet, text, excerpt}].
+export async function checkSignalsDraft(draft, { sources = [], blockedRe = null, anthropicKey, fetchImpl = fetch, deadline = Infinity } = {}) {
+  const byUrl = new Map(sources.map(s => [normUrl(s.url), s]));
+  const pool = sources.filter(s => s.excerpt || s.text).slice(0, 24).map(s => ({ label: `${s.outlet || hostName(s.url)} ${s.url}`, text: s.excerpt || String(s.text).slice(0, 3000), src: s }));
+  const report = { removed: [], cited: [], quotes: 0, links: 0, headings: [] };
+  const units = [];
+  const blocks = signalsBlocks(draft.body);
+  blocks.forEach((b, bi) => {
+    if (b.type === 'p') units.push({ bi, ii: null, text: b.text });
+    if (b.type === 'ul') b.items.forEach((it, ii) => units.push({ bi, ii, text: it }));
+  });
+  await Promise.all(units.map(async (u) => {
+    const sentences = paragraphsOf(u.text).flat();
+    const keep = sentences.map(() => true);
+    const why = sentences.map(() => '');
+    sentences.forEach((s, i) => {
+      const links = linksIn(s);
+      if (links.some(l => !byUrl.has(normUrl(l)))) { keep[i] = false; why[i] = 'it links to a page that was not one of the month\'s sources'; return; }
+      if (blockedRe && blockedRe.test(plainText(s))) { keep[i] = false; why[i] = 'it names a client or a brand we have assessed'; return; }
+      if (SIGNALS_INTERNAL.test(plainText(s))) { keep[i] = false; why[i] = 'it refers to our internal tools, scores or newsletter'; return; }
+      const linked = linksIn(u.text).map(l => byUrl.get(normUrl(l))).filter(Boolean);
+      const qs = quotesIn(s);
+      if (qs.length) {
+        const pages = linked.length ? linked : sources;
+        if (!qs.every(q => pages.some(p => onPage(q, p.text || p.excerpt)))) { keep[i] = false; why[i] = 'the quote is not word for word in its source'; return; }
+        report.quotes += qs.length;
+      }
+    });
+    const live = sentences.map((s, i) => ({ s, i })).filter(x => keep[x.i]);
+    const linkedHere = [...new Set(linksIn(u.text).map(l => normUrl(l)))].map(k => byUrl.get(k)).filter(Boolean);
+    const evidence = linkedHere.length ? linkedHere.map(s => ({ label: `${s.outlet || hostName(s.url)} ${s.url}`, text: s.text || s.excerpt || '', src: s })) : pool;
+    const statements = live.map(x => ({ kind: linksIn(x.s).length || /\d/.test(plainText(x.s)) || quotesIn(x.s).length ? 'fact' : 'view', text: plainText(x.s) }));
+    const results = statements.length ? await checkStatements(statements, evidence, { anthropicKey, fetchImpl, deadline }) : [];
+    const readable = evidence.filter(e => e.text && e.text.length >= 200);
+    live.forEach((x, k) => {
+      const r = results[k];
+      if (!r.ok) { keep[x.i] = false; why[x.i] = r.reason; return; }
+      // A supported fact with no link gets the link of the page that holds it,
+      // unless the paragraph already links that page.
+      const holder = r.source >= 0 ? readable[r.source]?.src : null;
+      if (r.verdict === 'supported' && !linksIn(x.s).length && holder && !linkedHere.includes(holder)) {
+        sentences[x.i] = cite(x.s, holder);
+        report.cited.push({ text: plainText(x.s), source: holder.url });
+      }
+    });
+    sentences.forEach((s, i) => { if (!keep[i]) report.removed.push({ text: plainText(s), reason: why[i] }); });
+    u.out = sentences.filter((_, i) => keep[i]).join(' ');
+  }));
+  // Rebuild the body; a heading with nothing under it goes too.
+  const out = blocks.map((b, bi) => {
+    if (b.type === 'p') return { ...b, text: units.find(u => u.bi === bi).out };
+    if (b.type === 'ul') return { ...b, items: units.filter(u => u.bi === bi).map(u => u.out).filter(Boolean) };
+    if (b.type === 'h2' && ((blockedRe && blockedRe.test(b.text)) || SIGNALS_INTERNAL.test(b.text))) { report.headings.push(b.text); return null; }
+    return b;
+  }).filter(b => b && (b.type === 'h2' || (b.type === 'p' ? b.text : b.items.length)));
+  const tidy = out.filter((b, i) => b.type !== 'h2' || (out[i + 1] && out[i + 1].type !== 'h2'));
+  const body = tidy.map(b => (b.type === 'h2' ? `## ${b.text}` : b.type === 'ul' ? b.items.map(it => `- ${it}`).join('\n') : b.text)).join('\n\n');
+  report.links = linksIn(body).length;
+  const flat = plainText(body);
+  const fine = (s) => s && !(blockedRe && blockedRe.test(s)) && !SIGNALS_INTERNAL.test(s) && !signalsTells(s).includes('dash');
+  const pullQuotes = (draft.pullQuotes || []).filter(q => fine(q) && onPage(q, flat)).slice(0, 3);
+  return { draft: { ...draft, body, pullQuotes, title: fine(draft.title) ? draft.title : '', dek: fine(draft.dek) ? draft.dek : '' }, report };
+}
+async function askClaude(anthropicKey, prompt, { maxTokens = 8000, temperature = 0.4, fetchImpl = fetch } = {}) {
+  const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: maxTokens, temperature, messages: [{ role: 'user', content: prompt }] }),
+  });
+  if (!r.ok) throw new Error(`Claude ${r.status}`);
+  const d = await r.json();
+  return (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+}
+// Title, dek and pull quotes again, from the checked body, when the first ones did not survive.
+export const signalsFinishPrompt = (draft, blocked) => `Here is a checked draft of a Signals post by Paul Newton. Write its title, dek and three pull quotes.
+- Title: sentence case, declarative, under 12 words. Dek: one sentence.
+- Pull quotes: copy three lines exactly as they appear in the body, each under 20 words, no links.
+- Never name ${blocked.length ? blocked.join(', ') : 'any client'}, the Conscious Compass, scores or Stay Conscious. No em dashes.
+Reply exactly as:
+TITLE: ...
+DEK: ...
+PULL QUOTE: ...
+PULL QUOTE: ...
+PULL QUOTE: ...
+
+BODY:
+${plainText(draft.body)}`;
+// The whole job. deps: supabaseUrl, sbJson, anthropicKey, fetchImpl, now.
+export async function writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, fetchImpl = fetch, now = new Date(), deadlineMs = 270000 } = {}) {
+  const started = Date.now(); const deadline = started + deadlineMs;
+  const get = async (path, extra = {}) => { try { const r = await fetchImpl(`${supabaseUrl}/rest/v1/${path}`, { headers: { ...sbJson, ...extra } }); return r.ok ? await r.json() : []; } catch { return []; } };
+  const [live, arch] = await Promise.all([
+    get('stay_conscious_newsletter?select=newsletter,refreshed_at&id=eq.1&limit=1'),
+    get(`stay_conscious_newsletter_archive?select=newsletter,refreshed_at&order=refreshed_at.desc&limit=${SIGNALS_EDITIONS - 1}`),
+  ]);
+  const editions = [...live, ...arch].filter(e => e?.newsletter);
+  const stories = signalsStories(editions);
+  if (stories.length < 6) return { success: false, error: `Only ${stories.length} sourced stories in the last ${editions.length} editions; a post needs at least 6.` };
+  // Every brand we have assessed or teased stays out of the post.
+  const names = [];
+  for (let from = 0; from < 100000; from += 1000) {
+    const page = await get('compass_results?select=brand_name&order=id', { Range: `${from}-${from + 999}` });
+    names.push(...page.map(x => x.brand_name)); if (page.length < 1000) break;
+  }
+  names.push(...(await get('teaser_assessments?select=brand_name')).map(x => x.brand_name));
+  const blocked = [...new Set(names.map(n => String(n || '').trim()).filter(n => n.length >= 2))];
+  const blockedRe = namedPattern(blocked);
+  // The month's sources, read once.
+  const seen = new Map();
+  stories.forEach(st => st.sources.forEach(x => { const k = normUrl(x.url); if (k && !seen.has(k)) seen.set(k, { url: x.url, outlet: x.outlet || '', title: x.title || '', about: `${st.headline} ${st.insight}` }); }));
+  const sources = await Promise.all([...seen.values()].slice(0, 36).map(async s => { const text = await pageText(s.url, { fetchImpl }); return { ...s, text, excerpt: text ? excerptFor(text, s.about) : '' }; }));
+  const month = signalsMonth(now);
+  let draft = parseSignalsDraft(await askClaude(anthropicKey, signalsPrompt({ month, stories, sources, blocked }), { fetchImpl }));
+  const problems = (d) => [...signalsTells(`${d.title} ${d.dek} ${d.body}`).map(t => `remove "${t}"`),
+    ...(wordCount(d.body) < SIGNALS_WORDS.min || wordCount(d.body) > SIGNALS_WORDS.max ? [`the body is ${wordCount(d.body)} words; it must be ${SIGNALS_WORDS.target}`] : []),
+    ...(d.pullQuotes.length < 3 ? ['give three pull quotes'] : []), ...(!d.body ? ['the body is missing'] : [])];
+  const first = problems(draft);
+  let rewritten = false;
+  if (first.length && Date.now() - started < 150000) {
+    const again = parseSignalsDraft(await askClaude(anthropicKey, signalsPrompt({ month, stories, sources, blocked, notes: first.join('; ') }), { fetchImpl }).catch(() => ''));
+    if (again.body) { draft = again; rewritten = true; }
+  }
+  if (!draft.body) return { success: false, error: 'The draft could not be written. Try again.' };
+  const checked = await checkSignalsDraft(withoutDashes(draft), { sources, blockedRe, anthropicKey, fetchImpl, deadline });
+  let final = checked.draft;
+  if ((!final.title || !final.dek || final.pullQuotes.length < 2) && Date.now() < deadline) {
+    const fix = parseSignalsDraft(`${await askClaude(anthropicKey, signalsFinishPrompt(final, blocked), { maxTokens: 600, temperature: 0, fetchImpl }).catch(() => '')}\nBODY:\n`);
+    const flat = plainText(final.body);
+    const ok = (s) => s && !(blockedRe && blockedRe.test(s)) && !SIGNALS_INTERNAL.test(s);
+    final = { ...final, title: final.title || (ok(fix.title) ? noDashes(fix.title) : ''), dek: final.dek || (ok(fix.dek) ? noDashes(fix.dek) : ''),
+      pullQuotes: final.pullQuotes.length >= 2 ? final.pullQuotes : fix.pullQuotes.map(noDashes).filter(q => ok(q) && onPage(q, flat)).slice(0, 3) };
+  }
+  // What is still left to fix by hand, in the draft as it now stands (the code has already removed any dash).
+  const voice = { firstPass: first, rewritten, after: problems(final).filter(x => x !== 'give three pull quotes' || (final.pullQuotes || []).length < 2) };
+  const record = { signals: true, month, ...final, words: wordCount(final.body),
+    editions: editions.map(e => e.newsletter.issueNumber), sources: sources.map(s => ({ url: s.url, outlet: s.outlet, title: s.title })),
+    check: { ...checked.report, voice, wordsBefore: wordCount(draft.body), wordsAfter: wordCount(final.body) }, createdAt: new Date().toISOString() };
+  return { success: true, record };
 }
 
 // ── Draft, review, publish (v4.7.0) ──────────────────────────
@@ -1007,13 +1244,49 @@ export default async function handler(req, res) {
   // Review actions on the draft (v4.7.0). The schedule may only publish.
   const action = String(req.query?.action || req.body?.action || '').toLowerCase();
   if (action) {
-    if (caller.cron && action !== 'publish') return res.status(403).json({ error: 'The schedule can only publish.' });
+    if (caller.cron && action !== 'publish' && action !== 'signals-draft') return res.status(403).json({ error: 'The schedule can only publish and write the Signals draft.' });
     try {
       // Copy past issues to Smartsheet (v4.11.0): admins, a few at a time so
       // each call stays well inside the time limit. The page repeats it until
       // nothing is left; issues already there with their file are skipped.
       if (action === 'smartsheet-backfill') {
         return res.status(200).json(await smartsheetBackfill({ batch: 6 }));
+      }
+      // The monthly Signals draft (v4.12.0). The schedule runs every Monday
+      // and writes only on the one in the last seven days of the month; an
+      // admin can write one at any time. The draft lives in row 3.
+      if (action === 'signals-draft') {
+        if (caller.cron && !isSignalsDay(new Date())) return res.status(200).json({ success: true, skipped: true, reason: 'Not the last Monday of the month.' });
+        const out = await writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey });
+        if (!out.success) return res.status(200).json(out);
+        const rec = { ...out.record, by: caller.cron ? 'schedule' : (caller.email || 'admin') };
+        await writeIssueRow(SIGNALS_ID, rec);
+        const reviewPosted = caller.cron ? await postToChannel(process.env.NEWSLETTER_REVIEW_WEBHOOK_URL, {
+          title: `Signals draft for ${rec.month} is ready`,
+          sections: [{ text: `${rec.title || 'Untitled'}. About ${readMinutes(rec.words)}, ${plural(rec.check.links, 'source link')}. Review it on the newsletter page in the Compass.` }],
+          link: SITE_URL(), linkLabel: 'Review the draft',
+        }) : null;
+        return res.status(200).json({ success: true, month: rec.month, title: rec.title, words: rec.words, check: { links: rec.check.links, quotes: rec.check.quotes, cited: rec.check.cited.length, removed: rec.check.removed.length }, reviewPosted });
+      }
+      if (action === 'signals-read') {
+        const row = await readIssueRow(SIGNALS_ID);
+        return res.status(200).json({ draft: row?.newsletter?.signals ? row.newsletter : null });
+      }
+      if (action === 'signals-save' || action === 'signals-discard') {
+        const row = await readIssueRow(SIGNALS_ID);
+        if (!row?.newsletter?.signals) return res.status(200).json({ success: false, error: 'There is no Signals draft.' });
+        if (action === 'signals-discard') { await deleteIssueRow(SIGNALS_ID); return res.status(200).json({ success: true, discarded: true }); }
+        // Edits by hand: the text fields only, no em dashes; the check report stays as written.
+        const e = req.body?.edits || {};
+        const str = (v, n) => (typeof v === 'string' ? noDashes(v).slice(0, n) : undefined);
+        const rec = { ...row.newsletter };
+        if (str(e.title, 200) !== undefined) rec.title = str(e.title, 200);
+        if (str(e.dek, 400) !== undefined) rec.dek = str(e.dek, 400);
+        if (str(e.body, 30000) !== undefined) rec.body = str(e.body, 30000);
+        if (Array.isArray(e.pullQuotes)) rec.pullQuotes = e.pullQuotes.map(q => str(q, 300)).filter(Boolean).slice(0, 3);
+        rec.words = wordCount(rec.body); rec.editedAt = new Date().toISOString();
+        await writeIssueRow(SIGNALS_ID, rec, row.refreshed_at);
+        return res.status(200).json({ success: true, saved: true, words: rec.words });
       }
       const draftRow = await readIssueRow(DRAFT_ID);
       if (!draftRow?.newsletter) return res.status(200).json({ success: true, draft: false, published: false, reason: 'There is no draft.' });

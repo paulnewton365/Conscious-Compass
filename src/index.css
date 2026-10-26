@@ -1562,6 +1562,13 @@ button { font: inherit; color: inherit; }
 .dc-np-check-h { margin: var(--cc-s-3) 0 4px; font: var(--cc-w-semi) 10.5px/1.3 'Inter', var(--cc-sans); letter-spacing: var(--cc-tracking-label); text-transform: uppercase; color: var(--cc-muted); }
 .dc-np-check-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
 .dc-np-check-list li[data-outcome="dropped"] strong { color: var(--cc-rust-text); }
+.dc-sig-article { max-width: 720px; margin-top: var(--cc-s-3); padding-top: var(--cc-s-5); border-top: var(--cc-border); font: var(--cc-w-regular) 17px/1.6 'Newsreader', var(--cc-serif, Georgia), serif; color: var(--cc-body); }
+.dc-sig-article h2 { font: var(--cc-w-bold) 22px/1.25 'Inter', var(--cc-sans); color: var(--cc-ink); margin: var(--cc-s-5) 0 var(--cc-s-2); }
+.dc-sig-article p, .dc-sig-article ul { margin: 0 0 var(--cc-s-3); }
+.dc-sig-article a { color: var(--cc-rust-text); text-decoration: underline; text-underline-offset: 2px; }
+.dc-sig-title { font: var(--cc-w-bold) 34px/1.15 'Inter', var(--cc-sans); letter-spacing: -.02em; color: var(--cc-ink); margin: 0 0 var(--cc-s-2); }
+.dc-sig-dek { font-size: 20px; font-style: italic; }
+.dc-sig-pull { margin: var(--cc-s-4) 0; padding-left: var(--cc-s-4); border-left: 3px solid var(--cc-rust-text); font-size: 23px; line-height: 1.35; font-style: italic; color: var(--cc-ink); }
 .dc-np-check-rm { margin: 4px 0 0; padding-left: 18px; color: var(--cc-muted); font-size: 12.5px; }
 .dc-draft-edit { display: flex; flex-direction: column; gap: var(--cc-s-4); max-height: 62vh; overflow-y: auto; padding-right: 4px; }
 .dc-draft-edit .is-removed { opacity: .45; }
