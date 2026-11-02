@@ -1571,3 +1571,14 @@ test('v4.14.1: writing a Signals draft again uses the editions from the date it 
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes("call('signals-draft', { again: !!draft })") && app.includes('again from the same'));
 });
+
+test('v4.14.2: New draft finds new stories first when the issue is short, and may keep the issue\'s own stories', async () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const fr = app.slice(app.indexOf('const forceRefresh = async () => {'), app.indexOf('const forceRefresh = async () => {') + 1400);
+  assert.ok(fr.includes('if (storyCount(newsletter) < 6) {') && fr.indexOf("fetch('/api/refresh-stay-conscious?revise=1', { method: 'POST' })") < fr.indexOf("fetch('/api/refresh-stay-conscious-newsletter', { method: 'POST' })"), 'the search runs before the draft is written');
+  assert.ok(fr.includes("if (!sr.ok || !sd.success) throw new Error"), 'a failed search stops the draft rather than writing the same short issue');
+  assert.ok(app.includes("const storyCount = (nl) => (nl?.leadStory?.headline ? 1 : 0) + (nl?.intelligenceItems?.length || 0);"));
+  assert.ok(app.includes('Find and fact-check new stories, then write a new draft?'));
+  const src = readFileSync(new URL('../api/refresh-stay-conscious.js', import.meta.url), 'utf8');
+  assert.ok(src.includes("const revising = String(req.query?.revise || req.body?.revise || '') === '1';") && src.includes('{ includeLive: !revising }') && src.includes('...(includeLive ? (live || []) : [])'), 'revising: the live issue is not earlier coverage; the Sunday run still counts it');
+});

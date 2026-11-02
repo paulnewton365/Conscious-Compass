@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.14.1';
+const APP_VERSION = '4.14.2';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12414,9 +12414,20 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     finally { setDraftBusy(false); }
   };
   // Force refresh writes a new draft for review, never straight to readers (v4.7.0).
+  // v4.14.2: when the issue is short of stories, New draft first runs the
+  // story search and fact check again, so the draft is not written from the
+  // same short list. An issue with a full set reuses its stories.
+  const storyCount = (nl) => (nl?.leadStory?.headline ? 1 : 0) + (nl?.intelligenceItems?.length || 0);
   const forceRefresh = async () => {
     setRefreshing(true); setError(null); setDraftMsg('');
     try {
+      if (storyCount(newsletter) < 6) {
+        setDraftMsg('Finding and fact-checking new stories first. This can take up to five minutes\u2026');
+        const sr = await fetch('/api/refresh-stay-conscious?revise=1', { method: 'POST' });
+        const sd = await sr.json().catch(() => ({}));
+        if (!sr.ok || !sd.success) throw new Error(sd.error || `the story search failed (${sr.status})`);
+        setDraftMsg(`Found ${countOf(sd.itemCount || 0, 'checked story', 'checked stories')}. Writing the draft\u2026`);
+      }
       const res  = await fetch('/api/refresh-stay-conscious-newsletter', { method: 'POST' });
       const data = await res.json();
       if (data.success) { setIssueId(null); await loadDraft(); setViewingDraft(true); setDraftMsg('A new draft is ready. Review it, then publish.'); }
@@ -12619,7 +12630,10 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     try { await navigator.clipboard.writeText(url); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); } catch { /* clipboard blocked */ }
   };
   const confirmRefresh = () => {
-    if (window.confirm('Write a new draft of the issue? It takes a minute or two, and nothing changes for readers until the draft is published.')) forceRefresh();
+    const short = storyCount(newsletter) < 6;
+    if (window.confirm(short
+      ? `This issue has ${countOf(storyCount(newsletter), 'story', 'stories')}. Find and fact-check new stories, then write a new draft? It can take up to seven minutes, and nothing changes for readers until the draft is published.`
+      : 'Write a new draft of the issue? It takes a minute or two, and nothing changes for readers until the draft is published.')) forceRefresh();
   };
   const paras = (t) => String(t || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
   // A missing or unreadable date shows nothing rather than breaking the page (v4.7.0).

@@ -177,14 +177,16 @@ const parseItems = (data) => {
 
 // Reads the live issue and the last six months of archived editions. Either
 // may be missing (no issue yet, archive table not created): then less history.
-async function loadEditions(supabaseUrl, supabaseKey, fetchImpl = fetch) {
+// When an admin revises the current issue (v4.14.2), its own stories are not
+// "earlier coverage": they may come back if they still pass.
+async function loadEditions(supabaseUrl, supabaseKey, fetchImpl = fetch, { includeLive = true } = {}) {
   const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
   const get = async (url) => { try { const r = await fetchImpl(url, { headers }); return r.ok ? await r.json() : []; } catch { return []; } };
   const [live, archived] = await Promise.all([
     get(`${supabaseUrl}/rest/v1/stay_conscious_newsletter?select=refreshed_at,issue_number:newsletter->issueNumber,lead:newsletter->leadStory,items:newsletter->intelligenceItems&id=eq.1&limit=1`),   // the live issue, never a draft (v4.7.0)
     get(`${supabaseUrl}/rest/v1/stay_conscious_newsletter_archive?select=refreshed_at,issue_number,lead:newsletter->leadStory,items:newsletter->intelligenceItems&order=refreshed_at.desc&limit=26`),
   ]);
-  return [...(live || []), ...(archived || [])]
+  return [...(includeLive ? (live || []) : []), ...(archived || [])]
     .filter(r => r && r.refreshed_at)
     .filter((r, i, all) => all.findIndex(x => x.refreshed_at === r.refreshed_at) === i)
     .map(r => ({ issueNumber: r.issue_number, editionAt: r.refreshed_at, lead: r.lead, items: r.items }));
@@ -232,7 +234,8 @@ export default async function handler(req, res) {
     const started = Date.now();
 
     // What earlier issues covered (v4.5.0).
-    const past = pastStories(await loadEditions(supabaseUrl, supabaseKey));
+    const revising = String(req.query?.revise || req.body?.revise || '') === '1';
+    const past = pastStories(await loadEditions(supabaseUrl, supabaseKey, fetch, { includeLive: !revising }));
     const history = historyPromptBlock(past);
     let { items, repeats } = checkAgainstHistory(await ask(STAY_CONSCIOUS_PROMPT + history), past);
     if (!items.length) throw new Error('No items in Claude response');
