@@ -7,7 +7,7 @@
 import { requireUser } from './_auth.js';
 import { glossaryForPrompt, titleCaseAttributes } from '../src/data/attributeGlossary.js';
 import { ATTRIBUTES } from '../src/data/rubric.js';
-import { headlineOverlap, houseImageFor, houseImageForDraft, withoutDashes, noDashes, newsletterDocument, newsletterDocxName, nextIssueAt, SIGNALS_STYLE, SIGNALS_WORDS, signalsTells, wordCount, signalsMonth, signalsBlocks, isSignalsDay, plural, readMinutes } from '../src/lib/newsletter.js';
+import { headlineOverlap, houseImageFor, houseImageForDraft, withoutDashes, noDashes, newsletterDocument, newsletterDocxName, nextIssueAt, SIGNALS_STYLE, SIGNALS_WORDS, signalsTells, signalsTellSentences, serialCommaCandidates, wordCount, signalsMonth, signalsBlocks, isSignalsDay, plural, readMinutes } from '../src/lib/newsletter.js';
 // Each brand's latest save only (v3.109.0): every save is kept as a row for
 // history, but a brand must count once in portfolio figures.
 const latestPerBrand = (rows) => {
@@ -264,7 +264,7 @@ export function earnedCreativePrompt({ count = 6, exclude = [], window = 0 } = {
 
 Prefer work by brands with a purpose, climate, energy, health or social angle, but any strong example will do. Search the trade and business press (for example Adweek, Ad Age, The Drum, Campaign, Fast Company, Marketing Week, Business Insider, Muse by Clio, LBBOnline). One example per brand.${skip}
 
-For each example, use only facts from the pages your searches returned. The link must be the article you read about it.
+For each example, use only facts from the pages your searches returned. The link must be the article you read about it. Prefer articles that are free to read over paywalled ones, so the facts can be checked.
 
 Return JSON only, no prose before or after, most recent first:
 {"examples":[{"brand":"The brand behind the work","agency":"The agency, or empty if none is named","title":"Name of the work, or a plain description","what":"What they did. Two short sentences, under 45 words.","coverage":"What coverage it generated: who carried it and how widely, from the article. One sentence, under 30 words.","outlet":"The publication of the link","published":"YYYY-MM-DD the article was published, or empty if unknown","url":"https://..."}]}
@@ -332,7 +332,7 @@ export function namesTheWork(text, { brand, title }, { loose = false } = {}) {
 
 // Opens the article and checks it; if the page cannot be read (paywall, block,
 // timeout), the search headline has to pass the same check instead.
-export async function verifyExample(item, { fetchImpl = fetch, timeoutMs = 8000 } = {}) {
+export async function verifyExample(item, { fetchImpl = fetch, timeoutMs = 8000, anthropicKey = null } = {}) {
   try {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
@@ -343,7 +343,10 @@ export async function verifyExample(item, { fetchImpl = fetch, timeoutMs = 8000 
       const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
       if (text.length > 500) return namesTheWork(text, item);
     }
-  } catch { /* fall back to the search headline */ }
+  } catch { /* fall back to Claude, then the search headline */ }
+  // A page the server cannot open is read through Claude (v4.14.0).
+  const viaClaude = anthropicKey ? await readViaClaude(item.url, { anthropicKey, fetchImpl }) : '';
+  if (viaClaude) return namesTheWork(viaClaude, item);
   // The headline plus the link's own words: slugs usually name the work.
   let slug = '';
   try { slug = decodeURIComponent(new URL(item.url).pathname).replace(/[-_/.]+/g, ' '); } catch { /* no slug */ }
@@ -443,7 +446,7 @@ export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, ver
       candidates.forEach(e => tried.add(e.brand.toLowerCase()));
       status.candidates += candidates.length;
       // Each link is opened and must name the brand and the work (v4.0.1).
-      const checks = await Promise.all(candidates.map(e => Promise.resolve(verify(e)).catch(() => false)));
+      const checks = await Promise.all(candidates.map(e => Promise.resolve(verify(e, { fetchImpl, anthropicKey })).catch(() => false)));
       // Then what it says is checked against the article (v4.10.0).
       const passed = candidates.filter((_, i) => checks[i]);
       const facts = await Promise.all(passed.map(e => Promise.resolve(factCheck(e, { anthropicKey, fetchImpl, deadline }))
@@ -490,8 +493,47 @@ export const htmlToText = (html) => String(html || '')
   .replace(/<[^>]+>/g, ' ')
   .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : (ENTITY[e.toLowerCase()] ?? m)))
   .replace(/\s+/g, ' ').trim();
-// The readable text of a page, or '' when it cannot be read.
-export async function pageText(url, { fetchImpl = fetch, timeoutMs = 8000 } = {}) {
+// Pages the server cannot open itself (paywalls, bot walls such as Adweek's)
+// are read through Claude's web fetch tool (v4.14.0), which fetches from
+// Anthropic's side and honours robots.txt. Before this, an unreadable page
+// counted as "unsupported", and most stories and earned creative examples
+// failed for that reason alone. A few at a time, so a busy run stays inside
+// the rate limit.
+const READ_SLOTS = { free: 10, queue: [] };
+const slot = () => (READ_SLOTS.free > 0 ? (READ_SLOTS.free -= 1, Promise.resolve()) : new Promise(r => READ_SLOTS.queue.push(r)));
+const release = () => { const next = READ_SLOTS.queue.shift(); if (next) next(); else READ_SLOTS.free += 1; };
+export function fetchedText(data) {
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  const r = blocks.find(b => b?.type === 'web_fetch_tool_result' && b.content?.type === 'web_fetch_result');
+  const src = r?.content?.content?.source;
+  return src?.type === 'text' && typeof src.data === 'string' ? src.data : '';
+}
+export async function readViaClaude(url, { anthropicKey, fetchImpl = fetch, timeoutMs = 45000 } = {}) {
+  if (!anthropicKey || !/^https?:\/\//.test(String(url || '')) || String(url).length > 250) return '';
+  await slot();
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 200, temperature: 0,
+        tools: [{ type: 'web_fetch_20250910', name: 'web_fetch', max_uses: 1, max_content_tokens: 20000 }],
+        messages: [{ role: 'user', content: `Fetch this page with the web_fetch tool, then reply only "done": ${url}` }] }),
+    });
+    clearTimeout(timer);
+    if (!r.ok) return '';
+    const text = htmlToText(fetchedText(await r.json())).replace(/\s+/g, ' ').trim();
+    return text.length > 500 ? text.slice(0, 60000) : '';
+  } catch { return ''; } finally { release(); }
+}
+// The readable text of a page, or '' when it cannot be read. With a key, a
+// page the server cannot open is read through Claude instead (v4.14.0).
+export async function pageText(url, { fetchImpl = fetch, timeoutMs = 8000, anthropicKey = null } = {}) {
+  const direct = await directText(url, { fetchImpl, timeoutMs });
+  return direct || (anthropicKey ? readViaClaude(url, { anthropicKey, fetchImpl }) : '');
+}
+async function directText(url, { fetchImpl, timeoutMs }) {
   try {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
@@ -510,8 +552,19 @@ const NUM_WORD = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 
 const normNum = (n) => String(parseFloat(String(n).replace(/,/g, '')));
 // The figures in a text, as plain numbers: "1,200" and "1200" are the same.
 export const numbersIn = (t) => [...new Set((String(t || '').match(/\d[\d,]*(?:\.\d+)?/g) || []).map(normNum).filter(n => n !== 'NaN'))];
+// "$1B", "1 billion" and "1,000,000,000" are the same figure, and so are
+// "15K" and "15,000" (v4.14.0): the evidence carries every form.
+const SCALE = { k: 1e3, thousand: 1e3, m: 1e6, mn: 1e6, million: 1e6, b: 1e9, bn: 1e9, billion: 1e9, t: 1e12, tn: 1e12, trillion: 1e12 };
 export function figuresIn(t) {
   const out = new Set(numbersIn(t));
+  for (const m of String(t || '').matchAll(/(\d[\d,]*(?:\.\d+)?)\s?(k|m|mn|b|bn|t|tn|thousand|million|billion|trillion)\b/gi)) {
+    const n = parseFloat(m[1].replace(/,/g, '')) * SCALE[m[2].toLowerCase()];
+    if (Number.isFinite(n)) out.add(normNum(String(Math.round(n * 100) / 100)));
+  }
+  for (const n of numbersIn(t)) {   // and the short forms of large numbers
+    const v = parseFloat(n);
+    [1e3, 1e6, 1e9, 1e12].forEach(sc => { if (v >= sc && v % (sc / 100) === 0) out.add(normNum(String(v / sc))); });
+  }
   (String(t || '').toLowerCase().match(/\b[a-z]+\b/g) || []).forEach(w => { if (NUM_WORD[w]) out.add(String(NUM_WORD[w])); });
   return out;
 }
@@ -535,7 +588,7 @@ export function factCheckPrompt(statements, evidence) {
 
 Verdicts:
 - "supported": every fact, name, figure, date and claim in the statement is stated in the evidence. Wording may differ; meaning may not. A figure that differs at all is not supported.
-- "opinion": allowed only for statements marked [view]. It interprets the facts, says why they matter or what to do, and states no fact, name, figure or claim about the world that the evidence does not.
+- "opinion": allowed only for statements marked [view] or [headline]. It interprets the facts, says why they matter or what to do, and states no fact, name, figure or claim about the world that the evidence does not. A headline may sharpen or frame what the evidence says (for example "the endgame is here" for a merger the evidence reports), as long as every name, figure and factual claim in it is in the evidence.
 - "unsupported": anything else, including statements that are partly supported, or that go further than the evidence.
 
 For each "supported" verdict, copy the words from the evidence that support it, exactly as they appear, 4 to 30 words.
@@ -589,16 +642,16 @@ export async function checkStatements(statements, evidence, { anthropicKey, fetc
       // Which source holds it (v4.12.0), so a supported fact can carry its link.
       return { ok: true, verdict: 'supported', source: sources.findIndex(e => quoteFound(v.quote, e.text)) };
     }
-    if (v.verdict === 'opinion' && s.kind === 'view') return bad.length ? { ok: false, reason: `the figure ${bad.join(', ')} is not in the source` } : { ok: true, verdict: 'opinion' };
+    if (v.verdict === 'opinion' && (s.kind === 'view' || s.kind === 'headline')) return bad.length ? { ok: false, reason: `the figure ${bad.join(', ')} is not in the source` } : { ok: true, verdict: 'opinion' };
     return { ok: false, reason: 'the source does not say this' };
   });
 }
 const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 // The evidence for a set of links: each page's text, or what the search
 // returned about it when the page cannot be read (paywalls, blocks).
-async function evidenceFor(links, { found = new Map(), fetchImpl = fetch } = {}) {
+async function evidenceFor(links, { found = new Map(), fetchImpl = fetch, anthropicKey = null } = {}) {
   return Promise.all(links.map(async (l) => {
-    const text = await pageText(l.url, { fetchImpl });
+    const text = await pageText(l.url, { fetchImpl, anthropicKey });
     return { label: `${l.outlet || hostOf(l.url)} ${l.url}`, text: text || String(found.get(normUrl(l.url)) || l.searchTitle || '') };
   }));
 }
@@ -608,7 +661,7 @@ async function evidenceFor(links, { found = new Map(), fetchImpl = fetch } = {})
 export async function factCheckStory(item, { anthropicKey, fetchImpl = fetch, found, deadline } = {}) {
   const headline = String(item?.headline || '');
   if (!Array.isArray(item?.sources) || !item.sources.length) return { item: null, report: { headline, outcome: 'dropped', reason: 'it had no source the search returned', removed: [] } };
-  const evidence = await evidenceFor(item.sources, { found, fetchImpl });
+  const evidence = await evidenceFor(item.sources, { found, fetchImpl, anthropicKey });
   const context = item.followUp?.headline ? [{ label: `Our earlier coverage, Stay Conscious Issue ${item.followUp.issueNumber ?? ''}`, text: `Stay Conscious reported: ${item.followUp.headline}.` }] : [];
   const ins = paragraphsOf(item.insight);
   const why = paragraphsOf(item.whyItMatters);
@@ -630,7 +683,7 @@ export async function factCheckStories(items = [], opts = {}) {
 // One earned creative example: "what" keeps its supported sentences (at least
 // one, or the example goes); an unsupported "coverage" line is removed.
 export async function factCheckExample(e, { anthropicKey, fetchImpl = fetch, deadline } = {}) {
-  const evidence = await evidenceFor([e], { fetchImpl });
+  const evidence = await evidenceFor([e], { fetchImpl, anthropicKey });
   const what = paragraphsOf(e.what).flat();
   const cov = paragraphsOf(e.coverage).flat();
   const statements = [...what.map(text => ({ kind: 'fact', field: 'what', text })), ...cov.map(text => ({ kind: 'fact', field: 'coverage', text }))];
@@ -862,13 +915,53 @@ export const namedPattern = (names = []) => {
   return list.length ? new RegExp(`(^|[^\\p{L}\\p{N}])(${list.map(escRe).join('|')})(?=$|[^\\p{L}\\p{N}])`, 'iu') : null;
 };
 export const SIGNALS_INTERNAL = /\b(Conscious Compass|Stay Conscious|Compass scores?|our assessments?|(brands|companies) (we|I) (have )?(assessed|scored)|(we|I) (have )?(assessed|scored))\b/i;
-export function signalsPrompt({ month, stories, sources, blocked = [], notes = '' }) {
-  return `You are writing this month's Fully Conscious round-up for antennagroup.com/signals, as Paul Newton. Fully Conscious is a monthly overview of trends, announcements and insights from the last 30 days for conscious brands. It is read by marketing, communications and sustainability leaders outside the agency. It is an eight-minute read on what happened in the last 30 days and what it means for brands that want to be conscious: the trends that moved, the announcements that matter, the insights behind them, and what a leader should learn and do. The series name and a line describing it are added above your text, so do not introduce the series yourself.
+// The plan (v4.14.1): before the post is written, one call finds the
+// month's through-line and orders the stories into sections that build on
+// each other, so the post reads as one argument, not a list of stories.
+export function signalsPlanPrompt({ month, stories }) {
+  return `You are planning this month's Fully Conscious round-up by Paul Newton: a monthly overview of trends, announcements, and insights from the last 30 days for conscious brands, read by marketing, communications, and sustainability leaders.
+
+Below are ${stories.length} stories from ${month}. Plan a piece that reads as one argument, not a list of stories.
+
+1. Find the through-line: the single idea that ties the month's most important stories together, in one plain sentence. It must be something these stories actually show.
+2. Choose the main stories the opening will introduce (three to five).
+3. Order four to six sections so each builds on the one before. For each: a subhead of two to four words, the story numbers it draws on, its point in one sentence, and one sentence on how it leads into the next section.
+4. Draw on stories from at least ${signalsCategoryTarget(stories)} of these categories: ${signalsCategories(stories).join(', ')}. Use every story at most once.
+5. Say how the close returns to the through-line.
+
+Plain words. No em dashes or en dashes. Never frame a point as "not X but Y".
+
+Return JSON only:
+{"throughline":"...","opening":[1,4,7],"sections":[{"subhead":"...","stories":[1,2],"point":"...","bridge":"..."}],"close":"..."}
+
+STORIES
+${stories.map((s, i) => `${i + 1}. [${s.lead ? 'Lead story, ' : ''}${s.category || 'Brand intelligence'}] ${s.headline}\n${String(s.insight || '').slice(0, 400)}`).join('\n\n')}`;
+}
+export function parseSignalsPlan(text, stories = []) {
+  const m = String(text || '').match(/\{[\s\S]*\}/);
+  let j = null; try { j = m ? JSON.parse(m[0]) : null; } catch { j = null; }
+  const ok = (n) => Number.isInteger(n) && n >= 1 && n <= stories.length;
+  const sections = (Array.isArray(j?.sections) ? j.sections : []).map(x => ({ subhead: noDashes(String(x?.subhead || '')).slice(0, 60), stories: (Array.isArray(x?.stories) ? x.stories : []).map(Number).filter(ok), point: noDashes(String(x?.point || '')).slice(0, 300), bridge: noDashes(String(x?.bridge || '')).slice(0, 300) })).filter(x => x.subhead && x.stories.length);
+  const throughline = noDashes(String(j?.throughline || '')).slice(0, 300);
+  if (!throughline || sections.length < 3) return null;
+  return { throughline, opening: (Array.isArray(j?.opening) ? j.opening : []).map(Number).filter(ok).slice(0, 5), sections: sections.slice(0, 6), close: noDashes(String(j?.close || '')).slice(0, 300) };
+}
+const planBlock = (plan, stories) => (plan ? `
+THE PLAN. Follow it: it is what makes the piece read as one argument.
+Through-line: ${plan.throughline}
+Opening: name the through-line, then introduce these stories in a few lines: ${plan.opening.map(n => `${n} (${stories[n - 1]?.headline})`).join('; ') || 'the main stories'}.
+${plan.sections.map((x, i) => `Section ${i + 1}, "${x.subhead}": stories ${x.stories.join(', ')}. Point: ${x.point}${x.bridge && i < plan.sections.length - 1 ? ` Leads into the next section: ${x.bridge}` : ''}`).join('\n')}
+Close: ${plan.close || 'come back to the through-line and say what a leader should do now.'}
+Open each section by connecting it to the one before. You may adjust a subhead.
+` : '');
+export function signalsPrompt({ month, stories, sources, blocked = [], notes = '', plan = null }) {
+  return `You are writing this month's Fully Conscious round-up for antennagroup.com/signals, as Paul Newton. Fully Conscious is a monthly overview of trends, announcements, and insights from the last 30 days for conscious brands. It is read by marketing, communications and sustainability leaders outside the agency. It is an eight-minute read on what happened in the last 30 days and what it means for brands that want to be conscious: the trends that moved, the announcements that matter, the insights behind them, and what a leader should learn and do. The series name and a line describing it are added above your text, so do not introduce the series yourself.
 
 ${SIGNALS_STYLE}
 
 THE MONTH: ${month}. Your raw material is the news below: ${stories.length} stories from the last 30 days, with the sources behind them and excerpts from those sources. Find the two to four trends that matter most to these readers and round them up, each with the announcements behind it and your read on what it means. Do not walk through the stories one by one; group them by trend, lead each section with your point of view and use the stories as evidence.
 
+${planBlock(plan, stories)}
 Draw from across the whole month, not just the lead stories. Most of the stories below are the supporting Brand Intelligence items, tagged by category; treat them as equal sources. The round-up must cite stories from at least ${signalsCategoryTarget(stories)} of these ${signalsCategories(stories).length} categories: ${signalsCategories(stories).join(', ')}. These stories were first written for brand assessors; write them up for brand, marketing and communications leaders: what changed and what it means for their brand, never how to assess one.
 
 RULES
@@ -879,6 +972,8 @@ RULES
 - Never mention the Conscious Compass, scores, assessments, Stay Conscious or anything internal. The fixed closing section after your text introduces the Compass; you do not.
 - Length: ${SIGNALS_WORDS.target} words in the body.
 - Three pull quotes: lines copied exactly from your body, each under 20 words, that carry the argument. No links in them.
+- Use the Oxford comma in every list of three or more.
+- Read your draft back before you reply and remove every construction in the NEVER USE list above. Each one is caught in code and rewritten.
 ${notes ? `\nFIX THESE IN THIS DRAFT: ${notes}\n` : ''}
 Reply in exactly this format and nothing else:
 TITLE: a sentence-case, declarative title, under 12 words
@@ -1000,14 +1095,85 @@ PULL QUOTE: ...
 BODY:
 ${plainText(draft.body)}`;
 // The whole job. deps: supabaseUrl, sbJson, anthropicKey, fetchImpl, now.
-export async function writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, fetchImpl = fetch, now = new Date(), deadlineMs = 270000 } = {}) {
-  const started = Date.now(); const deadline = started + deadlineMs;
-  const get = async (path, extra = {}) => { try { const r = await fetchImpl(`${supabaseUrl}/rest/v1/${path}`, { headers: { ...sbJson, ...extra } }); return r.ok ? await r.json() : []; } catch { return []; } };
+// Line edits (v4.14.1): the sentences that still carry a tell, and lists
+// that may be missing the Oxford comma, are rewritten one by one in Paul's
+// voice before the draft is fact-checked. Code keeps a rewrite only if it has
+// the same links, quotes and figures, and no tell of its own.
+export function signalsPolishPrompt(items) {
+  return `You are line-editing a column by Paul Newton. Rewrite each numbered sentence to fix the problem named after it, and change nothing else.
+
+How Paul writes: plain, direct, first person. He states the point and proves it. Short declarative sentences. He never frames a point as a correction of something nobody said, never sets up a reveal, and never answers his own question.
+
+Rules for every rewrite:
+- Keep every fact, name, figure, quote, and Markdown link [words](url) exactly as written. Add no new fact or figure.
+- For a reframe such as "It's not X, it's Y" or "This isn't X. It's Y.", keep Y and say it directly; drop X unless it is a fact the sentence needs.
+- For "Oxford comma": if the sentence lists three or more items, add a comma before the final "and" or "or". If it is not a list, return it unchanged.
+- Use the Oxford comma in any list. No em dashes or en dashes. No exclamation marks.
+- One or two sentences per item.
+
+Return JSON only: {"fixes":[{"n":1,"text":"..."}]}
+
+${items.map((x, i) => `${i + 1}. ${x.text}\nProblem: ${x.problems.join('; ')}`).join('\n\n')}`;
+}
+const linkSet = (t) => [...new Set(linksIn(t).map(normUrl))].sort().join(' ');
+const sameFacts = (before, after) => linkSet(before) === linkSet(after)
+  && quotesIn(before).every(q => plainText(after).includes(q))
+  && numbersIn(plainText(after)).every(n => numbersIn(plainText(before)).includes(n));
+export async function polishSignalsDraft(draft, { anthropicKey, fetchImpl = fetch, rounds = 2, ask = askClaude } = {}) {
+  let d = { ...draft, pullQuotes: [...(draft.pullQuotes || [])] };
+  const report = { rewritten: [], commas: 0, kept: [] };
+  for (let round = 0; round < rounds; round++) {
+    const fields = [['title', d.title], ['dek', d.dek], ['body', d.body], ...d.pullQuotes.map((q, i) => [`pull${i}`, q])];
+    const items = []; const seen = new Set();
+    fields.forEach(([field, text]) => {
+      const tells = field === 'title' || field === 'dek' || field.startsWith('pull') ? (signalsTells(text).filter(t => !/"we" where/.test(t)).length ? [{ sentence: text, tells: signalsTells(text) }] : []) : signalsTellSentences(text);
+      tells.forEach(t => { if (!seen.has(t.sentence)) { seen.add(t.sentence); items.push({ field, text: t.sentence, problems: t.tells }); } });
+      if (round === 0) serialCommaCandidates(text).forEach(c => { if (!seen.has(c)) { seen.add(c); items.push({ field, text: c, problems: ['Oxford comma'], comma: true }); } });
+    });
+    if (!items.length) break;
+    let fixes = [];
+    try {
+      const out = await ask(anthropicKey, signalsPolishPrompt(items.slice(0, 40)), { maxTokens: 4000, temperature: 0, fetchImpl });
+      const m = String(out || '').match(/\{[\s\S]*\}/); fixes = (m ? JSON.parse(m[0]).fixes : []) || [];
+    } catch { fixes = []; }
+    items.slice(0, 40).forEach((it, i) => {
+      const f = fixes.find(x => Number(x?.n) === i + 1);
+      const text = noDashes(String(f?.text || '').trim());
+      if (!text || text === it.text) return;
+      const ok = sameFacts(it.text, text) && !signalsTells(text).filter(t => !/"we" where/.test(t)).length && !(it.comma && text.replace(/,/g, '') !== it.text.replace(/,/g, ''));
+      if (!ok) { report.kept.push(it.text); return; }
+      const swap = (v) => (typeof v === 'string' && v.includes(it.text) ? v.replace(it.text, text) : v);
+      d = { ...d, title: swap(d.title), dek: swap(d.dek), body: swap(d.body), pullQuotes: d.pullQuotes.map(swap) };
+      if (it.comma) report.commas += 1; else report.rewritten.push({ before: it.text, after: text, problems: it.problems });
+    });
+  }
+  return { draft: d, report };
+}
+
+// The four editions a draft is written from, as they stood on a date
+// (v4.14.1): the issue that was live then and the three before it. A new
+// draft uses today; "Write it again" uses the date the draft was first
+// written, so every rewrite works from the same editions.
+export async function signalsEditions(get, asOf = null) {
+  const at = asOf ? new Date(asOf) : null;
+  const cutoff = at && !Number.isNaN(at.getTime()) ? at.toISOString() : null;
   const [live, arch] = await Promise.all([
     get('stay_conscious_newsletter?select=newsletter,refreshed_at&id=eq.1&limit=1'),
-    get(`stay_conscious_newsletter_archive?select=newsletter,refreshed_at&order=refreshed_at.desc&limit=${SIGNALS_EDITIONS - 1}`),
+    get(`stay_conscious_newsletter_archive?select=newsletter,refreshed_at${cutoff ? `&refreshed_at=lte.${encodeURIComponent(cutoff)}` : ''}&order=refreshed_at.desc&limit=${SIGNALS_EDITIONS}`),
   ]);
-  const editions = [...live, ...arch].filter(e => e?.newsletter);
+  const seen = new Set();
+  return [...live.filter(e => !cutoff || Date.parse(e.refreshed_at) <= Date.parse(cutoff)), ...arch]
+    .filter(e => e?.newsletter)
+    .sort((a, b) => Date.parse(b.refreshed_at) - Date.parse(a.refreshed_at))
+    .filter(e => { const k = Number(e.newsletter.issueNumber) || e.refreshed_at; if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, SIGNALS_EDITIONS);
+}
+export async function writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, fetchImpl = fetch, now = new Date(), asOf = null, deadlineMs = 270000 } = {}) {
+  const started = Date.now(); const deadline = started + deadlineMs;
+  const get = async (path, extra = {}) => { try { const r = await fetchImpl(`${supabaseUrl}/rest/v1/${path}`, { headers: { ...sbJson, ...extra } }); return r.ok ? await r.json() : []; } catch { return []; } };
+  // A rewrite is anchored to the first draft's date: same editions, same month.
+  const anchor = asOf ? new Date(asOf) : now;
+  const editions = await signalsEditions(get, asOf);
   const stories = signalsStories(editions);
   if (stories.length < 6) return { success: false, error: `Only ${stories.length} sourced stories in the last ${editions.length} editions; a post needs at least 6.` };
   // Every brand we have assessed or teased stays out of the post.
@@ -1022,9 +1188,10 @@ export async function writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, fet
   // The month's sources, read once.
   const seen = new Map();
   signalsSourceOrder(stories).forEach(({ x, st }) => seen.set(normUrl(x.url), { url: x.url, outlet: x.outlet || '', title: x.title || '', about: `${st.headline} ${st.insight}` }));
-  const sources = await Promise.all([...seen.values()].slice(0, 36).map(async s => { const text = await pageText(s.url, { fetchImpl }); return { ...s, text, excerpt: text ? excerptFor(text, s.about) : '' }; }));
-  const month = signalsMonth(now);
-  let draft = parseSignalsDraft(await askClaude(anthropicKey, signalsPrompt({ month, stories, sources, blocked }), { fetchImpl }));
+  const sources = await Promise.all([...seen.values()].slice(0, 36).map(async s => { const text = await pageText(s.url, { fetchImpl, anthropicKey }); return { ...s, text, excerpt: text ? excerptFor(text, s.about) : '' }; }));
+  const month = signalsMonth(anchor);
+  const plan = parseSignalsPlan(await askClaude(anthropicKey, signalsPlanPrompt({ month, stories }), { maxTokens: 2000, temperature: 0.2, fetchImpl }).catch(() => ''), stories);
+  let draft = parseSignalsDraft(await askClaude(anthropicKey, signalsPrompt({ month, stories, sources, blocked, plan }), { fetchImpl }));
   const problems = (d) => [...signalsTells(`${d.title} ${d.dek} ${d.body}`).map(t => `remove "${t}"`),
     ...(wordCount(d.body) < SIGNALS_WORDS.min || wordCount(d.body) > SIGNALS_WORDS.max ? [`the body is ${wordCount(d.body)} words; it must be ${SIGNALS_WORDS.target}`] : []),
     ...(d.pullQuotes.length < 3 ? ['give three pull quotes'] : []), ...(!d.body ? ['the body is missing'] : []),
@@ -1032,10 +1199,13 @@ export async function writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, fet
   const first = problems(draft);
   let rewritten = false;
   if (first.length && Date.now() - started < 150000) {
-    const again = parseSignalsDraft(await askClaude(anthropicKey, signalsPrompt({ month, stories, sources, blocked, notes: first.join('; ') }), { fetchImpl }).catch(() => ''));
+    const again = parseSignalsDraft(await askClaude(anthropicKey, signalsPrompt({ month, stories, sources, blocked, plan, notes: first.join('; ') }), { fetchImpl }).catch(() => ''));
     if (again.body) { draft = again; rewritten = true; }
   }
   if (!draft.body) return { success: false, error: 'The draft could not be written. Try again.' };
+  // Line edits for any tell left, and the Oxford comma (v4.14.1), before the fact check.
+  let polish = { rewritten: [], commas: 0, kept: [] };
+  if (Date.now() - started < 170000) { const p = await polishSignalsDraft(draft, { anthropicKey, fetchImpl }).catch(() => null); if (p) { draft = p.draft; polish = p.report; } }
   const checked = await checkSignalsDraft(withoutDashes(draft), { sources, blockedRe, anthropicKey, fetchImpl, deadline });
   let final = checked.draft;
   if ((!final.title || !final.dek || final.pullQuotes.length < 2) && Date.now() < deadline) {
@@ -1046,10 +1216,10 @@ export async function writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, fet
       pullQuotes: final.pullQuotes.length >= 2 ? final.pullQuotes : fix.pullQuotes.map(noDashes).filter(q => ok(q) && onPage(q, flat)).slice(0, 3) };
   }
   // What is still left to fix by hand, in the draft as it now stands (the code has already removed any dash).
-  const voice = { firstPass: first, rewritten, after: problems(final).filter(x => x !== 'give three pull quotes' || (final.pullQuotes || []).length < 2) };
-  const record = { signals: true, month, ...final, words: wordCount(final.body),
+  const voice = { firstPass: first, rewritten, lineEdits: polish.rewritten.length, commas: polish.commas, edits: polish.rewritten.slice(0, 20), after: problems(final).filter(x => x !== 'give three pull quotes' || (final.pullQuotes || []).length < 2) };
+  const record = { signals: true, month, ...final, plan: plan ? { throughline: plan.throughline, sections: plan.sections.map(x => x.subhead) } : null, words: wordCount(final.body),
     editions: editions.map(e => e.newsletter.issueNumber), sources: sources.map(s => ({ url: s.url, outlet: s.outlet, title: s.title })),
-    check: { ...checked.report, voice, coverage: signalsCoverage(final.body, stories), wordsBefore: wordCount(draft.body), wordsAfter: wordCount(final.body) }, createdAt: new Date().toISOString() };
+    check: { ...checked.report, voice, coverage: signalsCoverage(final.body, stories), wordsBefore: wordCount(draft.body), wordsAfter: wordCount(final.body) }, createdAt: new Date().toISOString(), asOf: anchor.toISOString() };
   return { success: true, record };
 }
 
@@ -1283,7 +1453,10 @@ export default async function handler(req, res) {
       // admin can write one at any time. The draft lives in row 3.
       if (action === 'signals-draft') {
         if (caller.cron && !isSignalsDay(new Date())) return res.status(200).json({ success: true, skipped: true, reason: 'Not the last Monday of the month.' });
-        const out = await writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey });
+        // "Write it again" (v4.14.1) keeps the draft's own date, so it uses the same editions.
+        const prev = req.body?.again ? (await readIssueRow(SIGNALS_ID))?.newsletter : null;
+        const asOf = prev?.signals ? (prev.asOf || prev.createdAt || null) : null;
+        const out = await writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, asOf });
         if (!out.success) return res.status(200).json(out);
         const rec = { ...out.record, by: caller.cron ? 'schedule' : (caller.email || 'admin') };
         await writeIssueRow(SIGNALS_ID, rec);

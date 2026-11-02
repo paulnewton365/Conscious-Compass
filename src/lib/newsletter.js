@@ -291,7 +291,7 @@ export const SIGNALS_AUTHOR = 'Paul Newton';
 // copy, like the close, so it is never rewritten or left out.
 export const SIGNALS_SERIES = {
   name: 'Fully Conscious',
-  about: 'Fully Conscious is a monthly overview of trends, announcements and insights from the last 30 days for conscious brands.',
+  about: 'Fully Conscious is a monthly overview of trends, announcements, and insights from the last 30 days for conscious brands.',
 };
 // The close is fixed copy, so the call to action never says anything unchecked.
 // The link is the Conscious Compass page on antennagroup.com (v4.13.1);
@@ -310,6 +310,8 @@ export const SIGNALS_STYLE = `VOICE: Paul Newton, EVP at Antenna Group, writing 
 
 OPENING: Start on the reader's problem or a one-line verdict, never on a statistic or throat-clearing. Then put the reader's own brand in the frame: a short run of "If your brand..." or the objections they hear inside their own company, which the rest of the piece answers. Two things can be true at the same time is the kind of line he uses to turn an argument.
 
+THREAD: The piece has one through-line: the single idea that ties the month's news together. The opening names it and introduces the month's main stories in a few lines, so the reader knows what is coming and why those stories belong together. Every section advances that idea, and opens by connecting to the section before it, so the stories read as one argument rather than a list. The close comes back to the through-line.
+
 STRUCTURE: Four to six sections under short subheads of two to four words that read as a progression of the argument, often imperatives ("Show the stakes", "Frame the conversation"). Inside a section, a bold lead-in such as **Brand differentiation.** can introduce a point. At most one short list in the whole piece, each item starting with a verb.
 
 SENTENCES AND PARAGRAPHS: Short paragraphs of one to four sentences, with one-line paragraphs for emphasis. Mostly short declarative sentences of 10 to 15 words, with the odd fragment for rhythm and the occasional longer sentence that stacks an argument. Verdict before evidence: make the claim, then prove it.
@@ -320,7 +322,18 @@ QUESTIONS: Rare. Use them only to diagnose where the reader stands, never as a h
 
 CLOSE: End the argument on the path forward: what a leader should do now, in plain words. Turn toward being a conscious brand: one whose purpose, proof and presence line up, and that earns trust by being seen to do what it says. Do not write a sign-off or a sales pitch; a fixed closing section follows your text.
 
-NEVER: em dashes or en dashes; "not just X but Y"; "in today's" anything; "delve"; "landscape" as a metaphor; "navigate"; "unlock"; "game-changer"; "ever-evolving"; "it's worth noting"; rule-of-three lists for rhythm; motivational closers; rhetorical scaffolding ("Here's the thing", "Let's be clear"); exclamation marks.`;
+PLAIN STATEMENT: Say what is true directly. Make the claim, then prove it with a named source. Paul does not set up a straw man to knock down: never frame a point as a correction of something nobody said.
+
+PUNCTUATION: Use the Oxford comma in every list of three or more ("trust, proof, and presence"). No em dashes or en dashes; use a comma, a colon, or a new sentence.
+
+NEVER USE THESE CONSTRUCTIONS (they read as machine-written, and the code rejects them):
+- the reframe: "It's not X, it's Y", "This isn't X. It's Y.", "X isn't about Y. It's about Z.", "The question isn't X, it's Y", "less about X, more about Y", "not because X but because Y", "no longer X, now Y". State Y on its own.
+- "not just X but Y", "not only X but also Y", "Don't just X. Y."
+- the fragment contrast: "Proof. Not promises." or "Not X. Not Y. Z."
+- the reveal: "Here's why", "Here's the thing", "The result?", "The answer?", "The truth is", "The reality is", "The bottom line", "Make no mistake", "Let's be clear", "Simply put", "In other words"
+- a question answered straight away by the writer ("So what changed? Everything.")
+- stock phrases: "in today's" anything, "now more than ever", "in a world where", "at the end of the day", "it turns out", "delve", "landscape" as a metaphor, "navigate", "unlock", "game-changer", "ever-evolving", "it's worth noting", "underscores", "a wake-up call", "the stakes have never been higher", "quietly", "reshaping"
+- rule-of-three lists used for rhythm, motivational closers, and exclamation marks.`;
 // Phrases that read as machine-written, checked in code (v4.12.0).
 export const SIGNALS_TELLS = [
   [/\bnot (just|only|merely) [^.]{1,80}?,? but\b/i, 'not just X but Y'],
@@ -329,6 +342,19 @@ export const SIGNALS_TELLS = [
   [/\bit'?s worth noting\b/i, "it's worth noting"], [/\bhere'?s the thing\b/i, "here's the thing"], [/\blet'?s be clear\b/i, "let's be clear"],
   [/\btapestry\b/i, 'tapestry'], [/\bseamless(ly)?\b/i, 'seamless'], [/\bin conclusion\b/i, 'in conclusion'], [/\bfast[- ]paced\b/i, 'fast-paced'],
   [/!/, 'exclamation mark'], [/[\u2014\u2013]/, 'dash'],
+  // The rhetorical constructions Paul reads as machine-written (v4.14.1).
+  [/\b(it'?s|it is|this is|that'?s|that is|they'?re|they are|this was|it was)\s+not\s+(just\s+|only\s+|simply\s+|really\s+|about\s+)*[^.;:!?]{1,70}?[,;.]\s*(it'?s|it is|this is|that'?s|they'?re|it was|but)\b/i, '"it\'s not X, it\'s Y"'],
+  [/\b(isn'?t|aren'?t|wasn'?t|is not|are not)\s+(just\s+|only\s+|really\s+)?(about\s+)?[^.;:!?]{1,70}?[,;.]\s*(it'?s|it is|they'?re|this is|that'?s|it was)\b/i, '"isn\'t X. It\'s Y."'],
+  [/\bthe (question|problem|issue|point|answer|goal|risk|story|challenge|opportunity|real (question|problem|issue|story)) (isn'?t|is not|was not|wasn'?t)\b/i, '"the question isn\'t X"'],
+  [/\bless about\b[^.]{1,60}\bmore about\b/i, '"less about X, more about Y"'], [/\bnot because\b[^.]{1,80}\bbut because\b/i, '"not because X but because Y"'],
+  [/\bno longer\b[^.;!?]{1,60}[,;.]\s*(it'?s|it is|they'?re|now)\b/i, '"no longer X, now Y"'],
+  [/\bnot only\b[^.]{1,80}\bbut( also)?\b/i, '"not only X but also Y"'], [/\bdon'?t just\b/i, '"don\'t just X"'],
+  [/(^|[.!?]\s+)Not\s+[^.!?]{1,40}\./m, 'the "Not X." fragment'],
+  [/\bhere'?s (why|what|how|the (thing|truth|catch|kicker|problem))\b/i, '"here\'s why"'],
+  [/\b(the (result|answer|upshot|takeaway|catch|kicker|twist|bottom line))\s*[?:]/i, 'the "The result?" reveal'],
+  [/\b(the (truth|reality) is|make no mistake|simply put|in other words|at the end of the day|now more than ever|in a world where|it turns out|a wake-up call|the stakes have never been higher)\b/i, 'stock phrase'],
+  [/\b(underscor(e|es|ed|ing)|quietly|reshap(e|es|ed|ing))\b/i, 'stock word'],
+  [/\?\s+(Simple|Easy|Yes|No|Everything|Nothing|Because|It'?s|They'?re|The answer)\b/, 'a question the writer answers straight away'],
   // Paul's voice check (v4.12.0): the post is his, in the first person, never the company's.
   [/\b(at Antenna|Antenna (Group )?(believes|thinks|sees|knows)|our (team|clients|agency|work)|we at)\b/i, "not in Paul's voice: the company is speaking"],
 ];
@@ -338,6 +364,15 @@ export const signalsTells = (text) => {
   if ((t.match(/\b(we|our|us)\b/gi) || []).length > 5) found.push('not in Paul\'s voice: "we" where it should be "I"');
   return [...new Set(found)];
 };
+// The sentences that carry a tell, so they can be rewritten one by one (v4.14.1).
+export const sentencesOf = (t) => String(t || '').split(/\n+/).flatMap(line => line.split(/(?<=[.!?]["'\u201d\u2019)]?)\s+(?=["'\u201c\u2018(]?(?:\[|\*\*)?[A-Z0-9])/)).map(x => x.trim()).filter(Boolean);
+export function signalsTellSentences(text) {
+  return sentencesOf(String(text || '').replace(/^#+\s+/gm, '')).map(sentence => ({ sentence, tells: signalsTells(sentence).filter(t => !/"we" where it should be "I"/.test(t)) })).filter(x => x.tells.length);
+}
+// Lists that may be missing the Oxford comma: "A, B and C". Candidates only:
+// the rewrite pass decides, since "However, the team and the agency" is not a list.
+export const serialCommaCandidates = (text) => sentencesOf(String(text || '').replace(/^#+\s+/gm, ''))
+  .filter(raw => { const x = raw.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'); return /\b[\w'%$-]+(?: [\w'%$-]+){0,3}, [\w'%$-]+(?: [\w'%$-]+){0,3} (and|or) [\w'%$-]+/.test(x) && !/\b[\w'%$-]+(?: [\w'%$-]+){0,3}, [\w'%$-]+(?: [\w'%$-]+){0,3}, (and|or) /.test(x); });
 export const wordCount = (t) => (String(t || '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').match(/[A-Za-z0-9À-ɏ'%$]+/g) || []).length;
 // The month a draft covers, in New York time, e.g. "October 2026".
 const nyParts = (d) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }).formatToParts(d).map(p => [p.type, p.value]));

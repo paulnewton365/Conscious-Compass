@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
 
-const APP_VERSION = '4.13.3';
+const APP_VERSION = '4.14.1';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -12118,7 +12118,7 @@ function SignalsPage() {
     <div className="dc-wrap dc-page">
       <div className="dc-page-head">
         <h1 className="dc-display">Signals</h1>
-        <p className="dc-standfirst">Fully Conscious, the monthly round-up for antennagroup.com/signals: trends, announcements and insights from the last 30 days for conscious brands, written in Paul's voice from the news in the last four editions of Stay Conscious.</p>
+        <p className="dc-standfirst">Fully Conscious, the monthly round-up for antennagroup.com/signals: trends, announcements, and insights from the last 30 days for conscious brands, written in Paul's voice from the news in the last four editions of Stay Conscious.</p>
       </div>
       <SignalsPanel />
     </div>
@@ -12143,8 +12143,10 @@ function SignalsPanel() {
   useEffect(() => { loadRef.current(); }, []);
   const run = async (fn, done) => { setBusy(true); setMsg(''); try { await fn(); if (done) setMsg(done); } catch (e) { setMsg(`That did not work: ${e.message}`); } finally { setBusy(false); } };
   const write = () => {
-    if (!window.confirm(`Write ${draft ? 'a new' : "this month's"} Signals draft from the last four editions? It takes three or four minutes${draft ? ' and replaces the current draft' : ''}.`)) return;
-    run(async () => { setMsg('Writing and checking the draft. This takes three or four minutes\u2026'); const d = await call('signals-draft'); await load(); setOpen(true); setMsg(`The ${d.month} draft is ready: ${countOf(d.words, 'word')}, ${countOf(d.check.links, 'source link')}, ${countOf(d.check.quotes, 'quote')} checked word for word, ${countOf(d.check.removed, 'sentence')} removed.`); });
+    if (!window.confirm(draft
+      ? `Write the ${draft.month} draft again from the same ${draft.editions?.length ? `editions (Issues ${draft.editions.join(', ')})` : 'four editions'}? It takes three or four minutes and replaces the current draft.`
+      : "Write this month's Signals draft from the last four editions? It takes three or four minutes.")) return;
+    run(async () => { setMsg('Writing and checking the draft. This takes three or four minutes\u2026'); const d = await call('signals-draft', { again: !!draft }); await load(); setOpen(true); setMsg(`The ${d.month} draft is ready: ${countOf(d.words, 'word')}, ${countOf(d.check.links, 'source link')}, ${countOf(d.check.quotes, 'quote')} checked word for word, ${countOf(d.check.removed, 'sentence')} removed.`); });
   };
   const copyHtml = () => run(async () => {
     const html = signalsHtml(draft);
@@ -12170,7 +12172,10 @@ function SignalsPanel() {
       {draft && (
         <details className="dc-np-check" data-field="signals-check">
           <summary>Checks: {countOf(c.links ?? 0, 'source link')}, {countOf(c.quotes ?? 0, 'quote')} checked word for word, {countOf(c.cited?.length ?? 0, 'citation')} added, {countOf(c.removed?.length ?? 0, 'sentence')} removed.</summary>
+          {draft.plan?.throughline && <p className="dc-meta" data-field="signals-plan">Through-line: {draft.plan.throughline}{draft.plan.sections?.length ? ` Planned sections: ${draft.plan.sections.join(', ')}.` : ''}</p>}
           {c.coverage && <p className="dc-meta" data-field="signals-coverage">Brand Intelligence coverage: stories from {countOf(c.coverage.covered.length, 'category', 'categories')} of the {c.coverage.covered.length + c.coverage.missing.length} this month (at least {c.coverage.target} needed){c.coverage.covered.length ? `: ${c.coverage.covered.join(', ')}` : ''}. {countOf(c.coverage.otherStories, 'supporting story', 'supporting stories')} and {countOf(c.coverage.leadStories, 'lead story', 'lead stories')} cited.</p>}
+          {(c.voice?.lineEdits > 0 || c.voice?.commas > 0) && <p className="dc-meta" data-field="signals-line-edits">Line edits for Paul's voice: {countOf(c.voice.lineEdits || 0, 'sentence')} rewritten to remove a machine-written construction{c.voice.commas ? `, ${countOf(c.voice.commas, 'Oxford comma')} added` : ''}.</p>}
+          {c.voice?.edits?.length > 0 && <><h4 className="dc-np-check-h">Rewritten for voice</h4><ul className="dc-np-check-list">{c.voice.edits.map((x, k) => <li key={k}>{`\u201c${x.before}\u201d`} became {`\u201c${x.after}\u201d`} ({x.problems.join(', ')})</li>)}</ul></>}
           {c.voice?.firstPass?.length > 0 && <p className="dc-meta">First draft: {c.voice.firstPass.join('; ')}.{c.voice.rewritten ? ' It was rewritten once.' : ''}{c.voice.after?.length ? ` Still to fix by hand: ${c.voice.after.join('; ')}.` : ''}</p>}
           {c.removed?.length > 0 && <><h4 className="dc-np-check-h">Removed</h4><ul className="dc-np-check-list">{c.removed.map((x, k) => <li key={k} data-outcome="dropped">{/^["\u201c]/.test(x.text) ? x.text : `\u201c${x.text}\u201d`} ({x.reason})</li>)}</ul></>}
           {c.cited?.length > 0 && <><h4 className="dc-np-check-h">Citations added</h4><ul className="dc-np-check-list">{c.cited.map((x, k) => <li key={k}>“{x.text}” now links to {x.source}</li>)}</ul></>}

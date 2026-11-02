@@ -78,18 +78,30 @@ export function keepSourced(items = []) {
 // runs when fewer pass the fact check, if it can start within two minutes
 // twenty of the job's five.
 export const WIDER_TARGET = 6;
-export const WIDER_START_BY_MS = 140000;
+// Backup stories (v4.14.0): searched every week, at the same time as the
+// first six are checked, so a story that fails its check is replaced without
+// waiting. They may go back up to three months for a well-sourced story.
+export const BACKUP_COUNT = 6;
 export function widerPrompt(history, { need, kept = [], tried = [] }) {
   const used = new Set(kept.map(i => i.category));
   const open = STORY_CATEGORIES.filter(c => !used.has(c));
   return `${STAY_CONSCIOUS_PROMPT}${history}
 
-WIDER SEARCH. Only ${kept.length} of this week's stories could be confirmed by their sources. Write exactly ${need} more item(s), with these changes to the rules above:
-- Look across the last month, not just the last two weeks.
-- Use any of these topics, one per item: ${open.join(', ')}.
+BACKUP STORIES. Some of this week's stories may not be confirmed by their sources, so write exactly ${need} more item(s) as backups, with these changes to the rules above:
+- Look across the last month first. If there are not enough strong stories, go back up to three months; a well-sourced story from earlier in the quarter beats a thin one from this week.
+- Each item in a different topic. Prefer topics this week's stories have not used: ${open.join(', ')}. If you run short, any topic will do.
 - Any sector will do; the sector rule is relaxed for these.
-- Choose stories you can source well: every fact and figure in the insight must be on the page you cite. A strong, well-sourced story beats a fresh, thin one.
+- Choose stories you can source well: every fact and figure in the insight must be on the page you cite. Prefer sources whose pages are openly readable (press releases, research reports, company newsrooms, open news sites) over paywalled ones.
 Do not repeat any of these stories: ${tried.map(it => `"${it.headline}"`).join('; ')}.`;
+}
+// Tops up the stories that passed with backups that passed: first one per
+// topic not yet used, then any, up to the six an issue needs.
+export function fillStories(passed = [], backups = [], target = WIDER_TARGET) {
+  const out = [...passed].slice(0, target);
+  const used = new Set(out.map(i => i.category));
+  backups.forEach(b => { if (out.length < target && !used.has(b.category)) { out.push(b); used.add(b.category); } });
+  backups.forEach(b => { if (out.length < target && !out.includes(b)) out.push(b); });
+  return out;
 }
 
 // The fact-check report is kept in row 2 of the cache, beside the stories in
@@ -224,6 +236,21 @@ export default async function handler(req, res) {
     const history = historyPromptBlock(past);
     let { items, repeats } = checkAgainstHistory(await ask(STAY_CONSCIOUS_PROMPT + history), past);
     if (!items.length) throw new Error('No items in Claude response');
+    // Every story is checked against its pages (v4.10.0); one with no source
+    // is dropped by the check. The job has five minutes; the check starts no
+    // new work after four and a half. The check reads pages the server cannot
+    // open through Claude (v4.14.0), so it needs the key.
+    const checkOpts = { anthropicKey, found, deadline: started + 270000 };
+    // Backups are searched and checked now, while this week's six are (v4.14.0).
+    const firstSix = items;
+    const backupsReady = ask(widerPrompt(history, { need: BACKUP_COUNT, kept: firstSix, tried: firstSix }))
+      .catch(() => [])
+      .then(more => {
+        const fresh = checkAgainstHistory(more, past);
+        return fresh.items.filter((_, i) => !fresh.repeats.some(r => r.i === i)).filter(it => !firstSix.some(x => headlineOverlap(it.headline, x.headline) >= REPEAT_THRESHOLD));
+      })
+      .then(usable => factCheckStories(usable, checkOpts))
+      .catch(() => ({ items: [], reports: [] }));
 
     // Stories that repeat an earlier one without saying so are replaced once,
     // in the same categories; any still repeating are left out.
@@ -241,27 +268,12 @@ Write exactly ${repeats.length} replacement item(s), for these categories: ${rep
     }
     if (!items.length) throw new Error('Every story repeated earlier coverage');
     const sourcing = keepSourced(items);
-    // Every story is checked against its pages (v4.10.0); one with no source
-    // is dropped by the check. The job has five minutes; the check starts no
-    // new work after four.
-    const checkOpts = { anthropicKey, found, deadline: started + 260000 };
-    let checked = await factCheckStories(items, checkOpts);
-    // A wider net (v4.10.0): when fewer than six pass, one more search over the
-    // last month, in any topic not used this week and any sector, and those
-    // stories are checked the same way. Only if there is time for it.
-    let widened = 0;
-    if (checked.items.length < WIDER_TARGET && Date.now() - started < WIDER_START_BY_MS) {
-      const need = WIDER_TARGET - checked.items.length;
-      const more = await ask(widerPrompt(history, { need, kept: checked.items, tried: items })).catch(() => []);
-      const fresh = checkAgainstHistory(more, past);
-      const usable = fresh.items
-        .filter((_, i) => !fresh.repeats.some(r => r.i === i))
-        .filter(it => !items.some(x => headlineOverlap(it.headline, x.headline) >= REPEAT_THRESHOLD))
-        .slice(0, need);
-      const extra = await factCheckStories(usable, checkOpts);
-      widened = extra.items.length;
-      checked = { items: [...checked.items, ...extra.items], reports: [...checked.reports, ...extra.reports.map(r => ({ ...r, wider: true }))] };
-    }
+    const first = await factCheckStories(items, checkOpts);
+    const backups = await backupsReady;
+    const fresh = backups.items.filter(b => !items.some(x => headlineOverlap(b.headline, x.headline) >= REPEAT_THRESHOLD));
+    const chosen = fillStories(first.items, fresh);
+    const widened = chosen.length - Math.min(first.items.length, WIDER_TARGET);
+    const checked = { items: chosen, reports: [...first.reports, ...backups.reports.map(r => ({ ...r, wider: true, used: chosen.some(c => c.headline === r.headline) }))] };
     const parsed = { items: checked.items };
     const refreshedAt = new Date().toISOString();
     const report = { checkedAt: refreshedAt, stories: checked.reports, passed: parsed.items.length };

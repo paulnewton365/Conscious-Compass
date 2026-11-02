@@ -683,6 +683,7 @@ test('v4.5.0: stories do not repeat earlier issues unless they have moved on, an
         return { ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify({ verdicts: Array.from({ length: n }, (_, i) => ({ n: i + 1, verdict: 'supported', quote: QUOTE })) }) }] }) };
       }
       prompts.push(content);
+      if (content.includes('BACKUP STORIES')) return reply([{ headline: 'Green Bond Disclosure Rules Tighten', category: 'Purpose & Sustainability', insight: 'i', whyItMatters: 'w' }]);
       return prompts.length === 1
         ? reply([{ headline: 'Third-party mentions outrank owned sites in AI engines', category: 'AI Visibility', insight: 'i', whyItMatters: 'w' }, { headline: 'Packaging Claims Face New Scrutiny', category: 'Brand Strategy', insight: 'i', whyItMatters: 'w' }])
         : reply([{ headline: 'Answer Engines Start Citing Podcasts', category: 'AI Visibility', insight: 'i', whyItMatters: 'w' }]);
@@ -697,12 +698,16 @@ test('v4.5.0: stories do not repeat earlier issues unless they have moved on, an
   delete process.env.CRON_SECRET;
   assert.equal(res.code, 200, JSON.stringify(res.body));
   assert.ok(prompts[0].includes('ALREADY COVERED') && prompts[0].includes('Old Archived Story About Carbon Labels'), 'the brief lists the live issue and the archive');
-  assert.ok(prompts[1].includes('Write exactly 1 replacement item(s), for these categories: AI Visibility') && prompts[1].includes('(same as P1)'));
-  assert.deepEqual(saved[1].items.map(i => i.headline), ['Packaging Claims Face New Scrutiny', 'Answer Engines Start Citing Podcasts']);
+  const swap = prompts.find(x => x.includes('replacement item(s)')) || '';   // v4.14.0: the backup search runs alongside
+  assert.ok(swap.includes('Write exactly 1 replacement item(s), for these categories: AI Visibility') && swap.includes('(same as P1)'));
+  // v4.14.0: the backup search runs alongside every week, and its checked stories top the issue up
+  assert.deepEqual(saved[1].items.map(i => i.headline), ['Packaging Claims Face New Scrutiny', 'Answer Engines Start Citing Podcasts', 'Green Bond Disclosure Rules Tighten']);
   assert.ok(saved[1].items.every(i => i.checked === true), 'v4.10.0: every saved story was fact-checked');
-  assert.equal(checks.length, 2, 'one check per story');
-  assert.ok(prompts[2].includes('WIDER SEARCH') && prompts[2].includes('Write exactly 4 more item(s)'), 'fewer than six passed, so a wider search ran');
-  assert.deepEqual([saved[2].items[0].passed, saved[2].refreshed_at === saved[1].refreshed_at], [2, true], 'the report sits beside the stories, with their timestamp');
+  assert.equal(checks.length, 3, 'one check per story, backups included');
+  const backup = prompts.find(x => x.includes('BACKUP STORIES')) || '';
+  assert.ok(backup.includes('write exactly 6 more item(s) as backups') && backup.includes('"Packaging Claims Face New Scrutiny"'), 'six backups, never this week\'s stories');
+  assert.equal(res.body.factCheck.widened, 1);
+  assert.deepEqual([saved[2].items[0].passed, saved[2].refreshed_at === saved[1].refreshed_at], [3, true], 'the report sits beside the stories, with their timestamp');
   assert.deepEqual(res.body.history, { pastStories: 3, followUps: 0, repeatsReplaced: 1, repeatsDropped: 0 });
 
   // The newsletter: a fresh story leads; follow-ups survive the public filter
@@ -1093,7 +1098,8 @@ test('v4.10.0: every story is checked against its source page, sentence by sente
   // The job: unsourced stories are always dropped, a wider search runs when fewer than six pass
   const sc = await import('../api/refresh-stay-conscious.js');
   const wp = sc.widerPrompt('', { need: 3, kept: [{ category: 'Paid Media' }], tried: [{ headline: 'Old one' }] });
-  assert.ok(wp.includes('Look across the last month') && !wp.includes('- Use any of these topics, one per item: Paid Media,') && !wp.includes('Paid Media,') && wp.includes('Thought Leadership') && wp.includes('"Old one"') && wp.includes('Write exactly 3 more item(s)'));
+  // v4.14.0: backups, up to three months back, preferring unused topics and readable sources
+  assert.ok(wp.includes('Look across the last month first') && wp.includes('go back up to three months') && !wp.includes('Paid Media,') && wp.includes('Thought Leadership') && wp.includes('"Old one"') && wp.includes('write exactly 3 more item(s) as backups') && wp.includes('openly readable'));
 });
 
 test('v4.10.0: figures from our own scores are checked in code; the issue goes out with the stories that passed, and nothing is posted about a short one', async () => {
@@ -1269,7 +1275,7 @@ test('v4.12.0: the monthly Signals draft is Paul\'s, in the first person, from t
   // v4.13.1: every post is a Fully Conscious round-up, and the close links to the Compass page on antennagroup.com
   assert.equal(lib.SIGNALS_CLOSE.link, 'https://www.antennagroup.com/conscious-compass');
   assert.equal(lib.SIGNALS_SERIES.name, 'Fully Conscious');
-  assert.ok(lib.SIGNALS_SERIES.about.includes('a monthly overview of trends, announcements and insights from the last 30 days for conscious brands'));
+  assert.ok(lib.SIGNALS_SERIES.about.includes('a monthly overview of trends, announcements, and insights from the last 30 days for conscious brands'), 'with the Oxford comma (v4.14.1)');
   const framed = lib.signalsHtml({ month: 'October 2026', title: 'T', dek: 'D', body: 'Para.', pullQuotes: [] });
   assert.ok(framed.startsWith('<p><strong>Fully Conscious</strong> | October 2026</p>\n<h1>T</h1>') && framed.includes(`<p>${lib.SIGNALS_SERIES.about}</p>`) && framed.includes('href="https://www.antennagroup.com/conscious-compass"'));
   assert.ok(!nl.SIGNALS_INTERNAL.test(lib.SIGNALS_SERIES.about), 'the series line passes the internal-name check');
@@ -1399,4 +1405,169 @@ test('v4.12.0: the monthly Signals draft is Paul\'s, in the first person, from t
   const routes = app.slice(app.indexOf('const HASH_ROUTES = {'), app.indexOf('};', app.indexOf('const HASH_ROUTES = {')));
   for (const r of routes.split('\n').filter(l => /^\s+'[a-z/]+':/.test(l) && !l.includes("'signals'"))) assert.ok(r.includes('setShowSignalsPage(false)'), r);
   assert.ok(src.includes('link: `${SITE_URL()}/#signals`'), 'the review post links to the page');
+});
+
+test('v4.14.0: the fact check stops failing stories for reasons that are not about accuracy', async () => {
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const sc = await import('../api/refresh-stay-conscious.js');
+  // 1. A page the server cannot open is read through Claude's web fetch tool
+  const PAGE = 'Golin and Ketchum completed their merger on Monday, creating one of the largest PR firms in the world. '.repeat(8);
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    calls.push(String(url));
+    if (String(url).startsWith('https://www.adweek.com/')) return { ok: false, status: 403, text: async () => 'blocked' };
+    if (String(url).includes('api.anthropic.com')) {
+      const body = JSON.parse(init.body);
+      if (body.tools?.[0]?.type === 'web_fetch_20250910') {
+        assert.equal(body.tools[0].max_uses, 1);
+        assert.ok(body.messages[0].content.includes('https://www.adweek.com/agencies/golin-ketchum/'), 'the url is in the user message, so the tool may fetch it');
+        return { ok: true, json: async () => ({ content: [{ type: 'server_tool_use', name: 'web_fetch' },
+          { type: 'web_fetch_tool_result', content: { type: 'web_fetch_result', url: 'x', content: { type: 'document', source: { type: 'text', media_type: 'text/plain', data: PAGE } } } },
+          { type: 'text', text: 'done' }] }) };
+      }
+      const kinds = [...body.messages[0].content.matchAll(/^\d+\. \[(\w+)\]/gm)].map(m => m[1]);
+      return { ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify({ verdicts: kinds.map((k, i) => (k === 'headline' ? { n: i + 1, verdict: 'opinion' } : { n: i + 1, verdict: 'supported', quote: 'Golin and Ketchum completed their merger on Monday' })) }) }] }) };
+    }
+    return { ok: false, status: 404, text: async () => '' };
+  };
+  assert.equal(await nl.pageText('https://www.adweek.com/agencies/golin-ketchum/', { fetchImpl }), '', 'without a key, as before');
+  assert.ok((await nl.pageText('https://www.adweek.com/agencies/golin-ketchum/', { fetchImpl, anthropicKey: 'k' })).includes('completed their merger'));
+  assert.equal(nl.fetchedText({ content: [{ type: 'web_fetch_tool_result', content: { type: 'web_fetch_tool_result_error', error_code: 'url_not_accessible' } }] }), '', 'a fetch error reads as nothing');
+  assert.equal(await nl.readViaClaude('https://x.com/' + 'a'.repeat(260), { anthropicKey: 'k', fetchImpl }), '', 'urls over 250 characters are not sent');
+
+  // 2. A headline may frame the facts; its figures must still be in the source
+  const story = { headline: 'Golin Ketchum Is Live: The PR Consolidation Endgame Is Here', category: 'Agency & Industry',
+    insight: 'Golin and Ketchum completed their merger on Monday.', whyItMatters: 'Expect fewer, bigger agencies.',
+    sources: [{ url: 'https://www.adweek.com/agencies/golin-ketchum/', outlet: 'Adweek' }] };
+  const r = await nl.factCheckStory(story, { anthropicKey: 'k', fetchImpl });
+  assert.equal(r.report.outcome, 'kept', JSON.stringify(r.report));
+  assert.equal(r.item.headline, story.headline);
+  const bad = await nl.factCheckStory({ ...story, headline: 'Golin Ketchum Cuts 900 Jobs' }, { anthropicKey: 'k', fetchImpl });
+  assert.equal(bad.item, null, 'a figure the source does not give still fails the headline');
+  const src = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
+  assert.ok(src.includes('allowed only for statements marked [view] or [headline]') && src.includes("(s.kind === 'view' || s.kind === 'headline')"));
+
+  // 3. One figure, many forms
+  const ev = nl.figuresIn('ChatGPT ads reached a $1 billion run rate across 89 countries; Omnicom plans 15K cuts and a $2.5bn saving.');
+  for (const n of ['1', '1000000000', '89', '15', '15000', '2.5', '2500000000']) assert.ok(ev.has(n), n);
+  assert.deepEqual(nl.unsupportedNumbers('A $1B run rate, 15,000 cuts and $2.5 billion saved', ev), []);
+  assert.deepEqual(nl.unsupportedNumbers('20,000 cuts', ev), ['20000'], 'a different figure still fails');
+  assert.ok(nl.figuresIn('revenue of 3,400,000').has('3.4'), 'the long form allows the short one');
+
+  // 4. Backups fill the issue: unused topics first, then any, never more than six
+  const p = (h, c) => ({ headline: h, category: c });
+  const filled = sc.fillStories([p('A', 'Paid Media'), p('B', 'Thought Leadership')], [p('C', 'Paid Media'), p('D', 'Creativity'), p('E', 'Creativity'), p('F', 'AI & Search'), p('G', 'B2B & B2C'), p('H', 'Media Relations')]);
+  assert.deepEqual(filled.map(x => x.headline), ['A', 'B', 'D', 'F', 'G', 'H']);
+  assert.deepEqual(sc.fillStories([p('A', 'Paid Media')], [p('C', 'Paid Media')]).map(x => x.headline), ['A', 'C'], 'a repeat topic beats an empty slot');
+  assert.equal(sc.BACKUP_COUNT, 6);
+  // Earned creative is read the same way, and the searches prefer readable pages
+  assert.ok(src.includes('const evidence = await evidenceFor([e], { fetchImpl, anthropicKey });') && src.includes('Prefer articles that are free to read'));
+  const e = await nl.factCheckExample({ brand: 'Golin', title: 'Merger', what: 'Golin and Ketchum completed their merger on Monday.', coverage: '', url: 'https://www.adweek.com/agencies/golin-ketchum/' }, { anthropicKey: 'k', fetchImpl });
+  assert.ok(e.item?.factChecked, 'an Adweek-only example now passes when the facts are on the page');
+  // and the link check that comes first reads through Claude too
+  const before = calls.length;
+  assert.equal(await nl.verifyExample({ brand: 'Golin', title: 'Ketchum merger', url: 'https://www.adweek.com/agencies/golin-ketchum/' }, { fetchImpl, anthropicKey: 'k' }), true);
+  assert.ok(calls.slice(before).some(u => u.includes('api.anthropic.com')), 'the blocked page was read through Claude');
+  assert.ok(src.includes('verify(e, { fetchImpl, anthropicKey })'));
+});
+
+test('v4.14.1: Signals catches the rhetorical constructions Paul reads as machine-written, fixes them line by line, and uses the Oxford comma', async () => {
+  const lib = await import('../src/lib/newsletter.js');
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const tells = [
+    "It's not a branding problem, it's a proof problem.", "This isn't about awareness. It's about belief.", "The question isn't whether to speak.",
+    'Proof travels. Not promises.', "Here's why that matters.", 'So what changed? Everything.', 'The result? Fewer clicks.',
+    'This is less about reach and more about trust.', 'Brands win not because they shout but because they prove.', "Don't just ask for space.",
+    'The truth is that buyers check.', 'It underscores the gap.', 'Not only did trust fall, but spend did too.',
+  ];
+  for (const t of tells) assert.ok(lib.signalsTells(t).length, t);
+  for (const t of ['Brands that show their work earn more trust.', 'I see this every week in the brands I work with.', 'Edelman found that 64% of buyers want proof.', 'If your brand is quiet, you are already behind.'])
+    assert.deepEqual(lib.signalsTells(t), [], t);
+  assert.ok(lib.SIGNALS_STYLE.includes('NEVER USE THESE CONSTRUCTIONS') && lib.SIGNALS_STYLE.includes('Use the Oxford comma') && lib.SIGNALS_STYLE.includes('never frame a point as a correction'));
+  // Only the sentences with a tell are sent back, headings aside
+  const body = "## Show the stakes\n\nBrands that show their work earn trust. It's not a reach problem, it's a [proof problem](https://a.com/x).\n\nTrust, proof and presence matter. However, the team and the agency agreed.";
+  assert.deepEqual(lib.signalsTellSentences(body).map(x => x.sentence), ["It's not a reach problem, it's a [proof problem](https://a.com/x)."]);
+  assert.deepEqual(lib.serialCommaCandidates(body), ['Trust, proof and presence matter.', 'However, the team and the agency agreed.']);
+  assert.deepEqual(lib.serialCommaCandidates('Trust, proof, and presence matter.'), []);
+  // The pass keeps a rewrite only with the same links, quotes and figures, and no tell of its own
+  const prompts = [];
+  const ask = async (_k, prompt) => { prompts.push(prompt); return JSON.stringify({ fixes: [
+    { n: 1, text: 'Brands have a [proof problem](https://a.com/x).' },
+    { n: 2, text: 'Trust, proof, and presence matter.' },
+    { n: 3, text: 'However, the team and the agency agreed.' },
+  ] }); };
+  const draft = { title: 'Proof travels further', dek: 'D', body, pullQuotes: ['Trust, proof and presence matter.'] };
+  const out = await nl.polishSignalsDraft(draft, { anthropicKey: 'k', ask });
+  assert.ok(out.draft.body.includes('Brands have a [proof problem](https://a.com/x).') && out.draft.body.includes('Trust, proof, and presence matter.') && out.draft.body.includes('However, the team and the agency agreed.'));
+  assert.deepEqual(out.draft.pullQuotes, ['Trust, proof, and presence matter.'], 'a pull quote stays a line the body contains');
+  assert.deepEqual([out.report.rewritten.length, out.report.commas], [1, 1]);
+  assert.ok(prompts[0].includes('Problem: "it\'s not X, it\'s Y"') && prompts[0].includes('Problem: Oxford comma') && prompts[0].includes('Keep every fact, name, figure, quote, and Markdown link'));
+  // A rewrite that drops a link, adds a figure, keeps a tell, or changes more than commas in a list is refused
+  for (const bad of ['Brands have a proof problem.', 'Brands have a [proof problem](https://a.com/x) in 72% of cases.', "It isn't reach. It's a [proof problem](https://a.com/x)."]) {
+    const r = await nl.polishSignalsDraft({ ...draft, body: "It's not a reach problem, it's a [proof problem](https://a.com/x)." }, { anthropicKey: 'k', rounds: 1, ask: async () => JSON.stringify({ fixes: [{ n: 1, text: bad }] }) });
+    assert.equal(r.draft.body, "It's not a reach problem, it's a [proof problem](https://a.com/x).", bad);
+  }
+  const reworded = await nl.polishSignalsDraft({ ...draft, body: 'Trust, proof and presence matter.', pullQuotes: [] }, { anthropicKey: 'k', rounds: 1, ask: async () => JSON.stringify({ fixes: [{ n: 1, text: 'Trust, proof, and visibility count.' }] }) });
+  assert.equal(reworded.draft.body, 'Trust, proof and presence matter.', 'an Oxford comma fix may only add commas');
+  // It runs before the fact check, and the report shows what changed
+  const src = readFileSync(new URL('../api/refresh-stay-conscious-newsletter.js', import.meta.url), 'utf8');
+  assert.ok(src.indexOf('await polishSignalsDraft(draft') < src.indexOf('const checked = await checkSignalsDraft(withoutDashes(draft)'));
+  assert.ok(src.includes('Use the Oxford comma in every list of three or more.'));
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('data-field="signals-line-edits"') && app.includes('Rewritten for voice'));
+  assert.ok(lib.SIGNALS_SERIES.about.includes('trends, announcements, and insights'));
+});
+
+test('v4.14.1: each Signals post is planned around one through-line, so the stories read as one argument', async () => {
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const lib = await import('../src/lib/newsletter.js');
+  const st = (h, c, lead = false) => ({ headline: h, category: c, lead, insight: 'i', whyItMatters: 'w', sources: [{ url: `https://s.com/${h.length}` }] });
+  const stories = [st('Lead A', 'Trust & Reputation', true), st('Item B', 'Media Relations'), st('Item C', 'Thought Leadership'), st('Item D', 'Paid Media')];
+  const pp = nl.signalsPlanPrompt({ month: 'November 2026', stories });
+  assert.ok(pp.includes('through-line') && pp.includes('each builds on the one before') && pp.includes('one sentence on how it leads into the next section') && pp.includes('[Lead story, Trust & Reputation] Lead A') && pp.includes('at least 4 of these categories'));
+  const raw = JSON.stringify({ throughline: 'Proof — not promises — is what travels now.', opening: [1, 2, 9], sections: [
+    { subhead: 'Show the proof', stories: [1, 2], point: 'p1', bridge: 'b1' }, { subhead: 'Let others say it', stories: [3], point: 'p2', bridge: 'b2' },
+    { subhead: 'Pay for reach', stories: [4, 12], point: 'p3', bridge: 'b3' }, { subhead: 'Empty', stories: [], point: 'x' }], close: 'Back to proof.' });
+  const plan = nl.parseSignalsPlan(`Here you go: ${raw}`, stories);
+  assert.equal(plan.throughline, 'Proof, not promises, is what travels now.', 'no dashes');
+  assert.deepEqual(plan.opening, [1, 2], 'story numbers that do not exist are dropped');
+  assert.deepEqual(plan.sections.map(x => [x.subhead, x.stories]), [['Show the proof', [1, 2]], ['Let others say it', [3]], ['Pay for reach', [4]]]);
+  assert.equal(nl.parseSignalsPlan('{"throughline":"x","sections":[{"subhead":"a","stories":[1]}]}', stories), null, 'too thin a plan is not used');
+  assert.equal(nl.parseSignalsPlan('not json', stories), null);
+  // The writer follows it
+  const wp = nl.signalsPrompt({ month: 'November 2026', stories, sources: [], plan });
+  assert.ok(wp.includes('THE PLAN. Follow it') && wp.includes('Through-line: Proof, not promises, is what travels now.') && wp.includes('introduce these stories in a few lines: 1 (Lead A); 2 (Item B)') && wp.includes('Section 2, "Let others say it": stories 3.') && wp.includes('Leads into the next section: b2') && wp.includes('Open each section by connecting it to the one before'));
+  assert.ok(!nl.signalsPrompt({ month: 'November 2026', stories, sources: [] }).includes('THE PLAN'), 'without a plan the writer still works');
+  assert.ok(lib.SIGNALS_STYLE.includes('THREAD: The piece has one through-line') && lib.SIGNALS_STYLE.includes('introduces the month\'s main stories'));
+  const src = readFileSync(new URL('../api/refresh-stay-conscious-newsletter.js', import.meta.url), 'utf8');
+  assert.ok(src.indexOf('signalsPlanPrompt({ month, stories })') < src.indexOf('signalsPrompt({ month, stories, sources, blocked, plan })') && src.includes('signalsPrompt({ month, stories, sources, blocked, plan, notes:'), 'planned first; the rewrite keeps the plan');
+  assert.ok(readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8').includes('data-field="signals-plan"'), 'the through-line is shown with the checks');
+});
+
+test('v4.14.1: writing a Signals draft again uses the editions from the date it was first written, not today', async () => {
+  const nl = await import('../api/refresh-stay-conscious-newsletter.js');
+  const ed = (n, at) => ({ newsletter: { issueNumber: n }, refreshed_at: at });
+  // Issues 40 to 45; 45 is live now. The first draft was written on October 26, when 44 was live.
+  const live = [ed(45, '2026-11-02T12:00:00Z')];
+  const archive = [ed(44, '2026-10-26T12:00:00Z'), ed(43, '2026-10-19T12:00:00Z'), ed(42, '2026-10-12T12:00:00Z'), ed(41, '2026-10-05T12:00:00Z'), ed(40, '2026-09-28T12:00:00Z')];
+  const asked = [];
+  const get = async (path) => {
+    asked.push(path);
+    if (path.startsWith('stay_conscious_newsletter?')) return live;
+    const lte = (path.match(/refreshed_at=lte\.([^&]+)/) || [])[1];
+    const lim = Number((path.match(/limit=(\d+)/) || [])[1]);
+    return archive.filter(e => !lte || Date.parse(e.refreshed_at) <= Date.parse(decodeURIComponent(lte))).slice(0, lim);
+  };
+  assert.deepEqual((await nl.signalsEditions(get)).map(e => e.newsletter.issueNumber), [45, 44, 43, 42], 'a new draft: the four newest');
+  assert.deepEqual((await nl.signalsEditions(get, '2026-10-26T13:30:00Z')).map(e => e.newsletter.issueNumber), [44, 43, 42, 41], 'a rewrite: the four as they stood when it was first written');
+  assert.ok(asked.at(-1).includes('refreshed_at=lte.2026-10-26T13%3A30%3A00.000Z'));
+  // The same issue twice (a revision) counts once
+  live[0] = ed(44, '2026-10-26T12:00:00Z');
+  assert.deepEqual((await nl.signalsEditions(get, '2026-10-26T13:30:00Z')).map(e => e.newsletter.issueNumber), [44, 43, 42, 41]);
+  // The server and the page pass the date through, and the month follows it
+  const src = readFileSync(new URL('../api/refresh-stay-conscious-newsletter.js', import.meta.url), 'utf8');
+  assert.ok(src.includes("const prev = req.body?.again ? (await readIssueRow(SIGNALS_ID))?.newsletter : null;") && src.includes('const asOf = prev?.signals ? (prev.asOf || prev.createdAt || null) : null;') && src.includes('writeSignalsDraft({ supabaseUrl, sbJson, anthropicKey, asOf })'));
+  assert.ok(src.includes('const month = signalsMonth(anchor);') && src.includes('asOf: anchor.toISOString() };'), 'same month label, and the date is kept for the next rewrite');
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes("call('signals-draft', { again: !!draft })") && app.includes('again from the same'));
 });
