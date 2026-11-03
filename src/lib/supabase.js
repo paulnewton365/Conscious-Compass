@@ -66,6 +66,39 @@ export const signUp = async (email, password, fullName, extra = {}, emailRedirec
   return { data, error };
 };
 
+// ── Email confirmation that survives link scanners (v4.14.3) ──────────────
+// Microsoft 365 and other mail security tools open every link in an email to
+// check it. Supabase's confirmation link works once, so the scanner used it
+// up and the person got "Email link is invalid or has expired". With the
+// Confirm signup template pointed at the app (see README), the link only
+// carries a token; nothing happens until the person presses Confirm here.
+export const confirmTokenFromUrl = () => {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const token_hash = q.get('token_hash');
+    const type = q.get('type') || 'email';
+    return token_hash && ['email', 'signup', 'invite', 'magiclink', 'email_change'].includes(type) ? { token_hash, type } : null;
+  } catch { return null; }
+};
+export const confirmEmail = async ({ token_hash, type }) => {
+  const { data, error } = await supabase.auth.verifyOtp({ token_hash, type });
+  return { data, error };
+};
+// A link Supabase refused comes back with error_code in the address, after
+// # or ?: say what happened instead of showing nothing.
+export const authLinkError = () => {
+  try {
+    const params = new URLSearchParams(`${window.location.search.slice(1)}&${(window.location.hash || '').replace(/^#/, '')}`);
+    const code = params.get('error_code') || (params.get('error') ? params.get('error') : '');
+    return code ? { code, description: (params.get('error_description') || '').replace(/\+/g, ' ') } : null;
+  } catch { return null; }
+};
+export const clearAuthUrl = () => { try { window.history.replaceState(null, '', window.location.pathname); } catch { /* no history */ } };
+export const resendConfirmation = async (email, emailRedirectTo) => {
+  const { error } = await supabase.auth.resend({ type: 'signup', email: String(email || '').trim(), options: emailRedirectTo ? { emailRedirectTo } : {} });
+  return { error };
+};
+
 export const signIn = async (email, password) => {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,

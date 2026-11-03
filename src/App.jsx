@@ -6,9 +6,9 @@ import { getAllRecommendations, getForceIncludeServicesFromAIReputation } from '
 import { Compass, ArrowRight, ArrowLeft, Globe, Users, Bot, Newspaper, BarChart3, FileText, Play, Check, Loader2, ChevronDown, Download, Save, Plus, Trash2, X, Upload, Image, ExternalLink, Share2, Copy, LogOut, Shield, UserCheck, UserX, TrendingUp, TrendingDown, Star, Lightbulb, Sparkles, AlertCircle, Target, Search, Filter, Hash, RefreshCw, Pencil, Ban, MessageSquareWarning, Type, Zap, CreditCard, Presentation } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
-import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl } from './lib/supabase';
+import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.14.2';
+const APP_VERSION = '4.14.3';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -301,6 +301,29 @@ function AuthPage({ onAuthSuccess }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [forgot, setForgot] = useState(false);   // v4.4.0
+  // v4.14.3: a confirmation link to press, or one Supabase refused.
+  const [confirmToken] = useState(() => confirmTokenFromUrl());
+  const [linkError, setLinkError] = useState(() => (confirmTokenFromUrl() ? null : authLinkError()));
+  const [confirmState, setConfirmState] = useState('idle');   // idle | working | done | failed
+  const [resendEmail, setResendEmail] = useState('');
+  const [resendState, setResendState] = useState('idle');     // idle | working | sent | failed
+  useEffect(() => { if (linkError && linkError.code !== 'email_not_confirmed') clearAuthUrl(); }, [linkError]);
+  const pressConfirm = async () => {
+    setConfirmState('working'); setError('');
+    const { data, error: err } = await confirmEmail(confirmToken);
+    clearAuthUrl();
+    if (err || !data?.user) { setConfirmState('failed'); setError(err?.message || 'That link could not be confirmed.'); return; }
+    if (data.user.user_metadata?.newsletter_only) { window.location.assign(NEWSLETTER_PUBLIC_PATH); return; }
+    const { data: profile } = await getProfile(data.user.id);
+    if (profile?.is_approved) { onAuthSuccess(data.user, profile); return; }
+    await signOut();
+    setConfirmState('done');
+  };
+  const resend = async (e) => {
+    e.preventDefault(); setResendState('working');
+    const { error: err } = await resendConfirmation(resendEmail, `${window.location.origin}/`);
+    setResendState(err ? 'failed' : 'sent'); if (err) setError(err.message);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -310,7 +333,10 @@ function AuthPage({ onAuthSuccess }) {
 
     if (isLogin) {
       const { data, error } = await signIn(email, password);
-      if (error) {
+      if (error && /not confirmed/i.test(error.message || '')) {
+        // Never confirmed, often because the link was used up (v4.14.3): offer a new one.
+        setResendEmail(email); setLinkError({ code: 'email_not_confirmed' });
+      } else if (error) {
         setError(error.message);
       } else if (data.user) {
         const { data: profile } = await getProfile(data.user.id);
@@ -322,7 +348,8 @@ function AuthPage({ onAuthSuccess }) {
         }
       }
     } else {
-      const { error } = await signUp(email, password, fullName);
+      // The confirmation link comes back to this site, never Supabase's Site URL (v4.14.3).
+      const { error } = await signUp(email, password, fullName, {}, `${window.location.origin}/`);
       if (error) {
         setError(error.message);
       } else {
@@ -348,7 +375,30 @@ function AuthPage({ onAuthSuccess }) {
           <p className="dc-standfirst">{forgot ? 'We will email you a link' : isLogin ? 'For Conscious Compass users' : 'Request access to the Conscious Compass'}</p>
         </div>
 
-        {forgot ? (
+        {confirmToken && confirmState !== 'failed' ? (
+          <div className="card" data-field="confirm-email">
+            {confirmState === 'done' ? (
+              <p className="text-sm text-[#15171A]">Your email is confirmed. An administrator will approve your Compass access; you will be able to sign in once they have. You can read the <a href={NEWSLETTER_PUBLIC_PATH}>Stay Conscious newsletter</a> in the meantime.</p>
+            ) : (
+              <>
+                <h2 className="text-lg font-semibold text-[#15171A] mb-2">Confirm your email</h2>
+                <p className="text-sm text-[#4A4E55] mb-4">Press the button to finish confirming your account.</p>
+                <button type="button" className="btn-primary w-full" onClick={pressConfirm} disabled={confirmState === 'working'} aria-busy={confirmState === 'working' || undefined}>{confirmState === 'working' ? 'Confirming\u2026' : 'Confirm my email'}</button>
+              </>
+            )}
+          </div>
+        ) : (linkError || (confirmToken && confirmState === 'failed')) && resendState !== 'sent' ? (
+          <form className="card" onSubmit={resend} data-field="link-expired">
+            <h2 className="text-lg font-semibold text-[#15171A] mb-2">{linkError?.code === 'email_not_confirmed' ? 'Confirm your email first' : 'That link has expired or was already used'}</h2>
+            <p className="text-sm text-[#4A4E55] mb-4">{linkError?.code === 'email_not_confirmed' ? 'This account has not been confirmed yet. If the link in your email did not work, send a new one. ' : ''}Confirmation links work once. Some email security tools open links to check them before you do, which can use the link up. Enter your email and we will send a new one.</p>
+            <input type="email" required value={resendEmail} onChange={(e) => setResendEmail(e.target.value)} placeholder="you@antennagroup.com" className="w-full px-3.5 py-3 border border-[#DEDAD2] bg-[#FBFAF7] mb-3" aria-label="Email" />
+            <button type="submit" className="btn-primary w-full" disabled={resendState === 'working'}>{resendState === 'working' ? 'Sending\u2026' : 'Send a new link'}</button>
+            {error && <p className="text-sm text-[#B42318] mt-3">{error}</p>}
+            <p className="text-sm text-[#4A4E55] mt-4">Already confirmed? <a href="/" onClick={(e) => { e.preventDefault(); window.location.assign('/'); }}>Sign in</a>.</p>
+          </form>
+        ) : resendState === 'sent' ? (
+          <div className="card" data-field="link-resent"><p className="text-sm text-[#15171A]">A new confirmation link is on its way to {resendEmail}. Open it within the hour.</p></div>
+        ) : forgot ? (
           <div className="card"><ForgotPasswordForm landingPath="/" initialEmail={email} onBack={() => { setForgot(false); setError(''); setMessage(''); }} /></div>
         ) : (
         <form onSubmit={handleSubmit} className="card">

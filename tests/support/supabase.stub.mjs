@@ -5,7 +5,7 @@ export const state = { teasers: [], saveResult: null };
 const ok = (data) => ({ data, error: null });
 export const supabase = { auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }), getSession: async () => ({ data: { session: null } }) } };
 const noop = async () => ok(null);
-export const signUp = noop, signIn = noop, signOut = noop, getCurrentUser = noop, getProfile = noop,
+export const signUp = noop, signOut = noop, getCurrentUser = noop, getProfile = noop,
   deleteCompassResult = noop,
   fetchSavedAssessments = async () => ok([]), deleteAssessment = noop,
   fetchAllProfiles = async () => ok([]), updateProfile = noop, approveUser = noop, revokeUser = noop,
@@ -73,3 +73,10 @@ export const resetLandingUrl = (path) => `https://app.test${path}?reset=1`;
 export const sendPasswordReset = async (email, redirectTo) => { calls.push(['sendPasswordReset', email, redirectTo]); return { error: null }; };
 export const setNewPassword = async (pw) => { calls.push(['setNewPassword', pw]); return { data: {}, error: null }; };
 export const clearRecoveryUrl = () => { calls.push(['clearRecoveryUrl']); };
+// Email confirmation that survives link scanners (v4.14.3)
+export const confirmTokenFromUrl = () => { try { const q = new URLSearchParams(window.location.search); return q.get('token_hash') ? { token_hash: q.get('token_hash'), type: q.get('type') || 'email' } : null; } catch { return null; } };
+export const confirmEmail = async (t) => { calls.push(['confirmEmail', t]); return state.confirmResult || { data: { user: { id: 'u1', user_metadata: {} } }, error: null }; };
+export const authLinkError = () => { try { const p = new URLSearchParams(`${window.location.search.slice(1)}&${(window.location.hash || '').replace(/^#/, '')}`); return p.get('error_code') ? { code: p.get('error_code'), description: p.get('error_description') || '' } : null; } catch { return null; } };
+export const clearAuthUrl = () => { calls.push(['clearAuthUrl']); };
+export const resendConfirmation = async (email, to) => { calls.push(['resendConfirmation', email, to]); return { error: null }; };
+export const signIn = async (email, password) => { calls.push(['signIn', email]); return state.signInResult || ok(null); };

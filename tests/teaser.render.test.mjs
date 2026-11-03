@@ -1227,3 +1227,72 @@ test('Admin is a nav link for admins only, and Sign out lives in the account men
   assert.ok(!/class="btn-secondary[^"]*"[^>]*>Sign out/.test(asAdmin), 'not a standalone button');
   assert.ok(!asAdmin.includes('Draft saved'), 'the draft line moved to the step bar');
 });
+
+// ── Sign-up confirmation (v4.14.3): links come back to this site, survive link
+// scanners (the link only carries a token; the person presses Confirm), and an
+// expired or used link says so and offers a new one. ──
+async function mountAt(url, props = {}) {
+  dom.reconfigure({ url });   // reset to https://compass.test/ after each test
+  const container = document.createElement('div'); document.body.appendChild(container);
+  const root = client.createRoot(container);
+  await act(async () => { root.render(h(App.AuthPage, { onAuthSuccess: () => {}, ...props })); });
+  return { container, root };
+}
+
+test('a scanner-safe link shows a Confirm button; nothing is confirmed until it is pressed', async () => {
+  stub.calls.length = 0;
+  const { container, root } = await mountAt('https://conscious-compass.vercel.app/?token_hash=abc123&type=email');
+  const box = container.querySelector('[data-field="confirm-email"]');
+  assert.ok(box && box.textContent.includes('Confirm your email'));
+  assert.ok(!stub.calls.some(c => c[0] === 'confirmEmail'), 'opening the link, as a scanner does, confirms nothing');
+  await click([...box.querySelectorAll('button')].find(b => b.textContent.includes('Confirm my email')));
+  assert.deepEqual(stub.calls.find(c => c[0] === 'confirmEmail')[1], { token_hash: 'abc123', type: 'email' });
+  assert.ok(stub.calls.some(c => c[0] === 'clearAuthUrl'), 'the token leaves the address bar');
+  assert.ok(container.textContent.includes('Your email is confirmed. An administrator will approve your Compass access'), 'not yet approved: says what happens next');
+  act(() => root.unmount());
+  dom.reconfigure({ url: 'https://compass.test/' });
+});
+
+test('an expired or used link says so and sends a new one to this site', async () => {
+  stub.calls.length = 0;
+  const { container, root } = await mountAt('https://conscious-compass.vercel.app/#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired');
+  const form = container.querySelector('[data-field="link-expired"]');
+  assert.ok(form && form.textContent.includes('That link has expired or was already used') && form.textContent.includes('email security tools open links'));
+  await typeInto(form.querySelector('input[type="email"]'), 'andrew@antennagroup.com');
+  await act(async () => { form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); });
+  assert.deepEqual(stub.calls.find(c => c[0] === 'resendConfirmation').slice(1), ['andrew@antennagroup.com', 'https://conscious-compass.vercel.app/']);
+  assert.ok(container.querySelector('[data-field="link-resent"]').textContent.includes('A new confirmation link is on its way to andrew@antennagroup.com'));
+  act(() => root.unmount());
+  dom.reconfigure({ url: 'https://compass.test/' });
+});
+
+test('signing in before confirming offers a new link, with the email filled in', async () => {
+  stub.calls.length = 0;
+  stub.state.signInResult = { data: { user: null }, error: { message: 'Email not confirmed' } };
+  const { container, root } = await mountAt('https://conscious-compass.vercel.app/');
+  const inputs = container.querySelectorAll('input');
+  await typeInto([...inputs].find(i => i.type === 'email'), 'andrew@antennagroup.com');
+  await typeInto([...inputs].find(i => i.type === 'password'), 'secret-pass');
+  await act(async () => { container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); });
+  const form = container.querySelector('[data-field="link-expired"]');
+  assert.ok(form && form.textContent.includes('Confirm your email first'));
+  assert.equal(form.querySelector('input[type="email"]').value, 'andrew@antennagroup.com');
+  delete stub.state.signInResult;
+  act(() => root.unmount());
+  dom.reconfigure({ url: 'https://compass.test/' });
+});
+
+test('a plain visit shows the normal sign-in', async () => {
+  const { container, root } = await mountAt('https://conscious-compass.vercel.app/');
+  assert.ok(!container.querySelector('[data-field="confirm-email"]') && !container.querySelector('[data-field="link-expired"]'));
+  assert.ok(container.textContent.includes('Sign in'));
+  act(() => root.unmount());
+  dom.reconfigure({ url: 'https://compass.test/' });
+});
+
+test('Compass sign-up sends the confirmation link back to this site, not Supabase\'s Site URL', () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.ok(app.includes('await signUp(email, password, fullName, {}, `${window.location.origin}/`);'));
+  const lib = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8');
+  assert.ok(lib.includes('supabase.auth.verifyOtp({ token_hash, type })') && lib.includes("supabase.auth.resend({ type: 'signup'"));
+});
