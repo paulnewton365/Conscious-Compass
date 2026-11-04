@@ -3,7 +3,7 @@
 // 2.10: sustainability narrative thesis signals added to six attributes.
 // Minor bump: benchmarks compare on the major version, so 2.x assessments
 // remain comparable.
-export const FRAMEWORK_VERSION = '2.13';   // 2.13: sector lens (real estate, health, energy) in full scoring; 2.12: scores are the median of three scoring passes (src/lib/consensus.js); 2.11: earned creative lift
+export const FRAMEWORK_VERSION = '2.15';   // 2.15: evidence routed to the attributes whose rubric signals it measures; consistency and brand architecture each scored once; promise-kept signals in Visionary, Reflective, Aware and Intentional; earned creative lift to Sentient and Awake; Reputation lens rebalanced (weights versioned); 2.14: search evidence (AI Overview citations, brand search page, autocomplete, Google News, niche ranking) measured from Google and read by scoring (src/lib/searchEvidence.js); 2.13: sector lens (real estate, health, energy) in full scoring; 2.12: scores are the median of three scoring passes (src/lib/consensus.js); 2.11: earned creative lift
 
 export const MATURITY_STAGES = [
   { id: 'pre-foundational', name: 'Pre-Foundational', min: 0, max: 25, color: '#94A3B8', description: 'Requires fundamental development across most attributes. Significant gaps exist in basic brand presence and identity. The brand is largely invisible or incoherent to its audiences.' },
@@ -26,7 +26,7 @@ export const ATTRIBUTES = [
     name: 'Awake',
     fullName: 'Narrative Leadership & Industry Influence',
     question: 'How well do you shape narratives and lead industry discourse?',
-    description: 'Awake brands do not merely participate in industry conversations; they define them. They introduce frameworks, coin terms, and set agendas that others follow. Evidence includes: leadership visible in industry conversations, proactive thought leadership, media seeking them out as a source, Wikipedia presence with external citations, and consistent narrative across earned, owned, and shared media.',
+    description: 'Awake brands do not merely participate in industry conversations; they define them. They introduce frameworks, coin terms, and set agendas that others follow. Evidence includes: leadership visible in industry conversations, proactive thought leadership, media seeking them out as a source, and consistent narrative across earned, owned, and shared media.',
     color: '#E11D48',
     signals: {
       strong: ['Original research/thought leadership cited by third parties', 'Media requests for expert commentary on breaking news', 'Keynote speaking at flagship industry events', 'Competitors referencing or responding to their positions', 'Industry awards for thought leadership',
@@ -47,10 +47,12 @@ export const ATTRIBUTES = [
     color: '#F97316',
     signals: {
       strong: ['Active community with visible two-way dialogue', 'Customer advisory boards or feedback panels', 'Content addressing specific persona pain points by name', 'Testimonials citing trust, reliability, or understanding', 'Responsive social engagement within hours', 'Evidence of listening informing product or content',
+        'Customers cite reliability: the brand does what it says',
         'Sustainability expressed as a benefit customers can see themselves in',
       ],
       moderate: ['Segmented content for different audiences', 'Customer success stories with quotes', 'Social listening evidence', 'Newsletter with personalization', 'FAQ addressing real customer questions'],
       weak: ['Generic messaging for all audiences', 'One-way broadcast communication only', 'No visible feedback mechanisms', 'Testimonials without specifics', 'Slow or no social response',
+        'Recurring complaints about broken promises or unmet expectations',
         'Sustainability addressed only to investors and regulators, never to customers',
       ],
     },
@@ -60,15 +62,17 @@ export const ATTRIBUTES = [
     name: 'Reflective',
     fullName: 'Brand Authenticity & Self-Awareness',
     question: 'Do you have an authentic brand?',
-    description: 'Reflective brands exhibit alignment between what they claim and what they demonstrate. Their external brand expression reflects genuine internal culture, mission, and values. Evidence includes: consistent brand expression across every touchpoint, clear brand strategy (mission, vision, purpose, promise, values, personality), tone of voice consistent regardless of channel, clear brand architecture (single brand, house of brands, endorsed, or sub-brand structure), and Glassdoor reviews that align with external brand promises.',
+    description: 'Reflective brands exhibit alignment between what they claim and what they demonstrate. Their external brand expression reflects genuine internal culture, mission, and values. Evidence includes: messaging and values expressed consistently across every touchpoint, clear brand strategy (mission, vision, purpose, promise, values, personality), tone of voice consistent regardless of channel, delivery that matches what the brand claims, and Glassdoor reviews that align with external brand promises. Visual identity and brand architecture are scored in Intentional, not here.',
     color: '#FBBF24',
     signals: {
-      strong: ['Employee advocacy programs with authentic participation', 'Leadership publicly visible and aligned with brand values', 'Third-party validation of cultural claims', 'Consistent tone and visual identity across all channels', 'Transparent acknowledgment of challenges or evolution', 'Clear brand architecture with logical hierarchy between brands, sub-brands, and products',
+      strong: ['Employee advocacy programs with authentic participation', 'Leadership publicly visible and aligned with brand values', 'Third-party validation of cultural claims', 'Consistent tone, messaging and values across all channels', 'Transparent acknowledgment of challenges or evolution',
+        'Reviews, case studies and coverage confirm the brand delivers what it claims',
         'Candour about missed targets, the hardest areas and open questions alongside the vision',
         'Sustainability claims consistent between ESG reporting and marketing',
       ],
-      moderate: ['Brand guidelines being followed consistently', 'Some employee social presence', 'Culture referenced in marketing with some evidence', 'Visual consistency across main channels', 'Brand architecture present but not consistently applied'],
-      weak: ['Disconnect between marketing claims and Glassdoor reviews', 'Inconsistent visual identity across channels', 'Leadership invisible or misaligned with brand positioning', 'No evidence of genuine internal culture', 'Confusing brand/product hierarchy with unclear relationships between entities',
+      moderate: ['Brand voice and messaging followed consistently', 'Some employee social presence', 'Culture referenced in marketing with some evidence', 'Messaging consistent across main channels'],
+      weak: ['Disconnect between marketing claims and Glassdoor reviews', 'Messaging or stated values that shift from channel to channel', 'Leadership invisible or misaligned with brand positioning', 'No evidence of genuine internal culture',
+        'Customers, employees or coverage report the brand not delivering what it claims',
         'Only successes shown, with no acknowledgment of trade-offs or gaps',
         'Marketing sustainability claims that outrun reported data',
       ],
@@ -128,11 +132,13 @@ export const ATTRIBUTES = [
       strong: ['Purpose statement that drives visible decisions', 'Impact measured and reported transparently', 'Positions taken on relevant issues', 'Stakeholder benefit articulated broadly', 'Vision referenced consistently across channels', 'Evidence of purpose informing strategy',
         'Sustainability woven into brand, product and homepage, not housed only in an ESG report, microsite or awareness-day posts',
         'Sustainability framed as progress and advantage, not sacrifice or obligation',
+        'Stated commitments and targets visibly met or on track',
       ],
       moderate: ['Purpose mentioned but not central', 'Some social responsibility evidence', 'Vision present but vague', 'Occasional forward-thinking content', 'Mission statement exists but feels generic'],
       weak: ['No discernible purpose beyond profit', 'No vision for the future articulated', 'Purely transactional positioning', 'No evidence of broader benefit consideration', 'Mission absent or clearly lip service',
         'Sustainability confined to a standalone ESG report, vanity URL or calendar-driven posts',
         'Sustainability framed as compliance, sacrifice or obligation',
+        'Vision and targets announced with no evidence of progress, or quietly dropped',
       ],
     },
   },
@@ -141,15 +147,17 @@ export const ATTRIBUTES = [
     name: 'Intentional',
     fullName: 'Credibility & Professional Presence',
     question: 'Do you have the substance and presence to be taken seriously?',
-    description: 'Intentional brands project credibility through substantive positioning and professional execution. They signal competence, reliability, and market seriousness through visible evidence of capability. Evidence includes: trademark protection (WIPO registration), consistent brand assets, professional presentation in every context, credentials and certifications prominently displayed, clear brand architecture strategy, and client logos that signal trust.',
+    description: 'Intentional brands project credibility through substantive positioning and professional execution. They signal competence, reliability, and market seriousness through visible evidence of capability. Evidence includes: trademark protection (WIPO registration), consistent brand assets and visual identity, professional presentation in every context, credentials and certifications prominently displayed, clear brand architecture strategy, a substantive Wikipedia page with external citations, a track record of delivery confirmed by third parties, and client logos that signal trust.',
     color: '#64748B',
     signals: {
-      strong: ['Registered trademarks protecting brand assets', 'Executive visibility and industry recognition', 'Awards and certifications prominently displayed', 'Client logos and case studies with names', 'Consistent professional presentation everywhere', 'Third-party credibility signals abundant', 'Clear brand architecture (single brand, house of brands, endorsed, or sub-brand) consistently applied',
+      strong: ['Registered trademarks protecting brand assets', 'Executive visibility and industry recognition', 'Awards and certifications prominently displayed', 'Client logos and case studies with names', 'Consistent visual identity and professional presentation everywhere', 'Third-party credibility signals abundant', 'Clear brand architecture (single brand, house of brands, endorsed, or sub-brand) consistently applied',
         'Sustainability targets, certifications and reported data visible where customers and partners look',
+        'Track record of delivery confirmed by third parties: launches shipped, client results, commitments honoured',
       ],
       moderate: ['Some credentials visible', 'Generally professional presentation', 'Basic brand consistency', 'Some client references', 'Occasional credibility signals', 'Brand architecture exists but applied inconsistently'],
       weak: ['No trademark protection', 'Amateur or inconsistent presentation', 'No visible credentials or recognition', 'No client evidence', 'Credibility gaps undermine positioning', 'Confusing brand hierarchy undermining professional credibility',
         'Sustainability claims without targets, data or third-party verification',
+        'Credentials or claims that third-party evidence contradicts',
       ],
     },
   },
@@ -481,9 +489,38 @@ export const TRUST_LENSES = [
   // Awake still leads. Cogent, Sentient and Reflective contribute lightly:
   // keeping a promise well is judged partly on evidence, on how the work
   // lands, and on whether the brand is honest about itself.
+  // 2.15: "promise kept" draws on the attributes that hold the evidence of
+  // delivery: Reflective (claims match conduct), Visionary (the promise and
+  // progress against it), then standing, track record and trust. Attentive
+  // measures quality and carries little of it. Reports scored before 2.15
+  // keep LEGACY_REPUTATION_WEIGHTS until rescored (lensWeightsFor).
   { id: 'reputation', name: 'Reputation', def: 'Whether the promise is kept',
-    weights: { AWAKE: 35, INTENTIONAL: 20, ATTENTIVE: 15, AWARE: 15, COGENT: 5, SENTIENT: 5, REFLECTIVE: 5 } },
+    weights: { REFLECTIVE: 30, VISIONARY: 25, AWAKE: 15, INTENTIONAL: 15, AWARE: 10, ATTENTIVE: 5 } },
 ];
+
+export const LEGACY_REPUTATION_WEIGHTS = { AWAKE: 35, INTENTIONAL: 20, ATTENTIVE: 15, AWARE: 15, COGENT: 5, SENTIENT: 5, REFLECTIVE: 5 };
+
+// Version order without reading "2.10" as 2.1: compare each part as a number.
+export function versionAtLeast(v, min) {
+  const a = String(v || '').split('.').map(n => Number.parseInt(n, 10));
+  const b = String(min).split('.').map(n => Number.parseInt(n, 10));
+  if (!a.length || a.some(n => !Number.isFinite(n))) return false;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] || 0, y = b[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return true;
+}
+
+// The framework a set of scores was produced under. Full reports carry it
+// from 2.15; earlier ones are read from what the scoring pass stamped.
+export const scoresFrameworkVersion = (scores) =>
+  scores?.frameworkVersion || scores?.earnedCreative?.frameworkVersion || scores?.campaignCoherence?.frameworkVersion || null;
+
+// The Reputation weights a set of scores is read with. Unknown or earlier
+// than 2.15 keeps the old weights, so no saved report moves until rescored.
+export const lensWeightsFor = (lens, frameworkVersion) =>
+  (lens.id === 'reputation' && !versionAtLeast(frameworkVersion, '2.15') ? LEGACY_REPUTATION_WEIGHTS : lens.weights);
 
 export const TRUST_FOUNDATION = {
   id: 'authenticity', name: 'Authenticity', def: 'Internal culture, externally expressed',
@@ -502,9 +539,11 @@ const lensScore = (weights, scores) => {
   return used ? Math.round(total / used) : 0;
 };
 
-export function computeTrustLenses(scores, findings = []) {
+export function computeTrustLenses(scores, findings = [], { frameworkVersion = null } = {}) {
   if (!scores) return null;
-  const build = (lens) => {
+  const version = frameworkVersion || scoresFrameworkVersion(scores);
+  const build = (base) => {
+    const lens = { ...base, weights: lensWeightsFor(base, version) };
     const score = lensScore(lens.weights, scores);
     const entries = Object.entries(lens.weights).sort((a, b) => b[1] - a[1]);
     const [leadAttr, leadPct] = entries[0];
@@ -532,8 +571,9 @@ export function computeTrustLenses(scores, findings = []) {
   const foundation = build(TRUST_FOUNDATION);
 
   // How many lenses each attribute carries. Some carry every lens, some none,
-  // which is worth showing: it explains why the lenses move together.
-  const all = [...TRUST_LENSES, TRUST_FOUNDATION];
+  // which is worth showing: it explains why the lenses move together. Read
+  // with the same versioned weights as the rows above.
+  const all = [...rows, foundation];
   const reach = ATTRIBUTES.map(a => ({
     id: a.id,
     name: a.name,

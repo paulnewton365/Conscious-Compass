@@ -18,15 +18,23 @@
 // before that, and the Teaser read, get a version built from the scores alone:
 // the attributes earned creative can move, lowest first, with fixed copy.
 //
-// Separate from this section, and unchanged: the +3 lift to SENTIENT and
-// INTENTIONAL when the scoring pass finds earned creative already in use
-// (framework 2.11), applied in code.
+// Separate from this section: the +3 lift when the scoring pass finds earned
+// creative already in use (framework 2.11), applied in code. SENTIENT and
+// AWAKE from framework 2.15; SENTIENT and INTENTIONAL before.
 // ─────────────────────────────────────────────────────────────
 
 export const ECO_VERSION = '2.0';
 
-// The score lift for earned creative in use (framework 2.11).
-export const USAGE_LIFT = { attributes: ['SENTIENT', 'INTENTIONAL'], points: 3, cap: 100 };
+import { versionAtLeast } from '../data/rubric.js';
+
+// The score lift for earned creative in use (framework 2.11). From 2.15 it
+// lifts SENTIENT and AWAKE: earned creative in use is evidence of creative
+// distinction and of shaping the conversation. Before 2.15 it lifted SENTIENT
+// and INTENTIONAL, and scores produced then keep that until rescored.
+export const USAGE_LIFT = { attributes: ['SENTIENT', 'AWAKE'], points: 3, cap: 100 };
+export const LEGACY_LIFT_ATTRIBUTES = ['SENTIENT', 'INTENTIONAL'];
+export const liftAttributesFor = (frameworkVersion) =>
+  (frameworkVersion && !versionAtLeast(frameworkVersion, '2.15') ? LEGACY_LIFT_ATTRIBUTES : USAGE_LIFT.attributes);
 
 // The attributes earned creative can move, in tie order, with what it does
 // for each and an idea starter for when there is no evidence to build on.
@@ -162,7 +170,8 @@ export function applyEarnedCreativeLift(scores, frameworkVersion = null) {
   const confirmed = activations.filter(a => !a.removed).length;
   const lift = confirmed > 0 ? USAGE_LIFT.points : 0;
   const out = { ...scores };
-  USAGE_LIFT.attributes.forEach(id => {
+  const version = frameworkVersion || scores.earnedCreative?.frameworkVersion || null;
+  liftAttributesFor(version).forEach(id => {
     const e = out[id];
     if (!e || (typeof e.score !== 'number' && typeof e.baseScore !== 'number')) return;
     const base = typeof e.baseScore === 'number' ? e.baseScore : e.score;

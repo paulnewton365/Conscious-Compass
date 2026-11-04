@@ -31,6 +31,7 @@ import { thesisPromptBlock, THESIS_SCHEMA, parseThesis } from '../data/thesis.js
 import { stagePromptBlock, findStage, STAGE_IDS } from '../data/stages.js';
 import { sectorPromptBlock } from '../data/sectorProfiles.js';
 import { clientAudienceQuestions } from './audienceQuestions.js';
+import { searchPromptBlock } from './searchEvidence.js';
 
 // 2.0 (v3.32): scoring calibrated to what a teaser can observe, and no
 // campaign modifier. Results carry the version so teasers scored with 1.0
@@ -45,7 +46,11 @@ import { clientAudienceQuestions } from './audienceQuestions.js';
 // opportunity and the marketing services that would lift the score, led by
 // the framework's own catalogue, with room for one service beyond it where
 // the evidence argues for something the catalogue does not cover.
-export const TEASER_VERSION = '2.5';
+// 2.6 (v4.16.0): brand search page and autocomplete, measured from Google,
+// feed the trust read.
+// 2.7 (v4.17.0, framework 2.15): evidence routed to the right attributes,
+// promise-kept signals, and the rebalanced Reputation lens.
+export const TEASER_VERSION = '2.7';
 export const isCurrentMethod = (result) => !!result && result.teaserVersion === TEASER_VERSION;
 
 // Sources in the order they are shown while a teaser runs. `required` sources
@@ -272,9 +277,15 @@ export async function gatherKnowledgeGraph(input, fetchImpl) {
 // the website pages, never counts toward the sources needed to score, and its
 // record is stored with the evidence so a rescore reuses it. It is never read
 // by the scoring prompt.
-export async function gatherEvidence(input, { fetchImpl, callSearch, runAudience = null, onProgress = () => {} }) {
+// runSearch(audienceRecord) → Promise<record> is optional too (v4.16.0): the
+// brand search page and autocomplete, in the markets the audience run named.
+// It never counts toward the sources needed to score; the scoring prompt
+// reads it when it succeeded.
+export async function gatherEvidence(input, { fetchImpl, callSearch, runAudience = null, runSearch = null, onProgress = () => {} }) {
   const website = gatherWebsite(input, fetchImpl);
   website.catch(() => {});
+  const audience = runAudience ? website.then(w => siteTextOf(w), () => '').then(text => runAudience(text)) : null;
+  if (audience) audience.catch(() => {});
   const tasks = {
     website:      () => website,
     social:       () => callSearch(buildSocialPrompt(input), { searchUses: 6, maxTokens: 3000 }).then(text => ({ text })),
@@ -283,7 +294,8 @@ export async function gatherEvidence(input, { fetchImpl, callSearch, runAudience
     earned:       () => callSearch(buildEarnedPrompt(input), { searchUses: 8, maxTokens: 4000 }).then(text => ({ text })),
     ...(isCso(input) ? { sustainability: () => callSearch(buildSustainabilityPrompt(input), { searchUses: 7, maxTokens: 3500 }).then(text => ({ text })) } : {}),
     knowledgeGraph: () => gatherKnowledgeGraph(input, fetchImpl),
-    ...(runAudience ? { audienceQuestions: () => website.then(w => siteTextOf(w), () => '').then(text => runAudience(text)) } : {}),
+    ...(audience ? { audienceQuestions: () => audience } : {}),
+    ...(runSearch ? { searchSignals: () => (audience ? audience.catch(() => null) : Promise.resolve(null)).then(a => runSearch(a)) } : {}),
   };
 
   const sources = {};
@@ -293,7 +305,7 @@ export async function gatherEvidence(input, { fetchImpl, callSearch, runAudience
     try {
       const out = await run();
       // The audience record reports its own status and is kept whole.
-      if (id === 'audienceQuestions') {
+      if (id === 'audienceQuestions' || id === 'searchSignals') {
         sources[id] = { ...out, ms: Date.now() - started };
         onProgress(id, out.status === 'ok' ? 'ok' : 'failed');
         return;
@@ -358,7 +370,7 @@ export function buildTeaserScoringPrompt(input, evidence) {
   return `You are producing an INDICATIVE teaser read of ${input.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}. ${brandLine(input)}
 
 CALIBRATED TO THIS PASS. Read this first, it governs every score:
-- What this pass can see: the brand's own website pages; a web-searched scan of social accounts, Glassdoor, campaigns and third-party chatter; one AI engine's read with web search; recent news, review platforms, Wikipedia, community discussion and first-page search; and a web-searched earned media scan.
+- What this pass can see: the brand's own website pages; when listed below, Google's page one and autocomplete for the brand name, measured in code; a web-searched scan of social accounts, Glassdoor, campaigns and third-party chatter; one AI engine's read with web search; recent news, review platforms, Wikipedia, community discussion and first-page search; and a web-searched earned media scan.
 - What it cannot see: the other AI engines, verified channel analytics, paid media libraries in depth, technical and SEO audits, screenshots, expert review, and any coverage a handful of searches does not surface.
 - Before scoring an attribute, decide which of its strong and moderate signals this pass could reach. Answer the attribute's fundamental question against those signals only.
 - A signal this pass could not reach counts neither for nor against. Never read its absence as weakness.
@@ -391,6 +403,9 @@ ${s.knowledgeGraph?.status === 'ok' ? `KNOWLEDGE GRAPH (verified API data):\n${s
 ${sourceBlock('REVIEWS, SEARCH AND COMMUNITY', s.thirdParty, 'third-party signals')}
 
 ${sourceBlock('EARNED MEDIA', s.earned, 'web-searched scan')}
+${s.searchSignals?.status === 'ok' ? `
+${searchPromptBlock(s.searchSignals, { label: 'SEARCH EVIDENCE: BRAND SEARCH PAGE AND AUTOCOMPLETE' })}
+` : ''}
 ${isCso(input) ? `\n${sourceBlock('SUSTAINABILITY NARRATIVE', s.sustainability, 'web-searched scan of sustainability claims, progress and candour')}\n` : ''}
 
 ${stagePromptBlock(input.stage)}
@@ -414,7 +429,7 @@ SCORE RANGE ANCHORS:
 - 85-100 Transforming: category-defining.
 
 SCORING NOTES:
-- Glassdoor and reputation flags weigh on REFLECTIVE and INTENTIONAL. Wikipedia absence or thinness is a gap in COGENT and INTENTIONAL.
+- Glassdoor weighs on REFLECTIVE. Reputation flags (controversy, litigation, regulatory action) weigh on REFLECTIVE and AWARE, and on INTENTIONAL only where a flag undermines a credential. Wikipedia absence or thinness is a gap in INTENTIONAL.
 - Business model ${String(input.businessModel).toUpperCase()}: ${input.businessModel === 'b2b' ? 'LinkedIn weighs most. Trade press over mainstream. Low TikTok weight.' : input.businessModel === 'b2c' ? 'Consumer social and reviews are critical. Mainstream media over trade press.' : 'Weight LinkedIn for the business audience and consumer channels for the end user. Both trade and mainstream press matter.'}
 - Weight the last three months more heavily.
 
@@ -567,7 +582,7 @@ export function finaliseTeaser(parsed, { audience = 'general', companyStage = nu
   const scores = parsed;
   const overall = Math.round(ATTRIBUTES.reduce((t, a) => t + scores[a.id].score, 0) / ATTRIBUTES.length);
   const stage = getMaturityStage(overall);
-  const lenses = computeTrustLenses(scores, scores.trustFindings || []);
+  const lenses = computeTrustLenses(scores, scores.trustFindings || [], { frameworkVersion: FRAMEWORK_VERSION });
   const lowCount = ATTRIBUTES.filter(a => scores[a.id].confidence === 'low').length;
 
   // For each lens: how much of its standing rests on observed problems, and

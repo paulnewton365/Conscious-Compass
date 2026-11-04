@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.15.4';
+const APP_VERSION = '4.17.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -105,7 +105,8 @@ import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib
 import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, gatherWebsite, siteTextOf, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
-import { runAudienceQuestions, audienceView, clientAudienceQuestions, buildIdeasWorkbook, AQ_COPY, searchBudget, aqSource } from './lib/audienceQuestions';
+import { runAudienceQuestions, harvestAudience, ideasFromHarvest, audienceView, clientAudienceQuestions, buildIdeasWorkbook, AQ_COPY, searchBudget, aqSource } from './lib/audienceQuestions';
+import { gatherSearchEvidence, searchPromptBlock, searchFactLines, marketName } from './lib/searchEvidence';
 import { 
   supabase, 
   signUp, 
@@ -1617,6 +1618,35 @@ const AQ_STATUS_TEXT = {
   thin: AQ_COPY.none,
   failed: 'The last run failed. Run it again.',
 };
+
+// Search evidence, internal readout (v4.16.0). Shared by the full report;
+// the teaser panel shows the same lines. Never part of a client payload.
+function SearchEvidenceReadout({ search, running = false, onRefresh = null }) {
+  const ev = search?.evidence || null;
+  const lines = searchFactLines(ev);
+  const date = ev?.gatheredAt ? new Date(ev.gatheredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  return (
+    <div className="dc-search-readout" data-field="search-evidence">
+      {!ev ? <p className="dc-note">Not gathered yet. It is gathered before the first scoring run, or with Refresh search evidence.</p>
+        : ev.status !== 'ok' ? <p className="dc-note is-warn">{ev.status === 'notConfigured' ? AQ_COPY.notConfigured : `Search evidence failed: ${ev.error || 'unknown error'}`}</p>
+        : (
+          <>
+            <ul className="dc-search-lines">{lines.map(l => <li key={l.fact} data-signal={l.signal}>{l.fact}</li>)}</ul>
+            <p className="dc-meta">Source: Google search through SerpApi, {ev.markets.map(marketName).join(', ')}{date ? ` · ${date}` : ''} · {(ev.searches || 0) + (search.audience?.searches || 0)} searches{ev.failures?.length ? ` · ${ev.failures.length} failed` : ''}{ev.labelStatus !== 'ok' ? ' · labelling failed, counts use domains only' : ''}</p>
+          </>
+        )}
+      {onRefresh && (
+        <div className="dc-inline">
+          <button type="button" className="btn-secondary is-sm" onClick={onRefresh} disabled={running} data-field="search-refresh"
+            title="Gathers every signal again (up to 24 SerpApi searches) and rewrites the audience ideas. Rescore to use it in the scores.">
+            {running ? 'Gathering...' : 'Refresh search evidence'}
+          </button>
+          {ev?.status === 'ok' && <span className="dc-meta">Rescore to use refreshed evidence in the scores.</span>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // The internal half: the searches behind the ideas and what went unused.
 function AudienceQuestionsInternal({ view }) {
@@ -3601,7 +3631,7 @@ COGENT (Strategic Intelligence): Is there evidence of data-driven thinking? SEO 
 
 SENTIENT (Emotional Connection): Does the site create emotional resonance? Is the creative distinctive? Does it inspire action beyond rational consideration?
 
-VISIONARY (Meaningful Purpose): Is there a clear purpose beyond profit? Does the brand point toward something meaningful? Are stakeholder benefits articulated?
+VISIONARY (Meaningful Purpose): Is there a clear purpose beyond profit? Does the brand point toward something meaningful? Are stakeholder benefits articulated? Does the site show progress against the commitments and targets it has set, or only the promises?
 
 INTENTIONAL (Substance & Confidence): Does the site project confidence through decisive positioning? Is leadership visible? Are claims substantiated? Is professionalism consistent?
 
@@ -3780,8 +3810,9 @@ ${propTable}
 ${risk ? `Cross-property consistency risk: ${risk}` : ''}${analysis}
 
 SCORING INSTRUCTION — apply these findings to attribute scores:
-- REFLECTIVE: Significant cross-property inconsistency (different visual identity, tone, or messaging across properties) is direct evidence of brand inauthenticity. Penalise this attribute proportionally to the severity of deviation. Translated sites with poor brand voice preservation should also reduce this score.
+- REFLECTIVE: Significant cross-property inconsistency of tone, messaging or stated values is direct evidence of brand inauthenticity. Penalise this attribute proportionally to the severity of deviation. Translated sites with poor brand voice preservation should also reduce this score.
 - ATTENTIVE: Performance score variance across properties signals inconsistent experience delivery. A brand that maintains a polished primary site but neglects regional or translated properties is failing its full audience. Factor the weakest property performance into ATTENTIVE, not just the primary.
+- INTENTIONAL: A different visual identity across properties undermines professional presence. Score visual inconsistency here, not in REFLECTIVE.
 - COGENT: A fragmented digital estate with inconsistent tech stacks or missing SEO localisation (hreflang, local schema) on translated properties indicates weak operational intelligence.
 - AWARE: For translated/regional properties — does the brand demonstrate genuine understanding of those audiences, or is it simply translating primary content without adaptation?
 `;
@@ -4555,7 +4586,7 @@ Based on the content provided above, deliver a comprehensive social media and re
 
 4. YouTube Presence: ${inputs.hasYouTube ? 'Assess channel content strategy, subscriber tier, video count, third-party coverage, and recommendations for improvement. If API data is provided, use the verified metrics.' : 'The brand does not have YouTube - provide recommendation on whether they should based on their industry and audience'}
 
-5. Reddit Answers (AI Search): Analyze how Reddit's AI summarizes the brand. This indicates how AI search engines perceive brand reputation, credibility, and trust. This is a critical signal for COGENT scoring.
+5. Reddit Answers (AI Search): Analyze how Reddit's AI summarizes the brand. This indicates how the community perceives the brand's reputation, credibility, and trust. It is a signal for AWARE (trust) and REFLECTIVE (whether the brand is seen as genuine).
 
 6. Wikipedia & Knowledge Graph: Does the brand have a Wikipedia page? Is it recognized as a Google Knowledge Graph entity? How does this impact their credibility and AI search visibility?
 
@@ -5337,7 +5368,7 @@ COGENT (Strategic Intelligence): Is there evidence of data-driven approaches in 
 
 SENTIENT (Emotional Connection): Does coverage indicate emotional resonance with audiences? Are there passionate advocates or community enthusiasm visible in media?
 
-VISIONARY (Meaningful Purpose): Does coverage reference purpose, mission, or meaningful impact beyond profit? Are they associated with positive change or societal benefit?
+VISIONARY (Meaningful Purpose): Does coverage reference purpose, mission, or meaningful impact beyond profit? Are they associated with positive change or societal benefit? Does coverage confirm the brand has delivered on what it promised, or report commitments missed or dropped?
 
 INTENTIONAL (Substance & Confidence): Does the brand show up with authority in coverage? Are executives visible and quotable? Is positioning clear and confident?
 
@@ -5827,30 +5858,69 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
   scoresRef.current = scores;
   const [aqRunning, setAqRunning] = useState(false);
   const [aqError, setAqError] = useState(null);
-  const findAudience = async () => {
+  const assessmentsRef = useRef(assessments);
+  assessmentsRef.current = assessments;
+  const aqInput = () => ({
+    brandName: project.brandName,
+    websiteUrl: normaliseUrl(project.websiteUrl) || project.websiteUrl,
+    businessModel: project.businessModel,
+    industry: project.industry,
+    industryName: INDUSTRIES.find(i => i.id === project.industry && i.id !== 'other')?.name || '',
+    stage: project.companyStage || null,
+  });
+  // Search evidence (v4.16.0): the audience harvest, then the brand searches,
+  // stored beside the other readouts as assessments.search. Gathered before
+  // the first scoring run and read by every pass; only a refresh gathers
+  // again. Never throws: each part records its own status.
+  // Returns null, and stores nothing, when SerpApi cannot be reached or the
+  // key is missing, so the next scoring run tries again.
+  const gatherSearch = async () => {
+    try {
+      const ping = await fetch('/api/audience-questions?ping=1');
+      const pb = await ping.json().catch(() => ({}));
+      if (!ping.ok) return { unavailable: pb.notConfigured ? 'notConfigured' : (pb.error || `HTTP ${ping.status}`) };
+    } catch (e) {
+      return { unavailable: e?.message || 'unreachable' };
+    }
+    const input = aqInput();
+    const fetchImpl = (url, opts) => fetch(url, opts);
+    const callModel = (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 5000);
+    let siteText = '';
+    try { siteText = siteTextOf(await gatherWebsite(input, fetchImpl)); } catch { /* the passes work from the brand line */ }
+    const audience = await harvestAudience(input, { siteText, mode: 'full', fetchImpl, callModel });
+    const evidence = await gatherSearchEvidence(input, { mode: 'full', harvest: audience, fetchImpl, callModel });
+    // Nothing usable came back: store nothing, so it is tried again.
+    if (evidence.status !== 'ok' && audience.status !== 'ok' && audience.status !== 'thin') return { unavailable: evidence.error || audience.error || 'failed' };
+    return { audience, evidence, siteText: siteText.slice(0, 12000), gatheredAt: new Date().toISOString() };
+  };
+  // Writes the audience ideas from the stored harvest (no searches), or
+  // gathers the search evidence first when there is none or on a refresh.
+  // `search` is passed in straight after scoring, before state catches up.
+  const findAudience = async ({ refresh = false, search: given = null } = {}) => {
     if (aqRunning) return;
     setAqRunning(true); setAqError(null);
     try {
-      const input = {
-        brandName: project.brandName,
-        websiteUrl: normaliseUrl(project.websiteUrl) || project.websiteUrl,
-        businessModel: project.businessModel,
-        industry: project.industry,
-        industryName: INDUSTRIES.find(i => i.id === project.industry && i.id !== 'other')?.name || '',
-        stage: project.companyStage || null,
-      };
-      let siteText = '';
-      try { siteText = siteTextOf(await gatherWebsite(input, (url, opts) => fetch(url, opts))); } catch { /* the ideas pass works from the brand line */ }
-      const record = await runAudienceQuestions(input, {
-        siteText, mode: 'full', fetchImpl: (url, opts) => fetch(url, opts),
+      let search = given || assessmentsRef.current?.search || null;
+      let assessmentsOverride = null;
+      if (refresh || !search?.audience) {
+        search = await gatherSearch();
+        if (search.unavailable) {
+          setAqError(search.unavailable === 'notConfigured' ? AQ_COPY.notConfigured : `Google search is unavailable right now (${search.unavailable}). Try again shortly.`);
+          return;
+        }
+        assessmentsOverride = { ...(assessmentsRef.current || {}), search };
+        setAssessments(assessmentsOverride);
+      }
+      const record = await ideasFromHarvest(aqInput(), search.audience, {
+        siteText: search.siteText || '', mode: 'full',
         callModel: (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 5000),
       });
       if (record.status !== 'ok') setAqError(record.status === 'notConfigured' ? AQ_COPY.notConfigured : record.error || AQ_COPY.none);
       const latest = scoresRef.current;
-      if (!latest) return;
+      if (!latest) { if (assessmentsOverride) await onSave({ quiet: true, assessmentsOverride }); return; }
       const withAq = { ...latest, audienceQuestions: record };
       setScores(withAq);
-      await onSave({ quiet: true, scoresOverride: withAq });
+      await onSave({ quiet: true, scoresOverride: withAq, ...(assessmentsOverride ? { assessmentsOverride } : {}) });
     } catch (e) {
       setAqError(e.message);
     } finally {
@@ -5934,6 +6004,7 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
     readoutSocial: false,
     readoutAI: false,
     readoutEarned: false,
+    readoutSearch: false,
   });
   const [animatedScore, setAnimatedScore] = useState(0);
   const [showClientLink, setShowClientLink] = useState(false);
@@ -6096,7 +6167,7 @@ ${JSON.stringify(extractLanguageText(source), null, 2)}`;
   // consistencyCheck (v3.112.0): run the scoring pass that many times on the
   // saved evidence and report the spread, without saving or changing anything.
   const runScoring = async ({ assessmentsData = null, challengeContext = null, consistencyCheck = 0 } = {}) => {
-    const scoringInputs = assessmentsData || assessments;
+    let scoringInputs = assessmentsData || assessments;
     const challenges = challengeContext
       ? [...(project.challenges || []), challengeContext]
       : (project.challenges || []);
@@ -6162,6 +6233,20 @@ HOW TO TREAT A CHALLENGE. Read this carefully, it protects the integrity of the 
 - Where a challenge does change your view, say what changed and why in the findings for the affected attributes, in the brand's own terms. Do not reference "the challenge", "the assessor" or "additional context provided" anywhere in the report.
 ` : '';
 
+    // Search evidence (framework 2.14): gathered once, before the first run,
+    // and stored, so every pass and every rescore reads the same numbers.
+    if (!consistencyCheck && !scoringInputs.search) {
+      try {
+        const search = await gatherSearch();
+        if (!search.unavailable) {
+          scoringInputs = { ...scoringInputs, search };
+          setAssessments(prev => ({ ...prev, search }));
+        }
+      } catch (e) {
+        console.warn('Search evidence could not be gathered; scoring without it.', e);
+      }
+    }
+
     const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}.
 ${project.companyStage ? `\n${stagePromptBlock(project.companyStage)}\n` : ''}
 ${sectorPromptBlock(project.industry, INDUSTRIES.find(i => i.id === project.industry)?.name)}
@@ -6194,7 +6279,7 @@ ${(() => {
 
 SOCIAL MEDIA:
 ${scoringInputs.social.noSocialPresence ? `CONFIRMED: This brand has NO social media presence. The assessor verified this. What they checked: ${cap(scoringInputs.social.noSocialNote, 400) || 'no detail recorded'}
-This is established fact, not missing data. Score the absence on its consequences rather than withholding judgment or defaulting to a mid-range score. A total absence from social is a material gap in AWARE (no audience relationship or listening), SENTIENT (no emotional connection being built), and COGENT (reduced discoverability in search and AI systems), and it weakens AWAKE where the category conversation happens on social. If absence is a defensible strategic choice for this business model and sector, reflect that in INTENTIONAL rather than excusing the gap elsewhere.
+This is established fact, not missing data. Score the absence on its consequences rather than withholding judgment or defaulting to a mid-range score. A total absence from social is a material gap in AWARE (no audience relationship or listening) and SENTIENT (no emotional connection being built), and it weakens AWAKE where the category conversation happens on social. If absence is a defensible strategic choice for this business model and sector, credit it in COGENT, whose rubric rewards deliberate channel choices, rather than excusing the gap elsewhere.
 ` : ''}${cap(scoringInputs.social.content)}
 ${[field('Glassdoor', cap([scoringInputs.social.glassdoorAuto, scoringInputs.social.glassdoorContent].filter(Boolean).join('\n'), 400)), field('Employee Advocacy', cap(scoringInputs.social.employeeAdvocacy, 300)), field('Campaign & Paid Signals', cap([scoringInputs.social.campaignAuto, scoringInputs.social.campaignContent, scoringInputs.social.paidMediaContent, scoringInputs.social.hashtagContent].filter(Boolean).join('\n'), 600)), field('Awards', cap(scoringInputs.social.awardsRecognition, 300)), field('WIPO', scoringInputs.social.wipoContent), field('Notes', scoringInputs.social.observations)].filter(Boolean).join('\n')}
 YouTube: ${scoringInputs.social.youtubeContent?.includes('[API Data]') ? 'Verified metrics included' : 'Manual only'}
@@ -6210,7 +6295,7 @@ ${(() => {
     ['Copilot', ai?.copilotManual],
   ].filter(([, v]) => v);
   const parts = [];
-  if (ai?.reputationFlags) parts.push(`FLAGS (known reputation risks — must be weighted against REFLECTIVE, INTENTIONAL, and AWAKE scores): ${cap(ai.reputationFlags, 400)}`);
+  if (ai?.reputationFlags) parts.push(`FLAGS (known reputation risks — must be weighted against REFLECTIVE (conduct against claims) and AWARE (trust); against INTENTIONAL only where a flag undermines a credential): ${cap(ai.reputationFlags, 400)}`);
   if (engines.length) parts.push(engines.map(([name, val]) => `[${name}] ${cap(val, 500)}`).join('\n\n'));
   if (ai?.wikipediaContent) parts.push(`Wikipedia: ${cap(ai.wikipediaContent, 400)}`);
   if (ai?.redditAnswersContent) parts.push(`Reddit: ${cap(ai.redditAnswersContent, 400)}`);
@@ -6225,6 +6310,8 @@ ${(() => {
 EARNED MEDIA:
 ${cap(scoringInputs.earnedMedia.content)}
 ${field('Notes', scoringInputs.earnedMedia.observations) || ''}
+
+${scoringInputs.search?.evidence ? searchPromptBlock(scoringInputs.search.evidence) : 'SEARCH EVIDENCE: not gathered for this assessment. Treat these signals as unknown, not absent.'}
 
 SCORING RUBRIC v2.8 — Score each attribute 0-100:
 
@@ -6259,9 +6346,9 @@ EVIDENCE STRENGTH GUIDELINES:
 
 SCORING NOTES:
 - ATTENTIVE: 70% qualitative + 30% technical metrics (if available). COGENT: 80% qualitative + 20% technical SEO.
-- Glassdoor impacts REFLECTIVE. WIPO impacts INTENTIONAL. Wikipedia absence/thin = gap in COGENT+INTENTIONAL.
-- Reddit perception: REFLECTIVE + COGENT. Reputation flags: must be reflected in REFLECTIVE + INTENTIONAL scores.
-- AI engine convergence = strong discoverability (COGENT+INTENTIONAL). Vagueness/divergence = penalise both.
+- Glassdoor impacts REFLECTIVE. WIPO impacts INTENTIONAL. Wikipedia absence/thin = gap in INTENTIONAL (third-party notability).
+- Reddit perception: REFLECTIVE + AWARE. Reputation flags (controversy, litigation, regulatory action): must be reflected in REFLECTIVE (conduct against claims) + AWARE (trust); in INTENTIONAL only where a flag undermines a credential (a certification lost, an award withdrawn). Never in AWAKE.
+- AI engine convergence = strong discoverability (COGENT). Vagueness/divergence = penalise COGENT.
 - DIGITAL ESTATE: If a Digital Estate section is present, cross-property inconsistency MUST impact scoring. High risk rating: penalise REFLECTIVE (brand authenticity) and ATTENTIVE (experience consistency). Medium risk: note in findings, minor penalty. Translated sites with poor localisation quality: penalise AWARE. Tech stack fragmentation: penalise COGENT. Strong estate consistency is positive evidence for REFLECTIVE and INTENTIONAL.
 - Business model: ${project.businessModel.toUpperCase()}. ${project.businessModel === 'b2b' ? 'LinkedIn 3x. Trade press over mainstream. Long-form over short-form. Low TikTok weight.' : project.businessModel === 'b2c' ? 'All consumer social weighted. TikTok relevant if <40 audience. Consumer reviews critical. Mainstream media over trade press.' : 'Weight LinkedIn for B2B, consumer channels for B2C. Both trade and mainstream press matter.'}
 - Recency: weight last 3 months more heavily. Evidence tiers: major publications/verified data (strong), industry/social proof (moderate), self-reported/single instance (weak).
@@ -6507,6 +6594,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             // How earned creative could help, cleaned (v3.115.0). Null when the
             // pass wrote nothing usable: the section then builds from the scores.
             adjusted.earnedCreativeOpportunity = parseOpportunity(parsed.earnedCreativeOpportunity);
+            // The framework these scores were produced under (2.15): it decides
+            // the Reputation weights and the lift whenever they are read again.
+            adjusted.frameworkVersion = FRAMEWORK_VERSION;
             delete adjusted.earnedCreativeEvidence;
             // Sustainability narrative read (framework 2.10). Parsed, never
             // guessed: missing means the report offers to regenerate.
@@ -6571,7 +6661,7 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
             if (autoSaved) setTimeout(() => setSaveState(st => (st === 'saved' ? 'idle' : st)), 4000);
             // First scoring finds the audience questions in the background
             // (v4.15.0). Never awaited: the report is ready without them.
-            if (autoSaved && !finalScores.audienceQuestions) findAudience();
+            if (autoSaved && !finalScores.audienceQuestions) findAudience({ search: scoringInputs.search || null });
             // The report opens at the top, where the overall score counts up
             // and the chart draws in: the reveal after the wait (v3.114.0).
             if (!challengeContext) { try { window.scrollTo({ top: 0 }); } catch { /* not available */ } }
@@ -8099,8 +8189,8 @@ ${content.slice(0, 8000)}`;
             {!scores?.audienceQuestions && !aqRunning && <p className="dc-body">{AQ_COPY.intro}</p>}
             {aqError && <p className="dc-note is-warn" data-field="aq-error">{aqError}</p>}
             <div className="dc-inline">
-              <button type="button" className="btn-secondary is-sm" onClick={findAudience} disabled={aqRunning} data-field="aq-run"
-                title={`Uses up to ${searchBudget('full')} SerpApi searches. Scores are not touched.`}>
+              <button type="button" className="btn-secondary is-sm" onClick={() => findAudience({ refresh: !!scores?.audienceQuestions })} disabled={aqRunning} data-field="aq-run"
+                title={scores?.audienceQuestions ? 'Gathers search evidence again (up to 24 SerpApi searches) and rewrites the ideas. Rescore to use the new evidence in the scores.' : 'Uses the stored search evidence, or gathers it (up to 24 SerpApi searches). Scores are not touched.'}>
                 {aqRunning ? 'Finding audience questions...' : scores?.audienceQuestions ? 'Refresh questions' : 'Find audience questions'}
               </button>
               {scores?.audienceQuestions?.status === 'ok' && (
@@ -8359,6 +8449,25 @@ ${content.slice(0, 8000)}`;
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* Search evidence readout (v4.16.0): the measured Google signals
+                every scoring pass read. Internal only. */}
+            <div className="bg-white" style={{ marginBottom: 2 }} data-field="search-readout">
+              <button
+                onClick={() => toggleSection('readoutSearch')}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FBFAF7] transition-colors text-[17px] font-semibold tracking-tight"
+              >
+                <div className="text-left">
+                  <h4 className="font-medium text-[#15171A]">Search evidence</h4>
+                  <p className="text-xs text-[#5B6068]">Measured from Google: AI Overviews, brand search, autocomplete, news and niche ranking</p>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-[#5B6068] transition-transform ${expandedSections.readoutSearch ? 'rotate-180' : ''}`} />
+              </button>
+              {expandedSections.readoutSearch && (
+                <SearchEvidenceReadout search={assessments.search} running={aqRunning}
+                  onRefresh={() => findAudience({ refresh: true })} />
               )}
             </div>
           </div>
@@ -11361,6 +11470,8 @@ function makeClientPayload({ project, scores, benchmark, assessorNote = null }) 
       return acc;
     }, {
       headline: scores?.headline,
+      // Which Reputation weights the client view reads these scores with.
+      frameworkVersion: scores?.frameworkVersion || scores?.earnedCreative?.frameworkVersion || scores?.campaignCoherence?.frameworkVersion || null,
       // Whitelisted field by field, like the rest of this payload.
       sustainabilityNarrative: scores?.sustainabilityNarrative ? JSON.parse(JSON.stringify({
         present: scores.sustainabilityNarrative.present,
@@ -13582,7 +13693,7 @@ function TeaserClientView({ payload, heroImage = null, baseline = null }) {
 // real: each source reports its own result, and scoring reports when it starts
 // and ends. Sources run in parallel, so several can be current at once.
 function TeaserProgress({ statuses, scoring, elapsed }) {
-  const sources = [...TEASER_SOURCES, ...(statuses.sustainability ? [SUSTAINABILITY_SOURCE] : []), ...(statuses.audienceQuestions ? [{ id: 'audienceQuestions', label: 'Audience questions' }] : [])];
+  const sources = [...TEASER_SOURCES, ...(statuses.sustainability ? [SUSTAINABILITY_SOURCE] : []), ...(statuses.audienceQuestions ? [{ id: 'audienceQuestions', label: 'Audience questions' }] : []), ...(statuses.searchSignals ? [{ id: 'searchSignals', label: 'Google brand search' }] : [])];
   const cls = (st) => (st === 'ok' ? 'is-done' : st === 'failed' ? 'is-done is-failed' : st === 'running' ? 'is-current' : undefined);
   const scoringState = scoring === 'ok' ? 'ok' : scoring === 'running' ? 'running' : 'pending';
   const total = sources.length + 1;
@@ -13820,6 +13931,21 @@ function TeaserReport({ record, busy, progress, error, audienceBusy = false, onA
             })()}
           </dd>
 
+          <dt>Google search</dt>
+          <dd data-field="search-panel">
+            {(() => {
+              const sig = sources.searchSignals;
+              if (!sig) return <p className="dc-meta">Not gathered. Refresh evidence or Find audience questions gathers it (2 searches per market).</p>;
+              if (sig.status !== 'ok') return <p className="dc-meta">{sig.status === 'notConfigured' ? AQ_COPY.notConfigured : `Failed: ${sig.error || 'unknown error'}`}</p>;
+              return (
+                <>
+                  <ul className="dc-search-lines">{searchFactLines(sig).map(l => <li key={l.fact} data-signal={l.signal}>{l.fact}</li>)}</ul>
+                  {record.result && record.result.teaserVersion !== TEASER_VERSION && <p className="dc-note is-warn">Gathered after this teaser was scored. Rescore to use it.</p>}
+                </>
+              );
+            })()}
+          </dd>
+
           {record.context && <>
             <dt>Context</dt>
             <dd><p>{record.context}</p></dd>
@@ -13955,6 +14081,12 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     siteText, mode: 'teaser', fetchImpl: (url, opts) => fetch(url, opts),
     callModel: (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 4000),
   });
+  // Brand search page and autocomplete (v4.16.0), in the markets the audience
+  // run named. 2 searches per market. Feeds the teaser's trust read.
+  const searchFor = (rec) => (audience) => gatherSearchEvidence(inputFrom(rec), {
+    mode: 'teaser', harvest: audience, fetchImpl: (url, opts) => fetch(url, opts),
+    callModel: (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 3000),
+  });
 
   // Scores whatever evidence the record holds and saves. Previous results are
   // kept as a short history on the record so a rescore is never invisible.
@@ -13975,6 +14107,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       fetchImpl: (url, opts) => fetch(url, opts),
       callSearch: teaserSearchCall,
       runAudience: audienceFor(rec),
+      runSearch: searchFor(rec),
       onProgress: (id, st) => setStatuses(prev => ({ ...prev, [id]: st })),
     });
   };
@@ -14080,7 +14213,10 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     try {
       const rec = open;
       const record = await audienceFor(rec)(siteTextOf(rec.evidence?.sources?.website));
-      const evidence = { ...(rec.evidence || {}), sources: { ...(rec.evidence?.sources || {}), audienceQuestions: record } };
+      // Brand search and autocomplete too, when this teaser has none yet: the
+      // next rescore reads them (v4.16.0).
+      const signals = rec.evidence?.sources?.searchSignals?.status === 'ok' ? rec.evidence.sources.searchSignals : await searchFor(rec)(record);
+      const evidence = { ...(rec.evidence || {}), sources: { ...(rec.evidence?.sources || {}), audienceQuestions: record, searchSignals: signals } };
       const { data, error: e } = await saveTeaser({ ...rec, evidence });
       if (e) throw new Error(`Questions found, but the save failed: ${e.message}`);
       setOpen(data);

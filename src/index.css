@@ -1218,6 +1218,10 @@ button { font: inherit; color: inherit; }
 .dc-aq-internal { margin-top: var(--cc-s-4); }
 .dc-aq-internal p { margin: var(--cc-s-2) 0 0; }
 #audience-questions .dc-inline { margin-top: var(--cc-s-4); }
+.dc-search-readout { padding: var(--cc-s-4); border-top: var(--cc-border); background: var(--cc-paper); display: flex; flex-direction: column; gap: var(--cc-s-3); }
+.dc-search-lines { list-style: none; margin: 0; padding: 0; }
+.dc-search-lines li { padding: var(--cc-s-2) 0; border-bottom: var(--cc-border); font-size: var(--cc-fs-ui); line-height: 1.5; color: var(--cc-body); }
+.dc-search-lines li:last-child { border-bottom: 0; }
 .dc-teaser-cta { border-top: var(--cc-border-strong); padding-top: var(--cc-s-8); display: flex; justify-content: space-between; align-items: center; gap: var(--cc-s-10); flex-wrap: wrap; }
 .dc-teaser-cta .dc-h, .dc-teaser-cta .dc-body { margin: 0; }
 .dc-teaser-cta .btn-primary, .dc-teaser-cta .btn-secondary { height: 44px; padding: 0 20px; }

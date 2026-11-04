@@ -239,7 +239,8 @@ test('overall, stage and lenses are computed in code from the scores exactly as 
   assert.equal(r.overall, expected);
   assert.notEqual(r.overall, 99);
   assert.equal(r.stage, getMaturityStage(expected).name);
-  const lenses = computeTrustLenses(parsed, parsed.trustFindings);
+  // Teasers are scored on the current framework, so they read the current weights.
+  const lenses = computeTrustLenses(parsed, parsed.trustFindings, { frameworkVersion: r.frameworkVersion });
   assert.equal(r.lensScores.trust, lenses.rows.find(x => x.id === 'trust').score);
   assert.equal(r.lensScores.credibility, lenses.rows.find(x => x.id === 'credibility').score);
   assert.equal(r.lensScores.reputation, lenses.rows.find(x => x.id === 'reputation').score);
@@ -257,7 +258,7 @@ test('a campaign read returned by the model never moves a score, at any level', 
 
 test('results carry the method version; earlier results are recognised as outdated', () => {
   const r = finaliseTeaser(parseTeaserScoring(modelJson()));
-  assert.equal(TEASER_VERSION, '2.5', 'new business framing: opportunity and services');
+  assert.equal(TEASER_VERSION, '2.7', 'framework 2.15: evidence routing, promise-kept signals, Reputation rebalanced');
   assert.equal(r.teaserVersion, TEASER_VERSION);
   assert.equal(isCurrentMethod(r), true);
   assert.equal(isCurrentMethod({ ...r, teaserVersion: '1.0' }), false);

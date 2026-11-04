@@ -81,26 +81,26 @@ const orig = (id) => {
 };
 
 test('framework is 2.12 and stays on benchmark major version 2', () => {
-  assert.equal(FRAMEWORK_VERSION, '2.13');   // 2.13: sector lens in full scoring; 2.12: median of three passes
+  assert.equal(FRAMEWORK_VERSION, '2.15');   // 2.15: evidence routing and promise-kept signals; 2.14: search evidence; 2.13: sector lens in full scoring; 2.12: median of three passes
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.match(app, /const BENCHMARK_RUBRIC_MAJOR = '2';/);
   assert.equal(FRAMEWORK_VERSION.split('.')[0], '2', 'existing 2.x full assessments stay comparable');
   assert.ok(!/parseFloat\([^)]*[Vv]ersion/.test(app), 'no numeric version compare: 2.10 would read as 2.1');
 });
 
-test('thesis signals added to six attributes; Attentive and Cogent untouched', () => {
+// Re-pinned in 2.15: the rubric has grown since 2.9 (promise-kept signals,
+// consistency and architecture each scored once), so this guards what the
+// thesis added rather than raw counts against 2.9.
+test('thesis signals sit in six attributes, strong and weak; Attentive, Cogent and every moderate list have none', () => {
   const thesisish = (arr) => arr.filter(x => /ustainab/.test(x)).length;
   for (const a of ATTRIBUTES) {
-    const before = orig(a.id);
-    const addedStrong = a.signals.strong.length - before.strong;
-    const addedWeak = a.signals.weak.length - before.weak;
     if (['ATTENTIVE', 'COGENT'].includes(a.id)) {
-      assert.equal(addedStrong + addedWeak, 0, `${a.id} changed`);
+      assert.equal(thesisish([...a.signals.strong, ...a.signals.weak, ...a.signals.moderate]), 0, `${a.id} has no thesis signals`);
     } else {
-      assert.ok(addedStrong >= 1 && addedWeak >= 1, `${a.id} has thesis signals`);
-      assert.ok(thesisish(a.signals.strong) >= 1 || a.id === 'REFLECTIVE', `${a.id} names sustainability`);
+      assert.ok(thesisish(a.signals.strong) >= 1 && thesisish(a.signals.weak) >= 1, `${a.id} has thesis signals, strong and weak`);
     }
-    assert.equal(a.signals.moderate.length, before.moderate, `${a.id} moderate untouched`);
+    assert.equal(thesisish(a.signals.moderate), 0, `${a.id}: the thesis never added moderate signals`);
+    assert.ok(a.signals.moderate.length >= orig(a.id).moderate - 1, `${a.id} moderate list intact`);
   }
 });
 

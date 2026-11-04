@@ -89,8 +89,22 @@ const pagesBlock = (siteText, cap = 9000) => {
 
 // ── Step 1: subtopics ─────────────────────────────────────────
 
+// Stages that sell across countries are searched in more than the US
+// (v4.16.0). The model names the markets from the homepage; code keeps only
+// real Google country codes, at most two besides the US.
+export const MULTI_MARKET_STAGES = ['multinational', 'conglomerate', 'global'];
+export const GL_CODES = ['us', 'gb', 'ca', 'au', 'nz', 'ie', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'se', 'no', 'dk', 'fi', 'pl', 'pt', 'cz', 'gr', 'tr', 'il', 'ae', 'sa', 'za', 'ng', 'ke', 'eg', 'in', 'sg', 'my', 'id', 'ph', 'th', 'vn', 'jp', 'kr', 'cn', 'hk', 'tw', 'mx', 'br', 'ar', 'cl', 'co', 'pe'];
+export const isMultiMarket = (stage) => MULTI_MARKET_STAGES.includes(stage);
+export function marketsFor(stage, suggested = []) {
+  if (!isMultiMarket(stage)) return ['us'];
+  const extra = [...new Set((Array.isArray(suggested) ? suggested : []).map(c => String(c || '').trim().toLowerCase()).map(c => (c === 'uk' ? 'gb' : c)))]
+    .filter(c => c !== 'us' && GL_CODES.includes(c)).slice(0, 2);
+  return ['us', ...extra];
+}
+
 export function buildSubtopicPrompt(input, siteText, mode = 'full') {
   const n = (AQ_MODES[mode] || AQ_MODES.full).subtopics;
+  const markets = isMultiMarket(input.stage);
   return `${brandLine(input)}
 
 First, read the brand's HOMEPAGE (the first page below) and name its niche: the specific market it serves, as its own buyers would describe it. Specific, not a broad category: "rooftop solar for New Jersey homeowners", not "renewable energy"; "grid analytics software for utilities", not "software". Write it to follow the word "about" in a sentence, in lowercase unless a word is a proper noun, under 9 words, no brand name.
@@ -103,10 +117,12 @@ For each subtopic, write the plain search a buyer would type into Google. Rules:
 - Spread across the buying journey: what it is, whether it is worth it, how to choose, cost, and the doubts people have.
 - Specific to this brand's actual offer and audience. A B2B grid software company's buyers search differently from homeowners.
 
-${pagesBlock(siteText)}
+${markets ? `Also name up to two countries other than the United States where the homepage shows the brand clearly sells: country pages, local offices, prices in a local currency, a language switcher. Two-letter country codes ("gb", "de", "jp"). If the homepage shows none, return an empty list.
+
+` : ''}${pagesBlock(siteText)}
 
 Return valid JSON only, no prose, no fences:
-{ "niche": "the niche, under 9 words", "subtopics": [ { "name": "under 5 words", "query": "the search" } ] }`;
+{ "niche": "the niche, under 9 words", "subtopics": [ { "name": "under 5 words", "query": "the search" } ]${markets ? ', "markets": ["gb"]' : ''} }`;
 }
 
 export function parseSubtopics(raw, brandName = '', max = 5) {
@@ -121,7 +137,7 @@ export function parseSubtopics(raw, brandName = '', max = 5) {
     .filter(s => !seen.has(normQ(s.query)) && seen.add(normQ(s.query)))
     .slice(0, max);
   if (!subtopics.length) throw new Error('No usable subtopics came back.');
-  return { niche: clean(parsed.niche || parsed.category, 90).replace(/[.\s]+$/, ''), subtopics };
+  return { niche: clean(parsed.niche || parsed.category, 90).replace(/[.\s]+$/, ''), subtopics, markets: Array.isArray(parsed.markets) ? parsed.markets : [] };
 }
 
 // ── Step 2: harvest ───────────────────────────────────────────
@@ -130,13 +146,14 @@ export class NotConfiguredError extends Error {
   constructor() { super(AQ_COPY.notConfigured); this.notConfigured = true; }
 }
 
-async function searchQuestions(params, fetchImpl) {
+// One call to the endpoint. Shared with search evidence (v4.16.0).
+export async function serpCall(params, fetchImpl) {
   const qs = new URLSearchParams({ gl: AQ_LOCATION.gl, hl: AQ_LOCATION.hl, ...params });
   const r = await fetchImpl(`/api/audience-questions?${qs}`);
   const body = await r.json().catch(() => ({}));
   if (body.notConfigured) throw new NotConfiguredError();
-  if (!r.ok) throw new Error(body.error || `Question search failed (HTTP ${r.status}).`);
-  return Array.isArray(body.questions) ? body.questions : [];
+  if (!r.ok) throw new Error(body.error || `Google search failed (HTTP ${r.status}).`);
+  return body;
 }
 
 // Runs every subtopic search, then expands the first `expandPer` questions of
@@ -159,24 +176,29 @@ export async function harvestQuestions(subtopics, { fetchImpl, mode = 'full' } =
     return { ...entry, token: q?.token || null };
   };
 
-  const first = await Promise.allSettled(subtopics.map(s => { searches += 1; return searchQuestions({ q: s.query }, fetchImpl); }));
+  const first = await Promise.allSettled(subtopics.map(s => { searches += 1; return serpCall({ q: s.query }, fetchImpl); }));
   if (first.some(r => r.status === 'rejected' && r.reason?.notConfigured)) throw new NotConfiguredError();
 
   const toExpand = [];
+  // Page one and the AI Overview of each niche search, kept for search
+  // evidence (v4.16.0): niche ranking and AI Overview citations cost nothing.
+  const serps = [];
   first.forEach((res, i) => {
     const sub = subtopics[i].name;
     if (res.status !== 'fulfilled') { failures.push({ query: subtopics[i].query, error: String(res.reason?.message || res.reason) }); return; }
-    const added = res.value.map(q => add(q, sub, 0)).filter(Boolean);
+    const body = res.value || {};
+    serps.push({ query: subtopics[i].query, name: sub, organic: Array.isArray(body.organic) ? body.organic : [], aiOverview: body.aiOverview || { present: false, token: null, sources: [] } });
+    const added = (Array.isArray(body.questions) ? body.questions : []).map(q => add(q, sub, 0)).filter(Boolean);
     added.filter(q => q.token).slice(0, m.expandPer).forEach(q => toExpand.push({ token: q.token, sub }));
   });
 
-  const second = await Promise.allSettled(toExpand.map(x => { searches += 1; return searchQuestions({ token: x.token }, fetchImpl); }));
+  const second = await Promise.allSettled(toExpand.map(x => { searches += 1; return serpCall({ token: x.token }, fetchImpl); }));
   second.forEach((res, i) => {
     if (res.status !== 'fulfilled') { failures.push({ query: 'expansion', error: String(res.reason?.message || res.reason) }); return; }
-    res.value.forEach(q => add(q, toExpand[i].sub, 1));
+    (Array.isArray(res.value?.questions) ? res.value.questions : []).forEach(q => add(q, toExpand[i].sub, 1));
   });
 
-  return { questions, searches, failures };
+  return { questions, searches, failures, serps };
 }
 
 // ── Step 3: ideas ─────────────────────────────────────────────
@@ -240,10 +262,11 @@ export function parseIdeas(raw, harvest, mode = 'full') {
 
 // ── The run ───────────────────────────────────────────────────
 
-// callModel(prompt) → Promise<string>, a plain (no search) model call.
-// Never throws: a failure is a record with status 'failed' or
-// 'notConfigured', so it can never stop the assessment around it.
-export async function runAudienceQuestions(input, { siteText = '', mode = 'full', fetchImpl, callModel }) {
+// The harvest on its own: niche, subtopics, questions, and each niche
+// search's page one and AI Overview. Full assessments gather this before
+// scoring (v4.16.0) and write the ideas from it afterwards.
+// Never throws: a failure is a record with status 'failed' or 'notConfigured'.
+export async function harvestAudience(input, { siteText = '', mode = 'full', fetchImpl, callModel }) {
   const started = Date.now();
   const base = { version: AQ_VERSION, mode, location: AQ_LOCATION.label, gatheredAt: new Date().toISOString() };
   try {
@@ -253,16 +276,40 @@ export async function runAudienceQuestions(input, { siteText = '', mode = 'full'
     const pb = await ping.json().catch(() => ({}));
     if (pb.notConfigured) throw new NotConfiguredError();
     if (!ping.ok) throw new Error(pb.error || `Question search is unavailable (HTTP ${ping.status}).`);
-    const { niche, subtopics } = parseSubtopics(await callModel(buildSubtopicPrompt(input, siteText, mode)), input.brandName, m.subtopics);
+    const { niche, subtopics, markets } = parseSubtopics(await callModel(buildSubtopicPrompt(input, siteText, mode)), input.brandName, m.subtopics);
     const harvest = await harvestQuestions(subtopics, { fetchImpl, mode });
-    const out = { ...base, niche, subtopics, questions: harvest.questions, searches: harvest.searches, failures: harvest.failures };
-    // Under five real questions there is nothing honest to build on.
-    if (harvest.questions.length < 5) return { ...out, status: 'thin', ideas: [], ms: Date.now() - started };
-    const ideas = parseIdeas(await callModel(buildIdeasPrompt(input, harvest, siteText, mode)), harvest, mode);
-    return { ...out, status: ideas.length ? 'ok' : 'thin', ideas, ms: Date.now() - started };
+    return {
+      ...base, niche, subtopics, markets: marketsFor(input.stage, markets),
+      questions: harvest.questions, serps: harvest.serps, searches: harvest.searches, failures: harvest.failures,
+      status: harvest.questions.length < 5 ? 'thin' : 'ok', ideas: [], ms: Date.now() - started,
+    };
   } catch (err) {
-    return { ...base, status: err?.notConfigured ? 'notConfigured' : 'failed', error: String(err?.message || err), ideas: [], questions: [], ms: Date.now() - started };
+    return { ...base, status: err?.notConfigured ? 'notConfigured' : 'failed', error: String(err?.message || err), ideas: [], questions: [], serps: [], markets: ['us'], ms: Date.now() - started };
   }
+}
+
+// The ideas from a stored harvest. No searches. The record that comes back
+// is the audience questions record the reports read; the harvest's page one
+// results stay with the search evidence, not here.
+export async function ideasFromHarvest(input, harvested, { siteText = '', mode = 'full', callModel }) {
+  const { serps: _serps, markets: _markets, ...rec } = harvested || {};
+  if (!harvested || harvested.status !== 'ok') return { ...rec, ideas: [] };
+  const started = Date.now();
+  try {
+    const ideas = parseIdeas(await callModel(buildIdeasPrompt(input, harvested, siteText, mode)), harvested, mode);
+    return { ...rec, status: ideas.length ? 'ok' : 'thin', ideas, ms: (harvested.ms || 0) + Date.now() - started };
+  } catch (err) {
+    return { ...rec, status: 'failed', error: String(err?.message || err), ideas: [] };
+  }
+}
+
+// Harvest and ideas in one go, as teasers and an on-demand run use it.
+// Never throws. With keepSerps, the page one data stays on the record for
+// search evidence to read.
+export async function runAudienceQuestions(input, { siteText = '', mode = 'full', fetchImpl, callModel, keepSerps = false }) {
+  const harvested = await harvestAudience(input, { siteText, mode, fetchImpl, callModel });
+  const out = await ideasFromHarvest(input, harvested, { siteText, mode, callModel });
+  return { ...out, markets: harvested.markets || ['us'], ...(keepSerps ? { serps: harvested.serps || [] } : {}) };
 }
 
 // ── Views ─────────────────────────────────────────────────────

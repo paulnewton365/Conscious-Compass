@@ -234,10 +234,10 @@ test('the full report keeps audience questions through a rescore, refreshes from
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.ok(app.includes('if (scores?.audienceQuestions) adjusted.audienceQuestions = scores.audienceQuestions;'));
   assert.ok(app.includes('const latest = scoresRef.current;'), 'the run saves into the latest scores, not a stale snapshot');
-  assert.ok(app.includes('if (autoSaved && !finalScores.audienceQuestions) findAudience();'));
+  assert.ok(app.includes('if (autoSaved && !finalScores.audienceQuestions) findAudience({ search: scoringInputs.search || null });'), 'ideas come from the stored harvest straight after scoring');
   assert.ok(app.includes('audienceQuestions: clientAudienceQuestions(scores?.audienceQuestions),'), 'the client payload is whitelisted');
   const rubric = readFileSync(new URL('../src/data/rubric.js', import.meta.url), 'utf8');
-  assert.match(rubric, /FRAMEWORK_VERSION = '2\.13'/, 'a recommendation layer does not move the framework');
+  assert.match(rubric, /FRAMEWORK_VERSION = '2\.15'/, 'audience ideas never moved it; search evidence (2.14) and evidence routing (2.15) did');
 });
 
 // ── Endpoint ──
@@ -309,7 +309,8 @@ test('endpoint: a search returns only what the app uses, and the key never comes
 
   const empty = mockRes();
   await handler({ ...authed, query: { q: 'x' } }, empty, { fetchImpl: upstream({ serp: async () => ({ ok: true, status: 200, json: async () => ({ error: "Google hasn't returned any results for this query." }) }) }) });
-  assert.deepEqual(empty.body, { questions: [] }, 'no results is an empty answer, not a failure');
+  assert.deepEqual(empty.body.questions, [], 'no results is an empty answer, not a failure');
+  assert.deepEqual(empty.body.organic, []);
 
   const bad = mockRes();
   await handler({ ...authed, query: { q: 'x' } }, bad, { fetchImpl: upstream({ serp: async () => ({ ok: false, status: 401, json: async () => ({ error: 'Invalid API key.' }) }) }) });

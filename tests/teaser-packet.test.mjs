@@ -113,7 +113,7 @@ test('20/21: toolbar, notice and internal panel take the packet structure, and n
   assert.ok(doc.querySelector('.dc-tz-toolbar .dc-head-actions .dc-link-btn.is-danger'));
   assert.ok(doc.querySelector('.dc-alert.is-warn[data-field="scorecard-blocked"]'));
   const panel = doc.querySelector('section.dc-internal');
-  assert.deepEqual([...panel.querySelectorAll('dl.dc-internal-dl > dt')].map(d => d.textContent), ['Campaign', 'Company stage', 'Evidence', 'Baseline', 'Brand image', 'Audience questions', 'Context']);
+  assert.deepEqual([...panel.querySelectorAll('dl.dc-internal-dl > dt')].map(d => d.textContent), ['Campaign', 'Company stage', 'Evidence', 'Baseline', 'Brand image', 'Audience questions', 'Google search', 'Context']);
   assert.equal(panel.querySelector('.dc-src.is-failed').getAttribute('title'), 'Not found', 'failure detail stays in the tooltip');
   assert.equal(panel.querySelector('[data-field="stage-pending"]'), null, 'nothing is "scored without a stage" before any score');
   assert.ok(!doc.body.textContent.includes('Rescore to apply it'), 'no rescore prompt before a first score');
