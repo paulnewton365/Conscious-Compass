@@ -59,7 +59,7 @@ export const aqSource = (location = AQ_LOCATION.label) => `Source: the \u201cPeo
 export const FORMATS = ['Short video', 'Carousel', 'Article', 'Explainer', 'FAQ page', 'Data post', 'Thread', 'Webinar', 'Guide', 'Case study'];
 
 export const AQ_COPY = {
-  title: 'What your audience is asking',
+  title: "What this brand's audience is asking",
   // Before a run, when there is no niche yet.
   intro: 'The questions people are asking Google about this brand\u2019s niche, and the content that would answer them.',
   notConfigured: 'Audience questions need the SerpApi key. Add SERPAPI_API_KEY in Vercel and redeploy.',
@@ -381,7 +381,7 @@ export async function buildIdeasWorkbook(brand, record, exportedAt = new Date())
   const date = exportedAt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const HEADER = 4;
   const ideaXml = [
-    `<row r="1" ht="24" customHeight="1">${cell('A1', `${brand}: what the audience is asking`, S.title)}</row>`,
+    `<row r="1" ht="24" customHeight="1">${cell('A1', `What ${brand}'s audience is asking`, S.title)}</row>`,
     `<row r="2">${cell('A2', `Exported ${date}. Questions about ${nicheText(record) || 'this niche'}. ${rows.length} content idea${rows.length === 1 ? '' : 's'} from ${(record?.questions || []).length} questions in Google search\u2019s \u201cPeople also ask\u201d (${record?.location || AQ_LOCATION.label}), gathered ${record?.gatheredAt ? new Date(record.gatheredAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'on an unknown date'}.${record?.mode === 'teaser' ? ' A teaser checks the homepage and about page only for answers.' : ''}`, S.sub)}</row>`,
     `<row r="${HEADER}" ht="30" customHeight="1">${IDEA_COLUMNS.map((c, i) => cell(`${colName(i)}${HEADER}`, c.label, S.header)).join('')}</row>`,
     ...rows.map((row, ri) => `<row r="${HEADER + 1 + ri}">${IDEA_COLUMNS.map((c, ci) => cell(`${colName(ci)}${HEADER + 1 + ri}`, row[c.key], c.wrap ? S.wrap : S.text)).join('')}</row>`),

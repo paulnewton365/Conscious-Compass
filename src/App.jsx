@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.15.3';
+const APP_VERSION = '4.15.4';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -7684,7 +7684,7 @@ ${content.slice(0, 8000)}`;
               if (!q) return [];
               const gathered = q.gatheredAt ? new Date(q.gatheredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
               return [
-                ...secHead('Your audience', AQ_COPY.title),
+                ...secHead('The audience', AQ_COPY.title),
                 body(clean(q.intro), 60),
                 new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: [aqSource(q.location), gathered].filter(Boolean).join('  \u00b7  '), size: 16, font: SANS, color: MUTED })] }),
                 ...q.ideas.flatMap((idea, i) => [
@@ -7832,7 +7832,7 @@ ${content.slice(0, 8000)}`;
     'Sustainability narrative',
     'Benchmark comparison',
     'How earned creative could help',
-    'What your audience is asking',
+    "What this brand's audience is asking",
     'Recommendations',
     'Conclusions',
     'Score justification',
@@ -8092,7 +8092,7 @@ ${content.slice(0, 8000)}`;
       {/* What your audience is asking (v4.15.0): every report. Recommendation
           only, never a score input. */}
       <section className="dc-section dc-reveal" id="audience-questions">
-        <SectionHeading order={sectionOrder} label="What your audience is asking" open={expandedSections.audience} onToggle={() => toggleSection('audience')} />
+        <SectionHeading order={sectionOrder} label="What this brand's audience is asking" open={expandedSections.audience} onToggle={() => toggleSection('audience')} />
         {expandedSections.audience && (
           <>
             {scores?.audienceQuestions && <AudienceQuestionsSection view={audienceView(scores.audienceQuestions)} internal />}
@@ -10495,7 +10495,7 @@ function ElapsedTime({ since }) {
 const CLIENT_REPORT_SECTIONS = [
   'results at a glance', 'brand maturity', 'attribute analysis', 'brand footprint',
   'campaign coherence', 'trust and credibility', 'the sustainability narrative',
-  'how earned creative could help', 'what your audience is asking', 'the benchmark comparison', 'the conclusions',
+  'how earned creative could help', "what this brand's audience is asking", 'the benchmark comparison', 'the conclusions',
 ];
 const CLIENT_REPORT_SECTIONS_TEXT = `${CLIENT_REPORT_SECTIONS.slice(0, -1).join(', ')} and ${CLIENT_REPORT_SECTIONS.at(-1)}`;
 
@@ -11596,7 +11596,7 @@ function ClientReportView({ payload }) {
     'Trust and credibility',
     ...(scores?.sustainabilityNarrative ? ['Sustainability narrative'] : []),
     ...(payload.eco?.opportunities?.length ? ['How earned creative could help'] : []),
-    ...(payload.audienceQuestions ? ['What your audience is asking'] : []),
+    ...(payload.audienceQuestions ? ["What this brand's audience is asking"] : []),
     ...(benchmark ? ['Benchmark comparison'] : []),
     ...(payload.conclusion ? ['Conclusions'] : []),
   ];
@@ -11748,7 +11748,7 @@ function ClientReportView({ payload }) {
 
         {payload.audienceQuestions && (
           <section className="dc-section dc-reveal" id="audience-questions">
-            <SectionHeading order={clientSections} label="What your audience is asking" />
+            <SectionHeading order={clientSections} label="What this brand's audience is asking" />
             <AudienceQuestionsSection view={payload.audienceQuestions} />
           </section>
         )}

@@ -386,10 +386,10 @@ test('the client report and the teaser read show the section; a report without i
   assert.equal(with_.audienceQuestions.ideas.length, 3);
   assert.ok(!JSON.stringify(with_).includes('SNIPPET_SECRET'));
   const html = server.renderToStaticMarkup(h(App.ClientReportView, { payload: with_ }));
-  assert.ok(html.includes('What your audience is asking') && html.includes('How much does solar cost?'));
+  assert.ok(html.includes('What this brand&#x27;s audience is asking') && html.includes('How much does solar cost?'));
   const without = App.makeClientPayload({ project: { brandName: 'Acme Solar', industry: 'energy' }, scores, benchmark: null });
   assert.equal(without.audienceQuestions, null);
-  assert.ok(!server.renderToStaticMarkup(h(App.ClientReportView, { payload: without })).includes('What your audience is asking'));
+  assert.ok(!server.renderToStaticMarkup(h(App.ClientReportView, { payload: without })).includes('audience is asking'));
 });
 
 // ── Exports (v4.15.1) ──
@@ -414,8 +414,8 @@ test('the teaser PDF adds a page for the ideas before the services page, and onl
   const withFonts = await exportTeaserReportPdf(payload, { jsPDF, save: false, fonts });
   assert.equal(withFonts.pdf.internal.getNumberOfPages(), 6, 'and with the real fonts');
   const raw = pdf.output();
-  for (const s of ['What your audience is asking', 'Idea number 5 for the read', '05 / 06', '06 / 06', 'Where marketing would move this score']) assert.ok(raw.includes(s), s);
-  assert.ok(raw.indexOf('What your audience is asking') < raw.indexOf('Where marketing would move this score'), 'ideas come before the services page');
+  for (const s of ["What this brand's audience is asking", 'Idea number 5 for the read', '05 / 06', '06 / 06', 'Where marketing would move this score']) assert.ok(raw.includes(s), s);
+  assert.ok(raw.indexOf("What this brand's audience is asking") < raw.indexOf('Where marketing would move this score'), 'ideas come before the services page');
   assert.ok(!raw.includes('SNIPPET_SECRET') && !raw.includes('energy.gov'), 'nothing beyond the payload');
   assert.ok(reportData(payload).method.includes("People also ask"));
   const none = await exportTeaserReportPdf({ ...payload, audienceQuestions: null }, { jsPDF, save: false, fonts: {} });
@@ -424,7 +424,7 @@ test('the teaser PDF adds a page for the ideas before the services page, and onl
   const long = { ...five, ideas: five.ideas.map(i => ({ ...i, why: 'A much longer reason that runs on across several lines of the page. '.repeat(4) })) };
   const tall = await exportTeaserReportPdf({ ...payload, audienceQuestions: aq.clientAudienceQuestions(long) }, { jsPDF, save: false, fonts: {} });
   assert.equal(tall.pdf.internal.getNumberOfPages(), 7, 'long copy breaks between ideas onto a second page');
-  assert.ok(tall.pdf.output().includes('WHAT YOUR AUDIENCE IS ASKING, CONTINUED'));
+  assert.ok(tall.pdf.output().includes("WHAT THIS BRAND'S AUDIENCE IS ASKING, CONTINUED"));
 });
 
 test('the Word report carries the client-safe ideas after earned creative', async () => {
@@ -448,8 +448,8 @@ test('the Word report carries the client-safe ideas after earned creative', asyn
   const paras = run({ audienceQuestions: r });
   const buf = await Packer.toBuffer(new Document({ sections: [{ children: paras }] }));
   const JSZip = (await import('jszip')).default;
-  const xml = await (await JSZip.loadAsync(buf)).file('word/document.xml').async('string');
-  for (const s of ['Your audience|What your audience is asking', 'What rooftop solar really costs in New Jersey, line by line', 'How much does solar cost?', 'NOT ON THE SITE', 'about rooftop solar for New Jersey homeowners', 'Source: the \u201cPeople also ask\u201d questions in Google search']) assert.ok(xml.includes(s), s);
+  const xml = (await (await JSZip.loadAsync(buf)).file('word/document.xml').async('string')).replace(/&apos;/g, "'");
+  for (const s of ["The audience|What this brand's audience is asking", 'What rooftop solar really costs in New Jersey, line by line', 'How much does solar cost?', 'NOT ON THE SITE', 'about rooftop solar for New Jersey homeowners', 'Source: the \u201cPeople also ask\u201d questions in Google search']) assert.ok(xml.includes(s), s);
   assert.ok(!xml.includes('SNIPPET_SECRET') && !xml.includes('rooftop solar cost (Cost)'), 'no internals');
 });
 

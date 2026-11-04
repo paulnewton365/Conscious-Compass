@@ -4,7 +4,7 @@
 
 A React-based tool for evaluating brands across eight consciousness attributes using AI-powered analysis.
 
-![Version](https://img.shields.io/badge/version-4.15.3-blue)
+![Version](https://img.shields.io/badge/version-4.15.4-blue)
 ![Framework](https://img.shields.io/badge/framework-v2.13-green)
 ![Status](https://img.shields.io/badge/status-live-brightgreen)
 
@@ -584,6 +584,8 @@ Evidence is gathered automatically and in parallel: website pages, a social scan
 **Stage and sector calibration (v3.56, method 2.4).** Two rubric assumptions were breaking smaller and non-cleantech brands. Company stage is now a required field on the teaser, using Antenna's six-stage framework (`src/data/stages.js`): Startup, Scaleup, Market Leader, Multinational, Conglomerate, Global Brand. Each stage names what a company at it would not yet have (Glassdoor, employee advocacy, analyst recognition, Wikipedia, share of voice, impact reporting, candour about litigation), which then counts neither for nor against, and what to judge instead (founder visibility, named early customers, a findable entity, candour about what is unproven). Stage also steers which services are worth naming. Sector profiles (`src/data/sectorProfiles.js`) give Real Estate & Construction and Energy & Utilities their own audiences, proof, channels, weak indicators and tone; other sectors get guidance to read their own conventions rather than borrowing cleantech's. Both change interpretation only: attribute weights and the overall calculation are untouched, so baselines stay comparable. The export separates Maturity (the band the score falls into) from Stage (where the company is in its evolution).
 
 **The old stylesheet removed (v3.77).** The app had been carrying its entire pre-restyle stylesheet underneath the design system: 653 lines defining 52 of the same classes, including every button, and setting properties the new rules never reset. That is where the stray button colours, the header underlines and the alignment came from. It is gone; eight rules the system does not cover were carried forward. Nineteen of my own earlier patches were also removed, since they predated the system and were overriding it. The header is rebuilt to the export: a 64px shell, the `.dc-wordmark`, a text nav marked with `aria-current` rather than a class, and a Menu button below 900px.
+
+**The section is about the brand's audience (v4.15.4).** "What your audience is asking" read as though it addressed the reader. The section is now "What this brand's audience is asking" in the internal report, client links, the teaser read and PDF, and the Word report, and the spreadsheet title reads "What {brand}'s audience is asking".
 
 **A source line that says what it means (v4.15.3).** "From Google People also ask" read as though "Google People" were a thing. The source now reads: Source: the “People also ask” questions in Google search, United States. People also ask is the box of related questions Google shows in its results. One shared line (`aqSource`) in the app, client links and the Word report, and the same wording in the teaser PDF, its method note and the spreadsheet.
 

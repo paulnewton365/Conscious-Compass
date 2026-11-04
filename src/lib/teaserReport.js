@@ -526,11 +526,11 @@ function pageAudience(d, data, pageNo, ideaIdx, first) {
   let y = a.top + 28;
   if (first) {
     eyebrow(d, `Source: the \u201cPeople also ask\u201d questions in Google search, ${aq.location}`, a.left, y + 10);
-    d.text('What your audience is asking', a.left, y + 52, { family: 'display', size: 40, color: C.ink });
+    d.text("What this brand's audience is asking", a.left, y + 52, { family: 'display', size: 40, color: C.ink });
     d.paragraph(aq.intro, a.left, y + 84, a.width, { family: 'ui', size: 13, color: C.muted, lineHeight: 1.5 });
     y = a.top + aqHeaderHeight(d, aq, a.width);
   } else {
-    eyebrow(d, 'What your audience is asking, continued', a.left, y + 10);
+    eyebrow(d, "What this brand's audience is asking, continued", a.left, y + 10);
     y = a.top + 64;
   }
   ideaIdx.forEach((i, k) => {
