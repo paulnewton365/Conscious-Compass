@@ -6,9 +6,10 @@
 // framework version does not move.
 //
 // The method:
-//   1. The model reads the brand's own pages and names 4 or 5 subtopics of
-//      its category, each as a plain search a buyer would type. Category
-//      searches, not brand searches: the point is demand, not reputation.
+//   1. The model reads the brand's homepage, names its niche (v4.15.2), then
+//      names 4 or 5 subtopics of that niche, each as a plain search a buyer
+//      would type. Niche searches, not brand searches: the point is what the
+//      audience asks, not what it asks about this brand.
 //   2. Google's "People also ask" questions are harvested for each subtopic
 //      through SerpApi, then the strongest of them are expanded one level to
 //      pull the next questions in the chain.
@@ -48,17 +49,21 @@ export const searchBudget = (mode) => {
 
 export const GAPS = ['missing', 'thin', 'answered'];
 export const GAP_LABEL = {
-  full:   { missing: 'Not answered', thin: 'Answered thinly', answered: 'Answered, could go further' },
-  teaser: { missing: 'Likely gap', thin: 'Likely thin', answered: 'Answered, could go further' },
+  full:   { missing: 'Not on the site', thin: 'Touched on, not answered', answered: 'Answered, could go further' },
+  teaser: { missing: 'Not on main pages', thin: 'Touched on, not answered', answered: 'Answered, could go further' },
 };
+// Where the questions come from, said so nobody reads "Google People" as a
+// thing: People also ask is the box of related questions in Google results.
+export const aqSource = (location = AQ_LOCATION.label) => `Source: the \u201cPeople also ask\u201d questions in Google search, ${location}`;
+
 export const FORMATS = ['Short video', 'Carousel', 'Article', 'Explainer', 'FAQ page', 'Data post', 'Thread', 'Webinar', 'Guide', 'Case study'];
 
 export const AQ_COPY = {
   title: 'What your audience is asking',
-  intro: 'Real questions people search in this category, from Google’s People also ask, checked against what the brand publishes. Each idea answers questions that are actually being asked.',
-  teaserIntro: 'Real questions people search in this category, from Google’s People also ask. This read checked the brand’s main pages only, so the gaps are likely gaps. A full assessment checks the whole site.',
+  // Before a run, when there is no niche yet.
+  intro: 'The questions people are asking Google about this brand\u2019s niche, and the content that would answer them.',
   notConfigured: 'Audience questions need the SerpApi key. Add SERPAPI_API_KEY in Vercel and redeploy.',
-  none: 'Google returned too few questions for this category to build ideas on. Nothing has been invented to fill the gap.',
+  none: 'Google returned too few questions about this niche to build ideas on. Nothing has been invented to fill the gap.',
 };
 
 const clean = (v, n = 300) => String(v ?? '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -88,10 +93,12 @@ export function buildSubtopicPrompt(input, siteText, mode = 'full') {
   const n = (AQ_MODES[mode] || AQ_MODES.full).subtopics;
   return `${brandLine(input)}
 
-Read the brand's pages and decide what it actually sells or does, and to whom. Then name ${n} subtopics of its category that its buyers research before they buy.
+First, read the brand's HOMEPAGE (the first page below) and name its niche: the specific market it serves, as its own buyers would describe it. Specific, not a broad category: "rooftop solar for New Jersey homeowners", not "renewable energy"; "grid analytics software for utilities", not "software". Write it to follow the word "about" in a sentence, in lowercase unless a word is a proper noun, under 9 words, no brand name.
+
+Then name ${n} subtopics of that niche its buyers research before they buy.
 
 For each subtopic, write the plain search a buyer would type into Google. Rules:
-- Category searches, never the brand's name or a competitor's name. We want what the market asks, not what it asks about this brand.
+- Niche searches, never the brand's name or a competitor's name. We want what the niche's audience asks, not what it asks about this brand.
 - Short and natural, 2 to 6 words, the way a person types: "heat pump installation cost", "what is community solar", "office leasing for startups".
 - Spread across the buying journey: what it is, whether it is worth it, how to choose, cost, and the doubts people have.
 - Specific to this brand's actual offer and audience. A B2B grid software company's buyers search differently from homeowners.
@@ -99,7 +106,7 @@ For each subtopic, write the plain search a buyer would type into Google. Rules:
 ${pagesBlock(siteText)}
 
 Return valid JSON only, no prose, no fences:
-{ "category": "the category in under 8 words", "subtopics": [ { "name": "under 5 words", "query": "the search" } ] }`;
+{ "niche": "the niche, under 9 words", "subtopics": [ { "name": "under 5 words", "query": "the search" } ] }`;
 }
 
 export function parseSubtopics(raw, brandName = '', max = 5) {
@@ -114,7 +121,7 @@ export function parseSubtopics(raw, brandName = '', max = 5) {
     .filter(s => !seen.has(normQ(s.query)) && seen.add(normQ(s.query)))
     .slice(0, max);
   if (!subtopics.length) throw new Error('No usable subtopics came back.');
-  return { category: clean(parsed.category, 80), subtopics };
+  return { niche: clean(parsed.niche || parsed.category, 90).replace(/[.\s]+$/, ''), subtopics };
 }
 
 // ── Step 2: harvest ───────────────────────────────────────────
@@ -179,7 +186,7 @@ export function buildIdeasPrompt(input, harvest, siteText, mode = 'full') {
   const range = m.minIdeas === m.maxIdeas ? `exactly ${m.maxIdeas}` : `between ${m.minIdeas} and ${m.maxIdeas}`;
   return `${brandLine(input)}
 
-Below are real questions people search in this brand's category, harvested from Google's "People also ask", each with an id. Check them against the brand's pages, then write content ideas that would answer the questions the brand is not answering.
+Below are real questions people search about this brand's niche, harvested from Google's "People also ask", each with an id. Check them against the brand's pages, then write content ideas that would answer the questions the brand is not answering.
 
 ${pagesBlock(siteText)}
 
@@ -246,9 +253,9 @@ export async function runAudienceQuestions(input, { siteText = '', mode = 'full'
     const pb = await ping.json().catch(() => ({}));
     if (pb.notConfigured) throw new NotConfiguredError();
     if (!ping.ok) throw new Error(pb.error || `Question search is unavailable (HTTP ${ping.status}).`);
-    const { category, subtopics } = parseSubtopics(await callModel(buildSubtopicPrompt(input, siteText, mode)), input.brandName, m.subtopics);
+    const { niche, subtopics } = parseSubtopics(await callModel(buildSubtopicPrompt(input, siteText, mode)), input.brandName, m.subtopics);
     const harvest = await harvestQuestions(subtopics, { fetchImpl, mode });
-    const out = { ...base, category, subtopics, questions: harvest.questions, searches: harvest.searches, failures: harvest.failures };
+    const out = { ...base, niche, subtopics, questions: harvest.questions, searches: harvest.searches, failures: harvest.failures };
     // Under five real questions there is nothing honest to build on.
     if (harvest.questions.length < 5) return { ...out, status: 'thin', ideas: [], ms: Date.now() - started };
     const ideas = parseIdeas(await callModel(buildIdeasPrompt(input, harvest, siteText, mode)), harvest, mode);
@@ -260,12 +267,26 @@ export async function runAudienceQuestions(input, { siteText = '', mode = 'full'
 
 // ── Views ─────────────────────────────────────────────────────
 
+// The niche as it reads after "about". Records from before v4.15.2 hold a
+// capitalised category instead, so its first letter drops unless the start
+// is an acronym or a proper noun the model wrote that way on purpose.
+export function nicheText(record) {
+  const n = String(record?.niche || record?.category || '').trim();
+  if (!n) return '';
+  return /^[A-Z][a-z]/.test(n) && !record?.niche ? n.charAt(0).toLowerCase() + n.slice(1) : n;
+}
+
+export const introFor = (niche) => (niche
+  ? `The questions people are asking Google about ${niche}, and the content that would answer them.`
+  : AQ_COPY.intro);
+
 // The section as the app shows it. Internal adds the subtopic searches, the
 // questions not used, and the run's own numbers.
 export function audienceView(record, { audience = 'internal' } = {}) {
   if (!record || !Array.isArray(record.ideas)) return null;
   const mode = record.mode === 'teaser' ? 'teaser' : 'full';
   const byId = Object.fromEntries((record.questions || []).map(q => [q.id, q]));
+  const niche = nicheText(record);
   const ideas = record.ideas.map(i => ({
     title: i.title,
     questions: i.questionIds.map(id => byId[id]?.question).filter(Boolean),
@@ -280,10 +301,10 @@ export function audienceView(record, { audience = 'internal' } = {}) {
   const view = {
     mode,
     status: record.status,
-    category: record.category || '',
+    niche,
     location: record.location || AQ_LOCATION.label,
     gatheredAt: record.gatheredAt,
-    intro: mode === 'teaser' ? AQ_COPY.teaserIntro : AQ_COPY.intro,
+    intro: introFor(niche),
     ideas,
   };
   if (audience !== 'internal') return view;
@@ -306,7 +327,7 @@ export function clientAudienceQuestions(record) {
   if (!v || !v.ideas.length) return null;
   return JSON.parse(JSON.stringify({
     mode: v.mode,
-    category: v.category,
+    niche: v.niche,
     location: v.location,
     gatheredAt: v.gatheredAt,
     intro: v.intro,
@@ -361,7 +382,7 @@ export async function buildIdeasWorkbook(brand, record, exportedAt = new Date())
   const HEADER = 4;
   const ideaXml = [
     `<row r="1" ht="24" customHeight="1">${cell('A1', `${brand}: what the audience is asking`, S.title)}</row>`,
-    `<row r="2">${cell('A2', `Exported ${date}. ${rows.length} content idea${rows.length === 1 ? '' : 's'} from ${(record?.questions || []).length} questions on Google People also ask (${record?.location || AQ_LOCATION.label}), gathered ${record?.gatheredAt ? new Date(record.gatheredAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'on an unknown date'}.${record?.mode === 'teaser' ? ' A teaser read checks the main pages only, so gaps are likely gaps.' : ''}`, S.sub)}</row>`,
+    `<row r="2">${cell('A2', `Exported ${date}. Questions about ${nicheText(record) || 'this niche'}. ${rows.length} content idea${rows.length === 1 ? '' : 's'} from ${(record?.questions || []).length} questions in Google search\u2019s \u201cPeople also ask\u201d (${record?.location || AQ_LOCATION.label}), gathered ${record?.gatheredAt ? new Date(record.gatheredAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'on an unknown date'}.${record?.mode === 'teaser' ? ' A teaser checks the homepage and about page only for answers.' : ''}`, S.sub)}</row>`,
     `<row r="${HEADER}" ht="30" customHeight="1">${IDEA_COLUMNS.map((c, i) => cell(`${colName(i)}${HEADER}`, c.label, S.header)).join('')}</row>`,
     ...rows.map((row, ri) => `<row r="${HEADER + 1 + ri}">${IDEA_COLUMNS.map((c, ci) => cell(`${colName(ci)}${HEADER + 1 + ri}`, row[c.key], c.wrap ? S.wrap : S.text)).join('')}</row>`),
   ].join('');

@@ -1366,7 +1366,9 @@ button { font: inherit; color: inherit; }
 .dc-ev-list li.is-neg .dc-ev-mark { color: var(--cc-rust-text); }
 .dc-lens-evidence { display: flex; flex-direction: column; gap: var(--cc-s-3); padding-top: var(--cc-s-4); }
 .dc-lens-evidence ul { list-style: none; margin: 0; padding: 0; }
-.dc-lens-evidence li { display: grid; grid-template-columns: 140px 160px minmax(0,1fr); gap: var(--cc-s-4); align-items: baseline; padding: 10px 0; border-bottom: var(--cc-border); font-size: var(--cc-fs-ui); }
+/* The lens rows only. Unscoped, this grid also caught the Against rows nested
+   in the same block and squeezed them into its 160px column (v4.15.1). */
+.dc-lens-evidence ul:not(.dc-ev-list) > li { display: grid; grid-template-columns: 140px minmax(0,260px) minmax(0,1fr); gap: var(--cc-s-4); align-items: baseline; padding: 10px 0; border-bottom: var(--cc-border); font-size: var(--cc-fs-ui); }
 .dc-lens-evidence b { font-weight: var(--cc-w-semi); color: var(--cc-ink); }
 .dc-method { display: flex; flex-direction: column; gap: var(--cc-s-2); padding-top: var(--cc-s-6); border-top: var(--cc-border-strong); }
 .dc-method p { margin: 0; font-size: var(--cc-fs-ui); line-height: 1.6; color: var(--cc-body); max-width: 90ch; }
@@ -1385,7 +1387,7 @@ button { font: inherit; color: inherit; }
   .dc-internal-dl dt { padding-top: var(--cc-s-3); }
   .dc-select.is-auto { min-width: 0; width: 100%; }
   .dc-field.is-inline { width: 100%; } .dc-field.is-inline .dc-select { width: 100%; }
-  .dc-lens-evidence li { grid-template-columns: 1fr; gap: 2px; }
+  .dc-lens-evidence ul:not(.dc-ev-list) > li { grid-template-columns: 1fr; gap: 2px; }
   .dc-ev-list li { grid-template-columns: 1fr auto; } .dc-ev-mark { grid-column: 1 / -1; }
   .dc-tz-toolbar .dc-head-actions { width: 100%; }
 }
@@ -1401,7 +1403,8 @@ button { font: inherit; color: inherit; }
 .dc-tz-opportunity { display: flex; flex-direction: column; gap: 6px; padding-left: var(--cc-s-4); border-left: 3px solid var(--cc-rust); }
 .dc-tz-opportunity p { margin: 0; font-size: var(--cc-fs-body); line-height: var(--cc-lh-body); color: var(--cc-body); max-width: 64ch; }
 .dc-ev-issue { color: var(--cc-rust-text); font-weight: var(--cc-w-semi); }
-.dc-lens-evidence .dc-ev-list { margin-top: var(--cc-s-3); }
+.dc-lens-evidence .dc-ev-list { margin-top: var(--cc-s-3); border-top: 0; }
+.dc-ev-list li > .dc-pill { justify-self: end; }
 .dc-ev-list .dc-rec-tags { justify-content: flex-end; }
 .dc-passes li.is-failed em { color: var(--cc-rust-text); }
 .dc-teaser-findings .dc-rec-tags { margin: 0 0 var(--cc-s-2); }

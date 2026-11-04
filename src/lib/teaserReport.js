@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// INDICATIVE READ, THE FIVE-PAGE REPORT (v3.58)
+// INDICATIVE READ, THE FIVE-PAGE REPORT (v3.58), SIX OR SEVEN WITH AUDIENCE QUESTIONS (v4.15.1)
 //
 // Built to the "Compass Read v2" design handoff: US Letter, 816 x 1056 CSS px
 // at 96dpi, drawn as vector straight into the PDF. Page 1 summary, pages 2 and
@@ -210,7 +210,7 @@ function pageShell(d, data, pageNo, total) {
   const footY = h - padBottom - 6;
   d.rule(padX, footY - 20, 0, C.rule, 0);
   d.text('ANTENNA GROUP \u00B7 CONSCIOUS COMPASS \u00B7 INDICATIVE READ', padX, footY, { family: 'ui-semi', size: 10.5, color: C.faint, spacing: 1 });
-  d.text(`0${pageNo} / 0${total}`, w - padX, footY, { family: 'ui-semi', size: 10.5, color: C.faint, spacing: 1, align: 'right' });
+  d.text(`${String(pageNo).padStart(2, '0')} / ${String(total).padStart(2, '0')}`, w - padX, footY, { family: 'ui-semi', size: 10.5, color: C.faint, spacing: 1, align: 'right' });
 
   return { top: padTop + 24, left: padX, right: w - padX, width: w - padX * 2, bottom: footY - 26 };
 }
@@ -221,7 +221,7 @@ const eyebrow = (d, str, x, y, color = C.muted) =>
 // ── Pages ─────────────────────────────────────────────────────
 
 function pageSummary(d, data) {
-  const a = pageShell(d, data, 1, 5);
+  const a = pageShell(d, data, 1, data.totalPages || 5);
   let y = a.top + 28;
 
   // Brand block
@@ -297,7 +297,7 @@ function pageSummary(d, data) {
 }
 
 function pageAttributes(d, data, pageNo, from, to) {
-  const a = pageShell(d, data, pageNo, 5);
+  const a = pageShell(d, data, pageNo, data.totalPages || 5);
   let y = a.top + 36;
   d.text('The eight attributes', a.left, y + 34, { family: 'display', size: 40, color: C.ink });
   eyebrow(d, `${from + 1}\u2013${to} of 8`, a.right - d.width(`${from + 1}\u2013${to} OF 8`, { family: 'ui-semi', size: 11, spacing: 1.5 }), y + 34);
@@ -324,7 +324,7 @@ function pageAttributes(d, data, pageNo, from, to) {
 }
 
 function pageEvidence(d, data) {
-  const a = pageShell(d, data, 4, 5);
+  const a = pageShell(d, data, 4, data.totalPages || 5);
   let y = a.top + 28;
   eyebrow(d, 'Trust, credibility, reputation and authenticity', a.left, y + 10);
   d.text('The evidence', a.left, y + 52, { family: 'display', size: 40, color: C.ink });
@@ -377,8 +377,8 @@ function pageEvidence(d, data) {
   }
 }
 
-function pageLevers(d, data) {
-  const a = pageShell(d, data, 5, 5);
+function pageLevers(d, data, pageNo = 5) {
+  const a = pageShell(d, data, pageNo, data.totalPages || 5);
   let y = a.top + 22;
   d.text('Where marketing would move this score', a.left, y + 34, { family: 'display', size: 40, color: C.ink });
   y += 52;
@@ -437,10 +437,116 @@ function pageLevers(d, data) {
   }
 }
 
+
+// ── What your audience is asking (v4.15.1) ────────────────────
+// One page after the evidence, two if the ideas run long. Each idea is
+// measured with the same function that draws it, so the page breaks fall
+// between ideas, never through one.
+
+const AQ_TOP = PAGE.padTop + 24;
+const AQ_BOTTOM = PAGE.h - PAGE.padBottom - 6 - 26;
+const AQ_INDENT = 64;
+
+function aqTags(idea) {
+  return [idea.gapLabel, idea.format, idea.channel, idea.attribute].filter(Boolean).map(t => ({ t: String(t).toUpperCase(), accent: false }))
+    .concat(idea.earnedCreative ? [{ t: 'EARNED CREATIVE POTENTIAL', accent: true }] : []);
+}
+
+// Draws one idea at y, or only measures it. Returns its height.
+function aqIdea(d, idea, n, x, y, w, draw = true) {
+  const cx = x + AQ_INDENT;
+  const cw = w - AQ_INDENT;
+  const titleOpts = { family: 'display', size: 20, lineHeight: 1.25 };
+  let cy = y + 22;
+  if (draw) {
+    d.text(String(n).padStart(2, '0'), x, cy + 4, { family: 'display', size: 28, color: C.accent });
+    d.paragraph(idea.title, cx, cy, cw, { ...titleOpts, color: C.ink });
+  }
+  cy += d.paragraphHeight(idea.title, cw, titleOpts) - 20 * 1.25 + 11;
+
+  // Tags, outlined, wrapping to a second row when they run out of room.
+  let tx = cx;
+  const tagH = 18;
+  aqTags(idea).forEach(({ t, accent }) => {
+    const tw = d.width(t, { family: 'ui-semi', size: 10, spacing: 0.8 }) + 14;
+    if (tx + tw > cx + cw) { tx = cx; cy += tagH + 6; }
+    if (draw) {
+      d.pdf.setDrawColor(accent ? C.accent : C.separator);
+      d.pdf.setLineWidth(1);
+      d.pdf.roundedRect(tx, cy, tw, tagH, 2, 2, 'S');
+      d.text(t, tx + 7, cy + 12.5, { family: 'ui-semi', size: 10, color: accent ? C.accentText : C.ink, spacing: 0.8 });
+    }
+    tx += tw + 6;
+  });
+  cy += tagH + 19;
+
+  // The real questions, in italic against a rust rule.
+  const qOpts = { family: 'display-italic', size: 14, lineHeight: 1.38 };
+  const qTop = cy - 14;
+  (idea.questions || []).forEach(q => {
+    if (draw) d.paragraph(q, cx + 14, cy, cw - 14, { ...qOpts, color: C.ink });
+    cy += d.paragraphHeight(q, cw - 14, qOpts);
+  });
+  if (draw && idea.questions?.length) d.box(cx, qTop, 2, cy - qTop - 12, C.accent);
+
+  if (idea.why) {
+    const wOpts = { family: 'ui', size: 13, lineHeight: 1.45 };
+    cy += 4;
+    if (draw) d.paragraph(idea.why, cx, cy, cw, { ...wOpts, color: C.body });
+    cy += d.paragraphHeight(idea.why, cw, wOpts) - 13 * 1.45;
+  }
+  return cy - y + 10;
+}
+
+// Splits the ideas into pages. The first page carries the heading and intro.
+export function audiencePages(d, data) {
+  const aq = data.audience;
+  if (!aq?.ideas?.length) return [];
+  const w = PAGE.w - PAGE.padX * 2;
+  const pages = [];
+  let current = [];
+  let y = AQ_TOP + aqHeaderHeight(d, aq, w);
+  aq.ideas.forEach((idea, i) => {
+    const h = aqIdea(d, idea, i + 1, PAGE.padX, y, w, false) + 12;
+    if (current.length && y + h > AQ_BOTTOM) { pages.push(current); current = []; y = AQ_TOP + 64; }
+    current.push(i);
+    y += h;
+  });
+  if (current.length) pages.push(current);
+  return pages;
+}
+
+function aqHeaderHeight(d, aq, w) {
+  return 104 + d.paragraphHeight(aq.intro, w, { family: 'ui', size: 13, lineHeight: 1.5 }) + 18;
+}
+
+function pageAudience(d, data, pageNo, ideaIdx, first) {
+  const a = pageShell(d, data, pageNo, data.totalPages);
+  const aq = data.audience;
+  let y = a.top + 28;
+  if (first) {
+    eyebrow(d, `Source: the \u201cPeople also ask\u201d questions in Google search, ${aq.location}`, a.left, y + 10);
+    d.text('What your audience is asking', a.left, y + 52, { family: 'display', size: 40, color: C.ink });
+    d.paragraph(aq.intro, a.left, y + 84, a.width, { family: 'ui', size: 13, color: C.muted, lineHeight: 1.5 });
+    y = a.top + aqHeaderHeight(d, aq, a.width);
+  } else {
+    eyebrow(d, 'What your audience is asking, continued', a.left, y + 10);
+    y = a.top + 64;
+  }
+  ideaIdx.forEach((i, k) => {
+    d.rule(a.left, y, a.width, k === 0 ? C.ink : C.rule);
+    y += aqIdea(d, aq.ideas[i], i + 1, a.left, y, a.width, true) + 12;
+  });
+}
+
 // ── Entry point ───────────────────────────────────────────────
 
 export function drawTeaserReport(pdf, data, { fontsReady = false } = {}) {
   const d = makeDraw(pdf, fontsReady);
+  // Audience pages are measured first so every footer shows the real total.
+  const aqPages = audiencePages(d, data);
+  const total = 5 + aqPages.length;
+  data = { ...data, totalPages: total };
   pageSummary(d, data);
   pdf.addPage([PAGE.w, PAGE.h], 'portrait');
   pageAttributes(d, data, 2, 0, 4);
@@ -448,8 +554,12 @@ export function drawTeaserReport(pdf, data, { fontsReady = false } = {}) {
   pageAttributes(d, data, 3, 4, 8);
   pdf.addPage([PAGE.w, PAGE.h], 'portrait');
   pageEvidence(d, data);
+  aqPages.forEach((ideas, i) => {
+    pdf.addPage([PAGE.w, PAGE.h], 'portrait');
+    pageAudience(d, data, 5 + i, ideas, i === 0);
+  });
   pdf.addPage([PAGE.w, PAGE.h], 'portrait');
-  pageLevers(d, data);
+  pageLevers(d, data, total);
   return pdf;
 }
 
@@ -487,6 +597,8 @@ export function reportData(payload) {
     opportunity: payload.opportunity || '',
     levers: (payload.services || []).map(s => ({ title: s.title, attributes: s.attributes || [], gap: s.why, why: s.impact })),
     questions: payload.fullAssessmentWouldResolve || [],
-    method: `An indicative read against the Conscious Compass framework v${payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the Compass rubric, judged on the evidence this read can reach. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.`,
+    // Already whitelisted by clientAudienceQuestions; null without ideas.
+    audience: payload.audienceQuestions?.ideas?.length ? payload.audienceQuestions : null,
+    method: `An indicative read against the Conscious Compass framework v${payload.frameworkVersion}, built from publicly observable evidence gathered in a single automated pass: the brand's website, a social scan, an AI perception read, review and search signals, and an earned media scan. Scores use the Compass rubric, judged on the evidence this read can reach. The full assessment adds five AI engines, verified channel data, technical and paid media audits, and expert review.${payload.audienceQuestions?.ideas?.length ?  " Audience questions come from the \u201cPeople also ask\u201d questions in Google search, for the niche named from the brand's homepage. Answers were looked for on the homepage and about page only." : ''}`,
   };
 }

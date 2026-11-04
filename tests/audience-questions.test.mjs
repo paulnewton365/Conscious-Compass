@@ -19,7 +19,7 @@ const INPUT = { brandName: 'Acme Solar', websiteUrl: 'https://acmesolar.com', bu
 const SITE = '[https://acmesolar.com]\nAcme Solar installs rooftop solar for homeowners in New Jersey.';
 
 const SUBTOPICS = JSON.stringify({
-  category: 'Residential rooftop solar',
+  niche: 'rooftop solar for New Jersey homeowners.',
   subtopics: [
     { name: 'Cost', query: 'rooftop solar cost' },
     { name: 'Brand', query: 'acme solar reviews' },          // a brand search: dropped
@@ -61,8 +61,8 @@ const ideasFor = (harvest, extra = []) => JSON.stringify({
 // ── Subtopics ──
 
 test('subtopics are category searches: brand searches and duplicates are dropped, dashes cleaned, capped', () => {
-  const { category, subtopics } = aq.parseSubtopics(SUBTOPICS, 'Acme Solar', 4);
-  assert.equal(category, 'Residential rooftop solar');
+  const { niche, subtopics } = aq.parseSubtopics(SUBTOPICS, 'Acme Solar', 4);
+  assert.equal(niche, 'rooftop solar for New Jersey homeowners', 'trailing full stop dropped');
   assert.deepEqual(subtopics.map(s => s.query), ['rooftop solar cost', 'is solar worth it, nj', 'solar tax credit 2026', 'do i need a solar battery']);
   assert.throws(() => aq.parseSubtopics('{"subtopics":[]}', 'x'), /No usable subtopics/);
   assert.throws(() => aq.parseSubtopics('no json here', 'x'), /no JSON/);
@@ -72,6 +72,8 @@ test('the subtopic prompt asks for category searches and never for the brand nam
   const p = aq.buildSubtopicPrompt(INPUT, SITE, 'teaser');
   assert.ok(p.includes('name 4 subtopics'));
   assert.ok(p.includes("never the brand's name"));
+  assert.ok(p.includes("read the brand's HOMEPAGE") && p.includes('name its niche'), 'the niche comes from the homepage');
+  assert.ok(p.includes('"niche"'));
   assert.ok(p.includes('Acme Solar installs rooftop solar'));
   assert.ok(aq.buildSubtopicPrompt(INPUT, SITE, 'full').includes('name 5 subtopics'));
 });
@@ -175,10 +177,17 @@ test('the client payload carries ideas and question text only, by whitelist', as
   const c = aq.clientAudienceQuestions({ ...r, failures: [{ query: 'SENTINEL_FAILURE' }], error: 'SENTINEL_ERROR' });
   const json = JSON.stringify(c);
   for (const leak of ['SNIPPET_SECRET', 'energy.gov', '"subtopic"', '"query"', 'SENTINEL_FAILURE', 'SENTINEL_ERROR', '"searches"', '"questionIds"', '"subtopics"', '"unused"']) assert.ok(!json.includes(leak), leak);
-  assert.deepEqual(Object.keys(c).sort(), ['category', 'gatheredAt', 'ideas', 'intro', 'location', 'mode']);
+  assert.deepEqual(Object.keys(c).sort(), ['gatheredAt', 'ideas', 'intro', 'location', 'mode', 'niche']);
+  assert.equal(c.intro, 'The questions people are asking Google about rooftop solar for New Jersey homeowners, and the content that would answer them.');
   assert.ok(c.ideas[0].questions[0].endsWith('?'), 'the real question text travels');
-  assert.equal(c.ideas[0].gapLabel, 'Likely gap', 'a teaser says likely');
-  assert.equal(aq.clientAudienceQuestions((await okRecord('full'))).ideas[0].gapLabel, 'Not answered');
+  assert.equal(c.ideas[0].gapLabel, 'Not on main pages', 'a teaser says where it looked');
+  assert.equal(aq.clientAudienceQuestions((await okRecord('full'))).ideas[0].gapLabel, 'Not on the site');
+  assert.equal(c.ideas[1].gapLabel, 'Touched on, not answered');
+  // A record from before v4.15.2 holds a capitalised category, and still reads.
+  const old = aq.clientAudienceQuestions({ ...r, niche: undefined, category: 'Residential rooftop solar' });
+  assert.equal(old.intro, 'The questions people are asking Google about residential rooftop solar, and the content that would answer them.');
+  assert.equal(aq.nicheText({ category: 'EV charging for fleets' }), 'EV charging for fleets', 'an acronym keeps its capitals');
+  assert.equal(aq.clientAudienceQuestions({ ...r, niche: '' }).intro, aq.AQ_COPY.intro);
   assert.equal(aq.clientAudienceQuestions({ ...r, ideas: [] }), null, 'nothing without ideas');
   assert.equal(aq.clientAudienceQuestions(null), null);
   const internal = aq.audienceView(r);
@@ -359,7 +368,8 @@ test('the shared section renders ideas with their real questions; internal adds 
   const r = await okRecord('teaser');
   const client = server.renderToStaticMarkup(h(App.AudienceQuestionsSection, { view: aq.clientAudienceQuestions(r) }));
   assert.ok(client.includes('How much does solar cost?'));
-  assert.ok(client.includes('Likely gap'));
+  assert.ok(client.includes('Not on main pages'));
+  assert.ok(client.includes('about rooftop solar for New Jersey homeowners'));
   assert.ok(client.includes('Earned creative potential'));
   assert.ok(!client.includes('How these were found'));
   const internal = server.renderToStaticMarkup(h(App.AudienceQuestionsSection, { view: aq.audienceView(r), internal: true }));
@@ -380,4 +390,80 @@ test('the client report and the teaser read show the section; a report without i
   const without = App.makeClientPayload({ project: { brandName: 'Acme Solar', industry: 'energy' }, scores, benchmark: null });
   assert.equal(without.audienceQuestions, null);
   assert.ok(!server.renderToStaticMarkup(h(App.ClientReportView, { payload: without })).includes('What your audience is asking'));
+});
+
+// ── Exports (v4.15.1) ──
+
+test('the teaser PDF adds a page for the ideas before the services page, and only the payload reaches it', async () => {
+  const { jsPDF } = await import('jspdf');
+  const { REPORT_FONTS, reportData } = await import('../src/lib/teaserReport.js');
+  const { exportTeaserReportPdf } = await import('../src/lib/scorecard.js');
+  const { ATTRIBUTES } = await import('../src/data/rubric.js');
+  const r = await okRecord('teaser');
+  const five = { ...r, ideas: [0, 1, 2, 3, 4].map(i => ({ ...r.ideas[0], title: `Idea number ${i + 1} for the read`, questionIds: [r.questions[i].id, r.questions[i + 5].id] })) };
+  const payload = {
+    brandName: 'Acme Solar', websiteUrl: 'https://acmesolar.com', scoredAt: '2026-11-03T10:00:00Z', overall: 52, stage: 'Establishing', frameworkVersion: '2.13',
+    headline: 'h', summary: 's', opportunity: 'o', lensScores: { credibility: 50, trust: 50, reputation: 50, authenticity: 50 },
+    services: [{ title: 'Content strategy', why: 'w', attributes: ['Cogent'], impact: 'i' }], fullAssessmentWouldResolve: ['Q?'],
+    scores: Object.fromEntries([...ATTRIBUTES.map(a => [a.id, { score: 50, confidence: 'medium', rationale: 'r' }]), ['trustFindings', []]]),
+    audienceQuestions: aq.clientAudienceQuestions(five),
+  };
+  const fonts = Object.fromEntries(REPORT_FONTS.map(f => [f.file, readFileSync(new URL(`../public/report/${f.file}`, import.meta.url)).toString('base64')]));
+  const { pdf } = await exportTeaserReportPdf(payload, { jsPDF, save: false, fonts: {} });
+  assert.equal(pdf.internal.getNumberOfPages(), 6, 'five teaser ideas fit on one added page');
+  const withFonts = await exportTeaserReportPdf(payload, { jsPDF, save: false, fonts });
+  assert.equal(withFonts.pdf.internal.getNumberOfPages(), 6, 'and with the real fonts');
+  const raw = pdf.output();
+  for (const s of ['What your audience is asking', 'Idea number 5 for the read', '05 / 06', '06 / 06', 'Where marketing would move this score']) assert.ok(raw.includes(s), s);
+  assert.ok(raw.indexOf('What your audience is asking') < raw.indexOf('Where marketing would move this score'), 'ideas come before the services page');
+  assert.ok(!raw.includes('SNIPPET_SECRET') && !raw.includes('energy.gov'), 'nothing beyond the payload');
+  assert.ok(reportData(payload).method.includes("People also ask"));
+  const none = await exportTeaserReportPdf({ ...payload, audienceQuestions: null }, { jsPDF, save: false, fonts: {} });
+  assert.equal(none.pdf.internal.getNumberOfPages(), 5, 'no ideas, the original five pages');
+  assert.ok(none.pdf.output().includes('05 / 05'));
+  const long = { ...five, ideas: five.ideas.map(i => ({ ...i, why: 'A much longer reason that runs on across several lines of the page. '.repeat(4) })) };
+  const tall = await exportTeaserReportPdf({ ...payload, audienceQuestions: aq.clientAudienceQuestions(long) }, { jsPDF, save: false, fonts: {} });
+  assert.equal(tall.pdf.internal.getNumberOfPages(), 7, 'long copy breaks between ideas onto a second page');
+  assert.ok(tall.pdf.output().includes('WHAT YOUR AUDIENCE IS ASKING, CONTINUED'));
+});
+
+test('the Word report carries the client-safe ideas after earned creative', async () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  const start = app.indexOf('// ── WHAT YOUR AUDIENCE IS ASKING (v4.15.1)');
+  assert.ok(start > app.indexOf("...secHead('Earned creative', 'How earned creative could help'),"), 'after earned creative');
+  assert.ok(start < app.indexOf("...secHead('What to do next', 'Recommendations'),"), 'before recommendations');
+  // Run the block itself against the real docx library.
+  const block = app.slice(app.indexOf('...(() => {', start) + 3, app.indexOf('})(),', start) + 4);
+  const docx = await import('docx');
+  const { Paragraph, TextRun, BorderStyle, Document, Packer } = docx;
+  const RULE = 'DEDAD2', INK = '15171A', MUTED = '5B6068', RUST = 'C23B22', SANS = 'Hanken Grotesk', SERIF = 'Newsreader';
+  const hair = (color = RULE, size = 4) => ({ style: BorderStyle.SINGLE, size, color, space: 0 });
+  const clean = (t) => (t || '').replace(/[—–]/g, '-');
+  const body = (text) => new Paragraph({ children: [new TextRun({ text })] });
+  const secHead = (e, t) => [new Paragraph({ children: [new TextRun({ text: `${e}|${t}` })] })];
+  const run = (scores) => new Function('scores', 'clientAudienceQuestions', 'AQ_COPY', 'secHead', 'body', 'clean', 'hair', 'Paragraph', 'TextRun', 'BorderStyle', 'RULE', 'INK', 'MUTED', 'RUST', 'SANS', 'SERIF', 'aqSource', `return ${block};`)(
+    scores, aq.clientAudienceQuestions, aq.AQ_COPY, secHead, body, clean, hair, Paragraph, TextRun, BorderStyle, RULE, INK, MUTED, RUST, SANS, SERIF, aq.aqSource);
+  assert.deepEqual(run({}), [], 'nothing without ideas');
+  const r = await okRecord('full');
+  const paras = run({ audienceQuestions: r });
+  const buf = await Packer.toBuffer(new Document({ sections: [{ children: paras }] }));
+  const JSZip = (await import('jszip')).default;
+  const xml = await (await JSZip.loadAsync(buf)).file('word/document.xml').async('string');
+  for (const s of ['Your audience|What your audience is asking', 'What rooftop solar really costs in New Jersey, line by line', 'How much does solar cost?', 'NOT ON THE SITE', 'about rooftop solar for New Jersey homeowners', 'Source: the \u201cPeople also ask\u201d questions in Google search']) assert.ok(xml.includes(s), s);
+  assert.ok(!xml.includes('SNIPPET_SECRET') && !xml.includes('rooftop solar cost (Cost)'), 'no internals');
+});
+
+test('the lens evidence grid applies to the lens rows only, never the Against rows inside it', () => {
+  const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  assert.ok(!/\.dc-lens-evidence li \{/.test(css), 'no unscoped rule left to catch the nested list');
+  assert.ok(css.includes('.dc-lens-evidence ul:not(.dc-ev-list) > li { display: grid;'));
+  assert.ok(css.includes('.dc-ev-list li > .dc-pill { justify-self: end; }'), 'the lens tag sits at the end, not stretched');
+});
+
+test('the source line names the Google feature in quotes, everywhere it appears', () => {
+  assert.equal(aq.aqSource('United States'), 'Source: the “People also ask” questions in Google search, United States');
+  for (const f of ['../src/App.jsx', '../src/lib/teaserReport.js', '../src/lib/audienceQuestions.js']) {
+    const src = readFileSync(new URL(f, import.meta.url), 'utf8').split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+    assert.ok(!/Google People also ask|Google's People also ask/.test(src), `${f} has the old wording`);
+  }
 });

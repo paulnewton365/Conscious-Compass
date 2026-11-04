@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.15.0';
+const APP_VERSION = '4.15.3';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -105,7 +105,7 @@ import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib
 import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, gatherWebsite, siteTextOf, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
-import { runAudienceQuestions, audienceView, clientAudienceQuestions, buildIdeasWorkbook, AQ_COPY, searchBudget } from './lib/audienceQuestions';
+import { runAudienceQuestions, audienceView, clientAudienceQuestions, buildIdeasWorkbook, AQ_COPY, searchBudget, aqSource } from './lib/audienceQuestions';
 import { 
   supabase, 
   signUp, 
@@ -1650,9 +1650,7 @@ function AudienceQuestionsSection({ view, internal = false }) {
   return (
     <div className="dc-aq" data-field="audience-questions" data-mode={view.mode}>
       <p className="dc-body">{view.intro}</p>
-      {(view.category || gathered) && (
-        <p className="dc-meta">{view.category ? `${view.category} · ` : ''}Google, {view.location}{gathered ? ` · ${gathered}` : ''}</p>
-      )}
+      <p className="dc-meta">{aqSource(view.location)}{gathered ? ` · ${gathered}` : ''}</p>
       {ideas.length > 0 ? (
         <ol className="dc-teaser-findings" data-field="aq-ideas">
           {ideas.map((idea, n) => (
@@ -7676,6 +7674,31 @@ ${content.slice(0, 8000)}`;
                   : [new TextRun({ text: 'HOWL  BY ANTENNA', bold: true, size: 18, font: SANS })] }),
                 body(e.howl?.opener || ECO_COPY.howlOpener, 60),
                 body(ECO_COPY.howlBody, 120),
+              ];
+            })(),
+
+            // ── WHAT YOUR AUDIENCE IS ASKING (v4.15.1) ───────────
+            // The client-safe version only: ideas and the real questions.
+            ...(() => {
+              const q = clientAudienceQuestions(scores?.audienceQuestions);
+              if (!q) return [];
+              const gathered = q.gatheredAt ? new Date(q.gatheredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+              return [
+                ...secHead('Your audience', AQ_COPY.title),
+                body(clean(q.intro), 60),
+                new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: [aqSource(q.location), gathered].filter(Boolean).join('  \u00b7  '), size: 16, font: SANS, color: MUTED })] }),
+                ...q.ideas.flatMap((idea, i) => [
+                  new Paragraph({ keepNext: true, spacing: { before: i ? 220 : 0, after: 60, line: 280, lineRule: 'auto' }, border: { top: hair(i ? RULE : INK, i ? 4 : 6) }, children: [
+                    new TextRun({ text: `${String(i + 1).padStart(2, '0')}   `, font: SERIF, size: 30, color: RUST }),
+                    new TextRun({ text: clean(idea.title), font: SERIF, size: 28, color: INK }),
+                  ]}),
+                  new Paragraph({ keepNext: true, spacing: { after: 80 }, children: [
+                    new TextRun({ text: [idea.gapLabel, idea.format, idea.channel, idea.attribute].filter(Boolean).join('  \u00b7  ').toUpperCase(), bold: true, size: 15, font: SANS, color: MUTED, characterSpacing: 20 }),
+                    ...(idea.earnedCreative ? [new TextRun({ text: '  \u00b7  EARNED CREATIVE POTENTIAL', bold: true, size: 15, font: SANS, color: RUST, characterSpacing: 20 })] : []),
+                  ]}),
+                  ...idea.questions.map(qt => new Paragraph({ keepNext: true, indent: { left: 200 }, border: { left: { style: BorderStyle.SINGLE, size: 12, color: RUST, space: 8 } }, spacing: { after: 20, line: 280, lineRule: 'auto' }, children: [new TextRun({ text: clean(qt), font: SERIF, size: 22, italics: true, color: INK })] })),
+                  ...(idea.why ? [body(clean(idea.why), 60)] : []),
+                ]),
               ];
             })(),
 
