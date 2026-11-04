@@ -1209,6 +1209,15 @@ button { font: inherit; color: inherit; }
 .dc-teaser-n { font: var(--cc-w-regular) var(--cc-fs-card)/1.25 var(--cc-serif); color: var(--cc-rust-text); }
 .dc-teaser-findings h2 { margin: 0 0 var(--cc-s-2); font: var(--cc-w-regular) var(--cc-fs-card)/1.25 var(--cc-serif); color: var(--cc-ink); }
 .dc-teaser-findings p { margin: 0; font-size: var(--cc-fs-body); line-height: var(--cc-lh-body); color: var(--cc-body); max-width: 64ch; }
+/* What your audience is asking (v4.15.0): the real questions under each idea. */
+.dc-aq > .dc-body { margin: 0 0 var(--cc-s-2); max-width: 64ch; }
+.dc-aq > .dc-meta { margin: 0 0 var(--cc-s-6); }
+.dc-aq .dc-rec-tags { margin: 0 0 var(--cc-s-3); justify-content: flex-start; flex-wrap: wrap; }
+.dc-teaser-findings .dc-aq-questions { list-style: none; margin: 0 0 var(--cc-s-3); padding: 0 0 0 var(--cc-s-4); border-left: 2px solid var(--cc-rust-text); }
+.dc-teaser-findings .dc-aq-questions li { display: block; padding: 2px 0; border: 0; font: italic var(--cc-w-regular) var(--cc-fs-body)/1.45 var(--cc-serif); color: var(--cc-ink); }
+.dc-aq-internal { margin-top: var(--cc-s-4); }
+.dc-aq-internal p { margin: var(--cc-s-2) 0 0; }
+#audience-questions .dc-inline { margin-top: var(--cc-s-4); }
 .dc-teaser-cta { border-top: var(--cc-border-strong); padding-top: var(--cc-s-8); display: flex; justify-content: space-between; align-items: center; gap: var(--cc-s-10); flex-wrap: wrap; }
 .dc-teaser-cta .dc-h, .dc-teaser-cta .dc-body { margin: 0; }
 .dc-teaser-cta .btn-primary, .dc-teaser-cta .btn-secondary { height: 44px; padding: 0 20px; }

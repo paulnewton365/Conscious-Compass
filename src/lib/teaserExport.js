@@ -125,20 +125,20 @@ export function campaignSummary(rows) {
 
 // Control characters are illegal in XML 1.0 and make Excel refuse the file,
 // so strip them before escaping.
-const esc = (v) => String(v ?? '')
+export const esc = (v) => String(v ?? '')
   // eslint-disable-next-line no-control-regex
   .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const colName = (i) => { let n = i + 1, s = ''; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+export const colName = (i) => { let n = i + 1, s = ''; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
 
 // Style indexes into cellXfs below.
-const S = { title: 1, sub: 2, header: 3, text: 4, green: 5, orange: 6, red: 7, wrap: 8, muted: 9, empty: 10, signed: 11 };
+export const S = { title: 1, sub: 2, header: 3, text: 4, green: 5, orange: 6, red: 7, wrap: 8, muted: 9, empty: 10, signed: 11 };
 
 // Same bands as the app: green 70+, orange 45 to 69, red under 45.
 export const bandStyle = (n) => (n === null || n === undefined ? S.empty : n >= 70 ? S.green : n >= 45 ? S.orange : S.red);
 
-const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+export const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <numFmts count="1"><numFmt numFmtId="164" formatCode="+0;-0;0"/></numFmts>
 <fonts count="7">
@@ -181,7 +181,7 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
 
-const cell = (ref, value, style) => {
+export const cell = (ref, value, style) => {
   if (value === null || value === undefined || value === '') return `<c r="${ref}" s="${style}"/>`;
   if (typeof value === 'number' && Number.isFinite(value)) return `<c r="${ref}" s="${style}"><v>${value}</v></c>`;
   return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${esc(value)}</t></is></c>`;

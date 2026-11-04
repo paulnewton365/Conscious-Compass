@@ -30,6 +30,7 @@ import {
 import { thesisPromptBlock, THESIS_SCHEMA, parseThesis } from '../data/thesis.js';
 import { stagePromptBlock, findStage, STAGE_IDS } from '../data/stages.js';
 import { sectorPromptBlock } from '../data/sectorProfiles.js';
+import { clientAudienceQuestions } from './audienceQuestions.js';
 
 // 2.0 (v3.32): scoring calibrated to what a teaser can observe, and no
 // campaign modifier. Results carry the version so teasers scored with 1.0
@@ -266,15 +267,23 @@ export async function gatherKnowledgeGraph(input, fetchImpl) {
 // the others carry on; the scoring pass is told exactly what is missing.
 //
 // callSearch(prompt, { searchUses, maxTokens }) → Promise<string>
-export async function gatherEvidence(input, { fetchImpl, callSearch, onProgress = () => {} }) {
+//
+// runAudience(siteText) → Promise<record> is optional (v4.15.0). It waits for
+// the website pages, never counts toward the sources needed to score, and its
+// record is stored with the evidence so a rescore reuses it. It is never read
+// by the scoring prompt.
+export async function gatherEvidence(input, { fetchImpl, callSearch, runAudience = null, onProgress = () => {} }) {
+  const website = gatherWebsite(input, fetchImpl);
+  website.catch(() => {});
   const tasks = {
-    website:      () => gatherWebsite(input, fetchImpl),
+    website:      () => website,
     social:       () => callSearch(buildSocialPrompt(input), { searchUses: 6, maxTokens: 3000 }).then(text => ({ text })),
     aiPerception: () => callSearch(buildAiPerceptionPrompt(input), { searchUses: 6, maxTokens: 3000 }).then(text => ({ text })),
     thirdParty:   () => callSearch(buildThirdPartyPrompt(input), { searchUses: 7, maxTokens: 3000 }).then(text => ({ text })),
     earned:       () => callSearch(buildEarnedPrompt(input), { searchUses: 8, maxTokens: 4000 }).then(text => ({ text })),
     ...(isCso(input) ? { sustainability: () => callSearch(buildSustainabilityPrompt(input), { searchUses: 7, maxTokens: 3500 }).then(text => ({ text })) } : {}),
     knowledgeGraph: () => gatherKnowledgeGraph(input, fetchImpl),
+    ...(runAudience ? { audienceQuestions: () => website.then(w => siteTextOf(w), () => '').then(text => runAudience(text)) } : {}),
   };
 
   const sources = {};
@@ -283,6 +292,12 @@ export async function gatherEvidence(input, { fetchImpl, callSearch, onProgress 
     const started = Date.now();
     try {
       const out = await run();
+      // The audience record reports its own status and is kept whole.
+      if (id === 'audienceQuestions') {
+        sources[id] = { ...out, ms: Date.now() - started };
+        onProgress(id, out.status === 'ok' ? 'ok' : 'failed');
+        return;
+      }
       const text = out.text !== undefined ? String(out.text || '').trim() : null;
       if (text !== null && text.length < 40) throw new Error('Returned almost nothing.');
       sources[id] = { status: 'ok', ms: Date.now() - started, ...(text !== null ? { text: trimTo(text, SEARCH_CHARS) } : out) };
@@ -295,6 +310,9 @@ export async function gatherEvidence(input, { fetchImpl, callSearch, onProgress 
 
   return { gatheredAt: new Date().toISOString(), sources };
 }
+
+// The website pages as one block of text, for the audience questions pass.
+export const siteTextOf = (website) => (website?.pages || []).map(p => `[${p.url}]\n${p.text}`).join('\n\n');
 
 export function evidenceCoverage(evidence) {
   const s = evidence?.sources || {};
@@ -647,6 +665,9 @@ export function makeTeaserClientPayload(record) {
     lensEvidence: r.lensEvidence ? JSON.parse(JSON.stringify(r.lensEvidence)) : null,
     negativeTriggers: (r.scores?.negativeTriggers || []).map(t => ({ text: t.text, lens: t.lens, source: t.source, severity: t.severity })),
     scores,
+    // What the audience is asking (v4.15.0): ideas and the real questions
+    // they answer, whitelisted in its own module. Null without ideas.
+    audienceQuestions: clientAudienceQuestions(record.evidence?.sources?.audienceQuestions),
     frameworkVersion: r.frameworkVersion,
   };
 }

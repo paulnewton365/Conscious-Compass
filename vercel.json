@@ -23,6 +23,9 @@
     },
     "api/refresh-stay-conscious-newsletter.js": {
       "maxDuration": 300
+    },
+    "api/audience-questions.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

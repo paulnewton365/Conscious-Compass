@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.14.3';
+const APP_VERSION = '4.15.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -104,7 +104,8 @@ import { buildTeaserEco, applyEarnedCreativeLift, buildEcoSection, clientEcoSect
 import { footprintView, VIEWBOX as FP_VIEWBOX, GROUPS as FP_GROUPS } from './lib/footprintChart';
 import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
-import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
+import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, gatherWebsite, siteTextOf, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
+import { runAudienceQuestions, audienceView, clientAudienceQuestions, buildIdeasWorkbook, AQ_COPY, searchBudget } from './lib/audienceQuestions';
 import { 
   supabase, 
   signUp, 
@@ -496,6 +497,30 @@ function AuthPage({ onAuthSuccess }) {
   );
 }
 
+// SerpApi connection check for audience questions (v4.15.0). Reads the
+// account, which does not use a search, and shows what is left this month.
+function SerpApiCheck() {
+  const [state, setState] = useState(null);
+  const run = async () => {
+    setState({ running: true });
+    try {
+      const r = await fetch('/api/audience-questions?check=1');
+      const d = await r.json().catch(() => ({}));
+      setState(d.notConfigured ? { error: AQ_COPY.notConfigured } : !r.ok || !d.ok ? { error: d.error || `HTTP ${r.status}` } : d);
+    } catch (e) { setState({ error: e.message }); }
+  };
+  return (
+    <div className="dc-alert" data-field="serpapi-check" style={{ marginBottom: 24 }}>
+      <strong>Audience questions: SerpApi</strong>
+      <div className="dc-inline">
+        <button type="button" className="btn-secondary is-sm" onClick={run} disabled={state?.running}>{state?.running ? 'Checking...' : 'Check connection'}</button>
+        {state?.ok && <span className="dc-meta">Connected{state.plan ? ` · ${state.plan}` : ''}{state.searchesLeft !== null ? ` · ${state.searchesLeft} searches left` : ''}{state.usedThisMonth !== null ? ` · ${state.usedThisMonth} used this month` : ''}. A teaser uses up to {searchBudget('teaser')}, a full assessment up to {searchBudget('full')}.</span>}
+        {state?.error && <span className="dc-note is-warn">{state.error}</span>}
+      </div>
+    </div>
+  );
+}
+
 // Admin User Management Page
 function AdminPage({ currentUser, onBack }) {
   const [users, setUsers] = useState([]);
@@ -599,6 +624,8 @@ function AdminPage({ currentUser, onBack }) {
             <p className="text-sm text-[#5B6068]">Approve users and manage access</p>
           </div>
         </div>
+
+        <SerpApiCheck />
 
         {loading ? (
           <div className="card text-center">
@@ -1576,6 +1603,82 @@ function EcoSection({ section, internal = false, compact = false }) {
         <p>{section.howl?.opener || ECO_COPY.howlOpener}</p>
         {!compact && <p>{section.howl?.body || ECO_COPY.howlBody}</p>}
       </section>
+    </div>
+  );
+}
+
+
+// What the audience is asking (v4.15.0). One component for the internal
+// report, the client report and the teaser read, so they cannot drift.
+// `view` comes from audienceView() or clientAudienceQuestions(); internal adds
+// the searches, the questions not used and the run's numbers.
+const AQ_STATUS_TEXT = {
+  notConfigured: AQ_COPY.notConfigured,
+  thin: AQ_COPY.none,
+  failed: 'The last run failed. Run it again.',
+};
+
+// The internal half: the searches behind the ideas and what went unused.
+function AudienceQuestionsInternal({ view }) {
+  if (!view || !(view.subtopics?.length > 0 || view.error)) return null;
+  return (
+    <details className="dc-aq-internal" data-field="aq-internal">
+      <summary className="dc-strong">How these were found · internal</summary>
+      {view.subtopics?.length > 0 && (
+        <p className="dc-note"><b>Searches:</b> {view.subtopics.map(st => `${st.query} (${st.name})`).join('; ')}</p>
+      )}
+      <p className="dc-meta">{view.questionCount || 0} questions from {view.searches || 0} searches{view.failures?.length ? `, ${view.failures.length} failed` : ''}.</p>
+      {view.unused?.length > 0 && (
+        <p className="dc-note"><b>Asked but not used:</b> {view.unused.join(' · ')}</p>
+      )}
+      {view.error && <p className="dc-note is-warn">{view.error}</p>}
+    </details>
+  );
+}
+
+// The ideas and every harvested question as a spreadsheet for a content team.
+async function downloadAudienceIdeas(brand, record) {
+  const { zip, filename } = await buildIdeasWorkbook(brand, record, new Date());
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  saveAs(blob, filename);
+}
+
+function AudienceQuestionsSection({ view, internal = false }) {
+  if (!view) return null;
+  const ideas = view.ideas || [];
+  const gathered = view.gatheredAt ? new Date(view.gatheredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  return (
+    <div className="dc-aq" data-field="audience-questions" data-mode={view.mode}>
+      <p className="dc-body">{view.intro}</p>
+      {(view.category || gathered) && (
+        <p className="dc-meta">{view.category ? `${view.category} · ` : ''}Google, {view.location}{gathered ? ` · ${gathered}` : ''}</p>
+      )}
+      {ideas.length > 0 ? (
+        <ol className="dc-teaser-findings" data-field="aq-ideas">
+          {ideas.map((idea, n) => (
+            <li key={idea.title}>
+              <span className="dc-teaser-n">{String(n + 1).padStart(2, '0')}</span>
+              <div>
+                <h2>{idea.title}</h2>
+                <div className="dc-rec-tags">
+                  <span className="dc-pill" data-gap={idea.gap}>{idea.gapLabel}</span>
+                  <span className="dc-pill">{idea.format}</span>
+                  {idea.channel && <span className="dc-pill">{idea.channel}</span>}
+                  {idea.attribute && <span className="dc-pill">{idea.attribute}</span>}
+                  {idea.earnedCreative && <span className="dc-pill" data-field="aq-howl" title="Could be staged as earned creative. A conversation for HOWL.">Earned creative potential</span>}
+                </div>
+                <ul className="dc-aq-questions">
+                  {idea.questions.map(q => <li key={q}>{q}</li>)}
+                </ul>
+                {idea.why && <p>{idea.why}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="dc-note" data-field="aq-status">{AQ_STATUS_TEXT[view.status] || AQ_COPY.none}</p>
+      )}
+      {internal && <AudienceQuestionsInternal view={view} />}
     </div>
   );
 }
@@ -5719,6 +5822,43 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
   const heroRef = useRef(null);
   const [heroError, setHeroError] = useState(null);
   const [packing, setPacking] = useState(false);
+  // What the audience is asking (v4.15.0). The run takes a minute, so the
+  // scores it saves into are read from a ref when it finishes, never from the
+  // snapshot it started with: a challenge or rescore meanwhile is kept.
+  const scoresRef = useRef(scores);
+  scoresRef.current = scores;
+  const [aqRunning, setAqRunning] = useState(false);
+  const [aqError, setAqError] = useState(null);
+  const findAudience = async () => {
+    if (aqRunning) return;
+    setAqRunning(true); setAqError(null);
+    try {
+      const input = {
+        brandName: project.brandName,
+        websiteUrl: normaliseUrl(project.websiteUrl) || project.websiteUrl,
+        businessModel: project.businessModel,
+        industry: project.industry,
+        industryName: INDUSTRIES.find(i => i.id === project.industry && i.id !== 'other')?.name || '',
+        stage: project.companyStage || null,
+      };
+      let siteText = '';
+      try { siteText = siteTextOf(await gatherWebsite(input, (url, opts) => fetch(url, opts))); } catch { /* the ideas pass works from the brand line */ }
+      const record = await runAudienceQuestions(input, {
+        siteText, mode: 'full', fetchImpl: (url, opts) => fetch(url, opts),
+        callModel: (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 5000),
+      });
+      if (record.status !== 'ok') setAqError(record.status === 'notConfigured' ? AQ_COPY.notConfigured : record.error || AQ_COPY.none);
+      const latest = scoresRef.current;
+      if (!latest) return;
+      const withAq = { ...latest, audienceQuestions: record };
+      setScores(withAq);
+      await onSave({ quiet: true, scoresOverride: withAq });
+    } catch (e) {
+      setAqError(e.message);
+    } finally {
+      setAqRunning(false);
+    }
+  };
   const saveReport = async () => {
     if (saveState === 'saving') return;
     setSaveState('saving');
@@ -5782,6 +5922,7 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
     attributes: true,
     recommendations: true,
     eco: true,
+    audience: true,
     conclusions: true,
     justification: false,
     challenges: false,
@@ -6407,6 +6548,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
               // A plain rescore keeps the history it already had.
               adjusted.challenges = scores.challenges;
             }
+            // Audience questions are not scoring output: a rescore keeps them
+            // (v4.15.0). They are refreshed from their own section.
+            if (scores?.audienceQuestions) adjusted.audienceQuestions = scores.audienceQuestions;
 
             // A language directive is a standing preference, not a one-off, so
             // it is reapplied to freshly generated text rather than silently
@@ -6427,6 +6571,9 @@ ${FOOTPRINT_CHANNELS.map(c => `      "${c.id}": { "level": 0-10, "evidence": "ma
               assessmentsOverride: scoringInputs, projectPatch: challengeContext ? { challenges } : null });
             setSaveState(autoSaved ? 'saved' : 'idle');
             if (autoSaved) setTimeout(() => setSaveState(st => (st === 'saved' ? 'idle' : st)), 4000);
+            // First scoring finds the audience questions in the background
+            // (v4.15.0). Never awaited: the report is ready without them.
+            if (autoSaved && !finalScores.audienceQuestions) findAudience();
             // The report opens at the top, where the overall score counts up
             // and the chart draws in: the reveal after the wait (v3.114.0).
             if (!challengeContext) { try { window.scrollTo({ top: 0 }); } catch { /* not available */ } }
@@ -7662,6 +7809,7 @@ ${content.slice(0, 8000)}`;
     'Sustainability narrative',
     'Benchmark comparison',
     'How earned creative could help',
+    'What your audience is asking',
     'Recommendations',
     'Conclusions',
     'Score justification',
@@ -7917,6 +8065,29 @@ ${content.slice(0, 8000)}`;
           {expandedSections.eco && <EcoSection section={eco} internal />}
         </section>
       )}
+
+      {/* What your audience is asking (v4.15.0): every report. Recommendation
+          only, never a score input. */}
+      <section className="dc-section dc-reveal" id="audience-questions">
+        <SectionHeading order={sectionOrder} label="What your audience is asking" open={expandedSections.audience} onToggle={() => toggleSection('audience')} />
+        {expandedSections.audience && (
+          <>
+            {scores?.audienceQuestions && <AudienceQuestionsSection view={audienceView(scores.audienceQuestions)} internal />}
+            {!scores?.audienceQuestions && !aqRunning && <p className="dc-body">{AQ_COPY.intro}</p>}
+            {aqError && <p className="dc-note is-warn" data-field="aq-error">{aqError}</p>}
+            <div className="dc-inline">
+              <button type="button" className="btn-secondary is-sm" onClick={findAudience} disabled={aqRunning} data-field="aq-run"
+                title={`Uses up to ${searchBudget('full')} SerpApi searches. Scores are not touched.`}>
+                {aqRunning ? 'Finding audience questions...' : scores?.audienceQuestions ? 'Refresh questions' : 'Find audience questions'}
+              </button>
+              {scores?.audienceQuestions?.status === 'ok' && (
+                <button type="button" className="dc-link-btn" data-field="aq-download"
+                  onClick={() => downloadAudienceIdeas(project.brandName, scores.audienceQuestions).catch(e => setAqError(`Download failed: ${e.message}`))}>Download ideas (.xlsx)</button>
+              )}
+            </div>
+          </>
+        )}
+      </section>
 
       {/* Recommendations - Collapsible */}
       <div className="dc-reveal dc-keep-white">
@@ -10301,7 +10472,7 @@ function ElapsedTime({ since }) {
 const CLIENT_REPORT_SECTIONS = [
   'results at a glance', 'brand maturity', 'attribute analysis', 'brand footprint',
   'campaign coherence', 'trust and credibility', 'the sustainability narrative',
-  'how earned creative could help', 'the benchmark comparison', 'the conclusions',
+  'how earned creative could help', 'what your audience is asking', 'the benchmark comparison', 'the conclusions',
 ];
 const CLIENT_REPORT_SECTIONS_TEXT = `${CLIENT_REPORT_SECTIONS.slice(0, -1).join(', ')} and ${CLIENT_REPORT_SECTIONS.at(-1)}`;
 
@@ -11212,6 +11383,8 @@ function makeClientPayload({ project, scores, benchmark, assessorNote = null }) 
     // How earned creative could help: the opening, the opportunities and
     // HOWL. The things to sort out first stay internal (v3.115.0).
     eco: scores ? clientEcoSection(scores, project.brandName) : null,
+    // Ideas and the real questions they answer; null without ideas (v4.15.0).
+    audienceQuestions: clientAudienceQuestions(scores?.audienceQuestions),
     conclusion: String(scores?.conclusion || scores?.justification || '').replace(/[\u2014\u2013]/g, '-'),
     generatedAt: new Date().toISOString(),
   };
@@ -11400,6 +11573,7 @@ function ClientReportView({ payload }) {
     'Trust and credibility',
     ...(scores?.sustainabilityNarrative ? ['Sustainability narrative'] : []),
     ...(payload.eco?.opportunities?.length ? ['How earned creative could help'] : []),
+    ...(payload.audienceQuestions ? ['What your audience is asking'] : []),
     ...(benchmark ? ['Benchmark comparison'] : []),
     ...(payload.conclusion ? ['Conclusions'] : []),
   ];
@@ -11546,6 +11720,13 @@ function ClientReportView({ payload }) {
           <section className="dc-section dc-reveal" id="earned-creative">
             <SectionHeading order={clientSections} label="How earned creative could help" />
             <EcoSection section={payload.eco} />
+          </section>
+        )}
+
+        {payload.audienceQuestions && (
+          <section className="dc-section dc-reveal" id="audience-questions">
+            <SectionHeading order={clientSections} label="What your audience is asking" />
+            <AudienceQuestionsSection view={payload.audienceQuestions} />
           </section>
         )}
 
@@ -13333,6 +13514,13 @@ function TeaserClientView({ payload, heroImage = null, baseline = null }) {
         </section>
       )}
 
+      {payload.audienceQuestions && (
+        <section className="dc-tz-sec" data-field="audience-questions-sec">
+          <h2 className="dc-h">{AQ_COPY.title}</h2>
+          <AudienceQuestionsSection view={payload.audienceQuestions} />
+        </section>
+      )}
+
       {/* How earned creative could help, from the teaser scores: the opening
           and the attribute each opportunity would lift, then HOWL (v3.115.0). */}
       {(() => {
@@ -13371,7 +13559,7 @@ function TeaserClientView({ payload, heroImage = null, baseline = null }) {
 // real: each source reports its own result, and scoring reports when it starts
 // and ends. Sources run in parallel, so several can be current at once.
 function TeaserProgress({ statuses, scoring, elapsed }) {
-  const sources = [...TEASER_SOURCES, ...(statuses.sustainability ? [SUSTAINABILITY_SOURCE] : [])];
+  const sources = [...TEASER_SOURCES, ...(statuses.sustainability ? [SUSTAINABILITY_SOURCE] : []), ...(statuses.audienceQuestions ? [{ id: 'audienceQuestions', label: 'Audience questions' }] : [])];
   const cls = (st) => (st === 'ok' ? 'is-done' : st === 'failed' ? 'is-done is-failed' : st === 'running' ? 'is-current' : undefined);
   const scoringState = scoring === 'ok' ? 'ok' : scoring === 'running' ? 'running' : 'pending';
   const total = sources.length + 1;
@@ -13412,7 +13600,7 @@ function TeaserProgress({ statuses, scoring, elapsed }) {
   );
 }
 
-function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = () => {}, onStage = () => {}, onHeroImage = () => {}, onStaleCheck = null, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
+function TeaserReport({ record, busy, progress, error, audienceBusy = false, onAudience = null, campaigns = [], onMove = () => {}, onStage = () => {}, onHeroImage = () => {}, onStaleCheck = null, baseline = null, baselineError = null, onBack, onRescore, onRefresh, onConvert, onDelete }) {
   const heroRef = useRef(null);
   const payload = makeTeaserClientPayload(record);
   const [making, setMaking] = useState(null);      // 'card' | 'slide'
@@ -13579,6 +13767,36 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
             </div>
           </dd>
 
+          <dt>Audience questions</dt>
+          <dd data-field="aq-panel">
+            {(() => {
+              const aq = sources.audienceQuestions;
+              const view = aq ? audienceView(aq) : null;
+              return (
+                <>
+                  <div className="dc-inline">
+                    <span className="dc-meta">
+                      {!aq ? 'Not run yet.'
+                        : aq.status === 'ok' ? `${aq.ideas.length} idea${aq.ideas.length === 1 ? '' : 's'} from ${aq.questions.length} questions, ${fmtDate(aq.gatheredAt, false)}.`
+                        : AQ_STATUS_TEXT[aq.status] || AQ_COPY.none}
+                    </span>
+                    {onAudience && (
+                      <button type="button" onClick={onAudience} disabled={busy || sources.website?.status !== 'ok'} className="btn-secondary is-sm" data-field="aq-run"
+                        title={`Uses up to ${searchBudget('teaser')} SerpApi searches. Scores are not touched.`}>
+                        {audienceBusy ? 'Finding...' : aq ? 'Refresh questions' : 'Find audience questions'}
+                      </button>
+                    )}
+                    {aq?.status === 'ok' && (
+                      <button type="button" className="dc-link-btn" data-field="aq-download" disabled={busy}
+                        onClick={() => downloadAudienceIdeas(record.brand_name, aq).catch(e => setHeroError(`Download failed: ${e.message}`))}>Download ideas (.xlsx)</button>
+                    )}
+                  </div>
+                  {view && <AudienceQuestionsInternal view={view} />}
+                </>
+              );
+            })()}
+          </dd>
+
           {record.context && <>
             <dt>Context</dt>
             <dd><p>{record.context}</p></dd>
@@ -13615,7 +13833,7 @@ function TeaserReport({ record, busy, progress, error, campaigns = [], onMove = 
       </section>
 
       {error && <div className="dc-alert is-error" role="alert">{error}</div>}
-      {busy && progress}
+      {busy && !audienceBusy && progress}
 
       {payload ? (
         <TeaserClientView payload={payload} heroImage={record.hero_image || null}
@@ -13639,6 +13857,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
   const [newCampaignCso, setNewCampaignCso] = useState(false);
   const [open, setOpen] = useState(null);             // full record being viewed
   const [busy, setBusy] = useState(false);
+  const [aqBusy, setAqBusy] = useState(false);       // audience questions run on their own
   const [error, setError] = useState(null);
   const [campaignBusy, setCampaignBusy] = useState(null); // campaign id with an action in flight
   // Full-assessment results for the sector baseline, fetched fresh each time a
@@ -13707,6 +13926,13 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
 
   const callScoring = (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 8000);
 
+  // What the audience is asking (v4.15.0). Never stops a teaser: its record
+  // carries its own status, and the scoring prompt never reads it.
+  const audienceFor = (rec) => (siteText) => runAudienceQuestions(inputFrom(rec), {
+    siteText, mode: 'teaser', fetchImpl: (url, opts) => fetch(url, opts),
+    callModel: (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 4000),
+  });
+
   // Scores whatever evidence the record holds and saves. Previous results are
   // kept as a short history on the record so a rescore is never invisible.
   const scoreAndSave = async (rec) => {
@@ -13725,6 +13951,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     return gatherEvidence(inputFrom(rec), {
       fetchImpl: (url, opts) => fetch(url, opts),
       callSearch: teaserSearchCall,
+      runAudience: audienceFor(rec),
       onProgress: (id, st) => setStatuses(prev => ({ ...prev, [id]: st })),
     });
   };
@@ -13819,6 +14046,24 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       load();
     } catch (e) { setError(e.message); }
     finally { setBusy(false); stopClock(); }
+  };
+
+  // Find, or refresh, the audience questions for a teaser on its own, from
+  // the stored website pages. Uses up to 8 searches; scores are untouched.
+  const findAudience = async () => {
+    setError(null);
+    if (!(await liveGuard())) return;
+    setAqBusy(true);
+    try {
+      const rec = open;
+      const record = await audienceFor(rec)(siteTextOf(rec.evidence?.sources?.website));
+      const evidence = { ...(rec.evidence || {}), sources: { ...(rec.evidence?.sources || {}), audienceQuestions: record } };
+      const { data, error: e } = await saveTeaser({ ...rec, evidence });
+      if (e) throw new Error(`Questions found, but the save failed: ${e.message}`);
+      setOpen(data);
+      if (record.status !== 'ok') setError(record.status === 'notConfigured' ? AQ_COPY.notConfigured : record.error || AQ_COPY.none);
+    } catch (e) { setError(e.message); }
+    finally { setAqBusy(false); }
   };
 
   const saveHero = async (dataUrl) => {
@@ -13929,7 +14174,8 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
     return (
       <>
       {staleBanner}
-      <TeaserReport record={open} busy={busy} progress={progress} error={error}
+      <TeaserReport record={open} busy={busy || aqBusy} progress={progress} error={error}
+        audienceBusy={aqBusy} onAudience={findAudience}
         campaigns={campaigns} onMove={moveTo} onStage={setStage} onHeroImage={saveHero} onStaleCheck={notStale}
         baseline={benchPool ? teaserSectorBaseline(benchPool, { industry: open.industry, brandName: open.brand_name, totalScore: open.result?.overall }) : null}
         baselineError={benchError}

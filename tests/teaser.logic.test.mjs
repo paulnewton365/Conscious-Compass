@@ -310,7 +310,8 @@ test('client payload is a whitelist: no context, evidence, author, history, basi
   const payload = makeTeaserClientPayload(sentinelRecord());
   const json = JSON.stringify(payload);
   SENTINELS.forEach(s => assert.ok(!json.includes(s), `${s} leaked into the client payload`));
-  assert.deepEqual(Object.keys(payload).sort(), ['brandName', 'frameworkVersion', 'fullAssessmentWouldResolve', 'headline', 'lensScores', 'overall', 'scoredAt', 'scores', 'stage', 'summary', 'thesis', 'thinRecord', 'websiteUrl', 'opportunity', 'services', 'lensEvidence', 'negativeTriggers'].sort());
+  assert.deepEqual(Object.keys(payload).sort(), ['brandName', 'frameworkVersion', 'fullAssessmentWouldResolve', 'headline', 'lensScores', 'overall', 'scoredAt', 'scores', 'stage', 'summary', 'thesis', 'thinRecord', 'websiteUrl', 'opportunity', 'services', 'lensEvidence', 'negativeTriggers', 'audienceQuestions'].sort());
+  assert.equal(payload.audienceQuestions, null, 'no ideas, no section (v4.15.0)');
   assert.equal(payload.thesis, null, 'no thesis read on a general-audience teaser');
   ATTRIBUTES.forEach(a => assert.deepEqual(Object.keys(payload.scores[a.id]).sort(), ['confidence', 'rationale', 'score']));
   assert.ok(!json.includes('baseScore') && !json.includes('campaignModifier') && !json.includes('"basis"'));
