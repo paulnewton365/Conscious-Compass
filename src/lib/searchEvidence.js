@@ -371,8 +371,22 @@ export const BEARS = {
 // The facts, one per signal, each with the guidance the scoring model reads.
 // People see the fact; the model reads both. Empty when there is nothing
 // usable, so the prompt says so rather than implying absence.
-export function searchFactLines(rec) {
+// Which signals each assessment step reads (framework 2.16). Social has none.
+export const STEP_SIGNALS = {
+  website: ['ranking'],
+  aiReputation: ['aio', 'brandPage', 'autocomplete'],
+  aiSnapshot: ['brandPage', 'aio', 'autocomplete'],
+  aiNews: ['news'],
+  earnedMedia: ['news'],
+};
+
+export function searchFactLines(rec, { signals = null } = {}) {
   if (!rec || rec.status !== 'ok') return [];
+  const all = searchFactLinesAll(rec);
+  return signals ? all.filter(l => signals.includes(l.signal)) : all;
+}
+
+function searchFactLinesAll(rec) {
   const lines = [];
   // `bears` is the attributes each signal informs, checked against the
   // rubric's own signal lists (v4.16.1); the guide names them for the model.
@@ -411,14 +425,38 @@ export function searchFactLines(rec) {
   return lines;
 }
 
-export function searchPromptBlock(rec, { label = 'SEARCH EVIDENCE' } = {}) {
+const gatheredOn = (rec) => (rec?.gatheredAt ? new Date(rec.gatheredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '');
+
+// The text that fills a measured field in a step, such as the AI reputation
+// step's Search snapshot and Google News (framework 2.16). Plain facts, with
+// a label that says where they came from. Empty when there is nothing.
+export const MEASURED_PREFIX = '[Measured: Google search through SerpApi';
+export function measuredFieldText(rec, signals) {
+  const lines = searchFactLines(rec, { signals });
+  if (!lines.length) return '';
+  return `${MEASURED_PREFIX}, ${gatheredOn(rec)}]\n${lines.map(l => l.fact).join('\n')}`;
+}
+export const isMeasuredText = (t) => String(t || '').startsWith(MEASURED_PREFIX);
+
+// A step's own block: its signals only, with the guidance, for its analysis.
+export function stepSearchBlock(rec, step) {
+  const signals = STEP_SIGNALS[step];
+  if (!rec || !signals) return '';
+  if (rec.status !== 'ok') return '';
+  const lines = searchFactLines(rec, { signals });
+  if (!lines.length) return '';
+  return `MEASURED FROM GOOGLE (counted in code through SerpApi, ${gatheredOn(rec)}). These are facts: build the analysis on them, never state a different number, and say where the other evidence agrees or disagrees:
+${lines.map(l => `- ${l.fact} ${l.guide}`).join('\n')}`;
+}
+
+export function searchPromptBlock(rec, { label = 'SEARCH EVIDENCE', reflected = [] } = {}) {
   if (!rec) return '';
   if (rec.status !== 'ok') return `${label}: UNAVAILABLE in this assessment. Treat these signals as unknown, not absent.`;
   const lines = searchFactLines(rec);
   if (!lines.length) return '';
   const date = rec.gatheredAt ? new Date(rec.gatheredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
   return `${label} (measured from Google through SerpApi${date ? `, ${date}` : ''}; ${listOf(rec.markets.map(marketName))}):
-These numbers were counted in code. Never state a different number. They sharpen the readouts above; they do not override them or outweigh them.
+These numbers were counted in code. Never state a different number. They sharpen the readouts above; they do not override them or outweigh them.${reflected?.length ? `\nThe ${listOf(reflected)} readout${reflected.length === 1 ? ' was' : 's were'} written from these same numbers, so ${reflected.length === 1 ? 'it already reflects them' : 'they already reflect them'}. For ${reflected.length === 1 ? 'that readout' : 'those readouts'} they are listed again for reference and consistency only.` : ''}
 COUNT EACH PIECE OF EVIDENCE ONCE. Google News covers the same ground as the earned media readout, and the brand search page the same ground as the AI reputation search snapshot and knowledge graph. Where they overlap, use the measured number to correct the readout, then judge the coverage once. Never credit or penalize the same coverage twice.
 A signal not listed was not available and is unknown.
 ${lines.map(l => `- ${l.fact} ${l.guide}`).join('\n')}`;

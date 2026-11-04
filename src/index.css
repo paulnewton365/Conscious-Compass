@@ -1920,3 +1920,7 @@ button { font: inherit; color: inherit; }
    the export runs them 48px apart. */
 .dc-page > section, .dc-page > .dc-reveal { margin-top: 0; }
 .dc-page { gap: var(--cc-s-12); }
+/* From Google search, on an assessment step (framework 2.16) */
+.dc-step-search { display: flex; flex-direction: column; gap: var(--cc-s-2); }
+.dc-step-search .dc-meta, .dc-step-search .dc-note { margin: 0; }
+.dc-step-search > button { align-self: flex-start; }

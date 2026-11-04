@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.17.0';
+const APP_VERSION = '4.18.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -106,7 +106,7 @@ import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, gatherWebsite, siteTextOf, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { runAudienceQuestions, harvestAudience, ideasFromHarvest, audienceView, clientAudienceQuestions, buildIdeasWorkbook, AQ_COPY, searchBudget, aqSource } from './lib/audienceQuestions';
-import { gatherSearchEvidence, searchPromptBlock, searchFactLines, marketName } from './lib/searchEvidence';
+import { gatherSearchEvidence, searchPromptBlock, searchFactLines, marketName, STEP_SIGNALS, stepSearchBlock, measuredFieldText, isMeasuredText } from './lib/searchEvidence';
 import { 
   supabase, 
   signUp, 
@@ -1618,6 +1618,67 @@ const AQ_STATUS_TEXT = {
   thin: AQ_COPY.none,
   failed: 'The last run failed. Run it again.',
 };
+
+// ── Search evidence, gathered once per assessment (framework 2.16) ──
+// Started when setup is completed, so every step can read it. Returns the
+// stored record, or { unavailable } when SerpApi cannot be reached or the key
+// is missing, in which case nothing is stored and it is tried again later.
+const searchInputFor = (project) => ({
+  brandName: project.brandName,
+  websiteUrl: normaliseUrl(project.websiteUrl) || project.websiteUrl,
+  businessModel: project.businessModel,
+  industry: project.industry,
+  industryName: INDUSTRIES.find(i => i.id === project.industry && i.id !== 'other')?.name || '',
+  stage: project.companyStage || null,
+});
+// What the evidence was gathered for. When setup changes, it is out of date.
+const searchInputsKey = (project) => [project.brandName, normaliseUrl(project.websiteUrl) || project.websiteUrl, project.companyStage || ''].map(v => String(v || '').trim().toLowerCase()).join('|');
+const isSearchStale = (search, project) => !!(search?.inputsKey && search.inputsKey !== searchInputsKey(project));
+
+async function gatherSearchFor(project, apiKey) {
+  try {
+    const ping = await fetch('/api/audience-questions?ping=1');
+    const pb = await ping.json().catch(() => ({}));
+    if (!ping.ok) return { unavailable: pb.notConfigured ? 'notConfigured' : (pb.error || `HTTP ${ping.status}`) };
+  } catch (e) {
+    return { unavailable: e?.message || 'unreachable' };
+  }
+  const input = searchInputFor(project);
+  const fetchImpl = (url, opts) => fetch(url, opts);
+  const callModel = (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 5000);
+  let siteText = '';
+  try { siteText = siteTextOf(await gatherWebsite(input, fetchImpl)); } catch { /* the passes work from the brand line */ }
+  const audience = await harvestAudience(input, { siteText, mode: 'full', fetchImpl, callModel });
+  const evidence = await gatherSearchEvidence(input, { mode: 'full', harvest: audience, fetchImpl, callModel });
+  if (evidence.status !== 'ok' && audience.status !== 'ok' && audience.status !== 'thin') return { unavailable: evidence.error || audience.error || 'failed' };
+  return { audience, evidence, siteText: siteText.slice(0, 12000), gatheredAt: new Date().toISOString(), inputsKey: searchInputsKey(project) };
+}
+
+// The From Google search panel on a step: that step's facts, read-only.
+function StepSearchPanel({ search, status = null, stale = false, signals, onRefresh = null, filledInto = null }) {
+  const ev = search?.evidence || null;
+  const lines = filledInto ? [] : searchFactLines(ev, { signals });
+  const date = ev?.gatheredAt ? new Date(ev.gatheredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  const state = status?.state;
+  return (
+    <section className="dc-block dc-step-search" data-field="step-search">
+      <div className="dc-kicker">From Google search</div>
+      {lines.length > 0 && <ul className="dc-search-lines">{lines.map(l => <li key={l.fact} data-signal={l.signal}>{l.fact}</li>)}</ul>}
+      <p className="dc-meta" data-field="step-search-status">
+        {state === 'gathering' ? 'Gathering from Google. This takes about a minute and runs while you work.'
+          : filledInto && ev?.status === 'ok' ? `Measured from Google search through SerpApi${date ? ` on ${date}` : ''}, and filled into ${filledInto} below.`
+          : lines.length ? `Source: Google search through SerpApi, ${(ev.markets || ['us']).map(marketName).join(', ')}${date ? ` · ${date}` : ''}. Measured in code; the analysis on this step starts from it.`
+          : ev?.status === 'ok' ? 'Gathered, with nothing for this step.'
+          : state === 'unavailable' ? (status.reason === 'notConfigured' ? AQ_COPY.notConfigured : `Google search is unavailable right now (${status.reason}).`)
+          : 'Not gathered yet.'}
+      </p>
+      {stale && <p className="dc-note is-warn" data-field="step-search-stale">The brand name, website or stage changed after this was gathered. Refresh to search again.</p>}
+      {onRefresh && (stale || state === 'unavailable' || (!ev && state !== 'gathering')) && (
+        <button type="button" className="btn-secondary is-sm" onClick={onRefresh} disabled={state === 'gathering'} data-field="step-search-refresh">Refresh search evidence</button>
+      )}
+    </section>
+  );
+}
 
 // Search evidence, internal readout (v4.16.0). Shared by the full report;
 // the teaser panel shows the same lines. Never part of a client payload.
@@ -3525,7 +3586,7 @@ function TechnicalAuditSection({ websiteUrl, assessmentData, setAssessmentData }
 
 // Website Assessment with Image Upload
 // Website Assessment with Multiple Image Upload (up to 4)
-function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false }) {
+function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false, search = null, searchStatus = null, searchStale = false, onRefreshSearch = null }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAutoAssessing, setIsAutoAssessing] = useState(false);
@@ -3672,6 +3733,8 @@ Conclude with an Overall Website Brand Score (1 to 10), a 2 to 3 sentence execut
     try {
       const prompt = `You are an SEO expert assessing ${project.brandName}'s likely search visibility.
 
+${stepSearchBlock(search?.evidence, 'website')}
+
 BRAND: ${project.brandName}
 WEBSITE: ${project.websiteUrl}
 INDUSTRY: ${INDUSTRIES.find(i => i.id === project.industry)?.name || 'Unknown'}
@@ -3768,6 +3831,8 @@ Keep the assessment concise but insightful. Focus on qualitative analysis since 
     setError(null);
     try {
       const prompt = `You are conducting a comprehensive website assessment for ${project.brandName}.
+
+${stepSearchBlock(search?.evidence, 'website')}
 
 WEBSITE URL: ${project.websiteUrl}
 
@@ -3909,7 +3974,9 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 - 3-5 PRIORITY IMPROVEMENTS (specific, actionable recommendations including brand architecture if unclear)`;
 
       const result = await callClaude(prompt, apiKey, images[0], images.slice(1));
-      setAssessmentData({ status: 'complete', 
+      setAssessmentData({ status: 'complete',
+        // Which search evidence this readout was written from (framework 2.16).
+        searchUsedAt: stepSearchBlock(search?.evidence, 'website') ? search.gatheredAt : null, 
         content: result, 
         images, 
         pagesReviewed, 
@@ -3980,6 +4047,8 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
   return (
     <AssessPage step={2} name="Website" title="Website assessment" project={project}
       rail={<AssessRail items={completionItems} next="Social" canProceed={canProceed} onProceed={handleProceed} onSaveExit={onSaveExit} saving={savingExit} />}>
+
+      <StepSearchPanel search={search} status={searchStatus} stale={searchStale} signals={STEP_SIGNALS.website} onRefresh={onRefreshSearch} />
 
       <section className="dc-panel-dark dc-action">
         <div>
@@ -4966,7 +5035,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 }
 
 // AI Reputation Page
-function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false }) {
+function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false, search = null, searchStatus = null, searchStale = false, onRefreshSearch = null }) {
   const [manualInput, setManualInput] = useState({
     claude: assessmentData.claudeManual || '',
     gemini: assessmentData.geminiManual || '',
@@ -5092,7 +5161,24 @@ ${reputationFlags}` : ''}`;
     }
   };
 
-  const fetchGoogleNews = () => fetchSignal(
+  // Search snapshot and Google News come from the measured search evidence
+  // (framework 2.16). The web-searched summaries below are the fallback when
+  // Google search is unavailable.
+  const measuredSnapshot = search?.evidence?.status === 'ok' ? measuredFieldText(search.evidence, STEP_SIGNALS.aiSnapshot) : '';
+  const measuredNews = search?.evidence?.status === 'ok' ? measuredFieldText(search.evidence, STEP_SIGNALS.aiNews) : '';
+  // Fill a field from the measurement unless the assessor wrote their own:
+  // an empty field, or one an earlier fetch or measurement wrote, is replaced.
+  const replaceable = (v) => !String(v || '').trim() || String(v).startsWith('[Auto-fetched:') || isMeasuredText(v);
+  useEffect(() => {
+    if (measuredSnapshot && replaceable(searchSnapshotContent) && searchSnapshotContent !== measuredSnapshot) {
+      setSearchSnapshotContent(measuredSnapshot); setAssessmentData({ searchSnapshotContent: measuredSnapshot });
+    }
+    if (measuredNews && replaceable(googleNewsContent) && googleNewsContent !== measuredNews) {
+      setGoogleNewsContent(measuredNews); setAssessmentData({ googleNewsContent: measuredNews });
+    }
+  }, [measuredSnapshot, measuredNews]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchGoogleNewsSummary = () => fetchSignal(
     'Google News',
     `Search Google News and recent press for "${project.brandName}" over the last 3 months. Report what third-party outlets are saying: headlines, outlets, dates, and the angle of coverage. Note sentiment and any recurring narrative. If coverage is thin or absent, say so plainly. Do not pad.`,
     '[Auto-fetched: Google News]',
@@ -5106,12 +5192,14 @@ ${reputationFlags}` : ''}`;
     setTrustpilotContent
   );
 
-  const fetchSearchSnapshot = () => fetchSignal(
+  const fetchSearchSnapshotSummary = () => fetchSignal(
     'Search Snapshot',
     `Run a web search for "${project.brandName}" the way a prospect would. Synthesise what the top of the results actually surfaces: who the brand is, what dominates the first page, and whether the picture is coherent or fragmented. This is a stand-in for the Google AI Overview, a synthesised read of top search results rather than an AI engine's opinion of the brand. Report what is there, not what should be.`,
     '[Auto-fetched: Search Snapshot, synthesised from top results, not the literal Google AI Overview]',
     setSearchSnapshotContent
   );
+  const fetchGoogleNews = () => (measuredNews ? (setGoogleNewsContent(measuredNews), setAssessmentData({ googleNewsContent: measuredNews })) : fetchGoogleNewsSummary());
+  const fetchSearchSnapshot = () => (measuredSnapshot ? (setSearchSnapshotContent(measuredSnapshot), setAssessmentData({ searchSnapshotContent: measuredSnapshot })) : fetchSearchSnapshotSummary());
 
   const generateSynthesis = async () => {
     setIsProcessing(p => ({ ...p, synthesis: true }));
@@ -5131,9 +5219,9 @@ ${engineSections}
 ${reputationFlags ? `REPUTATION FLAGS — CRITICAL CONTEXT:\nThe following issues were identified before running AI queries. These flags must be addressed directly in your analysis — do not omit or minimize them:\n${reputationFlags}\n` : ''}
 ${wikipediaContent ? `WIKIPEDIA PRESENCE:\n${wikipediaContent}\n` : ''}
 ${redditContent ? `REDDIT COMMUNITY PERCEPTION:\n${redditContent}\n` : ''}
-${googleNewsContent ? `GOOGLE NEWS / RECENT PRESS (third-party signal, not an AI engine):\n${googleNewsContent}\n` : ''}
+${googleNewsContent ? (isMeasuredText(googleNewsContent) && search?.evidence ? `GOOGLE NEWS, ${stepSearchBlock(search.evidence, 'aiNews')}\n` : `GOOGLE NEWS / RECENT PRESS (third-party signal, not an AI engine):\n${googleNewsContent}\n`) : ''}
 ${trustpilotContent ? `TRUSTPILOT REVIEWS (third-party signal, not an AI engine):\n${trustpilotContent}\n` : ''}
-${searchSnapshotContent ? `SEARCH SNAPSHOT (synthesised read of top search results, not an AI engine):\n${searchSnapshotContent}\n` : ''}
+${searchSnapshotContent ? (isMeasuredText(searchSnapshotContent) && search?.evidence ? `GOOGLE SEARCH PAGE, AI OVERVIEWS AND AUTOCOMPLETE, ${stepSearchBlock(search.evidence, 'aiSnapshot')}\n` : `SEARCH SNAPSHOT (synthesised read of top search results, not an AI engine):\n${searchSnapshotContent}\n`) : ''}
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
 
 Provide a comprehensive AI reputation assessment:
@@ -5161,6 +5249,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
         googleNewsContent,
         trustpilotContent,
         searchSnapshotContent,
+        searchUsedAt: (isMeasuredText(searchSnapshotContent) || isMeasuredText(googleNewsContent)) && search?.evidence ? search.gatheredAt : null,
       });
     } catch (e) { setError(e.message); }
     finally { setIsProcessing(p => ({ ...p, synthesis: false })); }
@@ -5195,14 +5284,16 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
   };
 
   const sources = [
-    { key: 'news', label: 'Google News', value: googleNewsContent, setter: setGoogleNewsContent, field: 'googleNewsContent', run: fetchGoogleNews, placeholder: `Recent press and news coverage of ${project.brandName}...` },
+    { key: 'news', label: 'Google News', sub: measuredNews ? 'Measured from Google News, last 90 days' : undefined, value: googleNewsContent, setter: setGoogleNewsContent, field: 'googleNewsContent', run: fetchGoogleNews, placeholder: `Recent press and news coverage of ${project.brandName}...` },
     { key: 'trustpilot', label: 'Trustpilot', value: trustpilotContent, setter: setTrustpilotContent, field: 'trustpilotContent', run: fetchTrustpilot, placeholder: 'Trustpilot rating, review volume, recurring praise and complaints...' },
-    { key: 'search', label: 'Search Snapshot', display: 'Search snapshot', sub: 'Synthesised from top results; stands in for Google AI Overview', value: searchSnapshotContent, setter: setSearchSnapshotContent, field: 'searchSnapshotContent', run: fetchSearchSnapshot, placeholder: `What the top of a Google search surfaces for ${project.brandName}...` },
+    { key: 'search', label: 'Search Snapshot', display: 'Search snapshot', sub: measuredSnapshot ? 'Measured from Google: page one, knowledge panel, AI Overview citations and autocomplete' : 'Synthesised from top results while Google search is unavailable', value: searchSnapshotContent, setter: setSearchSnapshotContent, field: 'searchSnapshotContent', run: fetchSearchSnapshot, placeholder: `What the top of a Google search surfaces for ${project.brandName}...` },
   ];
   return (
     <AssessPage step={4} name="AI Reputation" title="AI reputation assessment" project={project}
       standfirst={`What prospects discover when researching ${project.brandName}`}
       rail={<AssessRail items={completionItems} next="Earned Media" canProceed={canProceed} onProceed={handleProceed} onSaveExit={onSaveExit} saving={savingExit} />}>
+
+      <StepSearchPanel search={search} status={searchStatus} stale={searchStale} signals={STEP_SIGNALS.aiReputation} onRefresh={onRefreshSearch} filledInto="Search snapshot and Google News" />
 
       <section className="dc-panel-dark dc-action is-stacked">
         <div>
@@ -5302,7 +5393,7 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
 
 
 // Earned Media Assessment with paste field
-function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false }) {
+function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false, search = null, searchStatus = null, searchStale = false, onRefreshSearch = null }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAutoAssessing, setIsAutoAssessing] = useState(false);
   const [error, setError] = useState(null);
@@ -5316,6 +5407,8 @@ function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
     setError(null);
     try {
       const prompt = `You are a senior brand intelligence analyst specializing in earned media evaluation. Your task is to conduct a comprehensive earned media performance assessment for ${project.brandName}, operating in the ${industryName} sector.
+
+${stepSearchBlock(search?.evidence, 'earnedMedia')}
 
 Search the web for this brand's actual media coverage before assessing. Ground every judgment in coverage you can point to: named outlets, headlines, approximate dates, named journalists or analysts. Where you cannot find evidence for a dimension, say so plainly and score it as thin rather than inventing coverage. Absence of findable coverage is itself a finding.
 
@@ -5415,6 +5508,8 @@ Do not use em-dashes anywhere in your response.`;
     try {
       const prompt = `Analyze earned media coverage for ${project.brandName}.
 
+${stepSearchBlock(search?.evidence, 'earnedMedia')}
+
 USER-PROVIDED COVERAGE (last 3 months):
 ${coveragePaste || 'No coverage provided by user'}
 
@@ -5442,7 +5537,7 @@ Provide a comprehensive earned media assessment:
 Write in flowing prose with specific examples. End with priority recommendations.`;
 
       const result = await callClaude(prompt, apiKey);
-      setAssessmentData({ status: 'complete', content: result, coveragePaste });
+      setAssessmentData({ status: 'complete', content: result, coveragePaste, searchUsedAt: stepSearchBlock(search?.evidence, 'earnedMedia') ? search.gatheredAt : null });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -5484,6 +5579,8 @@ Write in flowing prose with specific examples. End with priority recommendations
   return (
     <AssessPage step={5} name="Earned Media" title="Earned media assessment" project={project} standfirst={`${project.brandName}'s press coverage`}
       rail={<AssessRail items={completionItems} next="the report" canProceed={canProceed} onProceed={handleProceed} onSaveExit={onSaveExit} saving={savingExit} />}>
+
+      <StepSearchPanel search={search} status={searchStatus} stale={searchStale} signals={STEP_SIGNALS.earnedMedia} onRefresh={onRefreshSearch} />
 
       <AssessBlock title="Media coverage" labelFor="em-coverage" tag="Required"
         desc="Paste any press coverage, news articles, mentions, or media clips from the last 3 months.">
@@ -5844,7 +5941,7 @@ function ReportBenchmarkSection({ project, scores, overall, benchmark, benchmark
   );
 }
 
-function ReportPage({ project, setProject, scores, setScores, assessments, setAssessments, apiKey, onSave, onPrev, profile, compassResults = [], savedBenchmark = null }) {
+function ReportPage({ project, setProject, scores, setScores, assessments, setAssessments, apiKey, onSave, onPrev, profile, compassResults = [], savedBenchmark = null, onEnsureSearch = null }) {
   // Save shows its state (v3.108.1): Saving while it runs, then Saved.
   const [saveState, setSaveState] = useState('idle');
   // Assessment Pack (v3.119.0): declared up here, before any early return.
@@ -5872,27 +5969,9 @@ function ReportPage({ project, setProject, scores, setScores, assessments, setAs
   // stored beside the other readouts as assessments.search. Gathered before
   // the first scoring run and read by every pass; only a refresh gathers
   // again. Never throws: each part records its own status.
-  // Returns null, and stores nothing, when SerpApi cannot be reached or the
-  // key is missing, so the next scoring run tries again.
-  const gatherSearch = async () => {
-    try {
-      const ping = await fetch('/api/audience-questions?ping=1');
-      const pb = await ping.json().catch(() => ({}));
-      if (!ping.ok) return { unavailable: pb.notConfigured ? 'notConfigured' : (pb.error || `HTTP ${ping.status}`) };
-    } catch (e) {
-      return { unavailable: e?.message || 'unreachable' };
-    }
-    const input = aqInput();
-    const fetchImpl = (url, opts) => fetch(url, opts);
-    const callModel = (prompt) => callClaude(prompt, apiKey, null, [], 0, true, 5000);
-    let siteText = '';
-    try { siteText = siteTextOf(await gatherWebsite(input, fetchImpl)); } catch { /* the passes work from the brand line */ }
-    const audience = await harvestAudience(input, { siteText, mode: 'full', fetchImpl, callModel });
-    const evidence = await gatherSearchEvidence(input, { mode: 'full', harvest: audience, fetchImpl, callModel });
-    // Nothing usable came back: store nothing, so it is tried again.
-    if (evidence.status !== 'ok' && audience.status !== 'ok' && audience.status !== 'thin') return { unavailable: evidence.error || audience.error || 'failed' };
-    return { audience, evidence, siteText: siteText.slice(0, 12000), gatheredAt: new Date().toISOString() };
-  };
+  // The shared gather (framework 2.16). Stores nothing when unavailable.
+  const gatherSearch = () => gatherSearchFor(project, apiKey);
+
   // Writes the audience ideas from the stored harvest (no searches), or
   // gathers the search evidence first when there is none or on a refresh.
   // `search` is passed in straight after scoring, before state catches up.
@@ -6237,8 +6316,10 @@ HOW TO TREAT A CHALLENGE. Read this carefully, it protects the integrity of the 
     // and stored, so every pass and every rescore reads the same numbers.
     if (!consistencyCheck && !scoringInputs.search) {
       try {
-        const search = await gatherSearch();
-        if (!search.unavailable) {
+        // Waits for a gather already running from setup rather than starting
+        // a second one (framework 2.16).
+        const search = onEnsureSearch ? await onEnsureSearch() : await gatherSearch();
+        if (search && !search.unavailable) {
           scoringInputs = { ...scoringInputs, search };
           setAssessments(prev => ({ ...prev, search }));
         }
@@ -6311,7 +6392,7 @@ EARNED MEDIA:
 ${cap(scoringInputs.earnedMedia.content)}
 ${field('Notes', scoringInputs.earnedMedia.observations) || ''}
 
-${scoringInputs.search?.evidence ? searchPromptBlock(scoringInputs.search.evidence) : 'SEARCH EVIDENCE: not gathered for this assessment. Treat these signals as unknown, not absent.'}
+${scoringInputs.search?.evidence ? searchPromptBlock(scoringInputs.search.evidence, { reflected: [['website', scoringInputs.website], ['AI reputation', scoringInputs.aiReputation], ['earned media', scoringInputs.earnedMedia]].filter(([, d]) => d?.searchUsedAt && d.searchUsedAt === scoringInputs.search.gatheredAt).map(([n]) => n) }) : 'SEARCH EVIDENCE: not gathered for this assessment. Treat these signals as unknown, not absent.'}
 
 SCORING RUBRIC v2.8 — Score each attribute 0-100:
 
@@ -15423,6 +15504,44 @@ function AppContent() {
 
   const updateAssessment = (key, data) => setAssessments(prev => ({ ...prev, [key]: { ...prev[key], ...data } }));
 
+  // Search evidence (framework 2.16): gathered when setup is completed, in the
+  // background, so each step reads it. One gather at a time; scoring waits for
+  // a gather already running. Nothing re-gathers on its own when setup
+  // changes: the steps say it is out of date and offer Refresh.
+  const [searchStatus, setSearchStatus] = useState(null);   // { state: 'gathering'|'ready'|'unavailable', reason }
+  const searchRun = useRef(null);
+  const startSearchGather = ({ force = false } = {}) => {
+    if (searchRun.current) return searchRun.current;
+    const { project: p, assessments: a } = latestRef.current;
+    if (!p.brandName || !p.websiteUrl) return Promise.resolve(null);
+    if (a?.search && !force) return Promise.resolve(a.search);
+    setSearchStatus({ state: 'gathering' });
+    searchRun.current = gatherSearchFor(p, apiKey)
+      .then(search => {
+        if (search.unavailable) { setSearchStatus({ state: 'unavailable', reason: search.unavailable }); return search; }
+        setAssessments(prev => ({ ...prev, search }));
+        latestRef.current = { ...latestRef.current, assessments: { ...latestRef.current.assessments, search } };
+        setSearchStatus({ state: 'ready' });
+        return search;
+      })
+      .catch(e => { setSearchStatus({ state: 'unavailable', reason: e?.message || 'failed' }); return { unavailable: e?.message || 'failed' }; })
+      .finally(() => { searchRun.current = null; });
+    return searchRun.current;
+  };
+  // An assessment opened without evidence (older saves, drafts) gathers it on
+  // entering any step. A missing key is not retried on every step change.
+  useEffect(() => {
+    if (currentStep < 2 || currentStep > 5) return;
+    if (assessments.search || searchRun.current || searchStatus?.state === 'unavailable') return;
+    startSearchGather();
+  }, [currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stepSearch = {
+    search: assessments.search || null,
+    searchStatus,
+    searchStale: isSearchStale(assessments.search, project),
+    onRefreshSearch: () => startSearchGather({ force: true }),
+  };
+
   if (recovering) {
     return <RecoveryScreen onDone={() => { clearRecoveryUrl(); window.location.reload(); }} />;
   }
@@ -15715,12 +15834,12 @@ function AppContent() {
           {/* Draft restore banner */}
 
           {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} draft={draftRestoreOffer} onResume={() => restoreDraft(draftRestoreOffer)} onDiscard={clearDraft} />}
-          {currentStep === 1 && <SetupPage project={project} setProject={setProject} onNext={() => setCurrentStep(2)} onBack={() => setCurrentStep(0)} />}
-          {currentStep === 2 && <WebsiteAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
+          {currentStep === 1 && <SetupPage project={project} setProject={setProject} onNext={() => { startSearchGather(); setCurrentStep(2); }} onBack={() => setCurrentStep(0)} />}
+          {currentStep === 2 && <WebsiteAssessment {...stepSearch} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
           {currentStep === 3 && <SocialMediaAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
-          {currentStep === 4 && <AIReputationPage onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
-          {currentStep === 5 && <EarnedMediaAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
-          {currentStep === 6 && <ReportPage project={project} setProject={setProject} scores={scores} setScores={setScores} assessments={assessments} setAssessments={setAssessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} compassResults={latestResults} savedBenchmark={project.benchmarkSnapshot || null} />}
+          {currentStep === 4 && <AIReputationPage {...stepSearch} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
+          {currentStep === 5 && <EarnedMediaAssessment {...stepSearch} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
+          {currentStep === 6 && <ReportPage project={project} setProject={setProject} scores={scores} setScores={setScores} assessments={assessments} setAssessments={setAssessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} compassResults={latestResults} savedBenchmark={project.benchmarkSnapshot || null} onEnsureSearch={() => startSearchGather()} />}
         </>
       )}
     </div>

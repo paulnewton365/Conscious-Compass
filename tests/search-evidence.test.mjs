@@ -212,8 +212,10 @@ test('full scoring: gathered once before the first run, read by every pass, neve
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   const run = app.slice(app.indexOf('const runScoring = async'), app.indexOf('const prompt = `You are scoring'));
   assert.ok(run.includes('if (!consistencyCheck && !scoringInputs.search) {'), 'only when none is stored');
-  assert.ok(run.includes('if (!search.unavailable) {'), 'nothing stored when SerpApi is unreachable, so it is tried again');
-  assert.ok(app.includes("${scoringInputs.search?.evidence ? searchPromptBlock(scoringInputs.search.evidence) : 'SEARCH EVIDENCE: not gathered for this assessment. Treat these signals as unknown, not absent.'}"));
+  assert.ok(run.includes('if (search && !search.unavailable) {'), 'nothing stored when SerpApi is unreachable, so it is tried again');
+  assert.ok(run.includes('const search = onEnsureSearch ? await onEnsureSearch() : await gatherSearch();'), 'scoring waits for a gather already running from setup');
+  assert.ok(app.includes("${scoringInputs.search?.evidence ? searchPromptBlock(scoringInputs.search.evidence, { reflected:"));
+  assert.ok(app.includes("'SEARCH EVIDENCE: not gathered for this assessment. Treat these signals as unknown, not absent.'"));
   // One prompt string feeds every pass.
   assert.ok(app.includes('return callClaude(prompt, apiKey, null, [], 0, true, 12000, meta)'));
   assert.ok(app.includes('assessmentsOverride: scoringInputs'), 'saved with the readouts');

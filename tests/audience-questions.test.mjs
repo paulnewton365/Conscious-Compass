@@ -237,7 +237,7 @@ test('the full report keeps audience questions through a rescore, refreshes from
   assert.ok(app.includes('if (autoSaved && !finalScores.audienceQuestions) findAudience({ search: scoringInputs.search || null });'), 'ideas come from the stored harvest straight after scoring');
   assert.ok(app.includes('audienceQuestions: clientAudienceQuestions(scores?.audienceQuestions),'), 'the client payload is whitelisted');
   const rubric = readFileSync(new URL('../src/data/rubric.js', import.meta.url), 'utf8');
-  assert.match(rubric, /FRAMEWORK_VERSION = '2\.15'/, 'audience ideas never moved it; search evidence (2.14) and evidence routing (2.15) did');
+  assert.match(rubric, /FRAMEWORK_VERSION = '2\.16'/, 'audience ideas never moved it; search evidence (2.14), evidence routing (2.15) and evidence in the steps (2.16) did');
 });
 
 // ── Endpoint ──
