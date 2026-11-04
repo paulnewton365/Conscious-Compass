@@ -1,3 +1,4 @@
+import { wikipediaState } from '../lib/wikipediaCheck.js';
 // =============================================================================
 // ANTENNA GROUP SERVICE MAPPING FOR CONSCIOUS COMPASS
 // =============================================================================
@@ -1119,30 +1120,12 @@ export function getForceIncludeServicesFromAIReputation(aiReputationSynthesis, a
       }
     }
     
-    // Check for missing Wikipedia page
-    const wikiContent = assessments.social?.wikipediaContent || '';
-    if (!wikiContent || wikiContent.trim() === '') {
-      hasGeoTrigger = true;
-    } else {
-      // Check if Wikipedia content indicates no page exists
-      const wikiLower = wikiContent.toLowerCase();
-      const noWikiKeywords = [
-        'no wikipedia',
-        'no page',
-        'does not have a wikipedia',
-        'no dedicated page',
-        'not found on wikipedia',
-        'absent from wikipedia',
-        'no entry',
-        'no article',
-        'page does not exist',
-        'no knowledge graph',
-        'not in knowledge graph',
-      ];
-      if (noWikiKeywords.some(k => wikiLower.includes(k))) {
-        hasGeoTrigger = true;
-      }
-    }
+    // Missing Wikipedia page (v4.19.0): the verified check when there is one,
+    // otherwise what either step's Wikipedia field says. Before, only the
+    // social step's field was read, so a page recorded on the AI reputation
+    // step counted as missing.
+    const wiki = wikipediaState(assessments.wikipediaCheck, assessments);
+    if (wiki === 'none' || wiki === 'unknown') hasGeoTrigger = true;
   }
   
   if (hasGeoTrigger) {

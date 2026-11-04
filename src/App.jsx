@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from 'react';
+import { QUALITY_STEPS, QUALITY_LABELS, judgeQuality, stepChecklist, needsReview, clientAssessedBy, NA_REASON_MIN } from './lib/assessmentQuality.js';
+import { useQualityTracker } from './lib/qualityTracker.js';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { attributesMentioned } from './data/attributeGlossary.js';
 import { ecStatusNote, nextIssueAt, NEWSLETTER_HOUSE_IMAGES, houseImageFor, noDashes, NEWSLETTER_EC_COPY, followUpText, newsletterDocument, newsletterDocxName, plural as countOf, readMinutes, SIGNALS_AUTHOR, SIGNALS_SERIES, SIGNALS_CLOSE, signalsLayout, signalsRuns, signalsHtml, signalsDocument, signalsDocxName } from './lib/newsletter.js';
@@ -8,7 +10,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.18.0';
+const APP_VERSION = '4.19.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -106,7 +108,8 @@ import { trustLensView } from './lib/trustLensView';
 import { THESIS_NAME, THESIS_TENETS, thesisPromptBlock, THESIS_SCHEMA, parseThesis, thesisTextRows, levelLabel } from './data/thesis';
 import { TEASER_SOURCES, SUSTAINABILITY_SOURCE, TEASER_VERSION, isCurrentMethod, normaliseUrl, validateTeaserInput, gatherEvidence, gatherWebsite, siteTextOf, scoreTeaser, evidenceCoverage, makeTeaserClientPayload } from './lib/teaser';
 import { runAudienceQuestions, harvestAudience, ideasFromHarvest, audienceView, clientAudienceQuestions, buildIdeasWorkbook, AQ_COPY, searchBudget, aqSource } from './lib/audienceQuestions';
-import { gatherSearchEvidence, searchPromptBlock, searchFactLines, marketName, STEP_SIGNALS, stepSearchBlock, measuredFieldText, isMeasuredText } from './lib/searchEvidence';
+import { gatherSearchEvidence, searchPromptBlock, searchFactLines, marketName, STEP_SIGNALS, stepSearchBlock, measuredFieldText, isMeasuredText, domainOf } from './lib/searchEvidence';
+import { fetchWikipediaCheck, wikipediaState, wikipediaFieldText, wikipediaPromptLine, isVerifiedText, gateRecommendation } from './lib/wikipediaCheck';
 import { 
   supabase, 
   signUp, 
@@ -118,6 +121,7 @@ import {
   updateCompassResult,
   deleteCompassResult,
   fetchSavedAssessments,
+  setAssessmentReview,
   saveAssessment,
   deleteAssessment,
   fetchAllProfiles,
@@ -627,6 +631,8 @@ function AdminPage({ currentUser, onBack }) {
         </div>
 
         <SerpApiCheck />
+
+        <AssessmentQualityAdmin currentUser={currentUser} adminName={users.find(u => u.id === currentUser?.id)?.full_name || null} />
 
         {loading ? (
           <div className="card text-center">
@@ -2724,6 +2730,7 @@ function AssessOutput({ children, small = false }) {
 // Progress rail: count, bar, checklist, and the rail's own Continue plus Save
 // and exit. Below 1100px it moves above the form and its buttons hide.
 function AssessRail({ items, next, canProceed, onProceed, onSaveExit = null, saving = false }) {
+  const quality = useContext(QualityContext);
   const done = items.filter(i => i.done).length;
   const total = items.length;
   return (
@@ -2743,7 +2750,180 @@ function AssessRail({ items, next, canProceed, onProceed, onSaveExit = null, sav
           </button>
         )}
       </div>
+      {quality?.stepId && <QualityStepBox store={quality.store} stepId={quality.stepId} />}
     </aside>
+  );
+}
+
+// The quality record's live checklist (v4.19.0). Provided around the four
+// evidence steps only. It shows what the assessor has done on this step and
+// never the judgement: that is on the report.
+const QualityContext = React.createContext(null);
+
+function QualityStepBox({ store, stepId }) {
+  const [, setTick] = useState(0);
+  useEffect(() => store.subscribe(() => setTick(t => t + 1)), [store]);
+  const [naOpen, setNaOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const rec = store.get();
+  const items = stepChecklist(rec, stepId, store.getAssessments());
+  const na = rec?.steps?.[stepId]?.na;
+  const checked = items.find(i => i.id === 'checked')?.done;
+  return (
+    <div className="dc-quality-box" data-quality-box aria-label="Your record on this step">
+      <div className="dc-kicker">Your record on this step</div>
+      <ul className="dc-checklist">
+        {items.map(it => (
+          <li key={it.id} className={it.done ? 'is-done' : undefined}><span>{it.label}</span><em>{it.detail}</em></li>
+        ))}
+      </ul>
+      {na && <p className="dc-meta">Nothing needed correcting: {na.reason}</p>}
+      {!checked && !naOpen && (
+        <button type="button" className="dc-link-btn" onClick={() => setNaOpen(true)}>Nothing here needed correcting</button>
+      )}
+      {naOpen && (
+        <div className="dc-quality-na">
+          <label className="dc-meta" htmlFor={`qa-na-${stepId}`}>Say what you checked and why it stands</label>
+          <textarea id={`qa-na-${stepId}`} className="dc-textarea is-sm" rows={3} value={reason} onChange={e => setReason(e.target.value)} />
+          <div className="dc-field-row">
+            <button type="button" className="btn-secondary" disabled={reason.trim().length < NA_REASON_MIN}
+              onClick={() => { store.markNotApplicable(stepId, reason); setNaOpen(false); setReason(''); }}>Save reason</button>
+            <button type="button" className="dc-link-btn" onClick={() => setNaOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The record at the foot of the internal report (v4.19.0): who assessed it,
+// the judgement and the reasons, step by step. Never in the client view.
+function AssessmentRecordBlock({ record, assessments, onNote = null }) {
+  const j = judgeQuality(record, assessments);
+  const L = QUALITY_LABELS[j.label];
+  const [note, setNote] = useState(record?.note || '');
+  const fmt = (d) => (d ? new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+  const others = j.contributors.filter(c => c.name !== record?.assessor);
+  return (
+    <section className="dc-block dc-quality-record" data-field="assessment-record">
+      <div className="dc-block-head">
+        <div>
+          <h2 className="dc-block-t">Assessment record <span className="dc-quality-label" style={{ background: L.color }}>{L.name}</span></h2>
+          {record?.v
+            ? <p className="dc-block-d">Assessed by {record.assessor || 'unknown'}{record.startedAt ? `, started ${fmt(record.startedAt)}` : ''}{record.updatedAt ? `, last worked on ${fmt(record.updatedAt)}` : ''}. Internal only: the client link shows the assessor's name and the date.</p>
+            : <p className="dc-block-d">Not recorded. This assessment was made before the quality record existed.</p>}
+        </div>
+      </div>
+      {record?.v && (
+        <>
+          <ul className="dc-quality-reasons">{j.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+          <div className="dc-table-wrap">
+            <table className="dc-table">
+              <thead><tr><th>Step</th><th>Active time</th><th>Auto-filled opened</th><th>Corrected or explained</th><th>Own observations</th><th>Sources</th></tr></thead>
+              <tbody>
+                {j.steps.map(s => (
+                  <tr key={s.id}>
+                    <td>{s.label}</td>
+                    <td>{s.minutes} of {s.min} min</td>
+                    <td>{s.auto ? `${s.opened} of ${s.auto}` : 'None'}</td>
+                    <td>{s.edited ? `${s.edited} corrected` : s.na ? 'Reason given' : 'No'}</td>
+                    <td>{s.own.ok ? 'Yes' : s.own.reason === 'copied' ? 'Close to the analysis' : s.own.reason === 'short' ? 'Under two sentences' : 'No'}</td>
+                    <td>{s.sources.have} of {s.sources.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="dc-meta">{j.totalMinutes} minutes of active time in all.{others.length ? ` Also worked on by ${others.map(c => `${c.name} (${c.minutes} min)`).join(', ')}.` : ''}</p>
+          {j.label === 'thin' && (
+            <p className="dc-meta dc-quality-thin">Flagged to an admin for review. It does not stop the report: it asks for a second look.{record.review?.at ? ` Reviewed by ${record.review.by || 'an admin'} on ${fmt(record.review.at)}${record.review.note ? `: ${record.review.note}` : '.'}` : ''}</p>
+          )}
+          {onNote && (
+            <div className="dc-field">
+              <label className="dc-meta" htmlFor="qa-note">Assessor's note (optional): anything that explains how this one was done</label>
+              <textarea id="qa-note" className="dc-textarea is-sm" rows={2} value={note} onChange={e => setNote(e.target.value)} onBlur={() => { if (note !== (record.note || '')) onNote(note); }} />
+            </div>
+          )}
+          {!onNote && record.note && <p className="dc-meta">Assessor's note: {record.note}</p>}
+          <p className="dc-meta dc-quality-review">Reviewed by: {record.review?.by ? `${record.review.by}, ${fmt(record.review.at)}` : '________________________'}</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+// Admin: assessments flagged Thin, with Resolve and a note, and the history
+// of judgements (v4.19.0). Reads the saved assessments; a rescore or more work
+// that lifts an assessment out of Thin takes it off the list by itself.
+function AssessmentQualityAdmin({ currentUser, adminName }) {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const [notes, setNotes] = useState({});
+  const [busy, setBusy] = useState(null);
+  const apply = ({ data, error: err }) => {
+    if (err) { setError(err.message || 'Could not load assessments'); return; }
+    setRows((data || []).map(r => {
+      const rec = r.assessments?.quality || null;
+      return { id: r.id, brand: r.brand_name, at: r.updated_at || r.created_at, rec, j: judgeQuality(rec, r.assessments || {}), flagged: needsReview(rec, r.assessments || {}) };
+    }));
+  };
+  const load = () => fetchSavedAssessments().then(apply);
+  useEffect(() => {
+    let live = true;
+    fetchSavedAssessments().then(res => { if (live) apply(res); });
+    return () => { live = false; };
+  }, []);
+  const resolve = async (row) => {
+    setBusy(row.id);
+    const { error: err } = await setAssessmentReview(row.id, { by: adminName || currentUser?.email || 'admin', at: new Date().toISOString(), note: (notes[row.id] || '').trim() });
+    setBusy(null);
+    if (err) { alert(`Could not resolve: ${err.message || 'unknown error'}`); return; }
+    load();
+  };
+  const fmt = (d) => (d ? new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+  if (error) return <div className="dc-alert"><strong>Assessment quality</strong><p>{error}</p></div>;
+  if (!rows) return null;
+  const flagged = rows.filter(r => r.flagged);
+  const history = rows.filter(r => r.rec?.v).slice(0, 30);
+  return (
+    <section className="card dc-quality-admin" data-field="quality-admin" style={{ marginBottom: 24 }}>
+      <h2 className="dc-h">Assessment quality</h2>
+      <p className="dc-meta">Thin means the assessor accepted the auto-filled content, corrected nothing and raced through. It is a flag for a second look, not a verdict.</p>
+      {flagged.length === 0 ? <p>No assessments are waiting for review.</p> : (
+        <ul className="dc-quality-list">
+          {flagged.map(r => (
+            <li key={r.id}>
+              <div><strong>{r.brand}</strong> · {r.rec?.assessor || 'unknown'} · {fmt(r.at)}</div>
+              <ul className="dc-quality-reasons">{r.j.reasons.map((x, i) => <li key={i}>{x}</li>)}</ul>
+              {r.rec?.note && <p className="dc-meta">Assessor's note: {r.rec.note}</p>}
+              <div className="dc-field-row">
+                <input className="dc-input" placeholder="Note (optional): what you checked or agreed" value={notes[r.id] || ''} onChange={e => setNotes(n => ({ ...n, [r.id]: e.target.value }))} />
+                <button type="button" className="btn-secondary" disabled={busy === r.id} onClick={() => resolve(r)}>{busy === r.id ? 'Saving...' : 'Resolve'}</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {history.length > 0 && (
+        <details style={{ marginTop: 16 }}>
+          <summary>History ({history.length})</summary>
+          <div className="dc-table-wrap">
+            <table className="dc-table">
+              <thead><tr><th>Brand</th><th>Assessor</th><th>Saved</th><th>Judgement</th><th>Review</th></tr></thead>
+              <tbody>
+                {history.map(r => (
+                  <tr key={r.id}>
+                    <td>{r.brand}</td><td>{r.rec?.assessor || 'unknown'}</td><td>{fmt(r.at)}</td>
+                    <td>{QUALITY_LABELS[r.j.label].name}</td>
+                    <td>{r.rec?.review?.at ? `${r.rec.review.by}, ${fmt(r.rec.review.at)}${r.rec.review.note ? `: ${r.rec.review.note}` : ''}` : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </section>
   );
 }
 
@@ -4186,7 +4366,7 @@ function SocialAutoPanel({ content, isEditing, isEdited, onStartEdit, onDoneEdit
   );
 }
 
-function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false }) {
+function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false, wikipediaCheck = null }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAutoChecking, setIsAutoChecking] = useState(false);
@@ -4450,7 +4630,8 @@ No YouTube channel matching "${project.brandName}" was identified.
             ytStats += `No third-party videos found.\n`;
           }
           setInputs(prev => ({ ...prev, youtubeAuto: ytStats }));
-          setAssessmentData(prev => ({ ...prev, youtubeAuto: ytStats }));
+          // An object, not an updater: the step's setter merges objects (v4.19.0).
+          setAssessmentData({ youtubeAuto: ytStats });
         }
 
         const kgResponse = await fetch(`/api/knowledge-graph?query=${encodeURIComponent(project.brandName)}`);
@@ -4462,7 +4643,7 @@ ${kgData.bestMatch.type?.length ? `Type: ${kgData.bestMatch.type.join(', ')}` : 
 ${kgData.bestMatch.description ? `Description: ${kgData.bestMatch.description}` : ''}
 ${kgData.bestMatch.url ? `Wikipedia: ${kgData.bestMatch.url}` : ''}`;
           setInputs(prev => ({ ...prev, wikipediaContent: prev.wikipediaContent?.includes('[Knowledge Graph]') ? prev.wikipediaContent : `${kgInfo}\n\n${prev.wikipediaContent || ''}`.trim() }));
-          setAssessmentData(prev => ({ ...prev, wikipediaContent: prev.wikipediaContent?.includes('[Knowledge Graph]') ? prev.wikipediaContent : `${kgInfo}\n\n${prev.wikipediaContent || ''}`.trim() }));
+          setAssessmentData({ wikipediaContent: inputs.wikipediaContent?.includes('[Knowledge Graph]') ? inputs.wikipediaContent : `${kgInfo}\n\n${inputs.wikipediaContent || ''}`.trim() });
         }
       } catch (apiErr) {
         console.log('Google API enhancement failed (non-critical):', apiErr.message);
@@ -4626,7 +4807,7 @@ ${inputs.otherPlatformsAuto || '[Not assessed]'}
 ${inputs.redditAnswersContent || '[Not checked - Reddit Answers shows how AI perceives brand reputation]'}
 
 === WIKIPEDIA & KNOWLEDGE GRAPH ===
-${inputs.wikipediaContent || '[Not provided - please note if ' + project.brandName + ' has a Wikipedia page]'}
+${wikipediaCheck?.status === 'ok' ? `${wikipediaPromptLine(wikipediaCheck)}\n` : ''}${inputs.wikipediaContent || (wikipediaCheck?.status === 'ok' ? '' : '[Not provided - please note if ' + project.brandName + ' has a Wikipedia page]')}
 ${inputs.wikipediaContent?.includes('[Knowledge Graph]') ? '\nNote: Knowledge Graph data above shows Google entity recognition status.' : ''}
 
 === GLASSDOOR (Employer Reputation) ===
@@ -5035,7 +5216,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 }
 
 // AI Reputation Page
-function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false, search = null, searchStatus = null, searchStale = false, onRefreshSearch = null }) {
+function AIReputationPage({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false, search = null, searchStatus = null, searchStale = false, onRefreshSearch = null, wikipediaCheck = null }) {
   const [manualInput, setManualInput] = useState({
     claude: assessmentData.claudeManual || '',
     gemini: assessmentData.geminiManual || '',
@@ -5169,6 +5350,14 @@ ${reputationFlags}` : ''}`;
   // Fill a field from the measurement unless the assessor wrote their own:
   // an empty field, or one an earlier fetch or measurement wrote, is replaced.
   const replaceable = (v) => !String(v || '').trim() || String(v).startsWith('[Auto-fetched:') || isMeasuredText(v);
+  // Wikipedia, verified (v4.19.0): fills the field when it is empty or was
+  // auto-filled; an assessor's own text stays.
+  const verifiedWiki = wikipediaCheck?.status === 'ok' ? wikipediaFieldText(wikipediaCheck) : '';
+  useEffect(() => {
+    if (verifiedWiki && (replaceable(wikipediaContent) || isVerifiedText(wikipediaContent)) && wikipediaContent !== verifiedWiki) {
+      setWikipediaContent(verifiedWiki); setAssessmentData({ wikipediaContent: verifiedWiki });
+    }
+  }, [verifiedWiki]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (measuredSnapshot && replaceable(searchSnapshotContent) && searchSnapshotContent !== measuredSnapshot) {
       setSearchSnapshotContent(measuredSnapshot); setAssessmentData({ searchSnapshotContent: measuredSnapshot });
@@ -5217,7 +5406,7 @@ AI ENGINE RESPONSES:
 ${engineSections}
 
 ${reputationFlags ? `REPUTATION FLAGS — CRITICAL CONTEXT:\nThe following issues were identified before running AI queries. These flags must be addressed directly in your analysis — do not omit or minimize them:\n${reputationFlags}\n` : ''}
-${wikipediaContent ? `WIKIPEDIA PRESENCE:\n${wikipediaContent}\n` : ''}
+${wikipediaContent ? (isVerifiedText(wikipediaContent) && wikipediaCheck?.status === 'ok' ? `${wikipediaPromptLine(wikipediaCheck)}\n` : `WIKIPEDIA PRESENCE:\n${wikipediaContent}\n`) : ''}
 ${redditContent ? `REDDIT COMMUNITY PERCEPTION:\n${redditContent}\n` : ''}
 ${googleNewsContent ? (isMeasuredText(googleNewsContent) && search?.evidence ? `GOOGLE NEWS, ${stepSearchBlock(search.evidence, 'aiNews')}\n` : `GOOGLE NEWS / RECENT PRESS (third-party signal, not an AI engine):\n${googleNewsContent}\n`) : ''}
 ${trustpilotContent ? `TRUSTPILOT REVIEWS (third-party signal, not an AI engine):\n${trustpilotContent}\n` : ''}
@@ -5282,6 +5471,23 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
     setProceedError(null);
     onNext();
   };
+
+  // What the synthesis will read (v4.18.1): every source, not only the
+  // engines, with what is still missing named so nothing is left out by
+  // accident.
+  const listNames = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+  const missingEngines = engines.filter(e => !manualInput[e.key]).map(e => e.name);
+  const otherSources = [
+    ['Wikipedia', wikipediaContent],
+    ['Reddit', redditContent],
+    ['Trustpilot', trustpilotContent],
+    ['Google search', searchSnapshotContent],
+    ['Google News', googleNewsContent],
+  ];
+  const haveOther = otherSources.filter(([, v]) => String(v || '').trim()).map(([n]) => n);
+  const missingOther = otherSources.filter(([, v]) => !String(v || '').trim()).map(([n]) => n);
+  const sourceCount = filledCount + haveOther.length;
+  const readyLine = `Ready to combine ${filledCount} of ${engines.length} AI engines${haveOther.length ? ` with ${listNames(haveOther)}` : ''}.${missingEngines.length || missingOther.length ? ` Not yet added: ${listNames([...missingEngines, ...missingOther])}.` : ' Every source is in.'}`;
 
   const sources = [
     { key: 'news', label: 'Google News', sub: measuredNews ? 'Measured from Google News, last 90 days' : undefined, value: googleNewsContent, setter: setGoogleNewsContent, field: 'googleNewsContent', run: fetchGoogleNews, placeholder: `Recent press and news coverage of ${project.brandName}...` },
@@ -5375,11 +5581,11 @@ Write in flowing prose. Refer to the AI engines collectively. Do not state or im
       </AssessBlock>
 
       <AssessBlock title="Synthesis" status={isComplete ? 'Complete' : null}
-        desc={isComplete ? null : canSynthesize ? `Ready: ${filledCount} engines pasted.` : 'Paste responses from at least 3 AI engines to generate the synthesis.'}
+        desc={isComplete ? null : canSynthesize ? readyLine : 'Paste responses from at least 3 AI engines to generate the synthesis.'}
         actions={(isComplete || canSynthesize) && (
           <button type="button" onClick={() => { generateSynthesis(); if (isComplete && onClearScores) onClearScores(); }}
             disabled={isProcessing.synthesis} aria-busy={isProcessing.synthesis || undefined} className={isComplete ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}>
-            {isProcessing.synthesis ? 'Generating...' : isComplete ? 'Regenerate analysis' : `Generate synthesis (${filledCount} engines)`}
+            {isProcessing.synthesis ? 'Generating...' : isComplete ? 'Regenerate analysis' : `Generate synthesis (${sourceCount} sources)`}
           </button>
         )}>
         {isComplete && <AssessOutput>{assessmentData.content}</AssessOutput>}
@@ -6312,6 +6518,15 @@ HOW TO TREAT A CHALLENGE. Read this carefully, it protects the integrity of the 
 - Where a challenge does change your view, say what changed and why in the findings for the affected attributes, in the brand's own terms. Do not reference "the challenge", "the assessor" or "additional context provided" anywhere in the report.
 ` : '';
 
+    // Verified Wikipedia (framework 2.17): checked at setup; if missing, now.
+    if (!consistencyCheck && scoringInputs.wikipediaCheck?.status !== 'ok') {
+      const wikipediaCheck = await fetchWikipediaCheck(searchInputFor(project));
+      if (wikipediaCheck.status === 'ok') {
+        scoringInputs = { ...scoringInputs, wikipediaCheck };
+        setAssessments(prev => ({ ...prev, wikipediaCheck }));
+      }
+    }
+
     // Search evidence (framework 2.14): gathered once, before the first run,
     // and stored, so every pass and every rescore reads the same numbers.
     if (!consistencyCheck && !scoringInputs.search) {
@@ -6393,7 +6608,7 @@ ${cap(scoringInputs.earnedMedia.content)}
 ${field('Notes', scoringInputs.earnedMedia.observations) || ''}
 
 ${scoringInputs.search?.evidence ? searchPromptBlock(scoringInputs.search.evidence, { reflected: [['website', scoringInputs.website], ['AI reputation', scoringInputs.aiReputation], ['earned media', scoringInputs.earnedMedia]].filter(([, d]) => d?.searchUsedAt && d.searchUsedAt === scoringInputs.search.gatheredAt).map(([n]) => n) }) : 'SEARCH EVIDENCE: not gathered for this assessment. Treat these signals as unknown, not absent.'}
-
+${scoringInputs.wikipediaCheck?.status === 'ok' ? `\n${wikipediaPromptLine(scoringInputs.wikipediaCheck)}\n` : ''}
 SCORING RUBRIC v2.8 — Score each attribute 0-100:
 
 ${ATTRIBUTES.map(a => `${a.id} (${a.fullName})
@@ -7008,6 +7223,7 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   const sortedAttrs = ATTRIBUTES.map(a => ({ ...a, score: scores[a.id]?.score || 0 })).sort((a, b) => a.score - b.score);
   
   // Generate 12 recommendations from lowest scoring attributes
+  const WIKI_STATE = wikipediaState(assessments?.wikipediaCheck, assessments);
   const recommendations = [];
   let attrIndex = 0;
   let recIndex = 0;
@@ -7015,7 +7231,10 @@ Return the complete revised readout as prose. No preamble, no notes about what y
     const attr = sortedAttrs[attrIndex];
     const attrRecs = SERVICE_RECOMMENDATIONS[attr.id] || [];
     if (recIndex < attrRecs.length) {
-      const rec = attrRecs[recIndex];
+      // A recommendation the evidence contradicts is changed or left out
+      // (v4.19.0): no "develop a Wikipedia presence" for a brand with a page.
+      const rec = gateRecommendation(attrRecs[recIndex], { wikipedia: WIKI_STATE });
+      if (!rec) { recIndex++; continue; }
       recommendations.push({ 
         attr: attr.name, 
         attrId: attr.id, 
@@ -7143,7 +7362,7 @@ Return the complete revised readout as prose. No preamble, no notes about what y
     });
   };
 
-  const buildClientPayload = (assessorNote) => makeClientPayload({ project, scores, benchmark, assessorNote });
+  const buildClientPayload = (assessorNote) => makeClientPayload({ project, scores, benchmark, assessorNote, assessedBy: clientAssessedBy(assessments.quality, profile?.full_name || null, project.date) });
 
 
 
@@ -8554,6 +8773,9 @@ ${content.slice(0, 8000)}`;
           </div>
         )}
       </div>
+
+      <AssessmentRecordBlock record={assessments.quality || null} assessments={assessments}
+        onNote={assessments.quality?.v ? (note) => setAssessments(prev => ({ ...prev, quality: { ...(prev.quality || {}), note } })) : null} />
 
       <div className="flex items-center justify-start pt-6 border-t border-[#DEDAD2]">
         <button onClick={onPrev} className="btn-secondary flex items-center gap-2"><ArrowLeft className="w-4 h-4" /> Back</button>
@@ -10814,6 +11036,7 @@ function ClientLinksModal({ assessments, profile, onClose }) {
       benchmark: src.project?.benchmarkSnapshot || null,
       // Reissuing must not silently drop the note the client already had.
       assessorNote: src.project?.clientNote || null,
+      assessedBy: clientAssessedBy(src.assessments?.quality, null, src.project?.date),
     });
     const { error: err } = await resetClientReportPassword({ token: link.token, payload, password: newPassword });
     if (err) setError('Reset failed: ' + err.message);
@@ -10962,6 +11185,8 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
   const [search, setSearch] = useState('');
   const [filterStage, setFilterStage] = useState('');
   const [filterIndustry, setFilterIndustry] = useState('');
+  const [filterQuality, setFilterQuality] = useState('');
+  const isAdminUser = !!profile?.is_admin;
   const [sortBy, setSortBy] = useState('date-desc');
   // When the assessment was last saved: the row's updated_at, falling back to
   // its creation, then the project date for anything older (v3.108.2).
@@ -10999,7 +11224,9 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
       ? INDUSTRIES.find(ind => ind.id === a.project.industry)?.name || a.project.industry
       : null;
     const challengeCount = a.scores?.challenges?.length || 0;
-    return { a, i, overallScore, maturity, industryName, challengeCount };
+    // The quality judgement, read live so more work or a rescore updates it (v4.19.0).
+    const quality = judgeQuality(a.assessments?.quality || null, a.assessments || {}).label;
+    return { a, i, overallScore, maturity, industryName, challengeCount, quality };
   });
 
   // Unique industries and stages for filter dropdowns
@@ -11014,6 +11241,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
       if (filterIndustry && industryName !== filterIndustry) return false;
       return true;
     })
+    .filter(e => !filterQuality || e.quality === filterQuality)
     .sort((x, y) => {
       if (sortBy === 'date-desc') return lastSaved(y.a).localeCompare(lastSaved(x.a));
       if (sortBy === 'date-asc') return lastSaved(x.a).localeCompare(lastSaved(y.a));
@@ -11023,7 +11251,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
       return 0;
     });
 
-  const hasFilters = search || filterStage || filterIndustry;
+  const hasFilters = search || filterStage || filterIndustry || filterQuality;
   const [showClientLinks, setShowClientLinks] = useState(false);
   const [deletingKey, setDeletingKey] = useState(null);
   // One row per brand, the latest assessment first (v3.118.0). A brand assessed
@@ -11041,7 +11269,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
   const groups = filtered
     .filter(e => byBrand.get(brandKeyOf(e.a))?.[0] === e)
     .map(e => ({ key: brandKeyOf(e.a), head: e, older: byBrand.get(brandKeyOf(e.a)).slice(1) }));
-  const savedRow = ({ a, i, overallScore, maturity, industryName, challengeCount }, { history = false, earlier = 0, open = false, onToggle = null } = {}) => (
+  const savedRow = ({ a, i, overallScore, maturity, industryName, challengeCount, quality }, { history = false, earlier = 0, open = false, onToggle = null } = {}) => (
                 <div key={i} className={`dc-listrow${history ? ' is-history' : ''}`} data-history={history || undefined}>
                   <div className="flex items-center gap-6 flex-1 min-w-0">
                     {/* Brand info */}
@@ -11057,6 +11285,9 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
                             <MessageSquareWarning className="w-2.5 h-2.5" />
                             CHALLENGED{challengeCount > 1 ? ` ×${challengeCount}` : ''}
                           </span>
+                        )}
+                        {quality && quality !== 'unrecorded' && (
+                          <span className="dc-quality-label is-sm" style={{ background: QUALITY_LABELS[quality].color }} title="Assessment quality">{QUALITY_LABELS[quality].name}</span>
                         )}
                       </div>
                       <div className="dc-listrow-m">
@@ -11209,6 +11440,17 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
                 </select>
               </div>
             )}
+            {isAdminUser && (
+              <div className="dc-field">
+                <label htmlFor="saved-quality">Quality</label>
+                <select className="dc-select" id="saved-quality" value={filterQuality} onChange={e => setFilterQuality(e.target.value)}>
+                  <option value="">All</option>
+                  <option value="thin">Thin only</option>
+                  <option value="adequate">Adequate</option>
+                  <option value="thorough">Thorough</option>
+                </select>
+              </div>
+            )}
             <div className="dc-field">
               <label htmlFor="saved-sort">Sort</label>
               <select className="dc-select" id="saved-sort" value={sortBy} onChange={e => setSortBy(e.target.value)}>
@@ -11230,7 +11472,7 @@ function SavedAssessmentsPage({ assessments, onLoad, onDelete, onImport, onExpor
               return hasFilters ? `${groups.length} of ${brands} brand${brands === 1 ? '' : 's'}` : `${brands} brand${brands === 1 ? '' : 's'}${tail}`;
             })()}</span>
             {hasFilters
-              ? <button type="button" className="dc-link-btn" onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); }}>Clear filters</button>
+              ? <button type="button" className="dc-link-btn" onClick={() => { setSearch(''); setFilterStage(''); setFilterIndustry(''); setFilterQuality(''); }}>Clear filters</button>
               : !isReadonly && <span className="dc-meta">Share copies a link others can view. Export downloads a JSON backup.</span>}
           </div>
 
@@ -11529,8 +11771,11 @@ function ClientAssessorNote({ note, compact = false }) {
   );
 }
 
-function makeClientPayload({ project, scores, benchmark, assessorNote = null }) {
+function makeClientPayload({ project, scores, benchmark, assessorNote = null, assessedBy = null }) {
   return {
+    // Who assessed it and when (v4.19.0). Only the name and the date: the
+    // quality judgement never leaves the internal report.
+    assessedBy: assessedBy?.name ? { name: String(assessedBy.name), date: assessedBy.date || null } : null,
     // A note written by the assessor for this client, attributed to them by
     // name. Deliberately kept out of the scores object: it is commentary from
     // a person, not an output of the framework, and must never read as one.
@@ -11965,7 +12210,9 @@ function ClientReportView({ payload }) {
         <p className="dc-read-foot">
           Conscious Compass by Antenna Group. Assessed on publicly observable evidence
           {payload.generatedAt ? ` in ${new Date(payload.generatedAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : ''}.
-        {' \u00b7 '}Prepared by Antenna Group.</p>
+        {' \u00b7 '}{payload.assessedBy?.name
+          ? `Assessed by ${payload.assessedBy.name}, Antenna Group${payload.assessedBy.date ? `, ${new Date(/^\d{4}-\d{2}-\d{2}$/.test(payload.assessedBy.date) ? `${payload.assessedBy.date}T12:00:00` : payload.assessedBy.date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}.`
+          : 'Prepared by Antenna Group.'}</p>
       </article>
     </div>
   );
@@ -12092,6 +12339,7 @@ function SharedReportView({ report, onClose }) {
   const sharedBenchmark = project?.benchmarkSnapshot || null;
 
   // Generate recommendations for shared view
+  const WIKI_STATE = wikipediaState(report?.assessments?.wikipediaCheck || report?.project?.assessments?.wikipediaCheck, report?.assessments || report?.project?.assessments || null);
   const recommendations = [];
   let attrIndex = 0;
   let recIndex = 0;
@@ -12099,7 +12347,10 @@ function SharedReportView({ report, onClose }) {
     const attr = sortedAttrs[attrIndex];
     const attrRecs = SERVICE_RECOMMENDATIONS[attr.id] || [];
     if (recIndex < attrRecs.length) {
-      const rec = attrRecs[recIndex];
+      // A recommendation the evidence contradicts is changed or left out
+      // (v4.19.0): no "develop a Wikipedia presence" for a brand with a page.
+      const rec = gateRecommendation(attrRecs[recIndex], { wikipedia: WIKI_STATE });
+      if (!rec) { recIndex++; continue; }
       recommendations.push({ 
         attr: attr.name, 
         attrId: attr.id, 
@@ -14189,6 +14440,7 @@ function TeaserPage({ user, profile, apiKey, onConvert }) {
       callSearch: teaserSearchCall,
       runAudience: audienceFor(rec),
       runSearch: searchFor(rec),
+      checkWikipedia: true,
       onProgress: (id, st) => setStatuses(prev => ({ ...prev, [id]: st })),
     });
   };
@@ -14854,6 +15106,9 @@ function UIKitPage() {
   );
 }
 
+// Pages 2 to 5 are the evidence steps the quality record watches.
+const QUALITY_STEP_BY_PAGE = { 2: 'website', 3: 'social', 4: 'aiReputation', 5: 'earnedMedia' };
+
 function AppContent() {
   const [authLoading, setAuthLoading] = useState(true);
   // Arrived from a password reset link (v4.4.0): a new password comes first.
@@ -15212,6 +15467,23 @@ function AppContent() {
   // challenge otherwise wrote the readouts and ids from before it began.
   const latestRef = useRef({ project, assessments, scores });
   useEffect(() => { latestRef.current = { ...latestRef.current, project, assessments, scores }; });
+
+  // The assessment quality record (v4.19.0): tracked on the four evidence
+  // steps, written into assessments.quality. See src/lib/assessmentQuality.js.
+  const qualityStepId = QUALITY_STEP_BY_PAGE[currentStep] || null;
+  const qualityStore = useQualityTracker({
+    stepId: qualityStepId,
+    record: assessments.quality || null,
+    name: profile?.full_name || user?.email?.split('@')[0] || null,
+    getAssessments: () => latestRef.current.assessments,
+    onFlush: (rec) => setAssessments(prev => ({ ...prev, quality: rec })),
+    // Work done before this version is not on the record, so it is not judged.
+    isPartial: () => {
+      const a = latestRef.current.assessments || {};
+      return QUALITY_STEPS.some(st => a[st.id]?.status === 'complete' || String(a[st.id]?.content || '').trim());
+    },
+  });
+  const qualityContext = useMemo(() => (qualityStepId ? { store: qualityStore, stepId: qualityStepId } : null), [qualityStore, qualityStepId]);
   // v3.118.0: saves by record id. project.savedId is the saved assessment this
   // report belongs to; project.resultId is the Results history entry for the
   // current scoring run. newRun (a fresh scoring run) starts a new history
@@ -15236,6 +15508,14 @@ function AppContent() {
         website: { ...assessments.website, images: [] },
         social: { ...assessments.social, socialImages: [], instagramImages: [] },
       };
+      // The live quality record, with the judgement it has now (v4.19.0).
+      const liveQuality = qualityStore.snapshot();
+      const quality = liveQuality && (!assessments.quality || assessments.quality.startedAt === liveQuality.startedAt)
+        ? { ...liveQuality, note: assessments.quality?.note ?? liveQuality.note, review: assessments.quality?.review ?? liveQuality.review }
+        : assessments.quality;
+      if (quality) {
+        assessmentsToSave.quality = { ...quality, judgement: { label: judgeQuality(quality, assessments).label, at: new Date().toISOString() } };
+      }
 
       // Freeze the benchmark at save time. A report is a deliverable: the
       // comparison a client reads must not silently shift as the corpus grows,
@@ -15482,7 +15762,7 @@ function AppContent() {
         hasX: !!(assessment.assessments?.social?.xAuto || assessment.assessments?.social?.xContent),
         hasInstagram: !!assessment.assessments?.social?.instagramBio,
         hasYouTube: !!assessment.assessments?.social?.youtubeContent,
-        hasWikipedia: !!assessment.assessments?.social?.wikipediaContent,
+        hasWikipedia: ['substantive', 'thin', 'exists'].includes(wikipediaState(assessment.assessments?.wikipediaCheck, assessment.assessments)),
         hasRedditAnswers: !!assessment.assessments?.social?.redditAnswersContent,
         hasClaudeAI: !!assessment.assessments?.aiReputation?.claudeManual,
         hasGeminiAI: !!assessment.assessments?.aiReputation?.geminiManual,
@@ -15510,10 +15790,21 @@ function AppContent() {
   // changes: the steps say it is out of date and offer Refresh.
   const [searchStatus, setSearchStatus] = useState(null);   // { state: 'gathering'|'ready'|'unavailable', reason }
   const searchRun = useRef(null);
+  const wikiRun = useRef(null);
   const startSearchGather = ({ force = false } = {}) => {
     if (searchRun.current) return searchRun.current;
     const { project: p, assessments: a } = latestRef.current;
     if (!p.brandName || !p.websiteUrl) return Promise.resolve(null);
+    // Verified Wikipedia (v4.19.0): needs no SerpApi, so it runs whatever
+    // happens to the search, and never twice for the same brand and site.
+    if ((force || a?.wikipediaCheck?.status !== 'ok' || a.wikipediaCheck.domain !== domainOf(p.websiteUrl)) && !wikiRun.current) {
+      wikiRun.current = fetchWikipediaCheck(searchInputFor(p)).then(check => {
+        if (check.status === 'ok') {
+          setAssessments(prev => ({ ...prev, wikipediaCheck: check }));
+          latestRef.current = { ...latestRef.current, assessments: { ...latestRef.current.assessments, wikipediaCheck: check } };
+        }
+      }).finally(() => { wikiRun.current = null; });
+    }
     if (a?.search && !force) return Promise.resolve(a.search);
     setSearchStatus({ state: 'gathering' });
     searchRun.current = gatherSearchFor(p, apiKey)
@@ -15532,10 +15823,16 @@ function AppContent() {
   // entering any step. A missing key is not retried on every step change.
   useEffect(() => {
     if (currentStep < 2 || currentStep > 5) return;
+    if (!assessments.wikipediaCheck && !wikiRun.current && project.brandName && project.websiteUrl) {
+      wikiRun.current = fetchWikipediaCheck(searchInputFor(project)).then(check => {
+        if (check.status === 'ok') setAssessments(prev => ({ ...prev, wikipediaCheck: check }));
+      }).finally(() => { wikiRun.current = null; });
+    }
     if (assessments.search || searchRun.current || searchStatus?.state === 'unavailable') return;
     startSearchGather();
   }, [currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
   const stepSearch = {
+    wikipediaCheck: assessments.wikipediaCheck || null,
     search: assessments.search || null,
     searchStatus,
     searchStale: isSearchStale(assessments.search, project),
@@ -15835,10 +16132,14 @@ function AppContent() {
 
           {currentStep === 0 && <WelcomePage onStart={() => setCurrentStep(1)} draft={draftRestoreOffer} onResume={() => restoreDraft(draftRestoreOffer)} onDiscard={clearDraft} />}
           {currentStep === 1 && <SetupPage project={project} setProject={setProject} onNext={() => { startSearchGather(); setCurrentStep(2); }} onBack={() => setCurrentStep(0)} />}
+          <QualityContext.Provider value={qualityContext}>
+          <div data-quality-step={qualityStepId || undefined}>
           {currentStep === 2 && <WebsiteAssessment {...stepSearch} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
-          {currentStep === 3 && <SocialMediaAssessment onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
+          {currentStep === 3 && <SocialMediaAssessment wikipediaCheck={assessments.wikipediaCheck || null} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
           {currentStep === 4 && <AIReputationPage {...stepSearch} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
           {currentStep === 5 && <EarnedMediaAssessment {...stepSearch} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
+          </div>
+          </QualityContext.Provider>
           {currentStep === 6 && <ReportPage project={project} setProject={setProject} scores={scores} setScores={setScores} assessments={assessments} setAssessments={setAssessments} apiKey={apiKey} onSave={handleSave} onPrev={() => setCurrentStep(5)} profile={profile} compassResults={latestResults} savedBenchmark={project.benchmarkSnapshot || null} onEnsureSearch={() => startSearchGather()} />}
         </>
       )}

@@ -41,8 +41,8 @@ const EVIDENCE = {
 const SEARCH = { evidence: EVIDENCE, audience: { searches: 15 }, gatheredAt: '2026-11-04T05:00:00.000Z', inputsKey: 'artera|https://artera.ai|scaleup' };
 const PROJECT = { brandName: 'Artera', websiteUrl: 'https://artera.ai', companyStage: 'scaleup', industry: 'health', businessModel: 'b2b' };
 
-test('framework 2.16', () => {
-  assert.equal(rubric.FRAMEWORK_VERSION, '2.16');
+test('framework 2.16 or later', () => {
+  assert.ok(rubric.versionAtLeast(rubric.FRAMEWORK_VERSION, '2.16'));
 });
 
 // ── Each step gets its own signals ──
@@ -154,4 +154,19 @@ test('scoring names only the readouts actually written from this evidence', () =
   assert.ok(!se.searchPromptBlock(EVIDENCE).includes('written from these same numbers'), 'gathered only at scoring: nothing claimed');
   assert.ok(app.includes("filter(([, d]) => d?.searchUsedAt && d.searchUsedAt === scoringInputs.search.gatheredAt)"), 'a readout written from older evidence does not count');
   assert.ok(se.searchPromptBlock(EVIDENCE).includes('COUNT EACH PIECE OF EVIDENCE ONCE'), 'the backstop stays');
+});
+
+// ── v4.18.1: the synthesis line names every source, not only the engines ──
+
+test('the synthesis line counts every source going in and names what is missing', async () => {
+  const { container, root } = await mountAi({
+    claudeManual: 'c', chatgptManual: 'g', geminiManual: 'm', perplexityManual: 'p', copilotManual: '',
+    wikipediaContent: 'w', redditAnswersContent: 'r', trustpilotContent: '', searchSnapshotContent: '', googleNewsContent: '',
+  });
+  const text = container.textContent;
+  assert.ok(text.includes('Ready to combine 4 of 5 AI engines with Wikipedia, Reddit, Google search and Google News.'), text.match(/Ready[^.]*\.[^.]*\./)?.[0]);
+  assert.ok(text.includes('Not yet added: Copilot and Trustpilot.'));
+  assert.ok(text.includes('Generate synthesis (8 sources)'));
+  assert.ok(!text.includes('engines pasted.'));
+  await React.act(async () => root.unmount());
 });

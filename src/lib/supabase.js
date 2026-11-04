@@ -259,6 +259,25 @@ export const saveAssessment = async (assessment, { id = null } = {}) => {
   return { data, error };
 };
 
+// An admin's review of a Thin assessment (v4.19.0). Written into the quality
+// record inside the assessments JSON, so it needs no new column. Only the
+// assessments field is written: the rest of the saved row is left as it was.
+export const setAssessmentReview = async (id, review) => {
+  const { data: row, error: readError } = await supabase
+    .from('saved_assessments')
+    .select('assessments')
+    .eq('id', id)
+    .maybeSingle();
+  if (readError || !row) return { error: readError || { message: 'Assessment not found' } };
+  const assessments = { ...(row.assessments || {}) };
+  assessments.quality = { ...(assessments.quality || {}), review };
+  const { error } = await supabase
+    .from('saved_assessments')
+    .update({ assessments })
+    .eq('id', id);
+  return { error };
+};
+
 export const deleteAssessment = async (id) => {
   const { error } = await supabase
     .from('saved_assessments')

@@ -14,9 +14,9 @@ const teaserSrc = readFileSync(new URL('../src/lib/teaser.js', import.meta.url),
 const A = (id) => rubric.ATTRIBUTES.find(a => a.id === id);
 const signalsOf = (id) => [...A(id).signals.strong, ...A(id).signals.moderate, ...A(id).signals.weak];
 
-test('framework 2.15 or later, teaser method 2.7', () => {
+test('framework 2.15 or later, teaser method 2.7 or later', () => {
   assert.ok(rubric.versionAtLeast(rubric.FRAMEWORK_VERSION, '2.15'));
-  assert.equal(teaser.TEASER_VERSION, '2.7');
+  assert.ok(rubric.versionAtLeast(teaser.TEASER_VERSION, '2.7'));
 });
 
 // ── Routing ──

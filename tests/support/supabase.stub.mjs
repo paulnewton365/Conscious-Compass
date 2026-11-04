@@ -7,7 +7,7 @@ export const supabase = { auth: { onAuthStateChange: () => ({ data: { subscripti
 const noop = async () => ok(null);
 export const signUp = noop, signOut = noop, getCurrentUser = noop, getProfile = noop,
   deleteCompassResult = noop,
-  fetchSavedAssessments = async () => ok([]), deleteAssessment = noop,
+  fetchSavedAssessments = async () => ok([]), setAssessmentReview = noop, deleteAssessment = noop,
   fetchAllProfiles = async () => ok([]), updateProfile = noop, approveUser = noop, revokeUser = noop,
   makeAdmin = noop, removeAdmin = noop, setReadonly = noop, deleteUser = noop,
   encryptPayload = noop, decryptPayload = noop, createClientReport = noop, resetClientReportPassword = noop,

@@ -32,6 +32,7 @@ import { stagePromptBlock, findStage, STAGE_IDS } from '../data/stages.js';
 import { sectorPromptBlock } from '../data/sectorProfiles.js';
 import { clientAudienceQuestions } from './audienceQuestions.js';
 import { searchPromptBlock } from './searchEvidence.js';
+import { fetchWikipediaCheck, wikipediaPromptLine } from './wikipediaCheck.js';
 
 // 2.0 (v3.32): scoring calibrated to what a teaser can observe, and no
 // campaign modifier. Results carry the version so teasers scored with 1.0
@@ -50,7 +51,9 @@ import { searchPromptBlock } from './searchEvidence.js';
 // feed the trust read.
 // 2.7 (v4.17.0, framework 2.15): evidence routed to the right attributes,
 // promise-kept signals, and the rebalanced Reputation lens.
-export const TEASER_VERSION = '2.7';
+// 2.8 (v4.19.0, framework 2.17): Wikipedia verified against Wikipedia and
+// Wikidata, read in place of any guess about it.
+export const TEASER_VERSION = '2.8';
 export const isCurrentMethod = (result) => !!result && result.teaserVersion === TEASER_VERSION;
 
 // Sources in the order they are shown while a teaser runs. `required` sources
@@ -281,7 +284,7 @@ export async function gatherKnowledgeGraph(input, fetchImpl) {
 // brand search page and autocomplete, in the markets the audience run named.
 // It never counts toward the sources needed to score; the scoring prompt
 // reads it when it succeeded.
-export async function gatherEvidence(input, { fetchImpl, callSearch, runAudience = null, runSearch = null, onProgress = () => {} }) {
+export async function gatherEvidence(input, { fetchImpl, callSearch, runAudience = null, runSearch = null, checkWikipedia = false, onProgress = () => {} }) {
   const website = gatherWebsite(input, fetchImpl);
   website.catch(() => {});
   const audience = runAudience ? website.then(w => siteTextOf(w), () => '').then(text => runAudience(text)) : null;
@@ -295,6 +298,9 @@ export async function gatherEvidence(input, { fetchImpl, callSearch, runAudience
     ...(isCso(input) ? { sustainability: () => callSearch(buildSustainabilityPrompt(input), { searchUses: 7, maxTokens: 3500 }).then(text => ({ text })) } : {}),
     knowledgeGraph: () => gatherKnowledgeGraph(input, fetchImpl),
     ...(audience ? { audienceQuestions: () => audience } : {}),
+    // Wikipedia, verified against Wikipedia and Wikidata (v4.19.0). Optional,
+    // never counts toward scoring, and read by the prompt when it succeeded.
+    ...(checkWikipedia ? { wikipedia: () => fetchWikipediaCheck({ brandName: input.brandName, websiteUrl: normaliseUrl(input.websiteUrl) }, fetchImpl) } : {}),
     ...(runSearch ? { searchSignals: () => (audience ? audience.catch(() => null) : Promise.resolve(null)).then(a => runSearch(a)) } : {}),
   };
 
@@ -305,7 +311,7 @@ export async function gatherEvidence(input, { fetchImpl, callSearch, runAudience
     try {
       const out = await run();
       // The audience record reports its own status and is kept whole.
-      if (id === 'audienceQuestions' || id === 'searchSignals') {
+      if (id === 'audienceQuestions' || id === 'searchSignals' || id === 'wikipedia') {
         sources[id] = { ...out, ms: Date.now() - started };
         onProgress(id, out.status === 'ok' ? 'ok' : 'failed');
         return;
@@ -399,7 +405,7 @@ ${sourceBlock('SOCIAL', s.social, 'web-searched scan')}
 
 ${sourceBlock('AI REPUTATION', s.aiPerception, 'one AI engine with web search, not the five-engine read of the full assessment')}
 
-${s.knowledgeGraph?.status === 'ok' ? `KNOWLEDGE GRAPH (verified API data):\n${s.knowledgeGraph.text}\n` : ''}
+${s.knowledgeGraph?.status === 'ok' ? `KNOWLEDGE GRAPH (verified API data):\n${s.knowledgeGraph.text}\n` : ''}${s.wikipedia?.status === 'ok' ? `${wikipediaPromptLine(s.wikipedia)}\n` : ''}
 ${sourceBlock('REVIEWS, SEARCH AND COMMUNITY', s.thirdParty, 'third-party signals')}
 
 ${sourceBlock('EARNED MEDIA', s.earned, 'web-searched scan')}

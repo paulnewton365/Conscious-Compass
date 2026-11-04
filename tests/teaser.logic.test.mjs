@@ -258,7 +258,7 @@ test('a campaign read returned by the model never moves a score, at any level', 
 
 test('results carry the method version; earlier results are recognised as outdated', () => {
   const r = finaliseTeaser(parseTeaserScoring(modelJson()));
-  assert.equal(TEASER_VERSION, '2.7', 'framework 2.15: evidence routing, promise-kept signals, Reputation rebalanced');
+  assert.equal(TEASER_VERSION, '2.8', 'framework 2.17: Wikipedia verified');
   assert.equal(r.teaserVersion, TEASER_VERSION);
   assert.equal(isCurrentMethod(r), true);
   assert.equal(isCurrentMethod({ ...r, teaserVersion: '1.0' }), false);
