@@ -1940,3 +1940,10 @@ button { font: inherit; color: inherit; }
 .dc-quality-list > li { border-top: var(--cc-border); padding-top: 12px; }
 .dc-quality-list .dc-field-row { display: flex; gap: 8px; align-items: center; }
 .dc-quality-list .dc-input { flex: 1; min-width: 0; }
+
+/* Media audit figures on the earned media step (v4.20.0) */
+.dc-audit-figures { list-style: none; padding: 0; margin: 0 0 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.dc-audit-figures li { display: flex; flex-direction: column; gap: 2px; border-top: var(--cc-border); padding-top: 8px; }
+.dc-audit-figures strong { font-size: 22px; font-weight: 500; }
+.dc-audit-figures span { font-size: 12px; color: var(--cc-muted); }
+.dc-audit-text { min-height: 420px; font-size: 13px; }

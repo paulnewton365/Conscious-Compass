@@ -24,6 +24,7 @@
 // - Only the whitelisted client payload is ever rendered for a prospect.
 // ─────────────────────────────────────────────────────────────
 
+import { pickAboutLinks, looksNotFound, homepageHasAbout, aboutNote } from './aboutContent.js';
 import {
   ATTRIBUTES, FRAMEWORK_VERSION, SERVICE_RECOMMENDATIONS, computeTrustLenses, getMaturityStage,
 } from '../data/rubric.js';
@@ -53,7 +54,10 @@ import { fetchWikipediaCheck, wikipediaPromptLine } from './wikipediaCheck.js';
 // promise-kept signals, and the rebalanced Reputation lens.
 // 2.8 (v4.19.0, framework 2.17): Wikipedia verified against Wikipedia and
 // Wikidata, read in place of any guess about it.
-export const TEASER_VERSION = '2.8';
+// 2.9 (v4.20.2): about content found by following the site's own links, not
+// by guessing /about; an error page is never evidence, and a missing guessed
+// address is never read as a broken link.
+export const TEASER_VERSION = '2.9';
 export const isCurrentMethod = (result) => !!result && result.teaserVersion === TEASER_VERSION;
 
 // Sources in the order they are shown while a teaser runs. `required` sources
@@ -76,8 +80,10 @@ export const isCso = (input) => input?.audience === 'cso';
 // is allowed to score. Fewer than that and the teaser is a guess.
 export const MIN_SOURCES_TO_SCORE = 3;
 
-// Secondary pages tried alongside the homepage. The first two that return
-// readable text and are not simply the homepage again are kept.
+// Secondary pages (v4.20.2, method 2.9): the about content the site itself
+// links to, found by link text and address (src/lib/aboutContent.js). These
+// addresses are tried only when the homepage returns no links, and an error
+// page is never kept.
 const SECONDARY_PATHS = ['/about', '/about-us', '/company', '/who-we-are'];
 const PAGE_CHARS = 8000;
 const SEARCH_CHARS = 7000;
@@ -231,27 +237,38 @@ const trimTo = (text, n) => {
 const samePage = (a, b) => a.slice(0, 600).replace(/\s+/g, ' ') === b.slice(0, 600).replace(/\s+/g, ' ');
 
 async function scrapePage(url, fetchImpl) {
-  const r = await fetchImpl(`/api/scrape?url=${encodeURIComponent(url)}&maxChars=${PAGE_CHARS}`);
+  const r = await fetchImpl(`/api/scrape?url=${encodeURIComponent(url)}&maxChars=${PAGE_CHARS}&links=1`);
   const body = await r.json().catch(() => ({}));
   if (!r.ok || !body.text) throw new Error(body.error || `Could not read ${url}`);
-  return { url, chars: body.text.length, text: body.text };
+  // Older scrape responses carry no flag: check the text here too.
+  const notFound = body.notFound ?? looksNotFound({ title: body.title, text: body.text });
+  return { url, chars: body.text.length, text: body.text, links: Array.isArray(body.links) ? body.links : [], notFound: !!notFound };
 }
 
 export async function gatherWebsite(input, fetchImpl) {
   const home = normaliseUrl(input.websiteUrl);
   const origin = new URL(home).origin;
   const homePage = await scrapePage(home, fetchImpl);
-  const extras = await Promise.allSettled(SECONDARY_PATHS.map(p => scrapePage(`${origin}${p}`, fetchImpl)));
+  const linked = pickAboutLinks(homePage.links, home);
+  const via = linked.length ? 'navigation' : 'guessed';
+  const targets = linked.length ? linked.map(l => ({ url: l.url, text: l.text })) : SECONDARY_PATHS.map(p => ({ url: `${origin}${p}`, text: null }));
+  const extras = await Promise.allSettled(targets.map(t => scrapePage(t.url, fetchImpl).then(page => ({ ...page, linkText: t.text }))));
   const kept = [];
   for (const res of extras) {
     if (kept.length >= 2) break;
     if (res.status !== 'fulfilled') continue;
     const page = res.value;
+    if (page.notFound) continue;
     if (samePage(page.text, homePage.text)) continue;
     if (kept.some(k => samePage(k.text, page.text))) continue;
     kept.push(page);
   }
-  return { pages: [homePage, ...kept] };
+  const about = kept.length
+    ? { found: 'page', url: kept[0].url, via, linkText: kept[0].linkText || null }
+    : { found: homepageHasAbout(homePage.text) ? 'homepage' : 'none', url: homePage.url, via, linkText: null };
+  // The evidence keeps the text, not the link lists.
+  const strip = ({ url, chars, text }) => ({ url, chars, text });
+  return { pages: [strip(homePage), ...kept.map(strip)], about };
 }
 
 export async function gatherKnowledgeGraph(input, fetchImpl) {
@@ -399,7 +416,7 @@ How to treat this background. It protects the integrity of the score:
 ` : ''}
 EVIDENCE:
 
-${pages ? `WEBSITE (owned, scraped pages):\n${pages}` : sourceBlock('WEBSITE', s.website)}
+${pages ? `WEBSITE (owned, scraped pages):\n${pages}${s.website.about ? `\n\n${aboutNote(s.website.about)}` : ''}` : sourceBlock('WEBSITE', s.website)}
 
 ${sourceBlock('SOCIAL', s.social, 'web-searched scan')}
 

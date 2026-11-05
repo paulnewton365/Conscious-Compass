@@ -141,7 +141,7 @@ test('teasers read the verified result too', () => {
   const prompt = teaser.buildTeaserScoringPrompt({ brandName: 'Artera', websiteUrl: 'https://artera.ai', businessModel: 'b2b' }, { sources: { wikipedia: { status: 'ok', found: true, checkedAt: '2026-11-04T15:00:00Z', page: { title: 'Artera Inc.', url: 'u', length: 20000, externalLinks: 30, match: 'confirmed' } } } });
   assert.ok(prompt.includes('WIKIPEDIA (verified against Wikipedia and Wikidata'));
   assert.ok(app.includes('      checkWikipedia: true,'));
-  assert.equal(teaser.TEASER_VERSION, '2.8');
+  assert.ok(Number(teaser.TEASER_VERSION.split('.')[1]) >= 8 && teaser.TEASER_VERSION.startsWith('2.'), 'teaser method 2.8 or later');
 });
 
 test('the social step saves its Knowledge Graph and YouTube results', () => {

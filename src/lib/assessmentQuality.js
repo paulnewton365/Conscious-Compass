@@ -43,8 +43,9 @@ export const QUALITY_LABELS = {
 };
 
 // Text the app itself writes into a field before anyone types: measured
-// search evidence, the verified Wikipedia check, a teaser's scraped homepage.
-export const AUTO_PREFIXES = ['[Measured: Google search through SerpApi', '[Verified: Wikipedia and Wikidata', '[Scraped from '];
+// search evidence, the verified Wikipedia check, a teaser's scraped homepage,
+// the Perplexity media audit.
+export const AUTO_PREFIXES = ['[Measured: Google search through SerpApi', '[Verified: Wikipedia and Wikidata', '[Scraped from ', '[Media audit: Perplexity web research'];
 export const isAutoText = (v) => AUTO_PREFIXES.some(p => String(v || '').startsWith(p));
 
 // The evidence sources each step is expected to hold.
@@ -76,7 +77,7 @@ export function stepSources(stepId, data = {}) {
   ];
   if (stepId === 'earnedMedia') return [
     ['Auto-assess', ['autoAssessContent']],
-    ['Coverage', ['coveragePaste']],
+    ['Media audit', ['mediaAuditContent', 'coveragePaste']],
   ];
   return [];
 }

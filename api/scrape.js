@@ -6,6 +6,8 @@
 // the payload before it reaches the model.
 
 import { requireUser } from './_auth.js';
+import { extractLinks, markdownToText, looksNotFound } from '../src/lib/aboutContent.js';
+
 export default async function handler(req, res) {
   // Callers must be signed in (v3.100.1); see api/_auth.js.
   if (!(await requireUser(req, res))) return;
@@ -16,7 +18,9 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { url, maxChars } = req.query;
+  // links=1 (v4.20.2): also return the page's links and whether it is an
+  // error page, so a caller can follow the site's own links rather than guess.
+  const { url, maxChars, links: withLinks } = req.query;
   if (!url) return res.status(400).json({ error: 'URL parameter is required' });
 
   // Reject a non-http scheme before the prefix below disguises it: without
@@ -47,7 +51,10 @@ export default async function handler(req, res) {
   const timeout = setTimeout(() => controller.abort(), 45000);
 
   try {
-    const headers = { 'Accept': 'text/plain', 'X-Return-Format': 'text' };
+    const linksMode = withLinks === '1';
+    const headers = linksMode
+      ? { 'Accept': 'application/json', 'X-With-Links-Summary': 'true' }
+      : { 'Accept': 'text/plain', 'X-Return-Format': 'text' };
     // Optional. Without a key Jina still works but is rate limited by IP.
     if (process.env.JINA_API_KEY) headers['Authorization'] = `Bearer ${process.env.JINA_API_KEY}`;
 
@@ -58,6 +65,34 @@ export default async function handler(req, res) {
         error: r.status === 429
           ? 'The scraper is rate limited right now. Wait a moment and try again.'
           : `Could not read that page (HTTP ${r.status}).`,
+      });
+    }
+
+    if (linksMode) {
+      // If the reader sends markdown rather than JSON, read it as the content:
+      // the links are taken from the markdown instead, and the page still loads.
+      const raw = await r.text();
+      let body = null;
+      try { body = JSON.parse(raw); } catch { body = null; }
+      const data = (body && typeof body === 'object') ? (body.data || body) : {
+        content: raw,
+        title: /^Title:\s*(.+)$/m.exec(raw)?.[1] || null,
+        warning: /^Warning:\s*(.+)$/m.exec(raw)?.[1] || null,
+      };
+      const content = String(data.content || data.text || '');
+      const plain = markdownToText(content);
+      if (!plain || plain.trim().length < 40) {
+        return res.status(422).json({ error: 'That page returned almost no readable text. It may be script-rendered or blocked.' });
+      }
+      const trimmedPlain = plain.length > cap ? plain.slice(0, cap) : plain;
+      return res.status(200).json({
+        url: data.url || target,
+        title: data.title || null,
+        chars: trimmedPlain.length,
+        truncated: plain.length > cap,
+        text: trimmedPlain,
+        links: extractLinks({ links: data.links, content }),
+        notFound: looksNotFound({ warning: data.warning, title: data.title, text: plain }),
       });
     }
 
@@ -72,6 +107,8 @@ export default async function handler(req, res) {
       chars: trimmed.length,
       truncated: text.length > cap,
       text: trimmed,
+      // An error page served in place of content (v4.20.2).
+      notFound: looksNotFound({ text }),
     });
   } catch (err) {
     if (err.name === 'AbortError') {

@@ -26,6 +26,12 @@
     },
     "api/audience-questions.js": {
       "maxDuration": 60
+    },
+    "api/media-audit.js": {
+      "maxDuration": 60
+    },
+    "api/wikipedia.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

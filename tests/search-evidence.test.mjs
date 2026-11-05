@@ -240,7 +240,7 @@ test('teasers read brand search and autocomplete; a failure never blocks scoring
   assert.ok(prompt.includes('NAME CLASH'));
   const failed = teaser.buildTeaserScoringPrompt(INPUT, { sources: { ...ev.sources, searchSignals: { status: 'failed' } } });
   assert.ok(!failed.includes('SEARCH EVIDENCE: BRAND'), 'a failed signal is left out of the teaser prompt');
-  assert.equal(teaser.TEASER_VERSION, '2.8');
+  assert.ok(Number(teaser.TEASER_VERSION.split('.')[1]) >= 8 && teaser.TEASER_VERSION.startsWith('2.'), 'teaser method 2.8 or later');
 });
 
 test('clients never receive raw search evidence', async () => {

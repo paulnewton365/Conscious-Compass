@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from 'react';
 import { QUALITY_STEPS, QUALITY_LABELS, judgeQuality, stepChecklist, needsReview, clientAssessedBy, NA_REASON_MIN } from './lib/assessmentQuality.js';
 import { useQualityTracker } from './lib/qualityTracker.js';
+import { peersFromContext, mediaAuditText, mediaAuditPromptBlock, startMediaAudit, waitForMediaAudit, normalizeAudit, ratioLine } from './lib/mediaAudit.js';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { attributesMentioned } from './data/attributeGlossary.js';
 import { ecStatusNote, nextIssueAt, NEWSLETTER_HOUSE_IMAGES, houseImageFor, noDashes, NEWSLETTER_EC_COPY, followUpText, newsletterDocument, newsletterDocxName, plural as countOf, readMinutes, SIGNALS_AUTHOR, SIGNALS_SERIES, SIGNALS_CLOSE, signalsLayout, signalsRuns, signalsHtml, signalsDocument, signalsDocxName } from './lib/newsletter.js';
@@ -10,7 +11,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.19.0';
+const APP_VERSION = '4.20.2';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -3833,6 +3834,8 @@ Based exclusively on the language, headlines, copy, and content present on the s
 Step 3: Dimensional Assessment
 Evaluate the website across each of the following dimensions. For each, provide a qualitative assessment grounded in specific observations, a performance score from 1 to 10 with clear rationale, and 1 to 2 actionable recommendations.
 
+Judge navigation and about content by what the site itself links to. About content can sit under any name (Our story, Mission, Company, Who we are) or on the homepage. Never report an address you guessed, such as /about, as a broken link or a missing page; a broken link is one the site links to that fails.
+
 1. Information Architecture
 Assess the logic, clarity, and depth of the site's navigational structure. Does the hierarchy reflect the priorities of the audiences identified in Step 1? Are key sections easy to locate? Is there evidence of user journeys being intentionally designed, or does the structure feel arbitrary or internally driven?
 
@@ -5607,6 +5610,57 @@ function EarnedMediaAssessment({ assessmentData, setAssessmentData, apiKey, proj
 
   const industryName = INDUSTRIES.find(i => i.id === project.industry)?.name || 'their industry';
 
+  // The media audit (v4.20.0): Perplexity researches the last six months of
+  // coverage in the background. It replaces the pasted coverage; the paste
+  // box stays, optional, for coverage search cannot reach. A run keeps going
+  // if the assessor leaves the step, and is picked up again on return.
+  const [auditText, setAuditText] = useState(assessmentData.mediaAuditContent || '');
+  const [auditRunning, setAuditRunning] = useState(false);
+  const [auditElapsed, setAuditElapsed] = useState(0);
+  const [auditError, setAuditError] = useState(null);
+  const auditStop = useRef(false);
+  const peers = peersFromContext(project.assessorContext);
+  const auditFigures = normalizeAudit(assessmentData.mediaAudit?.audit);
+
+  const keepAudit = (res) => {
+    const ranAt = new Date().toISOString();
+    const text = mediaAuditText(res.audit, { ranAt });
+    setAuditText(text);
+    setAssessmentData({ mediaAuditContent: text, mediaAudit: { audit: res.audit, ranAt, cost: res.cost ?? null, sources: (res.sources || []).slice(0, 60), peers }, mediaAuditRun: null });
+  };
+  const followAudit = async (id, startedAt) => {
+    setAuditRunning(true);
+    const res = await waitForMediaAudit(id, { startedAt, shouldStop: () => auditStop.current, onTick: (ms) => setAuditElapsed(ms) });
+    if (res.status === 'stopped') return;
+    setAuditRunning(false);
+    if (res.status === 'completed' && res.audit) keepAudit(res);
+    else { setAuditError(res.error || 'The media audit did not finish.'); setAssessmentData({ mediaAuditRun: null }); }
+  };
+  const runMediaAudit = async () => {
+    if (auditText.trim() && !window.confirm('Run the media audit again? This replaces the current audit, including any corrections made to it.')) return;
+    setAuditError(null);
+    setAuditRunning(true);
+    setAuditElapsed(0);
+    const start = await startMediaAudit({ brand: project.brandName, url: project.websiteUrl, industry: industryName, peers });
+    if (start.status === 'completed' && start.audit) { setAuditRunning(false); keepAudit({ ...start, audit: normalizeAudit(start.audit) }); return; }
+    if (start.status === 'failed' || !start.id) {
+      setAuditRunning(false);
+      setAuditError(start.notConfigured ? 'The media audit is not set up yet: PERPLEXITY_API_KEY needs adding in Vercel. Paste coverage below in the meantime.' : `The media audit could not start: ${start.error || 'unknown error'}. Try again, or paste coverage below.`);
+      return;
+    }
+    const startedAt = Date.now();
+    setAssessmentData({ mediaAuditRun: { id: start.id, startedAt } });
+    followAudit(start.id, startedAt);
+  };
+  useEffect(() => {
+    auditStop.current = false;
+    const run = assessmentData.mediaAuditRun;
+    const t = run?.id ? setTimeout(() => followAudit(run.id, run.startedAt || Date.now()), 0) : null;
+    return () => { auditStop.current = true; if (t) clearTimeout(t); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const elapsedLabel = `${Math.floor(auditElapsed / 60000)} min ${String(Math.floor((auditElapsed % 60000) / 1000)).padStart(2, '0')} s`;
+
   // Auto-assess earned media performance
   const runAutoAssess = async () => {
     setIsAutoAssessing(true);
@@ -5716,8 +5770,13 @@ Do not use em-dashes anywhere in your response.`;
 
 ${stepSearchBlock(search?.evidence, 'earnedMedia')}
 
-USER-PROVIDED COVERAGE (last 3 months):
-${coveragePaste || 'No coverage provided by user'}
+MEDIA AUDIT (Perplexity web research over the last six months; figures are estimates, and the assessor may have corrected them):
+${auditText ? auditText.slice(0, 14000) : 'Not run'}
+
+ADDITIONAL COVERAGE PROVIDED BY THE ASSESSOR (coverage search may not reach):
+${coveragePaste || 'None'}
+
+Treat the media audit's coverage list, the Google News counts (last 90 days) and anything you find yourself as one body of coverage: count each item once. Use the audit's longer window to judge whether coverage holds up between announcements. Use the audit's announcement-led versus independent split, sentiment and share of voice, and say where your own search disagrees with them.
 
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS TO CONSIDER:\n${assessmentData.observations}` : ''}
 
@@ -5743,7 +5802,7 @@ Provide a comprehensive earned media assessment:
 Write in flowing prose with specific examples. End with priority recommendations.`;
 
       const result = await callClaude(prompt, apiKey);
-      setAssessmentData({ status: 'complete', content: result, coveragePaste, searchUsedAt: stepSearchBlock(search?.evidence, 'earnedMedia') ? search.gatheredAt : null });
+      setAssessmentData({ status: 'complete', content: result, coveragePaste, mediaAuditContent: auditText, searchUsedAt: stepSearchBlock(search?.evidence, 'earnedMedia') ? search.gatheredAt : null });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -5754,15 +5813,18 @@ Write in flowing prose with specific examples. End with priority recommendations
   const isComplete = assessmentData.status === 'complete';
 
   // Completion tracking
+  // The audit is required; pasted coverage stands in for it only when the
+  // audit cannot run, so the step is never blocked by Perplexity.
+  const hasCoverage = !!auditText.trim() || !!coveragePaste.trim();
   const completionItems = [
+    { label: 'Media audit', done: hasCoverage },
     { label: 'Auto-assess', done: !!assessmentData.autoAssessContent },
-    { label: 'Coverage added', done: !!coveragePaste },
+    { label: 'Additional coverage', done: !!coveragePaste.trim(), optional: true },
     { label: 'Analysis', done: isComplete },
   ];
-  const blocker = stillNeeded(completionItems);
+  const blocker = stillNeeded(completionItems.filter(i => !i.optional));
 
-  // Required checks before proceeding - ALL items mandatory
-  const canProceed = isComplete && !!assessmentData.autoAssessContent && !!coveragePaste;
+  const canProceed = isComplete && !!assessmentData.autoAssessContent && hasCoverage;
   const [proceedError, setProceedError] = useState(null);
 
   const handleProceed = () => {
@@ -5770,8 +5832,8 @@ Write in flowing prose with specific examples. End with priority recommendations
       setProceedError('Please complete the Auto-Assess Earned Media Performance check before proceeding.');
       return;
     }
-    if (!coveragePaste) {
-      setProceedError('Please add media coverage information before proceeding.');
+    if (!hasCoverage) {
+      setProceedError('Please run the media audit before proceeding. If it cannot run, paste coverage under Additional coverage.');
       return;
     }
     if (!isComplete) {
@@ -5788,28 +5850,55 @@ Write in flowing prose with specific examples. End with priority recommendations
 
       <StepSearchPanel search={search} status={searchStatus} stale={searchStale} signals={STEP_SIGNALS.earnedMedia} onRefresh={onRefreshSearch} />
 
-      <AssessBlock title="Media coverage" labelFor="em-coverage" tag="Required"
-        desc="Paste any press coverage, news articles, mentions, or media clips from the last 3 months.">
-        <textarea className="dc-textarea is-tall" id="em-coverage" value={coveragePaste} onChange={(e) => setCoveragePaste(e.target.value)}
-          placeholder={"Paste media coverage here...\n\nExample:\n- TechCrunch (Jan 15, 2026): 'Company X Raises $50M' - Featured as lead story\n- Forbes (Jan 8, 2026): CEO quoted on industry trends\n- Industry Podcast (Dec 20, 2025): 30-min interview with CTO\n- SXSW 2025: Keynote presentation on AI trends\n- Gartner Cool Vendor 2025: Named in category report\n- Inc. 5000 (2025): Ranked #234 fastest growing\n..."} />
-        <p className="dc-hint">Include: news articles, podcast appearances, conference keynotes, analyst mentions, awards announcements, industry rankings.</p>
-      </AssessBlock>
-
-      <section className="dc-panel-dark dc-action">
+      <section className="dc-panel-dark dc-action is-stacked" data-field="media-audit">
         <div>
           <div className="dc-kicker">Automated</div>
-          <h2 className="dc-h is-card">Auto-assess earned media performance</h2>
-          <p>Web-searched analysis across 10 dimensions: Outlet Caliber, Announcement-Driven vs Third-Party Earned, Reach, Sentiment, Share of Voice, Audience Relevance, Thought Leadership &amp; Executive Visibility, Narrative Influence, Contradictions, and Credibility Built.</p>
+          <h2 className="dc-h is-card">Media audit and auto-assess</h2>
+          <p>Two web-searched reads that feed the analysis with your observations.</p>
         </div>
-        <button type="button" onClick={runAutoAssess} disabled={isAutoAssessing} aria-busy={isAutoAssessing || undefined} className="btn-primary is-on-dark">
-          {isAutoAssessing ? 'Assessing...' : assessmentData.autoAssessContent ? 'Run again' : 'Run auto-assess'}
-        </button>
+        <div className="dc-action-foot">
+          <p><strong>Media audit, through Perplexity.</strong> The last six months of coverage: every item with its link, sentiment by outlet, announcement-led versus independent coverage, and share of voice against {peers.length ? `the competitors named in Setup (${peers.join(', ')})` : 'peers it identifies. To choose the peers, add a line such as "Key competitors: A, B, C" to the context in Setup'}. It takes a few minutes and keeps running if you carry on with the step.</p>
+          <button type="button" onClick={runMediaAudit} disabled={auditRunning} aria-busy={auditRunning || undefined} className="btn-primary is-on-dark">
+            {auditRunning ? 'Researching...' : auditText ? 'Run audit again' : 'Run media audit'}
+          </button>
+        </div>
+        <div className="dc-action-foot">
+          <p><strong>Auto-assess earned media performance.</strong> Analysis across 10 dimensions: Outlet Caliber, Announcement-Driven vs Third-Party Earned, Reach, Sentiment, Share of Voice, Audience Relevance, Thought Leadership &amp; Executive Visibility, Narrative Influence, Contradictions, and Credibility Built.</p>
+          <button type="button" onClick={runAutoAssess} disabled={isAutoAssessing} aria-busy={isAutoAssessing || undefined} className="btn-primary is-on-dark">
+            {isAutoAssessing ? 'Assessing...' : assessmentData.autoAssessContent ? 'Run auto-assess again' : 'Run auto-assess'}
+          </button>
+        </div>
       </section>
+      {auditRunning && <p className="dc-meta" role="status">Researching coverage: {elapsedLabel} so far.</p>}
+      {auditError && <div className="dc-alert is-error" role="alert">{auditError}</div>}
+      {(auditText || auditFigures) && (
+        <AssessBlock title="Media audit" labelFor="em-audit" status="Complete"
+          desc="Estimates from web search, not a monitoring database. Check the coverage list and correct anything wrong: outlets, origins, sentiment, peers.">
+          {auditFigures && (
+            <ul className="dc-audit-figures">
+              <li><strong>{auditFigures.metrics.totalItems}</strong><span>coverage items</span></li>
+              <li><strong>{auditFigures.metrics.positive}/{auditFigures.metrics.neutral}/{auditFigures.metrics.mixed}/{auditFigures.metrics.negative}</strong><span>positive, neutral, mixed, negative</span></li>
+              <li><strong>{auditFigures.metrics.announcementLed}:{auditFigures.metrics.independent}</strong><span>{ratioLine(auditFigures.metrics).split('; ')[1] || 'announcement-led to independent'}</span></li>
+              <li><strong>{auditFigures.shareOfVoice.brandShare}%</strong><span>share of voice{auditFigures.shareOfVoice.rank ? `, rank ${auditFigures.shareOfVoice.rank} of ${auditFigures.shareOfVoice.peers.length + 1}` : ''}</span></li>
+            </ul>
+          )}
+          <textarea className="dc-textarea is-tall dc-audit-text" id="em-audit" value={auditText}
+            onChange={(e) => { setAuditText(e.target.value); setAssessmentData({ mediaAuditContent: e.target.value }); }} />
+        </AssessBlock>
+      )}
+
       {assessmentData.autoAssessContent && (
         <AssessBlock title="Performance assessment" status="Complete">
           <AssessOutput>{assessmentData.autoAssessContent}</AssessOutput>
         </AssessBlock>
       )}
+
+      <AssessBlock title="Additional coverage" labelFor="em-coverage" tag="Optional"
+        desc="Coverage search cannot reach: paywalled trade press, broadcast clips, podcasts, or a client's own clip report. If the media audit cannot run, paste coverage here instead.">
+        <textarea className="dc-textarea" id="em-coverage" value={coveragePaste}
+          onChange={(e) => { setCoveragePaste(e.target.value); setAssessmentData({ coveragePaste: e.target.value }); }}
+          placeholder={"For example:\n- Trade journal (paywalled), Oct 2026: feature on the CEO\n- Industry podcast, Sep 2026: 30-minute interview with the CTO"} />
+      </AssessBlock>
 
       <AssessBlock title="Assessor observations" labelFor="em-obs" desc="Your observations will be included in the analysis and final report.">
         <textarea className="dc-textarea" id="em-obs" value={assessmentData.observations || ''} onChange={(e) => setAssessmentData({ observations: e.target.value })}
@@ -6606,7 +6695,7 @@ ${(() => {
 EARNED MEDIA:
 ${cap(scoringInputs.earnedMedia.content)}
 ${field('Notes', scoringInputs.earnedMedia.observations) || ''}
-
+${scoringInputs.earnedMedia.mediaAudit?.audit ? `${mediaAuditPromptBlock(scoringInputs.earnedMedia.mediaAudit.audit)}\nWhere the earned media analysis reports figures the assessor corrected, use those.\n` : ''}
 ${scoringInputs.search?.evidence ? searchPromptBlock(scoringInputs.search.evidence, { reflected: [['website', scoringInputs.website], ['AI reputation', scoringInputs.aiReputation], ['earned media', scoringInputs.earnedMedia]].filter(([, d]) => d?.searchUsedAt && d.searchUsedAt === scoringInputs.search.gatheredAt).map(([n]) => n) }) : 'SEARCH EVIDENCE: not gathered for this assessment. Treat these signals as unknown, not absent.'}
 ${scoringInputs.wikipediaCheck?.status === 'ok' ? `\n${wikipediaPromptLine(scoringInputs.wikipediaCheck)}\n` : ''}
 SCORING RUBRIC v2.8 — Score each attribute 0-100:
@@ -7287,7 +7376,8 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   if (assessments.aiReputation?.redditAnswersContent) evaluatedInputs.push('Reddit Answers AI search visibility');
   
   // Earned Media inputs
-  if (assessments.earnedMedia?.coveragePaste) evaluatedInputs.push('3 months earned media coverage and press mentions');
+  if (assessments.earnedMedia?.mediaAuditContent) evaluatedInputs.push('Media audit of the last six months of coverage (Perplexity web research)');
+  if (assessments.earnedMedia?.coveragePaste) evaluatedInputs.push('Additional earned media coverage provided by the assessor');
 
   // Build comprehensive evaluation description
   const websiteEvalDescription = assessments.website?.pagesReviewed 
@@ -8725,13 +8815,29 @@ ${content.slice(0, 8000)}`;
                   </div>
                   <div className="text-left">
                     <h4 className="font-medium text-[#15171A]">Earned Media Assessment</h4>
-                    <p className="text-xs text-[#5B6068]">Auto-assess performance and coverage analysis</p>
+                    <p className="text-xs text-[#5B6068]">Media audit, auto-assess and coverage analysis</p>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[#5B6068] transition-transform ${expandedSections.readoutEarned ? 'rotate-180' : ''}`} />
               </button>
               {expandedSections.readoutEarned && (
                 <div className="border-t border-[#DEDAD2] p-4 space-y-4 bg-[#FBFAF7]">
+                  {assessments.earnedMedia?.mediaAuditContent && (
+                    <div data-field="media-audit-readout">
+                      <h5 className="text-sm font-medium text-[#2F6B55] mb-2">Media Audit (Perplexity)</h5>
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.earnedMedia.mediaAuditContent}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {assessments.earnedMedia?.coveragePaste && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#2F6B55] mb-2">Additional Coverage (from the assessor)</h5>
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.earnedMedia.coveragePaste}</pre>
+                      </div>
+                    </div>
+                  )}
                   {assessments.earnedMedia?.autoAssessContent && (
                     <div>
                       <h5 className="text-sm font-medium text-[#2F6B55] mb-2">Auto-Assess Earned Media Performance</h5>
@@ -10777,7 +10883,7 @@ function AssessmentStatusIndicator({ assessments }) {
       return 'empty';
     }
     if (type === 'earnedMedia') {
-      const hasContent = assessment.content || assessment.coveragePaste;
+      const hasContent = assessment.content || assessment.coveragePaste || assessment.mediaAuditContent;
       if (hasContent) return 'complete';
       return 'empty';
     }
