@@ -385,9 +385,18 @@ const sourceBlock = (label, src, note = '') => {
 
 export function buildTeaserScoringPrompt(input, evidence) {
   const s = evidence?.sources || {};
-  const pages = s.website?.status === 'ok'
-    ? s.website.pages.map(p => `[${p.url}]\n${trimTo(p.text, PAGE_CHARS)}`).join('\n\n')
+  // Error pages never reach the scoring (v4.20.3): evidence gathered before
+  // method 2.9 can still hold a guessed /about that came back as a branded
+  // 404, and a rescore reuses that evidence.
+  const sitePages = s.website?.status === 'ok'
+    ? s.website.pages.filter((p, i) => i === 0 || !looksNotFound({ text: p.text }))
+    : [];
+  const pages = sitePages.length
+    ? sitePages.map(p => `[${p.url}]\n${trimTo(p.text, PAGE_CHARS)}`).join('\n\n')
     : null;
+  // Older evidence has no record of how pages were chosen: say they were
+  // guessed, so the rule against reading a missing address as broken applies.
+  const about = s.website?.about || (sitePages.length ? { found: sitePages.length > 1 ? 'page' : 'none', url: sitePages[1]?.url || sitePages[0].url, via: 'guessed', linkText: null } : null);
   const context = String(input.context || '').trim();
 
   return `You are producing an INDICATIVE teaser read of ${input.brandName} against the Conscious Compass Framework v${FRAMEWORK_VERSION}. ${brandLine(input)}
@@ -398,6 +407,7 @@ CALIBRATED TO THIS PASS. Read this first, it governs every score:
 - Before scoring an attribute, decide which of its strong and moderate signals this pass could reach. Answer the attribute's fundamental question against those signals only.
 - A signal this pass could not reach counts neither for nor against. Never read its absence as weakness.
 - Something a scan looked for directly and did not find IS evidence. The scans report "Not found" for what they searched: no official account on a platform, no Wikipedia page, no coverage in the last three months, no reviews. Weigh those as findings.
+- A missing or error page at an address nobody linked to (a guessed /about, /company or similar) is not a broken link, a missing page or a functional failure, in any source below. About content can sit under any name or on the homepage. A broken link is one the site itself links to that fails.
 - Use the full range on what was observable. Where the reachable signals are strong, score in the strong band even though unreachable signals remain unknown.
 - Score below 40 only when the observable evidence itself shows weakness: weak signals present, a gap a scan confirmed, contradictions, or reputation flags. Never because strong signals simply did not surface.
 - Where too little was reachable to judge an attribute, score from what is there, mark confidence low, and name in "unobserved" what could not be seen. Do not default low.
@@ -416,7 +426,7 @@ How to treat this background. It protects the integrity of the score:
 ` : ''}
 EVIDENCE:
 
-${pages ? `WEBSITE (owned, scraped pages):\n${pages}${s.website.about ? `\n\n${aboutNote(s.website.about)}` : ''}` : sourceBlock('WEBSITE', s.website)}
+${pages ? `WEBSITE (owned, scraped pages):\n${pages}${about ? `\n\n${aboutNote(about)}` : ''}` : sourceBlock('WEBSITE', s.website)}
 
 ${sourceBlock('SOCIAL', s.social, 'web-searched scan')}
 

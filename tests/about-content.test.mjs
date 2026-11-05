@@ -92,3 +92,12 @@ test('the scoring is told how pages were chosen and not to read a missing addres
   assert.ok(scrapeSrc.includes("'X-With-Links-Summary': 'true'"));
   assert.ok(scrapeSrc.includes('notFound: looksNotFound({ warning: data.warning, title: data.title, text: plain }),'));
 });
+
+test('a rescore of older evidence drops the stored error page and still gets the rule', () => {
+  const branded404 = `Acme\n\nProducts Solutions Company Contact\n\n404\n\nSorry, we couldn't find that page. The page you requested was not found.\n\n${'Footer navigation link. '.repeat(200)}`;
+  assert.equal(ac.looksNotFound({ text: branded404 }), true, 'a long branded 404 is still an error page');
+  const prompt = buildTeaserScoringPrompt({ brandName: 'Acme', websiteUrl: 'acme.com', businessModel: 'b2b' }, { sources: { website: { status: 'ok', pages: [{ url: 'https://acme.com', text: `Acme home. ${LONG}` }, { url: 'https://acme.com/about', text: branded404 }] } } });
+  assert.ok(!prompt.includes('[https://acme.com/about]'), 'the stored 404 page is not shown to the scoring');
+  assert.match(prompt, /common addresses were tried; any that did not load or returned an error page were left out/);
+  assert.match(prompt, /A missing or error page at an address nobody linked to \(a guessed \/about, \/company or similar\) is not a broken link/);
+});

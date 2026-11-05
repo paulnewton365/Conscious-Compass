@@ -65,6 +65,11 @@ export function looksNotFound({ warning = '', title = '', text = '' } = {}) {
   const t = String(title || '').trim();
   if (t && /\b404\b|page\s+not\s+found|not\s+found|can.?t\s+be\s+found|cannot\s+be\s+found|does\s*n.?t\s+exist|no\s+longer\s+exists|^error\b/i.test(t) && t.length < 120) return true;
   const body = String(text || '').trim();
+  // A branded error page carries the site's whole navigation and footer, so
+  // it can be long: a 404 beside "not found" or "error" near the top is
+  // enough at any length.
+  const top = body.slice(0, 1500);
+  if (/\b404\b/.test(top) && /not\s+found|\berror\b|does\s*n.?t\s+exist|can.?t\s+be\s+found|cannot\s+be\s+found|no\s+longer\s+exists/i.test(top)) return true;
   if (body.length < 3000 && /\b404\b|page\s+not\s+found|(page|content)\s+(you|you.re)\s+(are\s+)?looking\s+for\s+(could\s+not|can.?t|cannot|does\s*n.?t|is\s+not)|this\s+page\s+(does\s+not|doesn.?t)\s+exist|page\s+(has\s+been\s+)?(moved|removed)/i.test(body.slice(0, 600))) return true;
   return false;
 }
