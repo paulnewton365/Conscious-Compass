@@ -128,3 +128,19 @@ test('admins can find new stories on demand and publish without posting to Teams
   assert.ok(app.includes('onClick={() => forceRefresh(newStories)}>Write the draft</button>'));
   assert.ok(app.includes('Find and fact-check new stories first'));
 });
+
+test('earned creative looks around the world, and the three shown come from different countries where it can', () => {
+  const p = nl.earnedCreativePrompt();
+  assert.match(p, /Look around the world, not mainly at the UK: UK work is welcome/);
+  ['Campaign Asia', 'Campaign Middle East', 'Mumbrella', 'Strategy (Canada)', 'Meio & Mensagem', 'afaqs'].forEach(o => assert.ok(p.includes(o), o));
+  assert.ok(p.includes('"country":"The country where the work ran"'));
+  assert.match(nl.earnedCreativePrompt({ haveCountries: ['United Kingdom', 'United Kingdom', 'Brazil'] }), /already has examples from United Kingdom, Brazil\. Find work from other countries\./);
+  const ex = (brand, country, published) => ({ brand, country, published });
+  const uk = [ex('A', 'UK', '2026-11-05'), ex('B', 'United Kingdom', '2026-11-04'), ex('C', 'England', '2026-11-03')];
+  assert.deepEqual(nl.pickSpread(uk).map(e => e.brand), ['A'], 'one per country');
+  assert.equal(nl.spreadComplete(uk), false, 'three UK examples send the search out again');
+  const mixed = [...uk, ex('D', 'Japan', '2026-10-01'), ex('E', 'USA', '2026-09-01')];
+  assert.deepEqual(nl.pickSpread(mixed).map(e => e.brand), ['A', 'D', 'E']);
+  assert.deepEqual(nl.pickForIssue(uk).map(e => e.brand), ['A', 'B', 'C'], 'with nothing else, the issue still gets three');
+  assert.deepEqual(nl.pickForIssue([ex('A', 'UK', '2026-11-05'), ex('B', 'UK', '2026-11-04'), ex('D', 'Japan', '2026-10-01')]).map(e => e.brand), ['A', 'B', 'D']);
+});

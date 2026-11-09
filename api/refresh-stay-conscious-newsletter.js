@@ -331,17 +331,23 @@ export const EARNED_CREATIVE_WINDOWS = [
   'Look back up to twelve months. Choose work that clearly cut through: widely covered, awarded, or still talked about.',
   'Look back up to three years. Choose standout work that clearly cut through: widely covered, awarded at Cannes Lions or a similar show, or still cited as a benchmark.',
 ];
-export function earnedCreativePrompt({ count = 6, exclude = [], window = 0 } = {}) {
+// A world view (v4.20.5): the trade press it searched was mostly British
+// (The Drum, Campaign, Marketing Week, LBBOnline), so the examples were too.
+// It now searches trade press across regions, asks for a spread of
+// countries, and a top-up search is told which countries are already in hand.
+export const EARNED_CREATIVE_PER_COUNTRY = 1;
+export function earnedCreativePrompt({ count = 6, exclude = [], window = 0, haveCountries = [] } = {}) {
   const skip = exclude.length ? `\n\nDo not include work by these brands, already covered: ${exclude.join(', ')}.` : '';
+  const elsewhere = haveCountries.length ? `\n\nThis issue already has examples from ${[...new Set(haveCountries)].join(', ')}. Find work from other countries.` : '';
   const w = Math.min(Math.max(0, window), EARNED_CREATIVE_WINDOWS.length - 1);
   return `Find ${count} ${w ? 'examples of earned creative that cut through' : 'recent examples of earned creative that are catching headlines'}. ${EARNED_CREATIVE_WINDOWS[w]} Earned creative is an idea designed to be talked about rather than paid to be seen: a brand DID something in the world (a stunt, an installation, a product intervention, a data release, a public act, a partnership) and journalists, creators or the public carried it. Not paid ads, not sponsorships, not press releases on their own.
 
-Prefer work by brands with a purpose, climate, energy, health or social angle, but any strong example will do. Search the trade and business press (for example Adweek, Ad Age, The Drum, Campaign, Fast Company, Marketing Week, Business Insider, Muse by Clio, LBBOnline). One example per brand.${skip}
+Prefer work by brands with a purpose, climate, energy, health or social angle, but any strong example will do. Look around the world, not mainly at the UK: UK work is welcome, but draw from North America, Latin America, Europe, the Middle East, Africa and Asia Pacific as well, and give a spread of countries, at most two from any one country. Search trade and business press in every region, for example Ad Age, Adweek and Fast Company (US), Strategy (Canada), The Drum, Campaign and Marketing Week (UK), Campaign Asia, Campaign Middle East, Mumbrella and B&T (Australia), Adobo Magazine and Marketing-Interactive (Asia), afaqs (India), Meio & Mensagem (Brazil), and global sources such as Muse by Clio, Contagious, Shots, LBBOnline and the Cannes Lions shortlists. One example per brand.${skip}${elsewhere}
 
 For each example, use only facts from the pages your searches returned. The link must be the article you read about it. Prefer articles that are free to read over paywalled ones, so the facts can be checked.
 
 Return JSON only, no prose before or after, most recent first:
-{"examples":[{"brand":"The brand behind the work","agency":"The agency, or empty if none is named","title":"Name of the work, or a plain description","what":"What they did. Two short sentences, under 45 words.","coverage":"What coverage it generated: who carried it and how widely, from the article. One sentence, under 30 words.","outlet":"The publication of the link","published":"YYYY-MM-DD the article was published, or empty if unknown","url":"https://..."}]}
+{"examples":[{"brand":"The brand behind the work","agency":"The agency, or empty if none is named","title":"Name of the work, or a plain description","what":"What they did. Two short sentences, under 45 words.","coverage":"What coverage it generated: who carried it and how widely, from the article. One sentence, under 30 words.","outlet":"The publication of the link","country":"The country where the work ran","published":"YYYY-MM-DD the article was published, or empty if unknown","url":"https://..."}]}
 
 The url must be the article about THIS piece of work: a page that names the brand and the work itself. Never use a link about a different campaign by the same brand. If you cannot find such an article for an example, leave that example out.
 
@@ -447,6 +453,7 @@ export function earnedCreativeFromResponse(data, { max = 8 } = {}) {
     .map(e => ({
       brand: cleanText(e?.brand, 80), agency: cleanText(e?.agency, 80), title: cleanText(e?.title, 140),
       what: wholeSentences(e?.what, 420), coverage: wholeSentences(e?.coverage, 300), outlet: cleanText(e?.outlet, 80),
+      country: cleanText(e?.country, 60),
       published: /^\d{4}-\d{2}-\d{2}$/.test(String(e?.published || '').trim()) ? String(e.published).trim() : '',
       url: String(e?.url || '').trim(),
       searchTitle: results.get(normUrl(e?.url)) || '',
@@ -454,6 +461,34 @@ export function earnedCreativeFromResponse(data, { max = 8 } = {}) {
     .filter(e => e.brand && e.what && e.url.startsWith('https://') && results.has(normUrl(e.url)))
     .filter(e => { const k = e.brand.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
     .slice(0, max);
+}
+
+// The three shown (v4.20.5): most recent first, at most one from any one
+// country while others are available; a second from a country fills a gap
+// only when nothing else passed.
+const countryKey = (c) => {
+  const k = String(c || '').trim().toLowerCase().replace(/^the\s+/, '');
+  return ({ uk: 'united kingdom', 'great britain': 'united kingdom', britain: 'united kingdom', england: 'united kingdom', scotland: 'united kingdom', wales: 'united kingdom', us: 'united states', usa: 'united states', 'united states of america': 'united states', america: 'united states' })[k] || k;
+};
+export function pickSpread(items = [], target = EARNED_CREATIVE_TARGET, perCountry = EARNED_CREATIVE_PER_COUNTRY) {
+  const ordered = byRecency(items);
+  const out = [];
+  const count = new Map();
+  for (const e of ordered) {
+    if (out.length >= target) break;
+    const k = countryKey(e.country);
+    if (k && (count.get(k) || 0) >= perCountry) continue;
+    out.push(e);
+    if (k) count.set(k, (count.get(k) || 0) + 1);
+  }
+  return out;
+}
+export const spreadComplete = (items) => pickSpread(items).length >= EARNED_CREATIVE_TARGET;
+// For the last word: fill to the target, spread first, then whatever passed.
+export function pickForIssue(items = []) {
+  const spread = pickSpread(items);
+  const rest = byRecency(items).filter(e => !spread.includes(e));
+  return byRecency([...spread, ...rest.slice(0, Math.max(0, EARNED_CREATIVE_TARGET - spread.length))]);
 }
 
 // Most recent first; undated examples keep their place after the dated ones.
@@ -467,8 +502,8 @@ export const byRecency = (items) => items
 // resumed, up to three times, instead of being read as "nothing found"
 // (v4.1.2: this emptied the section for several issues). Returns the
 // candidates and, when there are none, why.
-async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline = Infinity, window = 0) {
-  const prompt = earnedCreativePrompt({ exclude, window });
+async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline = Infinity, window = 0, haveCountries = []) {
+  const prompt = earnedCreativePrompt({ exclude, window, haveCountries });
   let content = [];
   let stop = '';
   for (let turn = 0; turn < 4; turn++) {
@@ -509,11 +544,12 @@ export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, ver
   const tried = new Set(featured.map(b => String(b || '').trim().toLowerCase()).filter(Boolean));
   const status = { searches: 0, candidates: 0, passed: 0, reasons: [], factCheck: [] };
   try {
-    for (let round = 0; round < rounds && kept.length < EARNED_CREATIVE_TARGET; round++) {
+    // Keeps searching until three from different countries have passed (v4.20.5).
+    for (let round = 0; round < rounds && !spreadComplete(kept); round++) {
       if (round > 0 && Date.now() - started > budgetMs) break;   // leave time for the rest of the issue
       status.searches += 1;
       // Each round looks further back (v4.10.0).
-      const found = await searchEarnedCreative(anthropicKey, [...tried], fetchImpl, deadline, round);
+      const found = await searchEarnedCreative(anthropicKey, [...tried], fetchImpl, deadline, round, kept.map(e => e.country).filter(Boolean));
       if (found.reason) status.reasons.push(found.reason);
       const candidates = found.candidates.filter(e => !tried.has(e.brand.toLowerCase()));
       if (!candidates.length) continue;
@@ -532,7 +568,7 @@ export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, ver
   }
   status.passed = kept.length;
   if (status.candidates && !kept.length) status.reasons.push('no example passed the article check and the fact check');
-  const items = byRecency(kept).slice(0, EARNED_CREATIVE_TARGET).map((e) => { const out = { ...e, verified: true }; delete out.searchTitle; return out; });
+  const items = pickForIssue(kept).map((e) => { const out = { ...e, verified: true }; delete out.searchTitle; return out; });
   return { items, generatedAt: new Date().toISOString(), status };
 }
 
