@@ -45,7 +45,7 @@ export const QUALITY_LABELS = {
 // Text the app itself writes into a field before anyone types: measured
 // search evidence, the verified Wikipedia check, a teaser's scraped homepage,
 // the Perplexity media audit.
-export const AUTO_PREFIXES = ['[Measured: Google search through SerpApi', '[Verified: Wikipedia and Wikidata', '[Scraped from ', '[Media audit: Perplexity web research'];
+export const AUTO_PREFIXES = ['[Measured: Google search through SerpApi', '[Verified: Wikipedia and Wikidata', '[Scraped from ', '[Media audit: Perplexity web research', '[Perplexity audit:'];
 export const isAutoText = (v) => AUTO_PREFIXES.some(p => String(v || '').startsWith(p));
 
 // The evidence sources each step is expected to hold.
@@ -56,6 +56,7 @@ export function stepSources(stepId, data = {}) {
     ['Search visibility check', ['seoAssessment']],
     ['Pages reviewed', ['pagesReviewed']],
     ['Website content', ['websiteContent']],
+    ['Perplexity website audit', ['perplexityContent']],
   ];
   if (stepId === 'social') return data.noSocialPresence ? [
     ['No social presence note', ['noSocialNote']],
@@ -67,6 +68,7 @@ export function stepSources(stepId, data = {}) {
     ['Glassdoor', ['glassdoorAuto', 'glassdoorContent']],
     ['Campaigns', ['campaignAuto', 'campaignContent']],
     ['WIPO', ['wipoContent']],
+    ['Perplexity social audit', ['perplexityContent']],
   ];
   if (stepId === 'aiReputation') return [
     ['Claude', ['claudeManual']], ['ChatGPT', ['chatgptManual']], ['Gemini', ['geminiManual']],

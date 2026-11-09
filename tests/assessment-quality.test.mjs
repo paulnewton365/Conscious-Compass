@@ -12,8 +12,8 @@ const MIN = 60000;
 
 const OBS = 'The homepage leads with the product, not the purpose. The careers page contradicts the values page on flexible working.';
 const fullInputs = () => ({
-  website: { status: 'complete', content: 'Model analysis of the website.', observations: OBS, autoAssessContent: 'x', seoAssessment: 'x', pagesReviewed: 'x', websiteContent: 'x' },
-  social: { status: 'complete', content: 'Model analysis of social.', observations: OBS, socialHealthCheck: 'x', linkedinAuto: 'x', xAuto: 'x', glassdoorAuto: 'x', campaignAuto: 'x', wipoContent: 'x' },
+  website: { status: 'complete', content: 'Model analysis of the website.', observations: OBS, autoAssessContent: 'x', seoAssessment: 'x', pagesReviewed: 'x', websiteContent: 'x', perplexityContent: 'x' },
+  social: { status: 'complete', content: 'Model analysis of social.', observations: OBS, socialHealthCheck: 'x', linkedinAuto: 'x', xAuto: 'x', glassdoorAuto: 'x', campaignAuto: 'x', wipoContent: 'x', perplexityContent: 'x' },
   aiReputation: { status: 'complete', content: 'Model synthesis.', observations: OBS, claudeManual: 'x', chatgptManual: 'x', geminiManual: 'x', perplexityManual: 'x', copilotManual: 'x', wikipediaContent: 'x', redditAnswersContent: 'x', trustpilotContent: 'x', searchSnapshotContent: 'x', googleNewsContent: 'x' },
   earnedMedia: { status: 'complete', content: 'Model analysis of coverage.', observations: OBS, autoAssessContent: 'x', coveragePaste: 'x' },
 });
@@ -98,7 +98,7 @@ test('sources: 90% or more for Thorough', () => {
   ['trustpilotContent', 'googleNewsContent', 'redditAnswersContent'].forEach(k => { inputs.aiReputation[k] = ''; });
   const j = q.judgeQuality(record(), inputs);
   assert.equal(j.label, 'adequate');
-  assert.match(j.reasons.join(' '), /19 of 22 sources in/);
+  assert.match(j.reasons.join(' '), /21 of 24 sources in/);
   // No social presence declared: fewer sources and a lower minimum.
   const ns = fullInputs();
   ns.social = { ...ns.social, noSocialPresence: true, noSocialNote: 'No accounts found on any network.' };

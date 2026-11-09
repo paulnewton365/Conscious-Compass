@@ -127,9 +127,10 @@ The audit covers six months and the Google News counts the last 90 days; where t
 
 // ── Running it ──
 
-export async function startMediaAudit({ brand, url, industry, peers }, fetchImpl = fetch) {
+// kind 'website' or 'social' runs those audits (v4.21.0); extra carries their inputs.
+export async function startMediaAudit({ brand, url, industry, peers, kind = 'media', ...extra }, fetchImpl = fetch) {
   try {
-    const r = await fetchImpl('/api/media-audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand, url, industry, peers }) });
+    const r = await fetchImpl('/api/media-audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand, url, industry, peers, kind, ...extra }) });
     const body = await r.json().catch(() => ({}));
     if (!r.ok) return { status: 'failed', error: body.error || `HTTP ${r.status}`, notConfigured: !!body.notConfigured };
     return body;
@@ -151,11 +152,11 @@ export async function pollMediaAudit(id, fetchImpl = fetch) {
 }
 
 // Polls a run to the end. Never throws. shouldStop lets the caller give up.
-export async function waitForMediaAudit(id, { startedAt = Date.now(), fetchImpl = fetch, sleep = (ms) => new Promise(r => setTimeout(r, ms)), shouldStop = () => false, onTick = null } = {}) {
+export async function waitForMediaAudit(id, { startedAt = Date.now(), fetchImpl = fetch, sleep = (ms) => new Promise(r => setTimeout(r, ms)), shouldStop = () => false, onTick = null, normalize = normalizeAudit } = {}) {
   while (!shouldStop()) {
     const res = await pollMediaAudit(id, fetchImpl);
     if (res.status === 'completed' || res.status === 'failed' || res.status === 'cancelled' || res.status === 'incomplete') {
-      return res.status === 'completed' ? { ...res, audit: normalizeAudit(res.audit) } : { status: 'failed', error: res.error || `The run ended as ${res.status}.` };
+      return res.status === 'completed' ? { ...res, audit: normalize(res.audit) } : { status: 'failed', error: res.error || `The run ended as ${res.status}.` };
     }
     if (Date.now() - startedAt > MAX_WAIT_MS) return { status: 'failed', error: 'The media audit took longer than 15 minutes. Run it again.' };
     onTick?.(Date.now() - startedAt);

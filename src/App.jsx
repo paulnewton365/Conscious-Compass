@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from 'react';
 import { QUALITY_STEPS, QUALITY_LABELS, judgeQuality, stepChecklist, needsReview, clientAssessedBy, NA_REASON_MIN } from './lib/assessmentQuality.js';
 import { useQualityTracker } from './lib/qualityTracker.js';
+import { usePerplexityAudit } from './lib/usePerplexityAudit.js';
+import { webAuditPromptBlock, systemPromptBlock, averageScore } from './lib/perplexityAudits.js';
 import { peersFromContext, mediaAuditText, mediaAuditPromptBlock, startMediaAudit, waitForMediaAudit, normalizeAudit, ratioLine } from './lib/mediaAudit.js';
 import { TRUST_LENSES, TRUST_FOUNDATION, FOOTPRINT_CHANNELS, FOOTPRINT_VOICE, FOOTPRINT_PRESENCE_BANDS, FOOTPRINT_PRESENCE_MAX, FOOTPRINT_PRESENCE_DEFINITION, hasFootprintData, ATTRIBUTES, BUSINESS_MODELS, getMaturityStage, MATURITY_STAGES, SERVICE_RECOMMENDATIONS, FRAMEWORK_VERSION, CAMPAIGN_LADDER, CAMPAIGN_MODIFIERS, CAMPAIGN_MODIFIER_ATTRIBUTES, CAMPAIGN_EVIDENCE_RULE, getCampaignLevel, applyCampaignModifiers, computeTrustLenses } from './data/rubric';
 import { attributesMentioned } from './data/attributeGlossary.js';
@@ -11,7 +13,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.20.4';
+const APP_VERSION = '4.21.0';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -1156,7 +1158,9 @@ IMPORTANT FORMATTING RULES:
         temperature,
         messages: [{ role: 'user', content }],
         // A caller that wants live progress passes meta.onText (v3.114.0).
-        ...(meta?.onText ? { stream: true } : {})
+        ...(meta?.onText ? { stream: true } : {}),
+        // A caller can ask for web search (v4.21.0).
+        ...(meta?.webSearch ? { useWebSearch: true, searchUses: meta.searchUses || 5 } : {})
       })
     });
     if (!response.ok) {
@@ -1188,7 +1192,9 @@ IMPORTANT FORMATTING RULES:
     const stopReason = data.stop_reason;
     // Callers that pass a meta object get the usage back, for timing (v3.113.0).
     if (meta) { meta.usage = data.usage || null; meta.stopReason = stopReason; }
-    result = data.content[0].text;
+    // With web search the answer comes in several text blocks around the
+    // searches (v4.21.0); without it, one.
+    result = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim() || data.content?.[0]?.text || '';
     if (isJson && stopReason === 'max_tokens') {
       throw new Error('Response was cut short. Increase max tokens or reduce prompt size.');
     }
@@ -2771,6 +2777,34 @@ function AssessRail({ items, next, canProceed, onProceed, onSaveExit = null, sav
   );
 }
 
+// The Perplexity audit on the website and social steps (v4.21.0): the run's
+// progress, its scorecard and the editable report the analysis reads.
+function PerplexityAuditBlock({ kind, pa, analysisAt = null }) {
+  const label = kind === 'website' ? 'Website audit' : 'Social audit';
+  const avg = averageScore(pa.audit);
+  const mm = `${Math.floor(pa.elapsed / 60000)} min ${String(Math.floor((pa.elapsed % 60000) / 1000)).padStart(2, '0')} s`;
+  const stale = pa.ranAt && analysisAt && pa.ranAt > analysisAt;
+  return (
+    <>
+      {pa.running && <p className="dc-meta" role="status">Perplexity is researching the {kind === 'website' ? 'site' : 'channels'}: {mm} so far. You can carry on with the step.</p>}
+      {pa.error && <div className="dc-alert is-error" role="alert">{pa.error}</div>}
+      {(pa.text || pa.audit) && (
+        <AssessBlock title={`Perplexity ${label.toLowerCase()}`} labelFor={`pa-${kind}`} status="Complete"
+          desc="Perplexity's scorecard and report. Check it and correct anything wrong; the analysis and the final scores read it.">
+          {pa.audit && (
+            <ul className="dc-audit-figures">
+              {avg != null && <li><strong>{avg}</strong><span>average of eight dimensions, out of 10</span></li>}
+              {pa.audit.scorecard.filter(r => r.score != null).map(r => <li key={r.dimension}><strong>{r.score}</strong><span>{r.dimension}</span></li>)}
+            </ul>
+          )}
+          {stale && <p className="dc-note is-warn">The analysis was written before this audit. Run the analysis again to include it.</p>}
+          <textarea className="dc-textarea is-tall dc-audit-text" id={`pa-${kind}`} value={pa.text} onChange={(e) => pa.setText(e.target.value)} />
+        </AssessBlock>
+      )}
+    </>
+  );
+}
+
 // The quality record's live checklist (v4.19.0). Provided around the four
 // evidence steps only. It shows what the assessor has done on this step and
 // never the judgement: that is on the report.
@@ -3786,6 +3820,9 @@ function WebsiteAssessment({ assessmentData, setAssessmentData, apiKey, project,
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAutoAssessing, setIsAutoAssessing] = useState(false);
+  // The Perplexity website audit (v4.21.0).
+  const pa = usePerplexityAudit({ kind: 'website', data: assessmentData, setData: setAssessmentData,
+    input: { brand: project.brandName, url: project.websiteUrl, businessModel: project.businessModel, context: project.assessorContext || '' } });
   const [error, setError] = useState(null);
   const [images, setImages] = useState(assessmentData.images || []);
   const [pagesReviewed, setPagesReviewed] = useState(assessmentData.pagesReviewed || '');
@@ -3910,9 +3947,19 @@ When assessing brand authenticity (REFLECTIVE) and experience excellence (ATTENT
 `;
 })()}
 
+Step 6: Website and Social as One System
+Find the brand's social profiles from the links on the site and by searching, look at them, then evaluate how well the website and social presence work as a single system:
+- Is the brand story consistent from the first social impression to website conversion?
+- Where does the handoff from social to the website break down?
+- Are the trust signals on one platform missing from the other?
+- Provide a unified brand health score (1 to 10) and the 3 highest-leverage integrated fixes.
+If the brand has no social presence you can find, say so plainly and judge the website on its own.
+
 Conclude with an Overall Website Brand Score (1 to 10), a 2 to 3 sentence executive summary of the site's brand effectiveness, and the single most important improvement priority that would have the greatest impact on brand strength and audience experience.`;
 
-      const result = await callClaude(prompt, apiKey);
+      // Web search (v4.21.0): the auto-assess reads the live site and the
+      // brand's social profiles rather than working from memory.
+      const result = await callClaude(prompt, apiKey, null, [], 0, false, 8000, { webSearch: true, searchUses: 8 });
       setAssessmentData({ autoAssessContent: result });
     } catch (err) {
       setError(err.message);
@@ -4046,7 +4093,7 @@ SCREENSHOTS PROVIDED: ${images.length} image(s) showing key pages
 
 ${assessmentData.observations ? `ASSESSOR OBSERVATIONS:\n${assessmentData.observations}` : ''}
 
-${assessmentData.autoAssessContent ? `AUTO-ASSESS WEBSITE ANALYSIS (previously generated - integrate these findings):\n${assessmentData.autoAssessContent}\n` : ''}
+${assessmentData.autoAssessContent ? `AUTO-ASSESS WEBSITE ANALYSIS (previously generated - integrate these findings):\n${assessmentData.autoAssessContent}\n` : ''}${pa.text ? `\nPERPLEXITY WEBSITE AUDIT (web research by Perplexity, checked and possibly corrected by the assessor; integrate its findings, cite its examples where they hold, and count each finding once with the auto-assessment):\n${pa.text.slice(0, 16000)}\n` : ''}
 
 ${seoAssessment ? `SEO VISIBILITY ASSESSMENT (previously generated):\n${seoAssessment}\n` : ''}
 
@@ -4180,7 +4227,10 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
         pagesReviewed, 
         websiteContent,
         credentialsContent,
-        seoAssessment // Preserve SEO assessment
+        seoAssessment, // Preserve SEO assessment
+        // When the analysis was written, and from which Perplexity audit (v4.21.0).
+        analyzedAt: new Date().toISOString(),
+        perplexityContent: pa.text,
       });
     } catch (err) {
       setError(err.message);
@@ -4200,6 +4250,7 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
   // included (the analysis runs on them), so none is labelled optional.
   const completionItems = [
     { label: 'Auto-assess', done: !!assessmentData.autoAssessContent },
+    { label: 'Perplexity audit', done: !!pa.text.trim(), optional: true },
     { label: 'SEO check', done: !!seoAssessment },
     { label: 'Screenshots', done: screenshotsDone },
     { label: 'Pages listed', done: !!pagesReviewed },
@@ -4248,21 +4299,31 @@ ${seoAssessment ? '- SEO READINESS RATING (1-10): Based on the SEO assessment, r
 
       <StepSearchPanel search={search} status={searchStatus} stale={searchStale} signals={STEP_SIGNALS.website} onRefresh={onRefreshSearch} />
 
-      <section className="dc-panel-dark dc-action">
+      <section className="dc-panel-dark dc-action is-stacked" data-field="website-automated">
         <div>
           <div className="dc-kicker">Automated</div>
-          <h2 className="dc-h is-card">Auto-assess website</h2>
-          <p>AI-powered comprehensive analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization.</p>
+          <h2 className="dc-h is-card">Auto-assess and Perplexity audit</h2>
+          <p>Two web-searched reads of the site that feed the analysis with your observations.</p>
         </div>
-        <button type="button" onClick={runAutoAssess} disabled={isAutoAssessing} aria-busy={isAutoAssessing || undefined} className="btn-primary is-on-dark">
-          {isAutoAssessing ? 'Assessing...' : assessmentData.autoAssessContent ? 'Run again' : 'Run auto-assess'}
-        </button>
+        <div className="dc-action-foot">
+          <p><strong>Auto-assess website.</strong> Analysis across 8 dimensions: Information Architecture, Design System, Layout, Content Strategy, UX, Data Visualization, Imagery, and Audience Optimization, then how the website and social presence work as one system.</p>
+          <button type="button" onClick={runAutoAssess} disabled={isAutoAssessing} aria-busy={isAutoAssessing || undefined} className="btn-primary is-on-dark">
+            {isAutoAssessing ? 'Assessing...' : assessmentData.autoAssessContent ? 'Run auto-assess again' : 'Run auto-assess'}
+          </button>
+        </div>
+        <div className="dc-action-foot">
+          <p><strong>Website audit, through Perplexity.</strong> A senior strategist's audit of journey, conversion, trust, authenticity, reputation, consistency, storytelling, engagement and competitors, with a scorecard, conversion killers, trust gaps and rewrites. Takes a few minutes and keeps running while you work. Audiences, goals, competitors and markets come from labelled lines in Setup's context (for example "Primary audiences: ..."); anything missing is inferred.</p>
+          <button type="button" onClick={pa.run} disabled={pa.running} aria-busy={pa.running || undefined} className="btn-primary is-on-dark">
+            {pa.running ? 'Researching...' : pa.text ? 'Run audit again' : 'Run website audit'}
+          </button>
+        </div>
       </section>
       {assessmentData.autoAssessContent && (
         <AssessBlock title="Website auto-assessment" status="Complete">
           <AssessOutput>{assessmentData.autoAssessContent}</AssessOutput>
         </AssessBlock>
       )}
+      <PerplexityAuditBlock kind="website" pa={pa} analysisAt={assessmentData.analyzedAt || null} />
 
       <AssessBlock title="Pages reviewed" labelFor="ws-pages" desc="List the pages you reviewed (e.g., Homepage, About, Services, Contact, Blog)">
         <input className="dc-input" id="ws-pages" type="text" value={pagesReviewed}
@@ -4384,12 +4445,18 @@ function SocialAutoPanel({ content, isEditing, isEdited, onStartEdit, onDoneEdit
   );
 }
 
-function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false, wikipediaCheck = null }) {
+function SocialMediaAssessment({ assessmentData, setAssessmentData, apiKey, project, onPrev, onNext, onClearScores, onSaveExit = null, savingExit = false, wikipediaCheck = null, websiteData = null }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isAutoChecking, setIsAutoChecking] = useState(false);
   const [isSearchingWipo, setIsSearchingWipo] = useState(false);
   const [isRunningAll, setIsRunningAll] = useState(false);
+  // The latest health check, for an analysis run straight after it (Run everything).
+  const healthStructRef = useRef(assessmentData.socialHealthCheckStructured || null);
+  // The Perplexity social audit (v4.21.0). It reads the social links this step has found.
+  const pa = usePerplexityAudit({ kind: 'social', data: assessmentData, setData: setAssessmentData,
+    input: { brand: project.brandName, url: project.websiteUrl, businessModel: project.businessModel, context: project.assessorContext || '',
+      social: { linkedinUrl: assessmentData.linkedinUrl, xUrl: assessmentData.xUrl, socialHealthCheckStructured: assessmentData.socialHealthCheckStructured || null } } });
   const [runAllStage, setRunAllStage] = useState('');
   const [runAllProgress, setRunAllProgress] = useState(0);
   const [showAllChannels, setShowAllChannels] = useState(false);
@@ -4512,6 +4579,14 @@ Also establish:
 
 Engagement benchmarks: 1-3% is average, 3-6% good, 6%+ excellent.
 
+WEBSITE AND SOCIAL AS ONE SYSTEM. Evaluate how well the website and social presence work as a single system:
+- Is the brand story consistent from the first social impression to website conversion?
+- Where does the handoff from social to the website break down?
+- Are the trust signals on one platform missing from the other?
+- Provide a unified brand health score (1 to 10) and the 3 highest-leverage integrated fixes.
+${websiteData?.content || websiteData?.autoAssessContent ? `What the website step found (use it; do not re-assess the site from scratch):
+${String(websiteData.content || websiteData.autoAssessContent).slice(0, 4000)}
+` : `Look at ${project.websiteUrl} for the website side.`}
 Return ONLY valid JSON, no prose before or after, no markdown fences. Where something cannot be found, use the string "Not found" rather than inventing it. Schema:
 {
   "summary": "2-3 sentences on overall social health. Direct, evidence-based.",
@@ -4532,7 +4607,15 @@ Return ONLY valid JSON, no prose before or after, no markdown fences. Where some
   },
   "thirdParty": "Who is talking about the brand, sentiment, notable mentions, complaints or controversies.",
   "strengths": ["max 3"],
-  "improvements": ["max 3"]
+  "improvements": ["max 3"],
+  "websiteAndSocial": {
+    "storyConsistency": "Is the story consistent from first social impression to website conversion? Specific.",
+    "handoffBreaks": "Where the handoff from social to the website breaks down.",
+    "trustOnSiteNotSocial": "Trust signals on the website that social does not carry.",
+    "trustOnSocialNotSite": "Trust signals on social that the website does not carry.",
+    "unifiedScore": 0-10,
+    "fixes": ["the 3 highest-leverage integrated fixes"]
+  }
 }`;
 
       const response = await fetch('/api/claude', {
@@ -4603,9 +4686,17 @@ Return ONLY valid JSON, no prose before or after, no markdown fences. Where some
         parsed.healthScore != null ? `\nOverall health score: ${parsed.healthScore}/10` : '',
         Array.isArray(parsed.strengths) && parsed.strengths.length ? `\nStrengths:\n${parsed.strengths.map(v => `  • ${v}`).join('\n')}` : '',
         Array.isArray(parsed.improvements) && parsed.improvements.length ? `\nPriority improvements:\n${parsed.improvements.map(v => `  • ${v}`).join('\n')}` : '',
+        parsed.websiteAndSocial ? `\nWebsite and social as one system${Number.isFinite(Number(parsed.websiteAndSocial.unifiedScore)) ? ` (unified brand health score ${Math.round(Number(parsed.websiteAndSocial.unifiedScore))}/10)` : ''}:\n${[
+          parsed.websiteAndSocial.storyConsistency && `  Story: ${parsed.websiteAndSocial.storyConsistency}`,
+          parsed.websiteAndSocial.handoffBreaks && `  Handoff: ${parsed.websiteAndSocial.handoffBreaks}`,
+          parsed.websiteAndSocial.trustOnSiteNotSocial && `  On the site, not on social: ${parsed.websiteAndSocial.trustOnSiteNotSocial}`,
+          parsed.websiteAndSocial.trustOnSocialNotSite && `  On social, not on the site: ${parsed.websiteAndSocial.trustOnSocialNotSite}`,
+          ...(Array.isArray(parsed.websiteAndSocial.fixes) ? parsed.websiteAndSocial.fixes.slice(0, 3).map(f => `  • ${f}`) : []),
+        ].filter(Boolean).join('\n')}` : '',
       ].filter(Boolean).join('\n');
 
       setSocialHealthCheck(readable);
+      healthStructRef.current = parsed;
       setInputs(prev => ({ ...prev, ...autoFields }));
       setAutoEdited({});
       setEditingAuto({});
@@ -4788,7 +4879,14 @@ Treat this as a confirmed finding, not missing data. Do not speculate about acco
 
       const prompt = `Analyze ${project.brandName}'s social media and reputation presence based on the content provided below.
 
-${noSocialBlock}=== LINKEDIN DATA ===
+${noSocialBlock}${pa.text ? `=== PERPLEXITY SOCIAL AUDIT ===
+Web research by Perplexity, checked and possibly corrected by the assessor. Integrate its findings and cite its example posts where they hold; count each finding once with the channel data below. Where it and the channel data disagree, prefer the one that cites a specific post or figure.
+${pa.text.slice(0, 16000)}
+
+` : ''}${healthStructRef.current?.websiteAndSocial ? `=== WEBSITE AND SOCIAL AS ONE SYSTEM (from the health check) ===
+${systemPromptBlock(healthStructRef.current)}
+
+` : ''}=== LINKEDIN DATA ===
 Channel Profile:
 ${inputs.linkedinAuto || '[Not auto-checked]'}
 
@@ -4876,7 +4974,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
 
       const allImages = [...images, ...instagramImages];
       const result = await callClaude(prompt, apiKey, allImages[0], allImages.slice(1));
-      setAssessmentData({ status: 'complete', content: result, ...inputs, socialImages: images, instagramImages, noSocialPresence, noSocialNote, socialAutoEdited: autoEdited });
+      setAssessmentData({ status: 'complete', content: result, ...inputs, socialImages: images, instagramImages, noSocialPresence, noSocialNote, socialAutoEdited: autoEdited, analyzedAt: new Date().toISOString(), perplexityContent: pa.text });
     } catch (err) {
       setError(err.message);
       if (silent) throw err;
@@ -4960,6 +5058,7 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
   // check them, so they are labelled optional (v3.99.0).
   const completionItems = [
     { label: 'Health check', done: !!socialHealthCheck, optional: true },
+    { label: 'Perplexity audit', done: !!pa.text.trim(), optional: true },
     { label: 'Channels', done: noSocialDeclared || leadChannelsCovered >= REQUIRED_LEAD_CHANNELS },
     { label: 'Screenshot', done: noSocialDeclared || screenshotsDone },
     { label: 'Campaign', done: noSocialDeclared || !!(inputs.campaignAuto || inputs.campaignContent), optional: true },
@@ -5069,11 +5168,11 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
         )}
       </section>
 
-      <section className="dc-panel-dark dc-action">
+      <section className="dc-panel-dark dc-action is-stacked" data-field="social-automated">
         <div>
           <div className="dc-kicker">Automated</div>
-          <h2 className="dc-h is-card">Run everything</h2>
-          <p>Checks every channel, searches trademarks, then writes the assessment. Review and edit the results below rather than sourcing them by hand.</p>
+          <h2 className="dc-h is-card">Run everything, and the Perplexity audit</h2>
+          <p>Review and edit the results below rather than sourcing them by hand. Start the Perplexity audit first: it takes a few minutes, and the analysis reads it if it has finished.</p>
           {isRunningAll && (
             <div className="dc-action-run" role="status" aria-live="polite">
               <div className="dc-lens-bar is-overall"><i style={{ width: `${runAllProgress}%` }}></i></div>
@@ -5081,10 +5180,20 @@ ${(images.length + instagramImages.length) > 0 ? `MANDATORY: Begin your response
             </div>
           )}
         </div>
-        <button type="button" onClick={runEverything} disabled={isRunningAll || isAutoChecking || isProcessing} aria-busy={isRunningAll || undefined} className="btn-primary is-on-dark">
-          {isRunningAll ? 'Running...' : 'Run everything'}
-        </button>
+        <div className="dc-action-foot">
+          <p><strong>Social audit, through Perplexity.</strong> A senior social strategist's audit of every active channel: strategy, conversion, trust, authenticity, reputation, consistency, storytelling, engagement and competitors, with a channel inventory, a scorecard and sample posts. Uses the social links this step has found.</p>
+          <button type="button" onClick={pa.run} disabled={pa.running} aria-busy={pa.running || undefined} className="btn-primary is-on-dark">
+            {pa.running ? 'Researching...' : pa.text ? 'Run audit again' : 'Run social audit'}
+          </button>
+        </div>
+        <div className="dc-action-foot">
+          <p><strong>Run everything.</strong> Checks every channel and how the website and social work as one system, searches trademarks, then writes the assessment.</p>
+          <button type="button" onClick={runEverything} disabled={isRunningAll || isAutoChecking || isProcessing} aria-busy={isRunningAll || undefined} className="btn-primary is-on-dark">
+            {isRunningAll ? 'Running...' : 'Run everything'}
+          </button>
+        </div>
       </section>
+      <PerplexityAuditBlock kind="social" pa={pa} analysisAt={assessmentData.analyzedAt || null} />
 
       <AssessBlock title="Social media health check" status={socialHealthCheck ? 'Complete' : null}
         desc="Fills the channel fields below. Re-running updates auto-checked content only and never overwrites your notes."
@@ -6676,14 +6785,14 @@ ${(() => {
   const risk = pd.consistencyAnalysis?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i)?.[1] || 'Not assessed';
   return `\nDIGITAL ESTATE (${props.length + 1} properties — consistency risk: ${risk}):\n${table}\n${pd.consistencyAnalysis ? `Consistency analysis:\n${cap(pd.consistencyAnalysis, 800)}` : 'No consistency analysis run.'}`;
 })()}
-
+${scoringInputs.website?.perplexityAudit?.audit ? `\n${webAuditPromptBlock(scoringInputs.website.perplexityAudit.audit, 'website')}\n` : ''}
 SOCIAL MEDIA:
 ${scoringInputs.social.noSocialPresence ? `CONFIRMED: This brand has NO social media presence. The assessor verified this. What they checked: ${cap(scoringInputs.social.noSocialNote, 400) || 'no detail recorded'}
 This is established fact, not missing data. Score the absence on its consequences rather than withholding judgment or defaulting to a mid-range score. A total absence from social is a material gap in AWARE (no audience relationship or listening) and SENTIENT (no emotional connection being built), and it weakens AWAKE where the category conversation happens on social. If absence is a defensible strategic choice for this business model and sector, credit it in COGENT, whose rubric rewards deliberate channel choices, rather than excusing the gap elsewhere.
 ` : ''}${cap(scoringInputs.social.content)}
 ${[field('Glassdoor', cap([scoringInputs.social.glassdoorAuto, scoringInputs.social.glassdoorContent].filter(Boolean).join('\n'), 400)), field('Employee Advocacy', cap(scoringInputs.social.employeeAdvocacy, 300)), field('Campaign & Paid Signals', cap([scoringInputs.social.campaignAuto, scoringInputs.social.campaignContent, scoringInputs.social.paidMediaContent, scoringInputs.social.hashtagContent].filter(Boolean).join('\n'), 600)), field('Awards', cap(scoringInputs.social.awardsRecognition, 300)), field('WIPO', scoringInputs.social.wipoContent), field('Notes', scoringInputs.social.observations)].filter(Boolean).join('\n')}
 YouTube: ${scoringInputs.social.youtubeContent?.includes('[API Data]') ? 'Verified metrics included' : 'Manual only'}
-
+${scoringInputs.social?.perplexityAudit?.audit ? `\n${webAuditPromptBlock(scoringInputs.social.perplexityAudit.audit, 'social')}\n` : ''}${scoringInputs.social?.socialHealthCheckStructured?.websiteAndSocial ? `\n${systemPromptBlock(scoringInputs.social.socialHealthCheckStructured)}\n` : ''}
 AI REPUTATION:
 ${(() => {
   const ai = scoringInputs.aiReputation;
@@ -7366,6 +7475,7 @@ Return the complete revised readout as prose. No preamble, no notes about what y
     evaluatedInputs.push('Website homepage and key pages');
   }
   if (assessments.website?.websiteContent) evaluatedInputs.push('website content and messaging');
+  if (assessments.website?.perplexityContent) evaluatedInputs.push('Website audit of journey, conversion, trust and storytelling (Perplexity web research)');
   if (assessments.website?.images?.length > 0) evaluatedInputs.push(`${assessments.website.images.length} website screenshot(s) analyzed for brand alignment, storytelling, and visual consistency`);
   
   // Social Media inputs
@@ -7378,6 +7488,8 @@ Return the complete revised readout as prose. No preamble, no notes about what y
   if (assessments.social?.otherPlatformsAuto) evaluatedInputs.push('Facebook, TikTok, Bluesky and Substack presence');
   if (assessments.social?.campaignAuto || assessments.social?.campaignContent || assessments.social?.paidMediaContent) evaluatedInputs.push('campaign activity, paid media and hashtag signals across platforms');
   if (assessments.social?.thirdPartyAuto) evaluatedInputs.push('third-party social conversation and sentiment');
+  if (assessments.social?.perplexityContent) evaluatedInputs.push('Social audit of every active channel (Perplexity web research)');
+  if (assessments.social?.socialHealthCheckStructured?.websiteAndSocial) evaluatedInputs.push('How the website and social presence work as one system');
   if (assessments.social?.socialImages?.length > 0) evaluatedInputs.push(`${assessments.social.socialImages.length} social media screenshot(s)`);
   
   // AI Reputation inputs
@@ -8729,6 +8841,14 @@ ${content.slice(0, 8000)}`;
                       </div>
                     </div>
                   )}
+                  {assessments.website?.perplexityContent && (
+                    <div data-field="website-perplexity-readout">
+                      <h5 className="text-sm font-medium text-[#C23B22] mb-2">Website Audit (Perplexity)</h5>
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.website.perplexityContent}</pre>
+                      </div>
+                    </div>
+                  )}
                   {assessments.website?.seoAssessment && (
                     <div>
                       <h5 className="text-sm font-medium text-[#C23B22] mb-2">SEO Visibility Assessment</h5>
@@ -8768,6 +8888,22 @@ ${content.slice(0, 8000)}`;
               </button>
               {expandedSections.readoutSocial && (
                 <div className="border-t border-[#DEDAD2] p-4 space-y-4 bg-[#FBFAF7]">
+                  {assessments.social?.perplexityContent && (
+                    <div data-field="social-perplexity-readout">
+                      <h5 className="text-sm font-medium text-[#15171A] mb-2">Social Audit (Perplexity)</h5>
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.social.perplexityContent}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {assessments.social?.socialHealthCheck && (
+                    <div>
+                      <h5 className="text-sm font-medium text-[#15171A] mb-2">Social Health Check, with Website and Social as One System</h5>
+                      <div className="bg-white p-4 max-h-64 overflow-y-auto">
+                        <pre className="text-sm text-[#2E3238] whitespace-pre-wrap font-sans">{assessments.social.socialHealthCheck}</pre>
+                      </div>
+                    </div>
+                  )}
                   {assessments.social?.redditAnswersContent && (
                     <div>
                       <h5 className="text-sm font-medium text-[#15171A] mb-2">Reddit Answers (AI Search Visibility)</h5>
@@ -16278,7 +16414,7 @@ function AppContent() {
           <QualityContext.Provider value={qualityContext}>
           <div data-quality-step={qualityStepId || undefined}>
           {currentStep === 2 && <WebsiteAssessment {...stepSearch} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.website} setAssessmentData={(d) => updateAssessment('website', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(1)} onNext={() => setCurrentStep(3)} onClearScores={() => setScores(null)} />}
-          {currentStep === 3 && <SocialMediaAssessment wikipediaCheck={assessments.wikipediaCheck || null} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
+          {currentStep === 3 && <SocialMediaAssessment websiteData={assessments.website} wikipediaCheck={assessments.wikipediaCheck || null} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.social} setAssessmentData={(d) => updateAssessment('social', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(2)} onNext={() => setCurrentStep(4)} onClearScores={() => setScores(null)} />}
           {currentStep === 4 && <AIReputationPage {...stepSearch} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.aiReputation} setAssessmentData={(d) => updateAssessment('aiReputation', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(3)} onNext={() => setCurrentStep(5)} onClearScores={() => setScores(null)} />}
           {currentStep === 5 && <EarnedMediaAssessment {...stepSearch} onSaveExit={handleSaveExit} savingExit={savingExit} assessmentData={assessments.earnedMedia} setAssessmentData={(d) => updateAssessment('earnedMedia', d)} apiKey={apiKey} project={project} onPrev={() => setCurrentStep(4)} onNext={() => setCurrentStep(6)} onClearScores={() => setScores(null)} />}
           </div>

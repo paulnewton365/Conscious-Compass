@@ -69,7 +69,8 @@ test('without Save and exit wired, the rail offers Continue only', () => {
 test('Website: the checklist names every required item; screenshots stay required because the analysis runs on them', () => {
   const doc = render('WebsiteAssessment');
   const items = [...doc.querySelectorAll('.dc-checklist li')].map(li => li.textContent);
-  assert.deepEqual(items, ['Auto-assess', 'SEO check', 'Screenshots', 'Pages listed', 'Content', 'Analysis']);
+  // v4.21.0: the Perplexity website audit is optional.
+  assert.deepEqual(items, ['Auto-assess', 'Perplexity auditOptional', 'SEO check', 'Screenshots', 'Pages listed', 'Content', 'Analysis']);
   assert.equal(doc.querySelector('[data-field="blocker"]').textContent, 'Still needed: auto-assess');
   const tiles = [...doc.querySelectorAll('.dc-tiles.is-scores .dc-tile input.dc-stat-n[type="number"]')];
   assert.equal(tiles.length, 4, 'four editable PageSpeed numerals');
@@ -84,7 +85,7 @@ test('Website: a PageSpeed score reads by word as well as colour', () => {
 test('Social: health check and campaign are optional in the rail; the no-presence note comes first when ticked', () => {
   const doc = render('SocialMediaAssessment');
   const optional = [...doc.querySelectorAll('.dc-checklist li')].filter(li => li.querySelector('em')).map(li => li.querySelector('span').textContent);
-  assert.deepEqual(optional, ['Health check', 'Campaign']);
+  assert.deepEqual(optional, ['Health check', 'Perplexity audit', 'Campaign']);
   assert.equal(doc.querySelector('[data-field="blocker"]').textContent, 'Still needed: channels');
   assert.ok(doc.querySelector('.dc-acc-list .dc-acc-h[aria-expanded]'), 'channels are one accordion list');
   assert.ok(doc.querySelector('.dc-acc-list.is-secondary [data-channel="reputation"]'));

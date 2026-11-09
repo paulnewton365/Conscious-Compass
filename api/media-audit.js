@@ -16,6 +16,7 @@
 // must be signed in (api/_auth.js).
 
 import { requireUser } from './_auth.js';
+import { websiteAuditPrompt, socialAuditPrompt, WEB_AUDIT_SCHEMA } from '../src/lib/perplexityAudits.js';
 
 const PPLX = 'https://api.perplexity.ai';
 // Six months: long enough to see whether coverage holds up between
@@ -87,7 +88,22 @@ export function buildPrompt({ brand, url, industry, peers = [] }, now = new Date
 Be honest. If coverage is thin, mostly syndicated, or absent between announcements, say so plainly. Figures are estimates from web search, not a media monitoring database. Write in US English and do not use em dashes.`;
 }
 
+// The website and social audits (v4.21.0): Antenna's own audit prompts,
+// the same background run, a scorecard and a report.
+export const KINDS = ['media', 'website', 'social'];
 export function buildRequest(input, now = new Date()) {
+  const kind = KINDS.includes(input?.kind) ? input.kind : 'media';
+  if (kind !== 'media') {
+    const a = { brand: clip(input.brand, 120), url: clip(input.url, 200), businessModel: input.businessModel, context: String(input.context || '').slice(0, 4000), social: input.social || {} };
+    return {
+      effort: EFFORT,
+      background: true,
+      input: kind === 'website' ? websiteAuditPrompt(a) : socialAuditPrompt(a),
+      instructions: `You are a senior ${kind === 'website' ? 'brand strategist auditing a website' : 'social strategist auditing a social presence'} for a communications agency. Look at the real pages and posts before you judge. Cite what you saw; never invent an account, a figure or a quote.`,
+      tools: [{ type: 'web_search' }, { type: 'fetch_url' }],
+      response_format: { type: 'json_schema', json_schema: { name: `${kind}_audit`, schema: WEB_AUDIT_SCHEMA, strict: true } },
+    };
+  }
   const from = new Date(now.getTime() - WINDOW_DAYS * 86400000);
   return {
     effort: EFFORT,
