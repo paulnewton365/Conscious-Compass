@@ -27,6 +27,11 @@ Conscious marketing is marketing that earns attention, trust and growth by being
 
 Find exactly 6 stories from the last two weeks that these readers should know about: the main announcements, research, rulings, platform changes, campaigns, deals and trends that change how brands build reputation, influence and growth. Be specific and current. No generic marketing advice. Write with conviction.
 
+What counts as a story (v4.20.4). Each item must be a story, not an observation:
+- Something specific happened: a named organization, person or body did something, or published something, on a date in the last two weeks. A trend, a general statistic or "brands are increasingly..." is not a story unless a specific new report, ruling, launch or campaign is the news, and you name it.
+- It has a point for conscious marketing. Restating the announcement is not enough: say what it changes for how a brand earns trust, proves its purpose or sustainability claims, spends its media, or communicates responsibly. If you cannot find that point, choose another story.
+- It is sourced: the page you cite reports the event itself, not a round-up that mentions it in passing.
+
 Topics to draw from, each story in a different one:
 ${STORY_CATEGORIES.map(c => `- ${c}`).join('\n')}
 (Media Relations covers earned media of every kind: press coverage, journalists and newsrooms, PR, and how coverage is won and measured. Thought Leadership covers executive visibility, bylines, original research, speaking and points of view that build a brand's authority. Trust & Reputation covers authenticity, credibility and influence. Purpose & Sustainability covers purpose marketing, sustainability claims and climate communications. Agency & Industry covers developments in the agency and PR world that matter to Antenna Group and HOWL's clients.)
@@ -44,8 +49,8 @@ Return ONLY valid JSON, no preamble, no explanation, no markdown fences:
 Each item:
 - headline: punchy, specific, max 12 words
 - category: exactly one of: ${STORY_CATEGORIES.join(' | ')}
-- insight: 2-3 sentences. What is actually happening, with specifics and figures where possible.
-- whyItMatters: 1-2 sentences. What it means for a brand that wants to be trusted and to grow, and what a leader should do or watch.
+- insight: 2-3 sentences. What happened, who did it and when, with specifics and figures where possible.
+- whyItMatters: 1-2 sentences. The point for conscious marketing: what it means for a brand that wants to be trusted and to grow, and what a CMO, sustainability or communications leader should do or watch. Never a restatement of the news.
 - sources: one or two pages your searches returned that support the specific facts and figures in this item: the page title, the publication, and its url. Use only pages you actually found; never invent or reconstruct a link. Every figure in the insight must come from one of these pages. If you cannot source an item, replace it with one you can.
 
 US English. No em dashes or en dashes.`;

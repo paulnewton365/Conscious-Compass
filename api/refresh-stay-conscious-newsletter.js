@@ -114,10 +114,84 @@ export function parseSpotlight(text, pick) {
 // Stories arrive ranked by significance. The lead is the first that is not a
 // follow-up and whose topic has not led recently; failing that, the first
 // fresh story; failing that, the first story.
+// v4.20.4: the fact check can cut a story down to one sentence with no "why
+// it matters", and that story still led. The lead is now the first that also
+// has substance: two sentences or more, a "why it matters", and a source the
+// reader issue can show (https). Only when no story has that does the old
+// order apply.
+export const hasSubstance = (i) => paragraphsOf(i?.insight).flat().length >= 2
+  && !!String(i?.whyItMatters || '').trim()
+  && (Array.isArray(i?.sources) ? i.sources : []).some(src => /^https:\/\//.test(String(src?.url || '')));
 export function pickLead(items = [], recentLeadCategories = []) {
   const recent = new Set(recentLeadCategories.map(c => String(c || '').toLowerCase()));
   const fresh = items.filter(i => !i.followUp);
-  return fresh.find(i => !recent.has(String(i.category || '').toLowerCase())) || fresh[0] || items[0];
+  const notRecent = (i) => !recent.has(String(i.category || '').toLowerCase());
+  return fresh.find(i => notRecent(i) && hasSubstance(i)) || fresh.find(hasSubstance)
+    || fresh.find(notRecent) || fresh[0] || items[0];
+}
+
+// ── The lead, written up in full (v4.20.4) ───────────────────
+// Every story is written at two or three sentences, and the fact check can
+// cut that further. The lead gets a full write-up from its own source pages:
+// two paragraphs and a fuller "why it matters", fact-checked sentence by
+// sentence exactly like every story. The write-up is used only if at least
+// LEAD_MIN_SENTENCES of it survive and it says more than the story did;
+// otherwise the story stays as it was.
+export const LEAD_MIN_SENTENCES = 4;
+const sentencesIn = (t) => paragraphsOf(t).flat().length;
+export function leadWriteUpPrompt(item, evidence) {
+  return `You are writing the lead story for Stay Conscious, Antenna Group's weekly brand newsletter, read by staff who repeat it to clients. The story below passed a fact check but is too short to lead the issue. Write it up in full from its source pages.
+
+HEADLINE (keep it as it is): ${item.headline}
+CATEGORY: ${item.category || ''}
+WHAT IT SAYS NOW:
+${item.insight || ''}
+${item.whyItMatters ? `Why it matters: ${item.whyItMatters}` : ''}
+
+SOURCE PAGES:
+${evidence.map((e, i) => `[S${i + 1}] ${e.label}\n${String(e.text || '').slice(0, 14000)}`).join('\n\n')}
+
+Write:
+- insight: two paragraphs, five to eight sentences in all. What happened and who did it, the figures, and the context the pages give: how it was measured, how big it is, what it compares with, what changed. Every fact and figure must be on the source pages above. A sentence they do not support will be removed, so add nothing from anywhere else.
+- whyItMatters: two or three sentences making one clear point for conscious marketing: what this changes for how a brand earns trust, proves its purpose or sustainability claims, spends its media or communicates responsibly, and what a CMO, sustainability or communications leader should do about it. Not a restatement of the news. This is your view: no new facts or figures.
+
+Separate the two insight paragraphs with a blank line. Plain words, short sentences, lead with the point. US English. No em dashes or en dashes, no rule-of-three lists, no "not just X but Y", no motivational closers.
+
+Return ONLY JSON: {"insight":"...","whyItMatters":"..."}`;
+}
+export function parseLeadWriteUp(text) {
+  const m = String(text || '').match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  let j; try { j = JSON.parse(m[0]); } catch { return null; }
+  const clean = (v) => noDashes(String(v || '')).replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  const out = { insight: clean(j.insight), whyItMatters: clean(j.whyItMatters) };
+  return out.insight ? out : null;
+}
+export async function writeUpLead(item, { anthropicKey, fetchImpl = fetch, deadline = Infinity } = {}) {
+  const keep = (reason) => ({ item, report: { outcome: 'unchanged', reason } });
+  if (!anthropicKey) return keep('no API key');
+  if (!Array.isArray(item?.sources) || !item.sources.length) return keep('it has no source to write from');
+  if (Date.now() > deadline) return keep('there was no time left');
+  const evidence = await evidenceFor(item.sources, { fetchImpl, anthropicKey });
+  if (!evidence.some(e => e.text && e.text.length >= 200)) return keep('its source page could not be read');
+  let draft = null;
+  try {
+    const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, temperature: 0.3, messages: [{ role: 'user', content: leadWriteUpPrompt(item, evidence) }] }),
+    });
+    if (r.ok) draft = parseLeadWriteUp(((await r.json()).content || []).filter(b => b.type === 'text').map(b => b.text).join(''));
+  } catch { draft = null; }
+  if (!draft) return keep('the write-up could not be produced');
+  const checked = await factCheckStory({ ...item, insight: draft.insight, whyItMatters: draft.whyItMatters }, { anthropicKey, fetchImpl, deadline, evidence });
+  if (!checked.item) return keep(`the write-up did not pass the fact check: ${checked.report.reason}`);
+  const n = sentencesIn(checked.item.insight);
+  if (n < LEAD_MIN_SENTENCES || n <= sentencesIn(item.insight)) return keep(`only ${n} sentences of the write-up were confirmed`);
+  return {
+    item: { ...item, insight: checked.item.insight, whyItMatters: checked.item.whyItMatters || item.whyItMatters, writtenUp: true },
+    report: { outcome: 'written up', sentences: n, removed: checked.report.removed },
+  };
 }
 
 // ── Talking point (v4.7.0) ───────────────────────────────────
@@ -658,10 +732,11 @@ async function evidenceFor(links, { found = new Map(), fetchImpl = fetch, anthro
 // One story: the headline must be supported, the insight keeps its supported
 // sentences (at least one), "why it matters" keeps supported sentences and
 // opinion that adds no new facts.
-export async function factCheckStory(item, { anthropicKey, fetchImpl = fetch, found, deadline } = {}) {
+export async function factCheckStory(item, { anthropicKey, fetchImpl = fetch, found, deadline, evidence: given = null } = {}) {
   const headline = String(item?.headline || '');
   if (!Array.isArray(item?.sources) || !item.sources.length) return { item: null, report: { headline, outcome: 'dropped', reason: 'it had no source the search returned', removed: [] } };
-  const evidence = await evidenceFor(item.sources, { found, fetchImpl, anthropicKey });
+  // The lead write-up passes the pages it was written from (v4.20.4).
+  const evidence = given || await evidenceFor(item.sources, { found, fetchImpl, anthropicKey });
   const context = item.followUp?.headline ? [{ label: `Our earlier coverage, Stay Conscious Issue ${item.followUp.issueNumber ?? ''}`, text: `Stay Conscious reported: ${item.followUp.headline}.` }] : [];
   const ins = paragraphsOf(item.insight);
   const why = paragraphsOf(item.whyItMatters);
@@ -1498,7 +1573,10 @@ export default async function handler(req, res) {
         const publishedAt = new Date().toISOString();
         await writeIssueRow(LIVE_ID, published, publishedAt);
         await deleteIssueRow(DRAFT_ID);
-        const posted = await postToChannel(process.env.NEWSLETTER_WEBHOOK_URL, publishedNote(published));
+        // An admin can publish without the team channel post (v4.20.4), for
+        // a revision readers have already been told about. The schedule always posts.
+        const post = caller.cron ? true : req.body?.post !== false;
+        const posted = post ? await postToChannel(process.env.NEWSLETTER_WEBHOOK_URL, publishedNote(published)) : 'skipped';
         // The Smartsheet copy (v4.11.0): this issue's row, then the replaced
         // issue's link moves to its archived edition. Never blocks the publish.
         const smartsheet = await syncIssueToSmartsheet(published, { publishedAt, link: `${SITE_URL()}/newsletter`, check: meta.check || null });
@@ -1672,8 +1750,11 @@ export default async function handler(req, res) {
     // ranked) whose topic has not led any of the last three issues. Follow-ups
     // to earlier coverage sit among the other stories (v4.5.0).
     const recentLeads = await recentLeadCategories();
-    const leadItem = pickLead(intelligenceItems, recentLeads);
-    const supportingItems = intelligenceItems.filter(i => i !== leadItem);
+    const pickedLead = pickLead(intelligenceItems, recentLeads);
+    const supportingItems = intelligenceItems.filter(i => i !== pickedLead);
+    // Written up in full from its sources and fact-checked (v4.20.4).
+    const leadWriteUp = await writeUpLead(pickedLead, { anthropicKey, deadline: Date.now() + 90000 });
+    const leadItem = leadWriteUp.item;
 
     // The live issue (row 1, never the draft) and any draft waiting (v4.7.0).
     // A weekly draft takes the next number; a Force refresh with no weekly
@@ -1779,6 +1860,7 @@ export default async function handler(req, res) {
     // removed on publish with the rest of _draft (v4.10.0).
     const check = {
       stories: storyCheck.report?.stories || [], passed: storyCheck.items.length,
+      lead: { headline: leadItem.headline, ...leadWriteUp.report },
       earnedCreative: newsletter.earnedCreative?.carriedFrom ? [] : (newsletter.earnedCreative?.status?.factCheck || []),
       figures: figureReport,
     };
@@ -1794,7 +1876,7 @@ export default async function handler(req, res) {
       draft: true,
       weekly,
       issueNumber,
-      factCheck: { storiesPassed: check.passed, earnedCreativeKept: check.earnedCreative.filter(r => r.outcome === 'kept').length, figures: figureReport },
+      factCheck: { storiesPassed: check.passed, lead: leadWriteUp.report.outcome, earnedCreativeKept: check.earnedCreative.filter(r => r.outcome === 'kept').length, figures: figureReport },
       reviewPosted,
       refreshedAt: new Date().toISOString(),
     });

@@ -11,7 +11,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.20.3';
+const APP_VERSION = '4.20.4';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -53,6 +53,21 @@ function FactCheckReport({ check }) {
         Fact check: {check?.passed ?? stories.filter(s => s.outcome === 'kept').length} of {plural(stories.length, 'story', 'stories')} passed, {plural(removed, 'sentence', 'sentences')} removed,
         {' '}{plural(examples.filter(e => e.outcome === 'kept').length, 'earned creative example', 'earned creative examples')} kept.
       </summary>
+      {check?.lead?.headline && (
+        <>
+          <h4 className="dc-np-check-h">Lead story</h4>
+          <p className="dc-meta" data-field="lead-write-up">
+            {check.lead.outcome === 'written up'
+              ? `Written up in full from its sources: ${check.lead.sentences} sentences confirmed by the fact check.`
+              : `Left as written: ${check.lead.reason || 'no write-up'}.`}
+          </p>
+          {check.lead.outcome === 'written up' && check.lead.removed?.length > 0 && (
+            <ul className="dc-np-check-rm">
+              {check.lead.removed.map((x, k) => <li key={k}>Removed from {CHECK_FIELD[x.field] || x.field}: “{x.text}” ({x.reason})</li>)}
+            </ul>
+          )}
+        </>
+      )}
       {stories.length > 0 && <h4 className="dc-np-check-h">Stories</h4>}
       <ul className="dc-np-check-list">
         {stories.map((s, k) => (
@@ -13207,7 +13222,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
       if (!r.ok || d.error) throw new Error(d.error || `${r.status}`);
       if (action === 'publish') {
         setViewingDraft(false); setIssueId(null);
-        setDraftMsg(d.published ? `Issue ${d.issueNumber} is live.${d.posted === true ? ' It was posted to the team channel.' : d.posted === false ? ' The team channel post failed; check the webhook address.' : ''}` : (d.reason || 'Nothing was published.'));
+        setDraftMsg(d.published ? `Issue ${d.issueNumber} is live.${d.posted === true ? ' It was posted to the team channel.' : d.posted === 'skipped' ? ' It was not posted to the team channel.' : d.posted === false ? ' The team channel post failed; check the webhook address.' : ''}` : (d.reason || 'Nothing was published.'));
         await loadNewsletter(null);
       }
       if (action === 'discard') { setViewingDraft(false); setDraftMsg('The draft was discarded. The live issue is unchanged.'); }
@@ -13221,10 +13236,15 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
   // story search and fact check again, so the draft is not written from the
   // same short list. An issue with a full set reuses its stories.
   const storyCount = (nl) => (nl?.leadStory?.headline ? 1 : 0) + (nl?.intelligenceItems?.length || 0);
-  const forceRefresh = async () => {
-    setRefreshing(true); setError(null); setDraftMsg('');
+  // v4.20.4: an admin can choose to find new stories even when the issue has
+  // a full set, for a week whose stories are not good enough.
+  const [refreshOpen, setRefreshOpen] = useState(false);
+  const [newStories, setNewStories] = useState(false);
+  const [postToTeams, setPostToTeams] = useState(true);
+  const forceRefresh = async (findNew = storyCount(newsletter) < 6) => {
+    setRefreshing(true); setError(null); setDraftMsg(''); setRefreshOpen(false);
     try {
-      if (storyCount(newsletter) < 6) {
+      if (findNew) {
         setDraftMsg('Finding and fact-checking new stories first. This can take up to five minutes\u2026');
         const sr = await fetch('/api/refresh-stay-conscious?revise=1', { method: 'POST' });
         const sd = await sr.json().catch(() => ({}));
@@ -13433,10 +13453,8 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
     try { await navigator.clipboard.writeText(url); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); } catch { /* clipboard blocked */ }
   };
   const confirmRefresh = () => {
-    const short = storyCount(newsletter) < 6;
-    if (window.confirm(short
-      ? `This issue has ${countOf(storyCount(newsletter), 'story', 'stories')}. Find and fact-check new stories, then write a new draft? It can take up to seven minutes, and nothing changes for readers until the draft is published.`
-      : 'Write a new draft of the issue? It takes a minute or two, and nothing changes for readers until the draft is published.')) forceRefresh();
+    setNewStories(storyCount(newsletter) < 6);
+    setRefreshOpen(o => !o);
   };
   const paras = (t) => String(t || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
   // A missing or unreadable date shows nothing rather than breaking the page (v4.7.0).
@@ -13492,7 +13510,7 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
           {!gate && <button className="btn-secondary" type="button" aria-pressed={showArchive} onClick={() => (showArchive ? openIssue(issueId) : openArchive())}>{showArchive ? 'Back to issue' : 'Archive'}</button>}
           {!gate && <button className="btn-secondary" type="button" title="Copy the link to this issue. Colleagues sign in with their Antenna Group Google account to read it." aria-live="polite" onClick={shareLink}>{linkCopied ? 'Link copied' : 'Share link'}</button>}
           {isAdmin && !publicView && !issueId && !showArchive && (
-            <button className="btn-secondary" type="button" title="Write a new draft for review. Readers see nothing until it is published." onClick={confirmRefresh} disabled={refreshing || loading} aria-busy={refreshing || undefined}>
+            <button className="btn-secondary" type="button" title="Write a new draft for review. Readers see nothing until it is published." onClick={confirmRefresh} disabled={refreshing || loading} aria-busy={refreshing || undefined} aria-expanded={refreshOpen}>
               {refreshing ? 'Writing draft…' : 'New draft'}
             </button>
           )}
@@ -13509,6 +13527,21 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
           {!issueId && <span>Next update {when(nextSunday())}</span>}
         </div>
       </header>
+
+      {/* New draft options (v4.20.4): admins choose whether to find new stories first. */}
+      {isAdmin && refreshOpen && !refreshing && (
+        <section className="dc-np-review" aria-label="New draft" data-field="refresh-options">
+          <p className="dc-np-review-p"><strong>Write a new draft.</strong> Nothing changes for readers until the draft is published.</p>
+          <label className="dc-check">
+            <input type="checkbox" checked={newStories} onChange={e => setNewStories(e.target.checked)} />
+            <span>Find and fact-check new stories first{storyCount(newsletter) < 6 ? ` (this issue has ${countOf(storyCount(newsletter), 'story', 'stories')})` : ''}. Takes up to seven minutes; without it, the draft reuses this week's stories and takes a minute or two.</span>
+          </label>
+          <div className="dc-np-review-actions">
+            <button type="button" className="btn-secondary btn-sm" onClick={() => setRefreshOpen(false)}>Cancel</button>
+            <button type="button" className="btn-primary btn-sm" onClick={() => forceRefresh(newStories)}>Write the draft</button>
+          </div>
+        </section>
+      )}
 
       {/* Draft review (v4.7.0): admins, in the app only. */}
       {canReview && (draftState?.draft || draftMsg) && (
@@ -13528,7 +13561,11 @@ function StayConsciousPage({ onBack, isAdmin, publicView = false }) {
                 <button type="button" className="btn-secondary btn-sm" onClick={() => { setViewingDraft(true); setEditOpen(true); }} disabled={draftBusy}>Edit text</button>
                 <button type="button" className="btn-secondary btn-sm" onClick={() => draftAction(draftState.meta?.held ? 'release' : 'hold')} disabled={draftBusy}>{draftState.meta?.held ? 'Release' : 'Hold'}</button>
                 <button type="button" className="btn-secondary btn-sm" onClick={() => { if (window.confirm('Discard this draft? The live issue stays as it is.')) draftAction('discard'); }} disabled={draftBusy}>Discard</button>
-                <button type="button" className="btn-primary btn-sm" onClick={() => { if (window.confirm(`Publish Issue ${draftState.draft.issueNumber} to everyone now?`)) draftAction('publish'); }} disabled={draftBusy} aria-busy={draftBusy || undefined}>Publish now</button>
+                <label className="dc-check is-inline" data-field="post-to-teams">
+                  <input type="checkbox" checked={postToTeams} onChange={e => setPostToTeams(e.target.checked)} disabled={draftBusy} />
+                  <span>Post to the team channel</span>
+                </label>
+                <button type="button" className="btn-primary btn-sm" onClick={() => { if (window.confirm(`Publish Issue ${draftState.draft.issueNumber} to everyone now${postToTeams ? ' and post it to the team channel' : ', without posting to the team channel'}?`)) draftAction('publish', { post: postToTeams }); }} disabled={draftBusy} aria-busy={draftBusy || undefined}>Publish now</button>
               </div>
             </>
           )}
