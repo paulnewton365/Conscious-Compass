@@ -86,8 +86,13 @@ test('scoring reads each dimension as evidence for the attributes it measures, c
   assert.match(b, /count each finding once/);
   assert.match(b, /not as a score to copy/);
   // Visual identity is Intentional's alone (framework 2.15): consistency splits that way.
-  assert.ok(app.includes("${scoringInputs.website?.perplexityAudit?.audit ? `\\n${webAuditPromptBlock(scoringInputs.website.perplexityAudit.audit, 'website')}\\n` : ''}"));
-  assert.ok(app.includes("webAuditPromptBlock(scoringInputs.social.perplexityAudit.audit, 'social')"));
+  // Both blocks sit inside the scoring prompt itself, with the assessor's edited report.
+  const start = app.indexOf('const prompt = `You are scoring ${project.brandName} against the Conscious Compass Framework');
+  const scoring = app.slice(start, app.indexOf('\nASSESSMENT DATA:', start) + 12000);
+  assert.ok(scoring.includes("webAuditPromptBlock(scoringInputs.website.perplexityAudit.audit, 'website', scoringInputs.website.perplexityContent)"));
+  assert.ok(scoring.includes("webAuditPromptBlock(scoringInputs.social.perplexityAudit.audit, 'social', scoringInputs.social.perplexityContent)"));
+  assert.ok(scoring.includes('systemPromptBlock(scoringInputs.social.socialHealthCheckStructured)'));
+  assert.ok(scoring.includes('mediaAuditPromptBlock(scoringInputs.earnedMedia.mediaAudit.audit)'));
 });
 
 test('the website and social system check: in the website auto-assess and the social health check, read by the analysis and scoring', () => {
@@ -119,4 +124,15 @@ test('the steps: one automated panel each, the audit optional, feeding the analy
   assert.ok(app.includes('The analysis was written before this audit. Run the analysis again to include it.'));
   assert.deepEqual(q.stepSources('website').map(([n]) => n).slice(-1), ['Perplexity website audit']);
   assert.deepEqual(q.stepSources('social').map(([n]) => n).slice(-1), ['Perplexity social audit']);
+});
+
+test('corrections the assessor makes in the report are what scoring reads', () => {
+  let t = pa.webAuditText(RAW, 'website');
+  t = t.replace('- Conversion Architecture: 3/10. Demo form has 12 fields.', '- Conversion Architecture: 6/10. The form has 4 fields; Perplexity misread it.')
+    .replace(/- The hero says nothing[^\n]*/, '- The hero is clear for buyers.');
+  const b = pa.webAuditPromptBlock(RAW, 'website', t);
+  assert.match(b, /Conversion Architecture 6\/10 \(evidence for COGENT, ATTENTIVE\): The form has 4 fields; Perplexity misread it\./);
+  assert.match(b, /Key findings:\n- The hero is clear for buyers\./);
+  assert.match(b, /Authenticity 7\/10/, 'untouched rows keep Perplexity\'s score');
+  assert.match(pa.webAuditPromptBlock(RAW, 'website'), /Conversion Architecture 3\/10/, 'without an edited text, the original');
 });

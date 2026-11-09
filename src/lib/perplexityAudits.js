@@ -296,14 +296,40 @@ export function webAuditText(audit, kind, { ranAt = null } = {}) {
   return lines.join('\n');
 }
 
-// What scoring reads: the scorecard, each dimension routed to the attributes
-// it measures, counted once with the step's analysis.
-export function webAuditPromptBlock(audit, kind) {
+// The scorecard and summary as the assessor left them (v4.21.2): corrections
+// made in the editable report reach scoring, not only Perplexity's original.
+export function readEditedAudit(text, kind) {
+  const t = String(text || '');
+  if (!t.trim() || !AUDIT_KINDS[kind]) return null;
+  const section = (name) => {
+    const m = new RegExp(`(^|\\n)${name}\\n([\\s\\S]*?)(\\n\\n|$)`).exec(t);
+    return m ? m[2].split('\n').map(l => l.trim()).filter(l => l.startsWith('- ')).map(l => l.slice(2).trim()) : [];
+  };
+  const rows = section('SCORECARD');
+  const scores = {};
+  rows.forEach(r => {
+    const m = /^(.+?):\s*(\d{1,2}|n\/a)\s*\/\s*10\.?\s*(.*)$/i.exec(r);
+    if (m) scores[m[1].trim().toLowerCase()] = { score: /n\/a/i.test(m[2]) ? null : Math.max(1, Math.min(10, Number(m[2]))), justification: m[3].trim() };
+  });
+  return { summary: section('EXECUTIVE SUMMARY'), scores };
+}
+
+// What scoring reads: the executive summary and the scorecard, each
+// dimension routed to the attributes it measures, counted once with the
+// step's analysis. editedText is the report as the assessor left it.
+export function webAuditPromptBlock(audit, kind, editedText = null) {
   const a = normalizeWebAudit(audit, kind);
   if (!a) return '';
+  const edited = readEditedAudit(editedText, kind);
   const routes = Object.fromEntries(AUDIT_KINDS[kind].dimensions);
-  const rows = a.scorecard.filter(r => r.score != null).map(r => `- ${r.dimension} ${r.score}/10${routes[r.dimension]?.length ? ` (evidence for ${routes[r.dimension].join(', ')})` : ' (context for calibration only)'}: ${clip(r.justification, 220)}`);
-  return `${kind === 'website' ? 'WEBSITE' : 'SOCIAL'} AUDIT (Perplexity web research, scored by Perplexity on its own 1 to 10 scale):
+  const card = a.scorecard.map(r => {
+    const e = edited?.scores?.[r.dimension.toLowerCase()];
+    return e ? { ...r, score: e.score, justification: e.justification || r.justification } : r;
+  });
+  const summary = edited?.summary?.length ? edited.summary : a.executiveSummary;
+  const rows = card.filter(r => r.score != null).map(r => `- ${r.dimension} ${r.score}/10${routes[r.dimension]?.length ? ` (evidence for ${routes[r.dimension].join(', ')})` : ' (context for calibration only)'}: ${clip(r.justification, 220)}`);
+  return `${kind === 'website' ? 'WEBSITE' : 'SOCIAL'} AUDIT (Perplexity web research, checked by the assessor; scored on Perplexity's own 1 to 10 scale):
+${summary.length ? `Key findings:\n${summary.slice(0, 5).map(x => `- ${clip(x, 260)}`).join('\n')}\n` : ''}Scorecard:
 ${rows.join('\n')}
 This audit is one more view of the same ${kind === 'website' ? 'website' : 'social presence'} the step's analysis above already covers: count each finding once, and weigh it as evidence for the attributes named, not as a score to copy. Where it and the analysis disagree, prefer the one that cites a specific page or post.`;
 }

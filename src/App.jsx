@@ -13,7 +13,7 @@ import { saveAs } from 'file-saver';
 import { createPortal } from 'react-dom';
 import { createClientReport, fetchClientReport, decryptPayload, listClientReports, revokeClientReport, resetClientReportPassword, isRecoveryVisit, onRecovery, resetLandingUrl, sendPasswordReset, setNewPassword, clearRecoveryUrl, confirmTokenFromUrl, confirmEmail, authLinkError, clearAuthUrl, resendConfirmation } from './lib/supabase';
 
-const APP_VERSION = '4.21.1';
+const APP_VERSION = '4.21.2';
 // How long the waiting screen shows how the passes ended before the report
 // replaces it (v3.114.0).
 const OUTCOME_HOLD_MS = 1400;
@@ -6785,14 +6785,14 @@ ${(() => {
   const risk = pd.consistencyAnalysis?.match(/OVERALL RISK RATING:\s*(Low|Medium|High)/i)?.[1] || 'Not assessed';
   return `\nDIGITAL ESTATE (${props.length + 1} properties — consistency risk: ${risk}):\n${table}\n${pd.consistencyAnalysis ? `Consistency analysis:\n${cap(pd.consistencyAnalysis, 800)}` : 'No consistency analysis run.'}`;
 })()}
-${scoringInputs.website?.perplexityAudit?.audit ? `\n${webAuditPromptBlock(scoringInputs.website.perplexityAudit.audit, 'website')}\n` : ''}
+${scoringInputs.website?.perplexityAudit?.audit ? `\n${webAuditPromptBlock(scoringInputs.website.perplexityAudit.audit, 'website', scoringInputs.website.perplexityContent)}\n` : ''}
 SOCIAL MEDIA:
 ${scoringInputs.social.noSocialPresence ? `CONFIRMED: This brand has NO social media presence. The assessor verified this. What they checked: ${cap(scoringInputs.social.noSocialNote, 400) || 'no detail recorded'}
 This is established fact, not missing data. Score the absence on its consequences rather than withholding judgment or defaulting to a mid-range score. A total absence from social is a material gap in AWARE (no audience relationship or listening) and SENTIENT (no emotional connection being built), and it weakens AWAKE where the category conversation happens on social. If absence is a defensible strategic choice for this business model and sector, credit it in COGENT, whose rubric rewards deliberate channel choices, rather than excusing the gap elsewhere.
 ` : ''}${cap(scoringInputs.social.content)}
 ${[field('Glassdoor', cap([scoringInputs.social.glassdoorAuto, scoringInputs.social.glassdoorContent].filter(Boolean).join('\n'), 400)), field('Employee Advocacy', cap(scoringInputs.social.employeeAdvocacy, 300)), field('Campaign & Paid Signals', cap([scoringInputs.social.campaignAuto, scoringInputs.social.campaignContent, scoringInputs.social.paidMediaContent, scoringInputs.social.hashtagContent].filter(Boolean).join('\n'), 600)), field('Awards', cap(scoringInputs.social.awardsRecognition, 300)), field('WIPO', scoringInputs.social.wipoContent), field('Notes', scoringInputs.social.observations)].filter(Boolean).join('\n')}
 YouTube: ${scoringInputs.social.youtubeContent?.includes('[API Data]') ? 'Verified metrics included' : 'Manual only'}
-${scoringInputs.social?.perplexityAudit?.audit ? `\n${webAuditPromptBlock(scoringInputs.social.perplexityAudit.audit, 'social')}\n` : ''}${scoringInputs.social?.socialHealthCheckStructured?.websiteAndSocial ? `\n${systemPromptBlock(scoringInputs.social.socialHealthCheckStructured)}\n` : ''}
+${scoringInputs.social?.perplexityAudit?.audit ? `\n${webAuditPromptBlock(scoringInputs.social.perplexityAudit.audit, 'social', scoringInputs.social.perplexityContent)}\n` : ''}${scoringInputs.social?.socialHealthCheckStructured?.websiteAndSocial ? `\n${systemPromptBlock(scoringInputs.social.socialHealthCheckStructured)}\n` : ''}
 AI REPUTATION:
 ${(() => {
   const ai = scoringInputs.aiReputation;
