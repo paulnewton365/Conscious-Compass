@@ -144,3 +144,19 @@ test('earned creative looks around the world, and the three shown come from diff
   assert.deepEqual(nl.pickForIssue(uk).map(e => e.brand), ['A', 'B', 'C'], 'with nothing else, the issue still gets three');
   assert.deepEqual(nl.pickForIssue([ex('A', 'UK', '2026-11-05'), ex('B', 'UK', '2026-11-04'), ex('D', 'Japan', '2026-10-01')]).map(e => e.brand), ['A', 'B', 'D']);
 });
+
+test('v4.21.3: three regional searches at once, with free sources the checks can read, run alongside the issue', () => {
+  assert.deepEqual(nl.EARNED_CREATIVE_REGIONS.map(r => r.id), ['americas', 'emea', 'apac']);
+  const p = nl.earnedCreativePrompt({ region: nl.EARNED_CREATIVE_REGIONS[2], count: 4 });
+  assert.match(p, /^Find 4 recent examples/);
+  assert.match(p, /Find work that ran in Asia Pacific/);
+  assert.match(p, /Campaign Asia, Mumbrella and B&T/);
+  ['PRovoke Media', 'Cannes Lions', 'Edelman', 'Weber Shandwick', 'Burson', 'Golin', 'RAMP'].forEach(x => assert.ok(p.includes(x), x));
+  assert.match(p, /An agency's own case study is a fair source: say in the coverage line that the figures are the agency's\./);
+  assert.match(nl.earnedCreativePrompt(), /Look around the world, not mainly at the UK/, 'without a region, the worldwide brief');
+  assert.ok(src.includes('const results = await Promise.all(EARNED_CREATIVE_REGIONS.map(region => {'));
+  assert.ok(src.includes('earnedCreative: withCarryOver(await earnedCreativeRun,'));
+  assert.ok(src.indexOf('const earnedCreativeRun = (async () => {') < src.indexOf('const leadWriteUp = await writeUpLead('), 'started before the lead write-up, not after everything');
+  assert.ok(src.includes('earnedCreativeStop = true;'), 'a run that ends early stops the search');
+  assert.ok(src.includes('signal: ctl.signal,'), 'no search runs past the deadline');
+});

@@ -336,15 +336,32 @@ export const EARNED_CREATIVE_WINDOWS = [
 // It now searches trade press across regions, asks for a spread of
 // countries, and a top-up search is told which countries are already in hand.
 export const EARNED_CREATIVE_PER_COUNTRY = 1;
-export function earnedCreativePrompt({ count = 6, exclude = [], window = 0, haveCountries = [] } = {}) {
+// Three searches at once, one per region (v4.21.3). One search for six
+// examples, worldwide, kept finding British work: the free-to-read UK trade
+// titles pass the article and fact checks, and paywalled US titles do not.
+// Each region now has its own search, its own press, and the free sources that
+// can be checked: agency case studies and newsrooms, award winners and
+// shortlists, and PRovoke Media.
+export const EARNED_CREATIVE_REGIONS = [
+  { id: 'americas', label: 'North America and Latin America', press: 'Ad Age, Adweek, Fast Company, PRWeek US, Strategy (Canada), Meio & Mensagem (Brazil)' },
+  { id: 'emea', label: 'the UK, Europe, the Middle East and Africa', press: 'The Drum, Campaign, Marketing Week, PRWeek UK, LBBOnline, Campaign Middle East, Horizont (Germany)' },
+  { id: 'apac', label: 'Asia Pacific', press: 'Campaign Asia, Mumbrella and B&T (Australia), Adobo Magazine, Marketing-Interactive, afaqs (India)' },
+];
+export const EARNED_CREATIVE_AGENCIES = ['Edelman', 'Weber Shandwick', 'Burson', 'Golin', 'RAMP', 'FleishmanHillard', 'Ogilvy', 'MullenLowe', 'Mischief', 'DDB'];
+export function earnedCreativePrompt({ count = 6, exclude = [], window = 0, haveCountries = [], region = null } = {}) {
   const skip = exclude.length ? `\n\nDo not include work by these brands, already covered: ${exclude.join(', ')}.` : '';
   const elsewhere = haveCountries.length ? `\n\nThis issue already has examples from ${[...new Set(haveCountries)].join(', ')}. Find work from other countries.` : '';
   const w = Math.min(Math.max(0, window), EARNED_CREATIVE_WINDOWS.length - 1);
+  const where = region
+    ? `Find work that ran in ${region.label}, from as many different countries there as you can. Search that region's trade press (${region.press}) and the free sources below.`
+    : 'Look around the world, not mainly at the UK: UK work is welcome, but draw from North America, Latin America, Europe, the Middle East, Africa and Asia Pacific as well, and give a spread of countries, at most two from any one country. Search trade and business press in every region, for example Ad Age, Adweek and Fast Company (US), Strategy (Canada), The Drum, Campaign and Marketing Week (UK), Campaign Asia, Campaign Middle East, Mumbrella and B&T (Australia), Adobo Magazine and Marketing-Interactive (Asia), afaqs (India), Meio & Mensagem (Brazil), and the free sources below.';
   return `Find ${count} ${w ? 'examples of earned creative that cut through' : 'recent examples of earned creative that are catching headlines'}. ${EARNED_CREATIVE_WINDOWS[w]} Earned creative is an idea designed to be talked about rather than paid to be seen: a brand DID something in the world (a stunt, an installation, a product intervention, a data release, a public act, a partnership) and journalists, creators or the public carried it. Not paid ads, not sponsorships, not press releases on their own.
 
-Prefer work by brands with a purpose, climate, energy, health or social angle, but any strong example will do. Look around the world, not mainly at the UK: UK work is welcome, but draw from North America, Latin America, Europe, the Middle East, Africa and Asia Pacific as well, and give a spread of countries, at most two from any one country. Search trade and business press in every region, for example Ad Age, Adweek and Fast Company (US), Strategy (Canada), The Drum, Campaign and Marketing Week (UK), Campaign Asia, Campaign Middle East, Mumbrella and B&T (Australia), Adobo Magazine and Marketing-Interactive (Asia), afaqs (India), Meio & Mensagem (Brazil), and global sources such as Muse by Clio, Contagious, Shots, LBBOnline and the Cannes Lions shortlists. One example per brand.${skip}${elsewhere}
+Prefer work by brands with a purpose, climate, energy, health or social angle, but any strong example will do. ${where} One example per brand.
 
-For each example, use only facts from the pages your searches returned. The link must be the article you read about it. Prefer articles that are free to read over paywalled ones, so the facts can be checked.
+Free sources whose pages can be checked, worth searching first: PRovoke Media (and its SABRE Awards), Muse by Clio, Contagious, Shots, LBBOnline, the Cannes Lions, D&AD, One Show, Effie and Shorty Awards winners and shortlists, and the case studies and news pages of PR and creative agencies that do this work well, such as ${EARNED_CREATIVE_AGENCIES.join(', ')}. An agency's own case study is a fair source: say in the coverage line that the figures are the agency's.${skip}${elsewhere}
+
+For each example, use only facts from the pages your searches returned. The link must be the article or case study you read about it. Prefer pages that are free to read over paywalled ones, so the facts can be checked.
 
 Return JSON only, no prose before or after, most recent first:
 {"examples":[{"brand":"The brand behind the work","agency":"The agency, or empty if none is named","title":"Name of the work, or a plain description","what":"What they did. Two short sentences, under 45 words.","coverage":"What coverage it generated: who carried it and how widely, from the article. One sentence, under 30 words.","outlet":"The publication of the link","country":"The country where the work ran","published":"YYYY-MM-DD the article was published, or empty if unknown","url":"https://..."}]}
@@ -502,22 +519,34 @@ export const byRecency = (items) => items
 // resumed, up to three times, instead of being read as "nothing found"
 // (v4.1.2: this emptied the section for several issues). Returns the
 // candidates and, when there are none, why.
-async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline = Infinity, window = 0, haveCountries = []) {
-  const prompt = earnedCreativePrompt({ exclude, window, haveCountries });
+async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline = Infinity, window = 0, haveCountries = [], region = null) {
+  const prompt = earnedCreativePrompt({ count: region ? 4 : 6, exclude, window, haveCountries, region });
   let content = [];
   let stop = '';
   for (let turn = 0; turn < 4; turn++) {
     const messages = [{ role: 'user', content: prompt }];
     if (content.length) messages.push({ role: 'assistant', content });
-    const r = await fetchImpl('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6', max_tokens: 6000, temperature: 0,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
-        messages,
-      }),
-    });
+    // No search may run past the deadline (v4.21.3): the draft waits for it.
+    const ctl = new AbortController();
+    const timer = Number.isFinite(deadline) ? setTimeout(() => ctl.abort(), Math.max(5000, Math.min(120000, deadline - Date.now()))) : null;
+    let r;
+    try {
+      r = await fetchImpl('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal: ctl.signal,
+        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6', max_tokens: 6000, temperature: 0,
+          tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }],
+          messages,
+        }),
+      });
+    } catch (err) {
+      if (timer) clearTimeout(timer);
+      if (err?.name === 'AbortError') break;   // keep what this search had found
+      throw err;
+    }
+    if (timer) clearTimeout(timer);
     if (!r.ok) return { candidates: [], reason: `search request failed (${r.status})` };
     const data = await r.json();
     content = content.concat(Array.isArray(data?.content) ? data.content : []);
@@ -537,7 +566,7 @@ async function searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline =
 // featured: brands shown in recent issues, left out so examples do not repeat
 // week to week (v4.5.0). The carry-over below may still show last week's when
 // nothing new is found, and says so.
-export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, verify = verifyExample, factCheck = factCheckExample, rounds = EARNED_CREATIVE_WINDOWS.length, budgetMs = 120000, deadlineMs = 200000, featured = [] } = {}) {
+export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, verify = verifyExample, factCheck = factCheckExample, rounds = EARNED_CREATIVE_WINDOWS.length, budgetMs = 110000, deadlineMs = 230000, featured = [] } = {}) {
   const started = Date.now();
   const deadline = started + deadlineMs;
   const kept = [];
@@ -547,11 +576,19 @@ export async function fetchEarnedCreative(anthropicKey, { fetchImpl = fetch, ver
     // Keeps searching until three from different countries have passed (v4.20.5).
     for (let round = 0; round < rounds && !spreadComplete(kept); round++) {
       if (round > 0 && Date.now() - started > budgetMs) break;   // leave time for the rest of the issue
-      status.searches += 1;
-      // Each round looks further back (v4.10.0).
-      const found = await searchEarnedCreative(anthropicKey, [...tried], fetchImpl, deadline, round, kept.map(e => e.country).filter(Boolean));
-      if (found.reason) status.reasons.push(found.reason);
-      const candidates = found.candidates.filter(e => !tried.has(e.brand.toLowerCase()));
+      // Each round looks further back (v4.10.0), with one search per region
+      // at once (v4.21.3).
+      const exclude = [...tried];
+      const have = kept.map(e => e.country).filter(Boolean);
+      const results = await Promise.all(EARNED_CREATIVE_REGIONS.map(region => {
+        status.searches += 1;
+        return searchEarnedCreative(anthropicKey, exclude, fetchImpl, deadline, round, have, region)
+          .catch(err => ({ candidates: [], reason: `search error: ${String(err?.message || err).slice(0, 80)}` }));
+      }));
+      results.forEach(f => { if (f.reason) status.reasons.push(f.reason); });
+      const fresh = new Set();
+      const candidates = results.flatMap(f => f.candidates)
+        .filter(e => { const k = e.brand.toLowerCase(); if (tried.has(k) || fresh.has(k)) return false; fresh.add(k); return true; });
       if (!candidates.length) continue;
       candidates.forEach(e => tried.add(e.brand.toLowerCase()));
       status.candidates += candidates.length;
@@ -1761,6 +1798,11 @@ export default async function handler(req, res) {
     return [...new Set(brands.filter(Boolean))];
   };
 
+  // Set when the run ends, so the earned creative search, which runs
+  // alongside, makes no further calls (v4.21.3).
+  let earnedCreativeStop = false;
+  const earnedCreativeFetch = (...args) => (earnedCreativeStop ? Promise.reject(new Error('the run has ended')) : fetch(...args));
+
   try {
     // Pull all three caches in parallel
     const [scRow, reportRow, laRow, iaRow] = await Promise.all([
@@ -1779,6 +1821,19 @@ export default async function handler(req, res) {
     }
 
     const intelligenceItems = storyCheck.items;
+
+    // Earned creative runs alongside the rest of the issue (v4.21.3). It used
+    // to start last, after the stories, the lead write-up and the other
+    // sections, and with what time was left it managed one search: usually one
+    // example. Started here, it has most of the five minutes, and must be done
+    // by about four minutes in so the draft can still be written. It starts once
+    // there are stories to make an issue from, so a run with none starts nothing.
+    const earnedCreativeRun = (async () => {
+      const live = await readIssueRow(LIVE_ID);
+      const left = (ms) => Math.max(30000, startedAt + ms - Date.now());
+      return fetchEarnedCreative(anthropicKey, { fetchImpl: earnedCreativeFetch, featured: await recentlyFeaturedBrands(live), budgetMs: left(110000), deadlineMs: left(230000) });
+    })().catch(err => ({ items: [], generatedAt: new Date().toISOString(), status: { searches: 0, candidates: 0, passed: 0, reasons: [`error: ${String(err?.message || err).slice(0, 120)}`], factCheck: [] } }));
+
     const landscapeAnalysis = laRow?.analysis || null;
     const storyOpportunities = iaRow?.stories || null;
 
@@ -1885,7 +1940,7 @@ export default async function handler(req, res) {
       talkingPoint: await writeTalkingPoint([leadItem, ...supportingItems]),   // v4.7.0
       storyOpportunities: storyOpportunities || null,
       // Earned creative in the news (v3.124.0); null when none could be sourced.
-      earnedCreative: withCarryOver(await fetchEarnedCreative(anthropicKey, { featured: await recentlyFeaturedBrands(prevRow) }), prevRow?.newsletter?.earnedCreative, prevRow?.newsletter?.issueNumber || null),
+      earnedCreative: withCarryOver(await earnedCreativeRun, prevRow?.newsletter?.earnedCreative, prevRow?.newsletter?.issueNumber || null),
     };
 
     // Written as a draft for review (v4.7.0). The issue it will replace is
@@ -1920,5 +1975,8 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Newsletter refresh failed:', error);
     return res.status(500).json({ error: error.message });
+  } finally {
+    // A run that ends early (an error) stops the earned creative search too.
+    earnedCreativeStop = true;
   }
 }

@@ -379,20 +379,28 @@ test('v4.0.2: six candidates over three months, a top-up search for new brands, 
     [ex('A', '2026-09-01'), ex('B', '2026-10-01'), ex('C', '2026-08-01')],
     [ex('A', '2026-09-01'), ex('D', '2026-07-15'), ex('E', '')],
   ];
-  const fetchImpl = async (_u, init) => { prompts.push(JSON.parse(init.body).messages[0].content); return reply(rounds[prompts.length - 1]); };
+  // v4.21.3: each round runs one search per region at once; here the
+  // Americas search finds the examples and the other two find none.
+  const fetchImpl = async (_u, init) => {
+    const p = JSON.parse(init.body).messages[0].content;
+    prompts.push(p);
+    const round = p.includes('Look back up to twelve months') ? 1 : 0;
+    return reply(p.includes('North America and Latin America') ? rounds[round] : []);
+  };
   const pass = new Set(['A', 'D', 'E']);
   const factCheck = async (e) => ({ item: { ...e, factChecked: true }, report: { brand: e.brand, outcome: 'kept', removed: [] } });   // checked in its own test
   const out = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async (e) => pass.has(e.brand), factCheck });
-  assert.equal(prompts.length, 2, 'a second search ran because only one passed');
-  assert.ok(prompts[1].includes('Look back up to twelve months'), 'v4.10.0: the second search looks further back');
-  assert.ok(prompts[1].includes('already covered: a, b, c'), 'the top-up skips brands already tried');
+  assert.equal(prompts.length, 6, 'a second round of three regional searches ran because only one passed');
+  const second = prompts.filter(p => p.includes('Look back up to twelve months'));
+  assert.equal(second.length, 3, 'v4.10.0: the second round looks further back');
+  assert.ok(second.every(p => p.includes('already covered: a, b, c')), 'the top-up skips brands already tried');
   assert.deepEqual(out.items.map(i => i.brand), ['A', 'D', 'E'], 'three kept, most recent first, undated last');
   assert.ok(!('searchTitle' in out.items[0]));
 
   // Three pass in the first round: no second search.
   prompts.length = 0;
   const one = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async () => true, factCheck });
-  assert.equal(prompts.length, 1);
+  assert.equal(prompts.length, 3, 'one round: three regional searches');
   assert.deepEqual(one.items.map(i => i.brand), ['B', 'A', 'C']);
   // Nothing found at all: the section is left out.
   assert.deepEqual((await mod.fetchEarnedCreative('k', { fetchImpl: async () => ({ ok: false }) })).items, []);
@@ -441,14 +449,22 @@ test('v4.1.2: a paused search is resumed, the reason for a short section is save
     { stop_reason: 'pause_turn', content: [{ type: 'text', text: 'Searching {first} ' }, { type: 'web_search_tool_result', content: ['A', 'B', 'C'].map(b => ({ type: 'web_search_result', url: url(b) })) }] },
     { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ examples: [ex('A'), ex('B'), ex('C')] }) }] },
   ];
-  const fetchImpl = async (_u, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, json: async () => replies[bodies.length - 1] }; };
+  // v4.21.3: three regional searches at once; the Americas one pauses and is
+  // resumed, the other two find nothing.
+  const fetchImpl = async (_u, init) => {
+    const b = JSON.parse(init.body);
+    bodies.push(b);
+    if (!b.messages[0].content.includes('North America and Latin America')) return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: '{"examples":[]}' }] }) };
+    return { ok: true, json: async () => replies[b.messages.length > 1 ? 1 : 0] };
+  };
   const factCheck = async (e) => ({ item: { ...e, factChecked: true }, report: { brand: e.brand, outcome: 'kept', removed: [] } });
   const out = await mod.fetchEarnedCreative('k', { fetchImpl, verify: async () => true, factCheck });
-  assert.equal(bodies.length, 2, 'the paused turn was resumed');
-  assert.equal(bodies[1].messages[1].role, 'assistant', 'resumed with the paused content');
+  const americas = bodies.filter(b => b.messages[0].content.includes('North America and Latin America'));
+  assert.equal(americas.length, 2, 'the paused turn was resumed');
+  assert.equal(americas[1].messages[1].role, 'assistant', 'resumed with the paused content');
   assert.deepEqual(out.items.map(i => i.brand), ['A', 'B', 'C'], 'links from the paused turn count as searched');
   assert.ok(out.items.every(i => i.verified === true));
-  assert.deepEqual(out.status, { searches: 1, candidates: 3, passed: 3, reasons: [], factCheck: ['A', 'B', 'C'].map(brand => ({ brand, outcome: 'kept', removed: [] })) });
+  assert.deepEqual(out.status, { searches: 3, candidates: 3, passed: 3, reasons: ['no usable examples in the answer', 'no usable examples in the answer'], factCheck: ['A', 'B', 'C'].map(brand => ({ brand, outcome: 'kept', removed: [] })) });
 
   // A failed request: no items, and the reason is saved.
   const failed = await mod.fetchEarnedCreative('k', { fetchImpl: async () => ({ ok: false, status: 429 }) });
@@ -472,7 +488,7 @@ test('v4.1.2: a paused search is resumed, the reason for a short section is save
 
   const { ecStatusNote } = await import('../src/lib/newsletter.js');
   assert.equal(ecStatusNote(out), null, 'three fresh: no note');
-  assert.match(ecStatusNote(failed), /no section this issue \(3 searches, 0 candidates, 0 passed the article check; search request failed \(429\)\)/);
+  assert.match(ecStatusNote(failed), /no section this issue \(9 searches, 0 candidates, 0 passed the article check; search request failed \(429\)\)/);
   assert.match(ecStatusNote(carried), /examples from issue 34 are shown again/);
   assert.equal(ecStatusNote({ items: [] }), null, 'older issues have no status');
 });
@@ -713,7 +729,8 @@ test('v4.5.0: stories do not repeat earlier issues unless they have moved on, an
   // The newsletter: a fresh story leads; follow-ups survive the public filter
   const nlSrc = readFileSync(new URL('refresh-stay-conscious-newsletter.js', API), 'utf8');
   assert.ok(nlSrc.includes('const fresh = items.filter(i => !i.followUp);') && nlSrc.includes('...(leadItem.followUp ? { followUp: leadItem.followUp } : {})'));
-  assert.ok(nlSrc.includes('fetchEarnedCreative(anthropicKey, { featured: await recentlyFeaturedBrands(prevRow) })'), 'earned creative skips recently featured brands');
+  // v4.21.3: it starts alongside the rest of the issue, reading the live issue itself.
+  assert.ok(nlSrc.includes('featured: await recentlyFeaturedBrands(live)'), 'earned creative skips recently featured brands');
   const pub = await import('../api/stay-conscious-newsletter.js');
   const out = pub.publicIssue({ leadStory: { headline: 'h', insight: 'i', followUp: { issueNumber: 37, editionAt: '2026-10-11T23:30:00Z', headline: 'Earlier', whatsNew: 'New data.', secret: 'x' } } }, []);
   assert.deepEqual(out.leadStory.followUp, { issueNumber: 37, headline: 'Earlier', whatsNew: 'New data.', editionAt: '2026-10-11T23:30:00Z' });
@@ -1461,7 +1478,7 @@ test('v4.14.0: the fact check stops failing stories for reasons that are not abo
   assert.deepEqual(sc.fillStories([p('A', 'Paid Media')], [p('C', 'Paid Media')]).map(x => x.headline), ['A', 'C'], 'a repeat topic beats an empty slot');
   assert.equal(sc.BACKUP_COUNT, 6);
   // Earned creative is read the same way, and the searches prefer readable pages
-  assert.ok(src.includes('const evidence = await evidenceFor([e], { fetchImpl, anthropicKey });') && src.includes('Prefer articles that are free to read'));
+  assert.ok(src.includes('const evidence = await evidenceFor([e], { fetchImpl, anthropicKey });') && src.includes('Prefer pages that are free to read'));
   const e = await nl.factCheckExample({ brand: 'Golin', title: 'Merger', what: 'Golin and Ketchum completed their merger on Monday.', coverage: '', url: 'https://www.adweek.com/agencies/golin-ketchum/' }, { anthropicKey: 'k', fetchImpl });
   assert.ok(e.item?.factChecked, 'an Adweek-only example now passes when the facts are on the page');
   // and the link check that comes first reads through Claude too
